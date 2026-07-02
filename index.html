@@ -204,7 +204,7 @@ select{
   padding-right:28px;
 }
 
-input[type="text"], input[type="email"]{
+input[type="text"], input[type="password"]{
   width:100%;
   padding:11px 10px;
   border:none;
@@ -289,24 +289,6 @@ button{
 .pin-map-btn.active{ background:#f5a623; border-color:#f5a623; }
 
 /* --- Auth UI --- */
-.auth-btn{
-  display:flex;
-  align-items:center;
-  gap:6px;
-  background:#262626;
-  border:1px solid #444;
-  color:#eee;
-  border-radius:6px;
-  padding:5px 10px;
-  font-size:11px;
-  font-weight:600;
-  cursor:pointer;
-  -webkit-tap-highlight-color:transparent;
-  touch-action:manipulation;
-}
-.auth-btn:active{ background:#333; }
-.auth-btn svg{ flex-shrink:0; }
-
 .user-badge{
   display:flex;
   align-items:center;
@@ -338,41 +320,25 @@ button{
 .locked-panel{
   display:flex;
   flex-direction:column;
-  align-items:center;
-  gap:10px;
-  padding:14px 10px;
-  text-align:center;
+  gap:8px;
+  padding:12px 10px;
 }
 .locked-panel p{
   font-size:12px;
   color:#999;
-  line-height:1.5;
+  line-height:1.4;
+  text-align:center;
+  margin-bottom:2px;
 }
 
-.username-input-row{
-  display:flex;
-  flex-direction:column;
-  gap:6px;
-  margin:14px 0;
+.auth-toggle-text {
+  font-size: 11px;
+  color: #00a7b5;
+  text-align: center;
+  cursor: pointer;
+  text-decoration: underline;
+  margin-top: 4px;
 }
-.username-input-row input{
-  width:100%;
-  padding:12px 10px;
-  border:none;
-  border-radius:8px;
-  background:#262626;
-  color:white;
-  font-size:14px;
-  text-align:center;
-}
-.username-status{
-  font-size:11px;
-  min-height:15px;
-  text-align:left;
-}
-.username-status.ok{ color:#2ecc71; }
-.username-status.bad{ color:#ff4b4b; }
-.username-status.checking{ color:#888; }
 
 .status-action-row{
   display:flex;
@@ -435,7 +401,6 @@ button{
 }
 .generic-modal-close:active{ background:#444; }
 
-/* Flatpickr input theme modification override */
 #dateRangePicker {
   cursor: pointer;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2' ry='2'%3E%3C/rect%3E%3Cline x1='16' y1='2' x2='16' y2='6'%3E%3C/line%3E%3Cline x1='8' y1='2' x2='8' y2='6'%3E%3C/line%3E%3Cline x1='3' y1='10' x2='21' y2='10'%3E%3C/line%3E%3C/svg%3E");
@@ -629,15 +594,22 @@ span.flatpickr-weekday {
   </div>
 </div>
 
+<!-- Simple inline form switcher for login vs registration -->
 <div class="panel locked-panel" id="lockedFormPanel" style="display:flex">
-  <p id="lockedMsgText">Enter your email to secure your reports & identity profile.</p>
-  <div class="row" style="width:100%;align-items:stretch;gap:6px;">
-    <input type="email" id="authEmailInput" placeholder="your.name@email.com" style="flex:1;text-align:left;height:44px;">
-    <button class="auth-btn" style="flex:0 0 auto;justify-content:center;padding:0 16px;background:#00a7b5;border:none;color:white;height:44px;" onclick="signInWithMagicLink()">
-      <span id="lockedSignInLabel">Send Link</span>
-    </button>
+  <p id="lockedMsgText">Sign in to secure your profile and reports.</p>
+  
+  <div class="row" style="width:100%; gap:6px;">
+    <input type="text" id="authUsernameInput" placeholder="Username" style="flex:1; height:40px;">
+    <input type="password" id="authPasswordInput" placeholder="Password" style="flex:1; height:40px;">
   </div>
-  <button class="export-btn" onclick="downloadCSV()" style="width:100%;margin-top:2px;">
+
+  <button class="export-btn" id="submitAuthBtn" style="width:100%; background:#00a7b5; font-size:13px; font-weight:bold; height:40px;" onclick="handleAuthSubmit()">
+    <span id="authBtnLabel">Sign In</span>
+  </button>
+  
+  <span class="auth-toggle-text" id="authToggleBtn" onclick="toggleAuthMode()">Don't have an account? Register</span>
+
+  <button class="export-btn" onclick="downloadCSV()" style="width:100%; margin-top:4px; background:#333; color:#aaa;">
     <span id="csvLabelLocked">CSV Dump</span>
   </button>
 </div>
@@ -655,27 +627,11 @@ span.flatpickr-weekday {
   </div>
 </div>
 
-<!-- Username Setup Modal (first-time sign in) -->
-<div id="usernameModal" class="generic-modal-overlay" style="display:none">
-  <div class="generic-modal">
-    <div class="generic-modal-icon">👤</div>
-    <h2 id="usernameModalTitle">Choose a username</h2>
-    <p id="usernameModalBody">This is how you'll be identified as the reporter. Only you will be able to update the status of reports you create.</p>
-    <div class="username-input-row">
-      <input type="text" id="usernameInput" maxlength="24" placeholder="e.g. marko_ns" oninput="onUsernameInput()">
-      <div class="username-status" id="usernameStatus"></div>
-    </div>
-    <button class="generic-modal-close" id="usernameConfirmBtn" onclick="confirmUsername()" disabled style="background:#00a7b5;border-color:#00a7b5;opacity:.5;">Continue</button>
-  </div>
-</div>
-
 <!-- Dynamic Instruction Help Modal -->
 <div id="helpModal" class="generic-modal-overlay" style="display:none">
   <div class="generic-modal" style="max-width: 380px;">
     <h2 id="helpModalTitle" style="margin-top: 6px;">How to Use</h2>
-    <div id="helpModalContent" style="max-height: 55vh; overflow-y: auto; padding-right: 4px;">
-      <!-- Filled programmatically -->
-    </div>
+    <div id="helpModalContent" style="max-height: 55vh; overflow-y: auto; padding-right: 4px;"></div>
     <button class="generic-modal-close" onclick="hideHelpModal()" id="helpModalBtn" style="margin-top:14px;">Close</button>
   </div>
 </div>
@@ -692,28 +648,86 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const TABLE = 'brake_reports';
 const PROFILES_TABLE = 'profiles';
 
-let currentSession = null;   // Supabase auth session
-let currentProfile = null;   // { id, username }
-let usernameCheckTimer = null;
-let usernameAvailable = false;
+let currentSession = null;   
+let currentProfile = null;   
+let isRegisterMode = false; // Toggles between Login and Registration UI
 
-async function signInWithMagicLink() {
-  const emailInput = document.getElementById('authEmailInput');
-  const email = emailInput ? emailInput.value.trim() : '';
-  if (!email) { alert(lang === 'sr' ? 'Molimo unesite ispravnu email adresu.' : 'Please enter a valid email address.'); return; }
+function toggleAuthMode() {
+  isRegisterMode = !isRegisterMode;
+  const labelBtn = document.getElementById('authBtnLabel');
+  const labelToggle = document.getElementById('authToggleBtn');
+  const msgText = document.getElementById('lockedMsgText');
 
-  try {
-    const { error } = await sb.auth.signInWithOtp({
-      email: email,
-      options: {
-        emailRedirectTo: window.location.origin + window.location.pathname
+  if (isRegisterMode) {
+    labelBtn.textContent = lang === 'sr' ? 'Registruj se' : 'Register';
+    labelToggle.textContent = lang === 'sr' ? 'Već imaš nalog? Prijavi se' : 'Already have an account? Sign In';
+    msgText.textContent = lang === 'sr' ? 'Kreirajte novo korisničko ime i lozinku.' : 'Create a new unique username and password.';
+  } else {
+    labelBtn.textContent = lang === 'sr' ? 'Prijavi se' : 'Sign In';
+    labelToggle.textContent = lang === 'sr' ? 'Nemaš nalog? Registruj se' : "Don't have an account? Register";
+    msgText.textContent = lang === 'sr' ? 'Prijavite se da osigurate vaše prijave i profil.' : 'Sign in to secure your profile and reports.';
+  }
+}
+
+function makeFakeEmail(username) {
+  return `${username.toLowerCase().trim()}@tracethebreak.local`;
+}
+
+async function handleAuthSubmit() {
+  const username = document.getElementById('authUsernameInput').value.trim();
+  const password = document.getElementById('authPasswordInput').value;
+
+  if (!username || password.length < 6) {
+    alert(lang === 'sr' ? 'Korisničko ime je obavezno. Lozinka mora imati bar 6 karaktera.' : 'Username is required. Password must be at least 6 characters.');
+    return;
+  }
+
+  const fakeEmail = makeFakeEmail(username);
+
+  if (isRegisterMode) {
+    // 1. Registration Flow
+    try {
+      // First verify if the username exists in the profiles table to prevent profile conflicts
+      const { data: existingProf } = await sb.from(PROFILES_TABLE).select('username').ilike('username', username).maybeSingle();
+      if (existingProf) {
+        alert(lang === 'sr' ? 'Korisničko ime je već zauzeto.' : 'Username already taken.');
+        return;
       }
-    });
-    if (error) throw error;
-    alert(lang === 'sr' ? 'Link za prijavu je poslat na vaš email!' : 'Login link has been sent to your email!');
-    if(emailInput) emailInput.value = '';
-  } catch (err) {
-    alert(t('signInFail') + ": " + err.message);
+
+      const { data: signUpData, error: signUpError } = await sb.auth.signUp({
+        email: fakeEmail,
+        password: password
+      });
+      if (signUpError) throw signUpError;
+
+      if (signUpData?.user) {
+        // Create matching public profile assignment row
+        const { error: profError } = await sb.from(PROFILES_TABLE).insert([
+          { id: signUpData.user.id, username: username }
+        ]);
+        if (profError) throw profError;
+      }
+
+      alert(lang === 'sr' ? 'Nalog uspešno kreiran! Sada se možete prijaviti.' : 'Account created successfully! You can now sign in.');
+      isRegisterMode = true;
+      toggleAuthMode(); // Flip back to sign-in view automatically
+    } catch (err) {
+      alert((lang === 'sr' ? 'Greška pri registraciji: ' : 'Registration failed: ') + err.message);
+    }
+  } else {
+    // 2. Sign In Flow
+    try {
+      const { data, error } = await sb.auth.signInWithPassword({
+        email: fakeEmail,
+        password: password
+      });
+      if (error) throw error;
+      
+      currentSession = data.session;
+      await loadProfile();
+    } catch (err) {
+      alert((lang === 'sr' ? 'Neuspešna prijava: Proverite ime/lozinku.' : 'Sign in failed: Check credentials. ') + err.message);
+    }
   }
 }
 
@@ -722,84 +736,15 @@ async function handleUserBadgeClick() {
   await sb.auth.signOut();
   currentSession = null;
   currentProfile = null;
+  
+  document.getElementById('authUsernameInput').value = '';
+  document.getElementById('authPasswordInput').value = '';
+  
   updateAuthUI();
   refreshRenderedPopups();
 }
 
-function isValidUsername(name) {
-  return /^[a-zA-Z0-9_]{3,24}$/.test(name);
-}
-
-function onUsernameInput() {
-  const raw = document.getElementById('usernameInput').value.trim();
-  const statusEl = document.getElementById('usernameStatus');
-  const confirmBtn = document.getElementById('usernameConfirmBtn');
-  usernameAvailable = false;
-  confirmBtn.disabled = true;
-  confirmBtn.style.opacity = .5;
-
-  if (usernameCheckTimer) clearTimeout(usernameCheckTimer);
-
-  if (!raw) { statusEl.textContent = ''; statusEl.className = 'username-status'; return; }
-
-  if (!isValidUsername(raw)) {
-    statusEl.textContent = t('usernameInvalid');
-    statusEl.className = 'username-status bad';
-    return;
-  }
-
-  statusEl.textContent = t('usernameChecking');
-  statusEl.className = 'username-status checking';
-
-  usernameCheckTimer = setTimeout(async () => {
-    try {
-      const { data, error } = await sb.from(PROFILES_TABLE)
-        .select('id')
-        .ilike('username', raw)
-        .maybeSingle();
-      if (error) throw error;
-
-      if (data) {
-        statusEl.textContent = t('usernameTaken');
-        statusEl.className = 'username-status bad';
-        usernameAvailable = false;
-      } else {
-        statusEl.textContent = t('usernameOk');
-        statusEl.className = 'username-status ok';
-        usernameAvailable = true;
-        confirmBtn.disabled = false;
-        confirmBtn.style.opacity = 1;
-      }
-    } catch (err) {
-      statusEl.textContent = err.message;
-      statusEl.className = 'username-status bad';
-    }
-  }, 450);
-}
-
-async function confirmUsername() {
-  if (!usernameAvailable || !currentSession) return;
-  const raw = document.getElementById('usernameInput').value.trim();
-  const confirmBtn = document.getElementById('usernameConfirmBtn');
-  confirmBtn.disabled = true;
-
-  try {
-    const { data, error } = await sb.from(PROFILES_TABLE)
-      .insert([{ id: currentSession.user.id, username: raw }])
-      .select()
-      .single();
-    if (error) throw error;
-
-    currentProfile = data;
-    document.getElementById('usernameModal').style.display = 'none';
-    updateAuthUI();
-  } catch (err) {
-    alert(t('usernameSaveFail'));
-    confirmBtn.disabled = false;
-  }
-}
-
-async function loadOrCreateProfile() {
+async function loadProfile() {
   if (!currentSession) return;
   try {
     const { data, error } = await sb.from(PROFILES_TABLE)
@@ -810,16 +755,8 @@ async function loadOrCreateProfile() {
 
     if (data) {
       currentProfile = data;
-      updateAuthUI();
-    } else {
-      currentProfile = null;
-      usernameAvailable = false;
-      document.getElementById('usernameInput').value = '';
-      document.getElementById('usernameStatus').textContent = '';
-      document.getElementById('usernameConfirmBtn').disabled = true;
-      document.getElementById('usernameConfirmBtn').style.opacity = .5;
-      document.getElementById('usernameModal').style.display = 'flex';
     }
+    updateAuthUI();
   } catch (err) {
     console.error('Failed to load profile:', err.message);
   }
@@ -847,13 +784,13 @@ function updateAuthUI() {
 async function initAuth() {
   const { data: { session } } = await sb.auth.getSession();
   currentSession = session;
-  if (currentSession) await loadOrCreateProfile();
+  if (currentSession) await loadProfile();
   updateAuthUI();
 
   sb.auth.onAuthStateChange(async (event, session) => {
     currentSession = session;
     if (session) {
-      await loadOrCreateProfile();
+      await loadProfile();
     } else {
       currentProfile = null;
       updateAuthUI();
@@ -890,24 +827,11 @@ const T = {
   statusReported:   { en:'Reported',    sr:'Prijavljeno' },
   statusInProgress: { en:'In progress', sr:'U toku' },
   statusFixed:      { en:'Fixed',       sr:'Popravljeno' },
-
   signOutConfirm:{ en:'Sign out of TraceTheBreak?',                sr:'Odjaviti se sa TraceTheBreak?' },
-  lockedMsg:     { en:'Enter your email to secure your reports & identity profile.', sr:'Unesite email adresu da osigurate vaše prijave i profil identiteta.' },
-  lockedSignIn:  { en:'Send Link',                                 sr:'Pošalji link' },
-  usernameTitle: { en:'Choose a username',                        sr:'Izaberite korisničko ime' },
-  usernameBody:  { en:"This is how you'll be identified as the reporter. Only you will be able to update the status of reports you create.", sr:'Ovo je ime pod kojim ćete biti prepoznati kao prijavitelj. Samo vi ćete moći da ažurirate status prijava koje kreirate.' },
-  usernamePH:    { en:'e.g. marko_ns',                             sr:'npr. marko_ns' },
-  usernameContinue:{ en:'Continue',                                sr:'Nastavi' },
-  usernameChecking:{ en:'Checking availability…',                  sr:'Provera dostupnosti…' },
-  usernameTaken: { en:'Username already taken.',                   sr:'Korisničko ime je već zauzeto.' },
-  usernameOk:    { en:'Username available.',                       sr:'Korisničko ime je dostupno.' },
-  usernameInvalid:{ en:'3-24 characters: letters, numbers, _ only.', sr:'3-24 karaktera: slova, brojevi, _ samo.' },
-  usernameSaveFail:{ en:'Could not save username. Try again.',     sr:'Čuvanje korisničkog imena nije uspelo. Pokušajte ponovo.' },
   markInProgress:{ en:'Mark In Progress',                          sr:'Označi U Toku' },
   markFixed:     { en:'Mark Fixed',                                sr:'Označi Popravljeno' },
   yourReport:    { en:'Your report',                               sr:'Vaša prijava' },
-  updateFail:    { en:'Could not update status. Try again.',       sr:'Ažuriranje statusa nije uspelo. Pokušajte ponovo.' },
-  signInFail:    { en:'Login link generation failed.',             sr:'Generisanje linka za prijavu nije uspelo.' }
+  updateFail:    { en:'Could not update status. Try again.',       sr:'Ažuriranje statusa nije uspelo. Pokušajte ponovo.' }
 };
 
 function t(k){ return T[k]?.[lang] ?? k; }
@@ -953,16 +877,17 @@ function applyLang(){
   const gm = document.getElementById('gpsModal');
   if (gm && gm.style.display !== 'none') updateGpsModalText();
 
-  document.getElementById('lockedMsgText').textContent    = t('lockedMsg');
-  document.getElementById('lockedSignInLabel').textContent= t('lockedSignIn');
   document.getElementById('csvLabelLocked').textContent   = t('csvLabel');
-  document.getElementById('usernameModalTitle').textContent = t('usernameTitle');
-  document.getElementById('usernameModalBody').textContent  = t('usernameBody');
-  document.getElementById('usernameInput').placeholder      = t('usernamePH');
-  document.getElementById('usernameConfirmBtn').textContent = t('usernameContinue');
+  
+  const userIn = document.getElementById('authUsernameInput');
+  const passIn = document.getElementById('authPasswordInput');
+  if (userIn) userIn.placeholder = lang === 'sr' ? 'Korisničko ime' : 'Username';
+  if (passIn) passIn.placeholder = lang === 'sr' ? 'Lozinka' : 'Password';
 
-  const emailInput = document.getElementById('authEmailInput');
-  if(emailInput) emailInput.placeholder = lang === 'sr' ? 'tvoj.email@domen.com' : 'your.name@email.com';
+  // Force language sync into the auth text variables
+  const currentModeState = isRegisterMode;
+  isRegisterMode = !currentModeState;
+  toggleAuthMode();
 
   buildHelpModalContent();
   refreshRenderedPopups();
