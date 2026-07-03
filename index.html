@@ -248,7 +248,7 @@ button{
   border-radius:10px !important;
   padding:0 !important;
   overflow:hidden;
-  min-width:200px;
+  min-width:170px;
   background: rgba(255,255,255,0.82) !important;
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
@@ -263,7 +263,6 @@ button{
   font-size:13px;
   line-height:1.5;
   color:#111;
-  min-width:200px;
 }
 .popup-title{ font-size:14px; font-weight:700; margin-bottom:8px; color:#111; }
 
@@ -380,47 +379,47 @@ button{
 .pw-toggle-btn.revealed{ opacity:1; }
 
 .popup-card{
-  min-width:195px;
-  max-width:240px;
+  min-width:170px;
+  max-width:210px;
 }
 .popup-header{
-  padding:9px 10px;
+  padding:6px 8px;
   display:flex;
   flex-direction:column;
-  gap:2px;
+  gap:1px;
 }
 .popup-header-title{
-  font-size:12.5px;
+  font-size:11.5px;
   font-weight:700;
   color:#fff;
-  line-height:1.35;
+  line-height:1.3;
 }
 .popup-header-date{
-  font-size:9.5px;
+  font-size:9px;
   color:rgba(255,255,255,.8);
 }
 .popup-body{
-  padding:5px 10px 4px 10px;
+  padding:2px 8px 1px 8px;
 }
 .popup-row{
   display:flex;
   justify-content:space-between;
   align-items:center;
-  gap:10px;
-  padding:6px 0;
+  gap:8px;
+  padding:4px 0;
   border-bottom:1px solid #eee;
 }
 .popup-row:last-child{ border-bottom:none; }
 .popup-row-label{
-  font-size:9.5px;
+  font-size:9px;
   font-weight:700;
-  letter-spacing:.4px;
+  letter-spacing:.3px;
   text-transform:uppercase;
   color:#888;
   flex-shrink:0;
 }
 .popup-row-value{
-  font-size:12.5px;
+  font-size:11.5px;
   font-weight:600;
   color:#111;
   text-align:right;
@@ -429,66 +428,58 @@ button{
   white-space:nowrap;
 }
 .popup-note{
-  margin:6px 10px 9px 10px;
-  padding:8px 9px;
+  margin:4px 8px 6px 8px;
+  padding:6px 7px;
   background:rgba(0,0,0,.04);
   border-radius:6px;
-  font-size:11.5px;
+  font-size:10.5px;
   color:#444;
-  line-height:1.45;
+  line-height:1.4;
   word-break:break-word;
 }
 .popup-timeline{
-  padding:8px 10px 4px 10px;
+  padding:5px 8px 2px 8px;
   display:flex;
   flex-direction:column;
 }
 .timeline-item{
   display:flex;
-  gap:8px;
+  align-items:center;
+  gap:7px;
   position:relative;
-  padding-bottom:12px;
+  padding-bottom:7px;
 }
 .timeline-item:last-child{ padding-bottom:0; }
 .timeline-dot{
-  width:8px;
-  height:8px;
+  width:7px;
+  height:7px;
   border-radius:50%;
   flex-shrink:0;
-  margin-top:3px;
   position:relative;
   z-index:1;
 }
 .timeline-line{
   position:absolute;
-  left:3px;
-  top:11px;
+  left:2.5px;
+  top:9px;
   bottom:-2px;
   width:2px;
   background:#eee;
 }
 .timeline-item:last-child .timeline-line{ display:none; }
-.timeline-content{ display:flex; flex-direction:column; gap:1px; }
-.timeline-label{
-  font-size:9.5px;
-  font-weight:700;
-  letter-spacing:.3px;
-  text-transform:uppercase;
-  color:#bbb;
-}
 .timeline-date{
-  font-size:11.5px;
+  font-size:11px;
   color:#111;
   font-weight:600;
 }
 .timeline-item.pending .timeline-date{ color:#bbb; font-weight:500; }
 .popup-edit-form{
-  padding:10px;
-  min-width:200px;
-  max-width:240px;
+  padding:8px;
+  min-width:180px;
+  max-width:210px;
   display:flex;
   flex-direction:column;
-  gap:6px;
+  gap:5px;
 }
 .popup-edit-form select,
 .popup-edit-form input[type="text"]{
@@ -499,19 +490,19 @@ button{
 
 .status-action-row{
   display:flex;
-  gap:6px;
-  padding:8px 10px 10px 10px;
+  gap:5px;
+  padding:6px 8px 8px 8px;
   border-top:1px solid #eee;
-  margin-top:2px;
+  margin-top:1px;
   flex-wrap:wrap;
 }
 .status-action-btn{
   flex:1 1 auto;
-  min-width:80px;
-  padding:7px 6px;
+  min-width:72px;
+  padding:6px 5px;
   border:none;
   border-radius:6px;
-  font-size:10px;
+  font-size:9.5px;
   font-weight:700;
   cursor:pointer;
   color:white;
@@ -1453,16 +1444,13 @@ function formatDate(dateStr) {
   return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function buildTimelineItem(label, dateStr, reached, color) {
+function buildTimelineItem(dateStr, reached, color) {
   const dotColor = reached ? color : 'rgba(255,255,255,.18)';
   const dateText = reached ? formatDate(dateStr) : '—';
   return `<div class="timeline-item ${reached ? '' : 'pending'}">
     <div class="timeline-line"></div>
     <div class="timeline-dot" style="background:${dotColor};"></div>
-    <div class="timeline-content">
-      <span class="timeline-label">${label}</span>
-      <span class="timeline-date">${dateText}</span>
-    </div>
+    <span class="timeline-date">${dateText}</span>
   </div>`;
 }
 
@@ -1515,9 +1503,9 @@ function buildPopupHtml(report) {
       </div>
     </div>
     <div class="popup-timeline">
-      ${buildTimelineItem(t('reportedAtLabel'), report.created_at, true, STATUS_COLORS.reported)}
-      ${buildTimelineItem(t('inProgressAtLabel'), report.in_progress_at, !!report.in_progress_at, STATUS_COLORS.in_progress)}
-      ${buildTimelineItem(t('finishedAtLabel'), report.fixed_at, !!report.fixed_at, STATUS_COLORS.fixed)}
+      ${buildTimelineItem(report.created_at, true, STATUS_COLORS.reported)}
+      ${buildTimelineItem(report.in_progress_at, !!report.in_progress_at, STATUS_COLORS.in_progress)}
+      ${buildTimelineItem(report.fixed_at, !!report.fixed_at, STATUS_COLORS.fixed)}
     </div>
     ${report.comment ? `<div class="popup-note">${escapeHtml(report.comment)}</div>` : ''}
     ${actionsHtml}
