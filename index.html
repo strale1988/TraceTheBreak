@@ -252,21 +252,23 @@ button{
   padding:0 !important;
   overflow:hidden;
   min-width:200px;
-  background: rgba(255,255,255,0.9) !important;
+  background: rgba(40,42,48,0.96) !important;
+  border: 1px solid rgba(255,255,255,.10);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
 }
 .leaflet-popup-content{ margin:0 !important; width:auto !important; }
+.leaflet-popup-tip{ background: rgba(40,42,48,0.96) !important; box-shadow:none !important; }
+.leaflet-popup-close-button{ color:#ccc !important; }
+.leaflet-popup-close-button:hover{ color:#fff !important; }
 
 .popup-inner{
   font-family:-apple-system,BlinkMacSystemFont,sans-serif;
   font-size:13px;
-  line-height:1.65;
-  color:#111;
-  padding:12px 14px;
+  line-height:1.5;
+  color:#ddd;
   min-width:200px;
 }
-.popup-inner b{ color:#222; }
 .popup-title{ font-size:14px; font-weight:700; margin-bottom:8px; color:#111; }
 
 .status-pill{
@@ -378,61 +380,108 @@ button{
 .pw-toggle-btn.revealed{ opacity:1; }
 
 .popup-card{
-  min-width:190px;
-  max-width:230px;
+  min-width:195px;
+  max-width:240px;
 }
 .popup-header{
-  padding:8px 10px;
-  border-radius:8px 8px 0 0;
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  gap:8px;
-}
-.popup-cat{
-  font-size:12px;
-  font-weight:700;
-  color:#fff;
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
-}
-.popup-body{
-  padding:9px 10px 10px 10px;
+  padding:9px 10px;
   display:flex;
   flex-direction:column;
-  gap:7px;
+  gap:2px;
 }
-.popup-meta{
+.popup-header-title{
+  font-size:12.5px;
+  font-weight:700;
+  color:#fff;
+  line-height:1.35;
+}
+.popup-header-date{
+  font-size:9.5px;
+  color:rgba(255,255,255,.75);
+}
+.popup-body{
+  padding:2px 10px 4px 10px;
+}
+.popup-row{
   display:flex;
   justify-content:space-between;
-  gap:8px;
-  font-size:10px;
-  color:#888;
-}
-.popup-meta-item{
-  display:flex;
   align-items:center;
-  gap:3px;
-  white-space:nowrap;
+  gap:10px;
+  padding:6px 0;
+  border-bottom:1px solid rgba(255,255,255,.07);
+}
+.popup-row:last-child{ border-bottom:none; }
+.popup-row-label{
+  font-size:9.5px;
+  font-weight:700;
+  letter-spacing:.4px;
+  text-transform:uppercase;
+  color:#8a8a90;
+  flex-shrink:0;
+}
+.popup-row-value{
+  font-size:12.5px;
+  font-weight:600;
+  color:#eee;
+  text-align:right;
   overflow:hidden;
   text-overflow:ellipsis;
-  min-width:0;
+  white-space:nowrap;
 }
-.popup-comment{
-  font-size:12px;
-  color:#222;
-  background:rgba(0,0,0,.05);
-  padding:6px 8px;
+.popup-note{
+  margin:6px 10px 9px 10px;
+  padding:8px 9px;
+  background:rgba(255,255,255,.045);
   border-radius:6px;
-  line-height:1.4;
+  font-size:11.5px;
+  color:#c4c4c8;
+  line-height:1.45;
   word-break:break-word;
 }
-.popup-subcat{
-  font-size:10.5px;
-  font-weight:600;
-  color:#555;
+.popup-timeline{
+  padding:8px 10px 4px 10px;
+  display:flex;
+  flex-direction:column;
 }
+.timeline-item{
+  display:flex;
+  gap:8px;
+  position:relative;
+  padding-bottom:12px;
+}
+.timeline-item:last-child{ padding-bottom:0; }
+.timeline-dot{
+  width:8px;
+  height:8px;
+  border-radius:50%;
+  flex-shrink:0;
+  margin-top:3px;
+  position:relative;
+  z-index:1;
+}
+.timeline-line{
+  position:absolute;
+  left:3px;
+  top:11px;
+  bottom:-2px;
+  width:2px;
+  background:rgba(255,255,255,.14);
+}
+.timeline-item:last-child .timeline-line{ display:none; }
+.timeline-content{ display:flex; flex-direction:column; gap:1px; }
+.timeline-label{
+  font-size:9.5px;
+  font-weight:700;
+  letter-spacing:.3px;
+  text-transform:uppercase;
+  color:#8a8a90;
+}
+.timeline-date{
+  font-size:11.5px;
+  color:#eee;
+  font-weight:600;
+}
+.timeline-item.pending .timeline-date{ color:#6b6b70; font-weight:500; }
 .popup-edit-form{
   padding:10px;
   min-width:200px;
@@ -446,7 +495,7 @@ button{
   display:flex;
   gap:6px;
   padding:8px 10px 10px 10px;
-  border-top:1px solid rgba(0,0,0,.08);
+  border-top:1px solid rgba(255,255,255,.08);
   margin-top:2px;
   flex-wrap:wrap;
 }
@@ -471,7 +520,7 @@ button{
 
 .owner-tag{
   font-size:9px;
-  color:#00a7b5;
+  color:#3fd8e6;
   font-weight:700;
 }
 
@@ -686,7 +735,7 @@ span.flatpickr-weekday {
       <option value="Sewage" data-sr="Kanalizacija">Kanalizacija</option>
       <option value="Gas" data-sr="Gas">Gas</option>
       <option value="Heating" data-sr="Grejanje">Grejanje</option>
-      <option value="Road" data-sr="Put / rupa na putu">Put / rupa na putu</option>
+      <option value="Road" data-sr="Put">Put</option>
       <option value="Streetlight" data-sr="Ulična rasveta">Ulična rasveta</option>
       <option value="Waste" data-sr="Otpad">Otpad</option>
       <option value="Other" data-sr="Ostalo">Ostalo</option>
@@ -974,6 +1023,10 @@ const T = {
   helpStep3:    { en:'3. Submit:',                       sr:'3. Pošalji:' },
   helpStep3Body:{ en:'Add an optional note, then tap "REPORT BREAK".', sr:'Dodajte opcionu napomenu i pritisnite "PRIJAVI KVAR".' },
   popupStatus:  { en:'Status', sr:'Status' },
+  reportedByLabel: { en:'Reported by', sr:'Prijavio' },
+  reportedAtLabel:    { en:'Reported at',        sr:'Prijavljeno u' },
+  inProgressAtLabel:  { en:'In progress from',   sr:'U toku od' },
+  finishedAtLabel:    { en:'Finished at',         sr:'Završeno u' },
   statusReported:   { en:'Reported',    sr:'Prijavljeno' },
   statusInProgress: { en:'In progress', sr:'U toku' },
   statusFixed:      { en:'Fixed',       sr:'Popravljeno' },
@@ -1023,8 +1076,8 @@ function applyLang(){
 
   const catEl = document.getElementById('category');
   const catLabels = lang === 'sr'
-    ? ['Voda','Struja','Kanalizacija','Gas','Grejanje','Put / rupa na putu','Ulična rasveta','Otpad','Ostalo']
-    : ['Water','Electricity','Sewage','Gas','Heating','Road / Pothole','Streetlight','Waste','Other'];
+    ? ['Voda','Struja','Kanalizacija','Gas','Grejanje','Put','Ulična rasveta','Otpad','Ostalo']
+    : ['Water','Electricity','Sewage','Gas','Heating','Road','Streetlight','Waste','Other'];
   Array.from(catEl.options).slice(1).forEach((opt, i) => { opt.textContent = catLabels[i]; });
 
   const subEl = document.getElementById('subcategory');
@@ -1314,8 +1367,8 @@ function statusLabel(s) {
   return t('statusReported');
 }
 function translateCategory(cat) {
-  const labelsEn = { Water:'Water', Electricity:'Electricity', Sewage:'Sewage', Gas:'Gas', Heating:'Heating', Road:'Road / Pothole', Streetlight:'Streetlight', Waste:'Waste', Other:'Other' };
-  const labelsSr = { Water:'Voda', Electricity:'Struja', Sewage:'Kanalizacija', Gas:'Gas', Heating:'Grejanje', Road:'Put / rupa na putu', Streetlight:'Ulična rasveta', Waste:'Otpad', Other:'Ostalo' };
+  const labelsEn = { Water:'Water', Electricity:'Electricity', Sewage:'Sewage', Gas:'Gas', Heating:'Heating', Road:'Road', Streetlight:'Streetlight', Waste:'Waste', Other:'Other' };
+  const labelsSr = { Water:'Voda', Electricity:'Struja', Sewage:'Kanalizacija', Gas:'Gas', Heating:'Grejanje', Road:'Put', Streetlight:'Ulična rasveta', Waste:'Otpad', Other:'Ostalo' };
   return (lang === 'sr' ? labelsSr[cat] : labelsEn[cat]) || cat;
 }
 
@@ -1379,13 +1432,28 @@ function formatDate(dateStr) {
   return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+function buildTimelineItem(label, dateStr, reached, color) {
+  const dotColor = reached ? color : 'rgba(255,255,255,.18)';
+  const dateText = reached ? formatDate(dateStr) : '—';
+  return `<div class="timeline-item ${reached ? '' : 'pending'}">
+    <div class="timeline-line"></div>
+    <div class="timeline-dot" style="background:${dotColor};"></div>
+    <div class="timeline-content">
+      <span class="timeline-label">${label}</span>
+      <span class="timeline-date">${dateText}</span>
+    </div>
+  </div>`;
+}
+
 function buildPopupHtml(report) {
   const catCol = categoryColor(report.category);
   const sCol   = statusColor(report.status);
-  const icon   = categoryIcon(report.category);
   const isOwner = !!(currentSession && report.owner_id === currentSession.user.id);
   const isAdmin = !!(currentProfile && currentProfile.is_admin);
   const reporterName = report.owner_username || (lang === 'sr' ? 'Nepoznato' : 'Unknown');
+  const headerTitle = report.subcategory
+    ? `${translateCategory(report.category)} / ${subcategoryLabel(report.category, report.subcategory)}`
+    : translateCategory(report.category);
 
   let actionsHtml = '';
   if (isAdmin) {
@@ -1399,8 +1467,8 @@ function buildPopupHtml(report) {
       ${statuses.map(s => `<button class="status-action-btn" style="background:${s.bg};" onclick="updateReportStatus('${report.id}','${s.key}')">${s.label}</button>`).join('')}
     </div>
     <div class="status-action-row" style="border-top:none;padding-top:0;">
-      <button class="status-action-btn" style="background:#3a3a3a;" onclick="enterEditMode('${report.id}')">✎ ${t('editBtn')}</button>
-      <button class="status-action-btn" style="background:#7a1f1f;" onclick="deleteReport('${report.id}')">🗑 ${t('deleteBtn')}</button>
+      <button class="status-action-btn" style="background:#3a3a3a;" onclick="enterEditMode('${report.id}')">${t('editBtn')}</button>
+      <button class="status-action-btn" style="background:#7a1f1f;" onclick="deleteReport('${report.id}')">${t('deleteBtn')}</button>
     </div>`;
   } else if (isOwner && report.status !== 'fixed') {
     const showProgress = report.status === 'reported';
@@ -1412,18 +1480,25 @@ function buildPopupHtml(report) {
 
   return `<div class="popup-inner popup-card">
     <div class="popup-header" style="background:${catCol};">
-      <span class="popup-cat">${icon} ${translateCategory(report.category)}</span>
-      <span class="status-pill" style="background:${sCol};">${statusLabel(report.status)}</span>
+      <span class="popup-header-title">${headerTitle}</span>
+      <span class="popup-header-date">${formatDate(report.created_at)}</span>
     </div>
     <div class="popup-body">
-      ${report.subcategory ? `<span class="popup-subcat">${escapeHtml(subcategoryLabel(report.category, report.subcategory))}</span>` : ''}
-      <div class="popup-meta">
-        <span class="popup-meta-item">🕒 ${formatDate(report.created_at)}</span>
-        <span class="popup-meta-item">👤 ${escapeHtml(reporterName)}</span>
+      <div class="popup-row">
+        <span class="popup-row-label">${t('popupStatus')}</span>
+        <span class="status-pill" style="background:${sCol};">${statusLabel(report.status)}</span>
       </div>
-      ${report.comment ? `<p class="popup-comment">${escapeHtml(report.comment)}</p>` : ''}
-      ${isOwner ? `<span class="owner-tag">★ ${t('yourReport')}</span>` : ''}
+      <div class="popup-row">
+        <span class="popup-row-label">${t('reportedByLabel')}</span>
+        <span class="popup-row-value">${escapeHtml(reporterName)}${isOwner ? ` <span class="owner-tag">(${t('yourReport')})</span>` : ''}</span>
+      </div>
     </div>
+    <div class="popup-timeline">
+      ${buildTimelineItem(t('reportedAtLabel'), report.created_at, true, STATUS_COLORS.reported)}
+      ${buildTimelineItem(t('inProgressAtLabel'), report.in_progress_at, !!report.in_progress_at, STATUS_COLORS.in_progress)}
+      ${buildTimelineItem(t('finishedAtLabel'), report.fixed_at, !!report.fixed_at, STATUS_COLORS.fixed)}
+    </div>
+    ${report.comment ? `<div class="popup-note">${escapeHtml(report.comment)}</div>` : ''}
     ${actionsHtml}
   </div>`;
 }
@@ -1478,6 +1553,18 @@ function cancelEdit(reportId) {
   marker.setPopupContent(buildPopupHtml(report));
 }
 
+// Computes which timeline timestamp(s) to set/clear for a given status transition.
+// Moving to in_progress stamps in_progress_at; moving to fixed stamps fixed_at
+// (leaving in_progress_at as-is in case a report skipped straight to fixed);
+// reverting to reported clears both, since the report is back at square one.
+function buildStatusPatch(newStatus) {
+  const now = new Date().toISOString();
+  if (newStatus === 'reported')    return { status: 'reported',    in_progress_at: null, fixed_at: null };
+  if (newStatus === 'in_progress') return { status: 'in_progress', in_progress_at: now,  fixed_at: null };
+  if (newStatus === 'fixed')       return { status: 'fixed',       fixed_at: now };
+  return { status: newStatus };
+}
+
 async function saveReportEdits(reportId) {
   const category    = document.getElementById(`edit-cat-${reportId}`).value;
   const subcatEl     = document.getElementById(`edit-subcat-${reportId}`);
@@ -1486,7 +1573,7 @@ async function saveReportEdits(reportId) {
   const comment       = document.getElementById(`edit-comment-${reportId}`).value;
   try {
     const { error } = await sb.from(TABLE)
-      .update({ category, subcategory, status, comment, updated_at: new Date().toISOString() })
+      .update({ category, subcategory, comment, updated_at: new Date().toISOString(), ...buildStatusPatch(status) })
       .eq('id', reportId);
     if (error) throw error;
     await loadPinsByWindow();
@@ -1512,7 +1599,7 @@ async function updateReportStatus(reportId, newStatus) {
   if (!currentSession) return;
   try {
     const { error } = await sb.from(TABLE)
-      .update({ status: newStatus, updated_at: new Date().toISOString() })
+      .update({ updated_at: new Date().toISOString(), ...buildStatusPatch(newStatus) })
       .eq('id', reportId);
     if (error) throw error;
     await loadPinsByWindow();
@@ -1531,14 +1618,13 @@ function escapeHtml(str) {
 function renderPin(report) {
   const catCol = categoryColor(report.category);
   const sCol   = statusColor(report.status);
-  const icon   = categoryIcon(report.category);
   const opacity = report.status === 'fixed' ? 0.55 : 1;
 
   const marker = L.marker([report.latitude, report.longitude], {
     icon: L.divIcon({
       className: '',
-      html: `<div style="width:28px;height:28px;border-radius:50%;background:${catCol};border:3px solid ${sCol};display:flex;align-items:center;justify-content:center;font-size:13px;opacity:${opacity};box-shadow:0 2px 6px rgba(0,0,0,.5);">${icon}</div>`,
-      iconAnchor: [14,14]
+      html: `<div style="width:22px;height:22px;border-radius:50%;background:${catCol};border:3px solid ${sCol};opacity:${opacity};box-shadow:0 2px 6px rgba(0,0,0,.5);"></div>`,
+      iconAnchor: [11,11]
     })
   }).addTo(map);
 
@@ -1591,10 +1677,12 @@ function downloadCSV() {
   if (!visible.length) { alert(t('noReports')); return; }
 
   let csv = `Report Generated/Downloaded On: ${new Date().toLocaleString()}\n\n`;
-  csv += 'ID,Date,Latitude,Longitude,Category,Subcategory,Status,ReportedBy,Comment\n';
+  csv += 'ID,ReportedAt,InProgressAt,FixedAt,Latitude,Longitude,Category,Subcategory,Status,ReportedBy,Comment\n';
   visible.forEach(r => {
     csv += `${r.id},` +
            `${r.created_at},` +
+           `${r.in_progress_at || ''},` +
+           `${r.fixed_at || ''},` +
            `${r.latitude},` +
            `${r.longitude},` +
            `${r.category},` +
