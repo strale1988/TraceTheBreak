@@ -717,6 +717,10 @@ span.flatpickr-weekday {
   <div class="select-wrap">
     <input type="text" id="dateRangePicker" placeholder="Select date range..." readonly>
   </div>
+  <button class="export-btn" onclick="downloadCSV()"
+          style="flex:0 0 auto;width:auto;min-width:0;font-size:12px;padding:0 12px;align-self:stretch;white-space:nowrap;">
+    <span id="csvLabel">CSV</span>
+  </button>
 </div>
 
 <div id="pinMapBtn" class="pin-map-btn" style="display:none" title="Set location manually" onclick="togglePinMode()">📍</div>
@@ -745,12 +749,8 @@ span.flatpickr-weekday {
 
   <div class="row" style="align-items:stretch;">
     <button class="report-btn" id="reportBtn" onclick="reportBreak()"
-            style="flex:0 0 80%;min-width:0;font-size:14px;" disabled>
+            style="width:100%;font-size:14px;" disabled>
          <span id="reportBtnLabel">REPORT BREAK</span>
-    </button>
-    <button class="export-btn" onclick="downloadCSV()"
-            style="flex:0 0 calc(20% - 8px);min-width:0;font-size:12px;padding:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-      <span id="csvLabel">CSV</span>
     </button>
   </div>
 </div>
@@ -772,10 +772,6 @@ span.flatpickr-weekday {
   </button>
   
   <span class="auth-toggle-text" id="authToggleBtn" onclick="toggleAuthMode()">Don't have an account? Register</span>
-
-  <button class="export-btn" onclick="downloadCSV()" style="width:100%; margin-top:4px; background:#333; color:#aaa;">
-    <span id="csvLabelLocked">CSV Dump</span>
-  </button>
 </div>
 
 </div>
@@ -1095,7 +1091,6 @@ function applyLang(){
   const gm = document.getElementById('gpsModal');
   if (gm && gm.style.display !== 'none') updateGpsModalText();
 
-  document.getElementById('csvLabelLocked').textContent   = t('csvLabel');
   document.getElementById('userBadgeAdmin').textContent   = '\u2605 ' + t('adminBadge');
   
   const userIn = document.getElementById('authUsernameInput');
@@ -1161,7 +1156,8 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
 
 let userCoords    = null;
 let userMarker    = null;
-let reportMarkers = [];
+let markerById    = new Map(); // report id -> Leaflet marker, only for reports currently rendered on screen
+let dateRangeOnlyData = []; // raw results for the selected date range (used for CSV export)
 let pinMode       = false;
 let manualCoords  = null;
 let manualMarker  = null;
@@ -1270,6 +1266,13 @@ map.on('click', function(e) {
   }
   checkFormReady();
 });
+
+// Only pins currently within (a small buffer around) the visible map area are
+// ever attached to the map, so panning/zooming across a large dataset stays
+// cheap. Re-sync whenever the viewport settles; syncMarkers() itself just
+// adds/removes markers, it never touches the underlying data.
+map.on('moveend', function(){ if (!pinMode) syncMarkers(false); });
+map.on('zoomend', function(){ if (!pinMode) syncMarkers(false); });
 
 const CATEGORY_COLORS = {
   'Water':        '#1e90ff',
@@ -1433,8 +1436,8 @@ async function reportBreak(){
 }
 
 function clearMarkers(){
-  reportMarkers.forEach(m => map.removeLayer(m));
-  reportMarkers = [];
+  markerById.forEach(m => map.removeLayer(m));
+  markerById.clear();
 }
 
 function formatDate(dateStr) {
@@ -1543,7 +1546,7 @@ function onEditCategoryChange(reportId) {
 }
 
 function enterEditMode(reportId) {
-  const marker = reportMarkers.find(m => m._reportId === reportId);
+  const marker = markerById.get(reportId);
   const report = globalActiveData.find(r => r.id === reportId);
   if (!marker || !report) return;
   marker.setPopupContent(buildEditPopupHtml(report));
@@ -1556,7 +1559,7 @@ function enterEditMode(reportId) {
 }
 
 function cancelEdit(reportId) {
-  const marker = reportMarkers.find(m => m._reportId === reportId);
+  const marker = markerById.get(reportId);
   const report = globalActiveData.find(r => r.id === reportId);
   if (!marker || !report) return;
   marker.setPopupContent(buildPopupHtml(report));
@@ -1624,29 +1627,72 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-function renderPin(report) {
+// Creates the marker for a report if it isn't rendered yet, or updates an
+// already-rendered marker's icon/popup in place (e.g. after a status change)
+// without tearing it down and rebuilding it from scratch.
+function upsertMarker(report) {
   const catCol = categoryColor(report.category);
   const sCol   = statusColor(report.status);
   const opacity = report.status === 'fixed' ? 0.55 : 1;
+  const iconHtml = `<div style="width:22px;height:22px;border-radius:50%;background:${catCol};border:3px solid ${sCol};opacity:${opacity};box-shadow:0 2px 6px rgba(0,0,0,.5);"></div>`;
 
-  const marker = L.marker([report.latitude, report.longitude], {
-    icon: L.divIcon({
-      className: '',
-      html: `<div style="width:22px;height:22px;border-radius:50%;background:${catCol};border:3px solid ${sCol};opacity:${opacity};box-shadow:0 2px 6px rgba(0,0,0,.5);"></div>`,
-      iconAnchor: [11,11]
-    })
+  let marker = markerById.get(report.id);
+  if (marker) {
+    marker.setIcon(L.divIcon({ className: '', html: iconHtml, iconAnchor: [11,11] }));
+    marker.setLatLng([report.latitude, report.longitude]);
+    marker.setPopupContent(buildPopupHtml(report));
+    return marker;
+  }
+
+  marker = L.marker([report.latitude, report.longitude], {
+    icon: L.divIcon({ className: '', html: iconHtml, iconAnchor: [11,11] })
   }).addTo(map);
 
   marker._reportId = report.id;
   marker.bindPopup(buildPopupHtml(report));
-  reportMarkers.push(marker);
+  markerById.set(report.id, marker);
+  return marker;
+}
+
+// Keeps the on-map markers in sync with globalActiveData, but only ever
+// attaches markers for reports inside (a small buffer around) the current
+// viewport. This is what keeps things fast with a lot of pins: panning and
+// zooming just add/remove the handful of markers at the edge of view instead
+// of touching the whole dataset.
+// - refreshExisting=true also re-applies icon/popup content to markers that
+//   are already on the map (used after a data reload, since a report's
+//   status/category/comment may have changed).
+// - refreshExisting=false (pan/zoom) only adds newly-visible markers and
+//   removes ones that scrolled out of view; unaffected markers are untouched.
+function syncMarkers(refreshExisting) {
+  const bounds = map.getBounds().pad(0.2);
+  const desiredIds = new Set();
+
+  globalActiveData.forEach(r => {
+    if (!bounds.contains(L.latLng(r.latitude, r.longitude))) return;
+    desiredIds.add(r.id);
+    if (refreshExisting || !markerById.has(r.id)) upsertMarker(r);
+  });
+
+  markerById.forEach((marker, id) => {
+    if (!desiredIds.has(id)) {
+      map.removeLayer(marker);
+      markerById.delete(id);
+    }
+  });
 }
 
 function refreshRenderedPopups() {
-  reportMarkers.forEach(m => {
-    const report = globalActiveData.find(r => r.id === m._reportId);
-    if (report) m.setPopupContent(buildPopupHtml(report));
+  markerById.forEach((marker, id) => {
+    const report = globalActiveData.find(r => r.id === id);
+    if (report) marker.setPopupContent(buildPopupHtml(report));
   });
+}
+
+function updateReportCount() {
+  const n = globalActiveData.length;
+  const rcEl = document.getElementById('reportCount');
+  if (rcEl) rcEl.textContent = n + ' ' + (n === 1 ? t('reportCount1') : t('reportCount'));
 }
 
 async function loadPinsByWindow() {
@@ -1658,30 +1704,40 @@ async function loadPinsByWindow() {
   end.setHours(23,59,59,999);
 
   try {
-    let query = sb.from(TABLE)
-      .select('*')
-      .gte('created_at', start.toISOString())
-      .lte('created_at', end.toISOString())
-      .order('created_at', { ascending: true });
+    // Reports inside the selected date range, plus - regardless of the date
+    // filter - any report that isn't fixed yet, so open issues never
+    // disappear from the map just because they fall outside the window.
+    const [dateRangeRes, alwaysOnRes] = await Promise.all([
+      sb.from(TABLE).select('*')
+        .gte('created_at', start.toISOString())
+        .lte('created_at', end.toISOString())
+        .order('created_at', { ascending: true }),
+      sb.from(TABLE).select('*').neq('status', 'fixed')
+    ]);
 
-    const { data, error } = await query;
-    if (error) throw error;
+    if (dateRangeRes.error) throw dateRangeRes.error;
+    if (alwaysOnRes.error) throw alwaysOnRes.error;
 
-    globalActiveData = data || [];
-    clearMarkers();
-    globalActiveData.forEach(r => renderPin(r));
+    dateRangeOnlyData = dateRangeRes.data || [];
 
-    const n = reportMarkers.length;
-    const rcEl = document.getElementById('reportCount');
-    if (rcEl) rcEl.textContent = n + ' ' + (n === 1 ? t('reportCount1') : t('reportCount'));
+    const merged = new Map();
+    dateRangeOnlyData.forEach(r => merged.set(r.id, r));
+    (alwaysOnRes.data || []).forEach(r => merged.set(r.id, r));
+    globalActiveData = Array.from(merged.values());
+
+    syncMarkers(true);
+    updateReportCount();
   } catch (err) {
     console.error('Failed to load reports:', err.message);
   }
 }
 
 function downloadCSV() {
+  // Exactly what the name on the button implies: reports in the selected
+  // date range AND currently visible on screen (not the always-on open
+  // reports that may be outside the date filter, nor pins off-screen).
   const bounds = map.getBounds();
-  const visible = globalActiveData.filter(r => bounds.contains(L.latLng(r.latitude, r.longitude)));
+  const visible = dateRangeOnlyData.filter(r => bounds.contains(L.latLng(r.latitude, r.longitude)));
 
   if (!visible.length) { alert(t('noReports')); return; }
 
