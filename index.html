@@ -51,12 +51,6 @@ header p{ font-size:11px; opacity:.7; margin-top:2px; }
   flex-shrink:0;
 }
 
-.user-badge-row{
-  display:flex;
-  justify-content:flex-end;
-  margin-top:8px;
-}
-
 .lang-toggle{
   display:flex;
   gap:4px;
@@ -76,7 +70,7 @@ header p{ font-size:11px; opacity:.7; margin-top:2px; }
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
 }
-.lang-btn.active{ background:#00a7b5; color:white; }
+.lang-btn.active{ background:#a67817; color:white; }
 .help-icon-btn{
   background:#262626;
   border:1px solid #444;
@@ -99,17 +93,16 @@ header p{ font-size:11px; opacity:.7; margin-top:2px; }
 .resize-handle {
   flex-shrink: 0;
   flex-grow: 0;
-  height: 40px;
-  min-height: 0;
+  min-height: 40px;
   display: flex;
   align-items: center;
-  justify-content: center;
   background: #181818;
   border-top: 1px solid #292929;
   border-bottom: 1px solid #292929;
   position: relative;
   z-index: 5;
   overflow: visible;
+  padding: 4px 0;
 }
 
 .panel-toggle-btn {
@@ -128,9 +121,13 @@ header p{ font-size:11px; opacity:.7; margin-top:2px; }
   transition: background .15s, color .15s, transform .15s;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
 }
 .panel-toggle-btn:hover { background:#303030; color:#ddd; }
-.panel-toggle-btn:active { transform: scale(.9); }
+.panel-toggle-btn:active { transform: translate(-50%, -50%) scale(.9); }
 .panel-toggle-btn svg { transition: transform .25s ease; }
 .panel-toggle-btn.collapsed svg { transform: rotate(180deg); }
 
@@ -234,7 +231,7 @@ button{
 
 .report-btn{ background:#ff4b4b; color:white; width:100%; transition:opacity .2s; }
 .report-btn:disabled{ opacity:.35; cursor:not-allowed; }
-.export-btn{ background:#00a7b5; color:white; width:100%; }
+.export-btn{ background:#a67817; color:white; width:100%; }
 
 .legend{
   display:flex;
@@ -252,21 +249,20 @@ button{
   padding:0 !important;
   overflow:hidden;
   min-width:200px;
-  background: rgba(40,42,48,0.96) !important;
-  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,0.82) !important;
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
 }
 .leaflet-popup-content{ margin:0 !important; width:auto !important; }
-.leaflet-popup-tip{ background: rgba(40,42,48,0.96) !important; box-shadow:none !important; }
-.leaflet-popup-close-button{ color:#ccc !important; }
-.leaflet-popup-close-button:hover{ color:#fff !important; }
+.leaflet-popup-tip{ background: rgba(255,255,255,0.82) !important; box-shadow:none !important; }
+.leaflet-popup-close-button{ color:#555 !important; }
+.leaflet-popup-close-button:hover{ color:#000 !important; }
 
 .popup-inner{
   font-family:-apple-system,BlinkMacSystemFont,sans-serif;
   font-size:13px;
   line-height:1.5;
-  color:#ddd;
+  color:#111;
   min-width:200px;
 }
 .popup-title{ font-size:14px; font-weight:700; margin-bottom:8px; color:#111; }
@@ -303,16 +299,20 @@ button{
   align-items:center;
   gap:6px;
   background:#1e2b2c;
-  border:1px solid #00a7b5;
+  border:1px solid #a67817;
   color:#9be8ee;
   border-radius:6px;
   padding:5px 8px;
   font-size:11px;
   font-weight:600;
   cursor:pointer;
-  max-width:min(65vw, 220px);
+  max-width:min(50vw, 180px);
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
+  position:absolute;
+  left:12px;
+  top:50%;
+  transform:translateY(-50%);
 }
 .user-badge .username-text{
   overflow:hidden;
@@ -353,7 +353,7 @@ button{
 
 .auth-toggle-text {
   font-size: 11px;
-  color: #00a7b5;
+  color: #a67817;
   text-align: center;
   cursor: pointer;
   text-decoration: underline;
@@ -397,10 +397,10 @@ button{
 }
 .popup-header-date{
   font-size:9.5px;
-  color:rgba(255,255,255,.75);
+  color:rgba(255,255,255,.8);
 }
 .popup-body{
-  padding:2px 10px 4px 10px;
+  padding:5px 10px 4px 10px;
 }
 .popup-row{
   display:flex;
@@ -408,7 +408,7 @@ button{
   align-items:center;
   gap:10px;
   padding:6px 0;
-  border-bottom:1px solid rgba(255,255,255,.07);
+  border-bottom:1px solid #eee;
 }
 .popup-row:last-child{ border-bottom:none; }
 .popup-row-label{
@@ -416,13 +416,13 @@ button{
   font-weight:700;
   letter-spacing:.4px;
   text-transform:uppercase;
-  color:#8a8a90;
+  color:#888;
   flex-shrink:0;
 }
 .popup-row-value{
   font-size:12.5px;
   font-weight:600;
-  color:#eee;
+  color:#111;
   text-align:right;
   overflow:hidden;
   text-overflow:ellipsis;
@@ -431,10 +431,10 @@ button{
 .popup-note{
   margin:6px 10px 9px 10px;
   padding:8px 9px;
-  background:rgba(255,255,255,.045);
+  background:rgba(0,0,0,.04);
   border-radius:6px;
   font-size:11.5px;
-  color:#c4c4c8;
+  color:#444;
   line-height:1.45;
   word-break:break-word;
 }
@@ -465,7 +465,7 @@ button{
   top:11px;
   bottom:-2px;
   width:2px;
-  background:rgba(255,255,255,.14);
+  background:#eee;
 }
 .timeline-item:last-child .timeline-line{ display:none; }
 .timeline-content{ display:flex; flex-direction:column; gap:1px; }
@@ -474,14 +474,14 @@ button{
   font-weight:700;
   letter-spacing:.3px;
   text-transform:uppercase;
-  color:#8a8a90;
+  color:#bbb;
 }
 .timeline-date{
   font-size:11.5px;
-  color:#eee;
+  color:#111;
   font-weight:600;
 }
-.timeline-item.pending .timeline-date{ color:#6b6b70; font-weight:500; }
+.timeline-item.pending .timeline-date{ color:#bbb; font-weight:500; }
 .popup-edit-form{
   padding:10px;
   min-width:200px;
@@ -490,12 +490,18 @@ button{
   flex-direction:column;
   gap:6px;
 }
+.popup-edit-form select,
+.popup-edit-form input[type="text"]{
+  background:#f2f2f2 !important;
+  color:#111 !important;
+  border:1px solid #ddd;
+}
 
 .status-action-row{
   display:flex;
   gap:6px;
   padding:8px 10px 10px 10px;
-  border-top:1px solid rgba(255,255,255,.08);
+  border-top:1px solid #eee;
   margin-top:2px;
   flex-wrap:wrap;
 }
@@ -520,7 +526,7 @@ button{
 
 .owner-tag{
   font-size:9px;
-  color:#3fd8e6;
+  color:#00838f;
   font-weight:700;
 }
 
@@ -611,8 +617,8 @@ span.flatpickr-weekday {
 .flatpickr-day.selected:hover,
 .flatpickr-day.startRange:hover,
 .flatpickr-day.endRange:hover {
-  background: #00a7b5 !important;
-  border-color: #00a7b5 !important;
+  background: #a67817 !important;
+  border-color: #a67817 !important;
   color: white !important;
 }
 .flatpickr-day.inRange,
@@ -621,7 +627,7 @@ span.flatpickr-weekday {
 .flatpickr-day.today.inRange,
 .flatpickr-day.prevMonthDay.today.inRange,
 .flatpickr-day.nextMonthDay.today.inRange {
-  background: #00a7b5 !important;
+  background: #a67817 !important;
   border-color: transparent !important;
   border-radius: 0 !important;
 }
@@ -641,13 +647,6 @@ span.flatpickr-weekday {
         <button class="lang-btn"        onclick="setLang('en')">🇬🇧 EN</button>
         <button class="lang-btn active" onclick="setLang('sr')">🇷🇸 SR</button>
       </div>
-    </div>
-  </div>
-  <div class="user-badge-row" id="userBadgeRow" style="display:none">
-    <div class="user-badge" id="userBadge" onclick="handleUserBadgeClick()" title="Sign out">
-      <span class="username-text" id="userBadgeName"></span>
-      <span class="admin-pill" id="userBadgeAdmin" style="display:none">★ ADMIN</span>
-      <span class="signout-x">✕</span>
     </div>
   </div>
 </header>
@@ -702,6 +701,11 @@ span.flatpickr-weekday {
 </div>
 
 <div class="resize-handle">
+  <div class="user-badge" id="userBadge" style="display:none" onclick="handleUserBadgeClick()" title="Sign out">
+    <span class="username-text" id="userBadgeName"></span>
+    <span class="admin-pill" id="userBadgeAdmin" style="display:none">★ ADMIN</span>
+    <span class="signout-x">✕</span>
+  </div>
   <button id="panelToggleBtn" class="panel-toggle-btn" type="button"
           aria-expanded="true" aria-controls="appPanel" title="Hide panel">
     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
@@ -772,7 +776,7 @@ span.flatpickr-weekday {
     </div>
   </div>
 
-  <button class="export-btn" id="submitAuthBtn" style="width:100%; background:#00a7b5; font-size:13px; font-weight:bold; height:40px;" onclick="handleAuthSubmit()">
+  <button class="export-btn" id="submitAuthBtn" style="width:100%; background:#a67817; font-size:13px; font-weight:bold; height:40px;" onclick="handleAuthSubmit()">
     <span id="authBtnLabel">Sign In</span>
   </button>
   
@@ -961,18 +965,18 @@ async function loadProfile() {
 }
 
 function updateAuthUI() {
-  const userBadgeRow = document.getElementById('userBadgeRow');
+  const userBadge = document.getElementById('userBadge');
   const reportFormPanel = document.getElementById('reportFormPanel');
   const lockedFormPanel = document.getElementById('lockedFormPanel');
 
   if (currentSession && currentProfile) {
-    userBadgeRow.style.display = 'flex';
+    userBadge.style.display = 'flex';
     document.getElementById('userBadgeName').textContent = currentProfile.username;
     document.getElementById('userBadgeAdmin').style.display = currentProfile.is_admin ? 'inline-block' : 'none';
     reportFormPanel.style.display = 'flex';
     lockedFormPanel.style.display = 'none';
   } else {
-    userBadgeRow.style.display = 'none';
+    userBadge.style.display = 'none';
     reportFormPanel.style.display = 'none';
     lockedFormPanel.style.display = 'flex';
   }
@@ -1520,7 +1524,7 @@ function buildEditPopupHtml(report) {
     <select id="edit-status-${uid}" style="width:100%;">${statusOptions}</select>
     <input type="text" id="edit-comment-${uid}" value="${escapeHtml(report.comment || '')}" style="width:100%;">
     <div class="status-action-row" style="padding:0;border-top:none;">
-      <button class="status-action-btn" style="background:#00a7b5;" onclick="saveReportEdits('${uid}')">${t('saveBtn')}</button>
+      <button class="status-action-btn" style="background:#a67817;" onclick="saveReportEdits('${uid}')">${t('saveBtn')}</button>
       <button class="status-action-btn" style="background:#3a3a3a;" onclick="cancelEdit('${uid}')">${t('cancelBtn')}</button>
     </div>
   </div>`;
