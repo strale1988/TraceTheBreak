@@ -769,9 +769,9 @@ span.flatpickr-weekday {
   <p id="lockedMsgText">Sign in to secure your profile and reports.</p>
   
   <div class="row" style="width:100%; gap:6px;">
-    <input type="text" id="authUsernameInput" placeholder="Username" style="flex:1; height:40px;">
+    <input type="text" id="authUsernameInput" placeholder="Username" autocomplete="off" style="flex:1; height:40px;">
     <div class="pw-wrap" style="flex:1; position:relative;">
-      <input type="password" id="authPasswordInput" placeholder="Password" style="width:100%; height:40px;">
+      <input type="password" id="authPasswordInput" placeholder="Password" autocomplete="off" style="width:100%; height:40px;">
       <button type="button" class="pw-toggle-btn" id="pwToggleBtn" onclick="togglePasswordVisibility()" title="Show/hide password">👁</button>
     </div>
   </div>
@@ -908,6 +908,8 @@ async function handleAuthSubmit() {
         if (profError) throw profError;
       }
 
+      document.getElementById('authPasswordInput').value = '';
+
       alert(lang === 'sr' ? 'Nalog uspešno kreiran! Sada se možete prijaviti.' : 'Account created successfully! You can now sign in.');
       isRegisterMode = true;
       toggleAuthMode(); // Flip back to sign-in view automatically
@@ -923,7 +925,13 @@ async function handleAuthSubmit() {
         password: password
       });
       if (error) throw error;
-      
+
+      // Clear the password value BEFORE the field gets hidden by updateAuthUI().
+      // Browsers offer to "save this password" when a password field disappears
+      // right after a successful request while still holding a value — wiping it
+      // first makes that disappearance look like a reset instead of a submit.
+      document.getElementById('authPasswordInput').value = '';
+
       currentSession = data.session;
       await loadProfile();
     } catch (err) {
@@ -1389,6 +1397,15 @@ function resetReportingForm() {
   document.getElementById('subcategoryRow').style.display = 'none';
   document.getElementById('comment').value = "";
   document.getElementById('reportBtn').disabled = true;
+
+  // If the user manually dropped a pin to file this report, turn pin-drop
+  // mode back off so the pin doesn't stay "clicked"/active after submit.
+  if (pinMode) {
+    pinMode = false;
+    document.getElementById('pinMapBtn').classList.remove('active');
+  }
+  if (manualMarker) { map.removeLayer(manualMarker); manualMarker = null; }
+  manualCoords = null;
 }
 
 async function reportBreak(){
