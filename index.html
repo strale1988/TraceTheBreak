@@ -1,0 +1,2937 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>TraceTheBreak</title>
+
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+
+  <link rel="icon" type="image/png" href="TraceTheBreak.png">
+  <meta property="og:image" content="https://github.io"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
+  <style>
+.map-tiles-grayscale { filter: grayscale(1) brightness(0.85); }
+
+*{ margin:0; padding:0; box-sizing:border-box; }
+
+body{
+  font-family:-apple-system,BlinkMacSystemFont,sans-serif;
+  background:#111;
+  color:white;
+  height: 100svh;
+  display:flex;
+  flex-direction:column;
+}
+
+header{
+  padding:10px 12px;
+  background:#181818;
+  border-bottom:1px solid #333;
+}
+
+.header-top{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:8px;
+}
+
+header h1{ font-size:19px; }
+header p{ font-size:11px; opacity:.7; margin-top:2px; }
+
+.right-controls{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  flex-shrink:0;
+}
+
+.lang-toggle{
+  display:flex;
+  gap:4px;
+  align-items:center;
+}
+
+.lang-btn, .help-icon-btn{
+  background:#303030;
+  color:#aaa;
+  border:none;
+  border-radius:6px;
+  padding:5px 8px;
+  font-size:11px;
+  font-weight:600;
+  cursor:pointer;
+  transition:background .15s,color .15s;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+.lang-btn.active{ background:#a67817; color:white; }
+.help-icon-btn{
+  background:#262626;
+  border:1px solid #444;
+  font-size:14px;
+  padding:4px 8px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.help-icon-btn:active{ background:#333; }
+
+#map {
+  flex: 1;
+  height: 0;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.resize-handle {
+  flex-shrink: 0;
+  flex-grow: 0;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  background: #181818;
+  border-top: 1px solid #292929;
+  border-bottom: 1px solid #292929;
+  position: relative;
+  z-index: 5;
+  overflow: visible;
+  padding: 4px 0;
+}
+
+.panel-toggle-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #262626;
+  border: 1px solid #3a3a3a;
+  color: #aaa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  box-shadow: 0 2px 6px rgba(0,0,0,.45);
+  transition: background .15s, color .15s, transform .15s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+.panel-toggle-btn:hover { background:#303030; color:#ddd; }
+.panel-toggle-btn:active { transform: translate(-50%, -50%) scale(.9); }
+.panel-toggle-btn svg { transition: transform .25s ease; }
+.panel-toggle-btn.collapsed svg { transform: rotate(180deg); }
+
+.app-panel {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow: hidden;
+  opacity: 1;
+  transition: height .28s ease, opacity .22s ease;
+}
+
+.filter-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px 4px 14px;
+  background: #181818;
+  font-size: 11px;
+  font-weight: bold;
+}
+
+.filter-title {
+  color: #888;
+  letter-spacing: .3px;
+  text-transform: uppercase;
+  font-size: 10px;
+}
+
+#reportCount {
+  color: #aaa;
+  font-size: 12px;
+  text-align: right;
+  width: 90px;
+}
+
+.filter-select-row {
+  background: #181818;
+  padding: 0 12px 14px 12px;
+  border-bottom: 1px solid #292929;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.select-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.panel{
+  background:#181818;
+  padding:12px 12px;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  flex-shrink: 0;
+}
+
+.row{ display:flex; gap:8px; }
+
+select{
+  flex:1;
+  padding:11px 10px;
+  border:none;
+  border-radius:8px;
+  background:#262626;
+  color:white;
+  font-size:13px;
+  -webkit-appearance:none;
+  appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;
+  background-position:right 10px center;
+  padding-right:28px;
+}
+
+input[type="text"], input[type="password"]{
+  width:100%;
+  padding:11px 10px;
+  border:none;
+  border-radius:8px;
+  background:#262626;
+  color:white;
+  font-size:13px;
+}
+
+button{
+  padding:12px;
+  border:none;
+  border-radius:8px;
+  cursor:pointer;
+  font-weight:bold;
+  font-size:13px;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+
+.report-btn{ background:#ff4b4b; color:white; width:100%; transition:opacity .2s; }
+.report-btn:disabled{ opacity:.35; cursor:not-allowed; }
+.export-btn{ background:#a67817; color:white; width:100%; }
+
+.legend{
+  display:flex;
+  gap:8px;
+  font-size:10px;
+  align-items:center;
+  flex-wrap:wrap;
+  opacity:.9;
+}
+.legend-item{ display:flex; align-items:center; gap:3px; }
+.legend-dot{ width:9px; height:9px; border-radius:50%; display:inline-block; flex-shrink:0; }
+
+.leaflet-popup-content-wrapper{
+  border-radius:10px !important;
+  padding:0 !important;
+  overflow:hidden;
+  min-width:170px;
+  background: rgba(255,255,255,0.82) !important;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.leaflet-popup-content{ margin:0 !important; width:auto !important; }
+.leaflet-popup-tip{ background: rgba(255,255,255,0.82) !important; box-shadow:none !important; }
+.leaflet-popup-close-button{ color:#555 !important; }
+.leaflet-popup-close-button:hover{ color:#000 !important; }
+
+.popup-inner{
+  font-family:-apple-system,BlinkMacSystemFont,sans-serif;
+  font-size:13px;
+  line-height:1.5;
+  color:#111;
+}
+.popup-title{ font-size:14px; font-weight:700; margin-bottom:8px; color:#111; }
+
+.status-pill{
+  display:inline-block;
+  font-size:9px;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.3px;
+  padding:2px 7px;
+  border-radius:20px;
+  color:white;
+}
+
+.pin-map-btn{
+  background:rgba(20,20,20,.88);
+  border:1px solid #3a3a3a;
+  border-radius:8px;
+  width:44px; height:44px;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer; font-size:22px;
+  box-shadow:0 2px 8px rgba(0,0,0,.55);
+  transition:background .15s;
+  user-select:none;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+.pin-map-btn.active{ background:#f5a623; border-color:#f5a623; }
+.pin-map-btn.follow-active{ background:#00d0ff; border-color:#00d0ff; }
+.pin-map-btn.recording-active{ background:#ff4b4b; border-color:#ff4b4b; animation:pulseRec 1.2s infinite; }
+.pin-map-btn.nav-active{ background:#00d0ff; border-color:#00d0ff; }
+
+/* --- Destination search panel (simple point-to-point navigation) --- */
+.navigate-panel{
+  display:none;
+  flex-direction:column;
+  width:min(78vw, 260px);
+  background:rgba(20,20,20,.92);
+  border:1px solid #3a3a3a;
+  border-radius:10px;
+  box-shadow:0 2px 8px rgba(0,0,0,.55);
+  padding:8px;
+  gap:6px;
+}
+.navigate-row{ display:flex; gap:6px; align-items:center; }
+.navigate-profile-row{ display:flex; gap:6px; }
+.navigate-profile-btn{
+  flex:1;
+  padding:6px 0;
+  border-radius:6px;
+  background:#232323;
+  border:1px solid #333;
+  color:#999;
+  font-size:15px;
+  text-align:center;
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+.navigate-profile-btn.active{ background:#00d0ff; border-color:#00d0ff; filter:none; }
+.navigate-row input{
+  flex:1;
+  padding:8px 9px;
+  border:none;
+  border-radius:6px;
+  background:#262626;
+  color:white;
+  font-size:12px;
+  min-width:0;
+}
+.navigate-search-btn, .navigate-close-btn{
+  flex-shrink:0;
+  width:30px; height:30px;
+  border-radius:6px;
+  background:#303030;
+  color:#ddd;
+  font-size:13px;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+.navigate-results{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+  max-height:160px;
+  overflow-y:auto;
+}
+.navigate-result-item{
+  padding:7px 8px;
+  border-radius:6px;
+  background:#232323;
+  font-size:11.5px;
+  line-height:1.35;
+  color:#ccc;
+  cursor:pointer;
+}
+.navigate-result-item:active{ background:#2d2d2d; }
+.navigate-result-empty{
+  padding:6px 4px;
+  font-size:11.5px;
+  color:#888;
+  text-align:center;
+}
+.navigate-active-info{
+  display:none;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  padding-top:2px;
+  border-top:1px solid #2e2e2e;
+  padding-top:6px;
+}
+#navigateDistanceText{ font-size:12px; font-weight:700; color:#00d0ff; white-space:nowrap; }
+.navigate-clear-btn{
+  flex-shrink:0;
+  background:#333;
+  color:#ddd;
+  font-size:11px;
+  padding:6px 10px;
+  border-radius:6px;
+}
+@keyframes pulseRec{
+  0%,100%{ box-shadow:0 2px 8px rgba(0,0,0,.55), 0 0 0 0 rgba(255,75,75,.6); }
+  50%{ box-shadow:0 2px 8px rgba(0,0,0,.55), 0 0 0 8px rgba(255,75,75,0); }
+}
+
+/* --- Map rotation wrapper (heading-up navigation in driving mode) ---
+   This div is inserted between the map container and Leaflet's internal
+   map-pane at runtime (see initRotationWrapper()). Rotating it turns tiles,
+   markers, lines and popups together as one rigid unit, while the zoom/
+   attribution controls and our own floating buttons stay fixed and upright
+   because they live outside this wrapper. */
+.leaflet-rotate-wrapper{
+  position:absolute;
+  top:0; left:0; right:0; bottom:0;
+  transition: transform .25s linear;
+  transform-origin:center center;
+}
+
+/* --- Compass widget (driving mode only) --- */
+.map-compass{
+  width:44px; height:44px;
+  border-radius:50%;
+  background:rgba(20,20,20,.88);
+  border:1px solid #3a3a3a;
+  box-shadow:0 2px 8px rgba(0,0,0,.55);
+  display:none;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  position:relative;
+  user-select:none;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+.map-compass.heading-up-disabled{ background:rgba(60,60,60,.7); }
+.map-compass .compass-face{
+  position:relative;
+  width:30px; height:30px;
+}
+.map-compass .compass-n{
+  position:absolute;
+  top:-2px; left:50%;
+  transform:translateX(-50%);
+  font-size:8px;
+  font-weight:800;
+  color:#888;
+  letter-spacing:.5px;
+}
+.map-compass .compass-needle{
+  position:absolute;
+  inset:0;
+  transition: transform .25s linear;
+}
+.map-compass .compass-needle svg{ width:100%; height:100%; display:block; }
+
+/* --- Toasts --- */
+#toastContainer{
+  position:fixed;
+  top:calc(10px + env(safe-area-inset-top, 0px));
+  left:50%;
+  transform:translateX(-50%);
+  z-index:3000;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  align-items:center;
+  pointer-events:none;
+  width:90%;
+  max-width:360px;
+}
+.toast{
+  background:rgba(24,24,24,.95);
+  border:1px solid #3a3a3a;
+  color:white;
+  padding:10px 16px;
+  border-radius:10px;
+  font-size:13px;
+  font-weight:600;
+  box-shadow:0 4px 14px rgba(0,0,0,.5);
+  opacity:0;
+  transform:translateY(-8px);
+  transition:opacity .2s ease, transform .2s ease;
+  text-align:center;
+}
+.toast.toast-show{ opacity:1; transform:translateY(0); }
+.toast.toast-error{ border-color:#7a1f1f; background:rgba(60,20,20,.95); }
+.toast.toast-success{ border-color:#1f7a3f; background:rgba(20,45,28,.95); }
+
+/* --- Driving mode --- */
+.driving-overlay{
+  position:fixed;
+  left:0; right:0; bottom:0;
+  z-index:2500;
+  background:rgba(14,14,14,.97);
+  backdrop-filter:blur(6px);
+  -webkit-backdrop-filter:blur(6px);
+  border-top:1px solid #333;
+  padding:14px 14px calc(14px + env(safe-area-inset-bottom, 0px)) 14px;
+  display:none;
+  flex-direction:column;
+  gap:10px;
+}
+.driving-overlay.open{ display:flex; }
+.driving-header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+.driving-header h3{ font-size:14px; letter-spacing:.3px; color:#eee; }
+.driving-exit-btn{
+  background:#262626;
+  border:1px solid #444;
+  color:#ddd;
+  border-radius:8px;
+  width:34px; height:34px;
+  font-size:15px;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+.driving-grid{
+  display:grid;
+  grid-template-columns:repeat(3, 1fr);
+  gap:8px;
+}
+.driving-tile{
+  background:#262626;
+  border:1px solid #3a3a3a;
+  border-radius:10px;
+  color:white;
+  padding:12px 6px;
+  font-size:11px;
+  font-weight:700;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:4px;
+  cursor:pointer;
+  transition:background .15s, transform .1s;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+.driving-tile:active{ background:#333; transform:scale(.96); }
+.driving-tile .tile-emoji{ font-size:22px; }
+.driving-section-btn{
+  width:100%;
+  padding:14px;
+  border-radius:10px;
+  font-size:14px;
+  font-weight:800;
+  letter-spacing:.3px;
+  background:#a67817;
+  color:white;
+}
+.driving-section-btn.recording{
+  background:#ff4b4b;
+  animation:pulseRec 1.2s infinite;
+}
+.driving-hint{ font-size:10px; color:#888; text-align:center; }
+
+/* --- Auth UI --- */
+.user-badge{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  background:#1e2b2c;
+  border:1px solid #a67817;
+  color:#9be8ee;
+  border-radius:6px;
+  padding:5px 8px;
+  font-size:11px;
+  font-weight:600;
+  cursor:pointer;
+  max-width:min(50vw, 180px);
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+  position:absolute;
+  left:12px;
+  top:50%;
+  transform:translateY(-50%);
+}
+.user-badge .username-text{
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  min-width:0;
+}
+.user-badge .admin-pill{
+  flex-shrink:0;
+  background:#3a2a00;
+  color:#f5c518;
+  border-radius:4px;
+  padding:2px 5px;
+  font-size:9px;
+  font-weight:800;
+  letter-spacing:.3px;
+}
+.user-badge .signout-x{
+  flex-shrink:0;
+  opacity:.7;
+  font-size:13px;
+  line-height:1;
+}
+
+.locked-panel{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  padding:12px 10px;
+}
+.locked-panel p{
+  font-size:12px;
+  color:#999;
+  line-height:1.4;
+  text-align:center;
+  margin-bottom:2px;
+}
+
+.auth-toggle-text {
+  font-size: 11px;
+  color: #a67817;
+  text-align: center;
+  cursor: pointer;
+  text-decoration: underline;
+  margin-top: 4px;
+}
+
+.pw-wrap input{ padding-right:34px !important; }
+.pw-toggle-btn{
+  position:absolute;
+  right:6px;
+  top:50%;
+  transform:translateY(-50%);
+  background:none;
+  border:none;
+  padding:4px;
+  font-size:15px;
+  cursor:pointer;
+  opacity:.6;
+  line-height:1;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+.pw-toggle-btn:active{ opacity:1; }
+.pw-toggle-btn.revealed{ opacity:1; }
+
+.popup-card{
+  min-width:170px;
+  max-width:210px;
+}
+.popup-header{
+  padding:6px 8px;
+  display:flex;
+  flex-direction:column;
+  gap:1px;
+}
+.popup-header-title{
+  font-size:11.5px;
+  font-weight:700;
+  color:#fff;
+  line-height:1.3;
+}
+.popup-header-date{
+  font-size:9px;
+  color:rgba(255,255,255,.8);
+}
+.popup-body{
+  padding:2px 8px 1px 8px;
+}
+.popup-row{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:8px;
+  padding:4px 0;
+  border-bottom:1px solid #eee;
+}
+.popup-row:last-child{ border-bottom:none; }
+.popup-row-label{
+  font-size:9px;
+  font-weight:700;
+  letter-spacing:.3px;
+  text-transform:uppercase;
+  color:#888;
+  flex-shrink:0;
+}
+.popup-row-value{
+  font-size:11.5px;
+  font-weight:600;
+  color:#111;
+  text-align:right;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.popup-note{
+  margin:4px 8px 6px 8px;
+  padding:6px 7px;
+  background:rgba(0,0,0,.04);
+  border-radius:6px;
+  font-size:10.5px;
+  color:#444;
+  line-height:1.4;
+  word-break:break-word;
+}
+.popup-timeline{
+  padding:5px 8px 2px 8px;
+  display:flex;
+  flex-direction:column;
+}
+.timeline-item{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  position:relative;
+  padding-bottom:7px;
+}
+.timeline-item:last-child{ padding-bottom:0; }
+.timeline-dot{
+  width:7px;
+  height:7px;
+  border-radius:50%;
+  flex-shrink:0;
+  position:relative;
+  z-index:1;
+}
+.timeline-line{
+  position:absolute;
+  left:2.5px;
+  top:9px;
+  bottom:-2px;
+  width:2px;
+  background:#eee;
+}
+.timeline-item:last-child .timeline-line{ display:none; }
+.timeline-date{
+  font-size:11px;
+  color:#111;
+  font-weight:600;
+}
+.timeline-item.pending .timeline-date{ color:#bbb; font-weight:500; }
+.popup-edit-form{
+  padding:8px;
+  min-width:180px;
+  max-width:210px;
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+}
+.popup-edit-form select,
+.popup-edit-form input[type="text"]{
+  background:#f2f2f2 !important;
+  color:#111 !important;
+  border:1px solid #ddd;
+}
+
+.status-action-row{
+  display:flex;
+  gap:5px;
+  padding:6px 8px 8px 8px;
+  border-top:1px solid #eee;
+  margin-top:1px;
+  flex-wrap:wrap;
+}
+.status-action-btn{
+  flex:1 1 auto;
+  min-width:72px;
+  padding:6px 5px;
+  border:none;
+  border-radius:6px;
+  font-size:9.5px;
+  font-weight:700;
+  cursor:pointer;
+  color:white;
+  text-transform:uppercase;
+  letter-spacing:.2px;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+.status-action-btn.progress-btn{ background:#f5a623; }
+.status-action-btn.fixed-btn{ background:#2ecc71; }
+.status-action-btn:disabled{ opacity:.4; cursor:not-allowed; }
+
+.owner-tag{
+  font-size:9px;
+  color:#00838f;
+  font-weight:700;
+}
+
+.generic-modal-overlay{
+  position:fixed; inset:0;
+  background:rgba(0,0,0,.75);
+  display:flex; align-items:center; justify-content:center;
+  z-index:9999;
+  padding:20px;
+  -webkit-overflow-scrolling:touch;
+}
+.generic-modal{
+  background:#1e1e1e; color:white;
+  border-radius:18px;
+  padding:24px 20px;
+  max-width:340px; width:100%;
+  text-align:center;
+  box-shadow:0 16px 48px rgba(0,0,0,.8);
+  max-height:85vh; overflow-y:auto;
+  pointer-events:all;
+}
+.generic-modal h2{ font-size:18px; font-weight:700; margin-bottom:12px; }
+.generic-modal p{ font-size:13px; line-height:1.6; color:#bbb; margin-bottom:12px; text-align:left; }
+.generic-modal-close{
+  background:#333; color:#eee;
+  border:1px solid #555; border-radius:10px;
+  padding:12px 20px;
+  font-size:14px; font-weight:600;
+  cursor:pointer; width:100%;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+  min-height:44px;
+}
+.generic-modal-close:active{ background:#444; }
+
+#dateRangePicker {
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2' ry='2'%3E%3C/rect%3E%3Cline x1='16' y1='2' x2='16' y2='6'%3E%3C/line%3E%3Cline x1='8' y1='2' x2='8' y2='6'%3E%3C/line%3E%3Cline x1='3' y1='10' x2='21' y2='10'%3E%3C/line%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px !important;
+}
+
+.flatpickr-calendar {
+  background: #181818 !important;
+  border: 1px solid #333 !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6) !important;
+  border-radius: 12px !important;
+  font-family: inherit !important;
+}
+.flatpickr-months .flatpickr-month,
+.flatpickr-months .flatpickr-prev-month,
+.flatpickr-months .flatpickr-next-month {
+  color: #fff !important;
+  fill: #fff !important;
+}
+.flatpickr-months .flatpickr-prev-month:hover,
+.flatpickr-months .flatpickr-next-month:hover {
+  background: #262626 !important;
+}
+.flatpickr-current-month .numInputWrapper span.arrowUp:after { border-bottom-color: #fff !important; }
+.flatpickr-current-month .numInputWrapper span.arrowDown:after { border-top-color: #fff !important; }
+span.flatpickr-weekday {
+  background: #181818 !important;
+  color: #888 !important;
+  font-weight: bold !important;
+}
+.flatpickr-day:hover,
+.flatpickr-day.prevMonthDay:hover,
+.flatpickr-day.nextMonthDay:hover {
+  background: #262626 !important;
+  border-color: #262626 !important;
+  color: #fff !important;
+}
+.flatpickr-day.prevMonthDay,
+.flatpickr-day.nextMonthDay {
+  color: #444 !important;
+}
+.flatpickr-day.selected,
+.flatpickr-day.startRange,
+.flatpickr-day.endRange,
+.flatpickr-day.selected.inRange,
+.flatpickr-day.startRange.inRange,
+.flatpickr-day.endRange.inRange,
+.flatpickr-day.selected:focus,
+.flatpickr-day.startRange:focus,
+.flatpickr-day.endRange:focus,
+.flatpickr-day.selected:hover,
+.flatpickr-day.startRange:hover,
+.flatpickr-day.endRange:hover {
+  background: #a67817 !important;
+  border-color: #a67817 !important;
+  color: white !important;
+}
+.flatpickr-day.inRange,
+.flatpickr-day.prevMonthDay.inRange,
+.flatpickr-day.nextMonthDay.inRange,
+.flatpickr-day.today.inRange,
+.flatpickr-day.prevMonthDay.today.inRange,
+.flatpickr-day.nextMonthDay.today.inRange {
+  background: #a67817 !important;
+  border-color: transparent !important;
+  border-radius: 0 !important;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-top">
+    <div>
+      <h1>TraceTheBreak</h1>
+      <p id="subtitle">Community Infrastructure Reporting Network</p>
+    </div>
+    <div class="right-controls">
+      <button class="help-icon-btn" id="fullscreenBtn" title="Fullscreen / Preko celog ekrana" onclick="toggleFullscreen()">⛶</button>
+      <button class="help-icon-btn" id="helpTopBtn" title="Help / Pomoć" onclick="showHelpModal()">❓</button>
+      <div class="lang-toggle">
+        <button class="lang-btn"        onclick="setLang('en')">🇬🇧 EN</button>
+        <button class="lang-btn active" onclick="setLang('sr')">🇷🇸 SR</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div id="map"></div>
+
+<div id="mapLegend" style="
+  background:rgba(18,18,18,.88);
+  backdrop-filter:blur(4px);
+  -webkit-backdrop-filter:blur(4px);
+  border-radius:10px;
+  padding:5px 10px;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex-wrap:nowrap;
+  pointer-events:none;
+  border:1px solid rgba(255,255,255,.09);
+  box-shadow:0 2px 10px rgba(0,0,0,.45);
+  margin-bottom:4px;
+">
+  <span class="legend-item"><span class="legend-dot" style="background:#ff4b4b"></span>
+  <span class="leg" data-en="Reported" data-sr="Prijavljeno" style="color:#ddd;font-size:10px;">Prijavljeno</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#f5a623"></span><span class="leg" data-en="In progress" data-sr="U toku" style="color:#ddd;font-size:10px;">U toku</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#2ecc71"></span><span class="leg" data-en="Fixed" data-sr="Popravljeno" style="color:#ddd;font-size:10px;">Popravljeno</span></span>
+</div>
+
+<div class="legend" id="categoryLegend" style="
+  background:rgba(18,18,18,.88);
+  backdrop-filter:blur(4px);
+  -webkit-backdrop-filter:blur(4px);
+  border-radius:10px;
+  padding:5px 10px;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex-wrap:wrap;
+  pointer-events:none;
+  border:1px solid rgba(255,255,255,.09);
+  box-shadow:0 2px 10px rgba(0,0,0,.45);
+  margin-bottom:4px;
+">
+  <span class="legend-item"><span class="legend-dot" style="background:#1e90ff"></span><span class="leg" data-en="Water" data-sr="Voda" style="color:#ddd;font-size:10px;">Voda</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#f5c518"></span><span class="leg" data-en="Electricity" data-sr="Struja" style="color:#ddd;font-size:10px;">Struja</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#8b4513"></span><span class="leg" data-en="Sewage" data-sr="Kanalizacija" style="color:#ddd;font-size:10px;">Kanalizacija</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#ff6b35"></span><span class="leg" data-en="Gas" data-sr="Gas" style="color:#ddd;font-size:10px;">Gas</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#b71c1c"></span><span class="leg" data-en="Heating" data-sr="Grejanje" style="color:#ddd;font-size:10px;">Grejanje</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#6b6b6b"></span><span class="leg" data-en="Road" data-sr="Put" style="color:#ddd;font-size:10px;">Put</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#c9a227"></span><span class="leg" data-en="Streetlight" data-sr="Ulična rasveta" style="color:#ddd;font-size:10px;">Ulična rasveta</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#6d8b3a"></span><span class="leg" data-en="Waste" data-sr="Otpad" style="color:#ddd;font-size:10px;">Otpad</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#8342a1"></span><span class="leg" data-en="Other" data-sr="Ostalo" style="color:#ddd;font-size:10px;">Ostalo</span></span>
+</div>
+
+<div class="resize-handle">
+  <div class="user-badge" id="userBadge" style="display:none" onclick="handleUserBadgeClick()" title="Sign out">
+    <span class="username-text" id="userBadgeName"></span>
+    <span class="admin-pill" id="userBadgeAdmin" style="display:none">★ ADMIN</span>
+    <span class="signout-x">✕</span>
+  </div>
+  <button id="panelToggleBtn" class="panel-toggle-btn" type="button"
+          aria-expanded="true" aria-controls="appPanel" title="Hide panel">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+         stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="6 9 12 15 18 9"></polyline>
+    </svg>
+  </button>
+</div>
+
+<div id="appPanel" class="app-panel">
+
+<div class="filter-label-row">
+  <span class="filter-title" id="filterTitleLabel">Time Window Filter</span>
+  <span id="reportCount">0 Reports</span>
+</div>
+
+<div class="filter-select-row">
+  <div class="select-wrap">
+    <input type="text" id="dateRangePicker" placeholder="Select date range..." readonly>
+  </div>
+  <button class="export-btn" onclick="downloadCSV()"
+          style="flex:0 0 auto;width:auto;min-width:0;font-size:12px;padding:0 12px;align-self:stretch;white-space:nowrap;">
+    <span id="csvLabel">CSV</span>
+  </button>
+</div>
+
+<div id="pinMapBtn" class="pin-map-btn" style="display:none" title="Set location manually" onclick="togglePinMode()">📍</div>
+<div id="followGpsBtn" class="pin-map-btn" style="display:none" title="Follow my location" onclick="toggleFollowMode()">🧭</div>
+<div id="drivingModeBtn" class="pin-map-btn" style="display:none" title="Driving mode" onclick="toggleDrivingMode()">🚗</div>
+<div id="navigateBtn" class="pin-map-btn" style="display:none" title="Navigate to a location" onclick="toggleNavigatePanel()">🎯</div>
+
+<div id="navigatePanel" class="navigate-panel">
+  <div class="navigate-row">
+    <input type="text" id="navigateSearchInput" placeholder="Search destination..."
+           onkeydown="if(event.key==='Enter'){event.preventDefault();searchDestination();}">
+    <div class="navigate-search-btn" onclick="searchDestination()">🔍</div>
+    <div class="navigate-close-btn" onclick="closeNavigatePanel()">✕</div>
+  </div>
+  <div class="navigate-profile-row">
+    <div class="navigate-profile-btn active" data-profile="driving" onclick="setNavProfile('driving')">🚗</div>
+    <div class="navigate-profile-btn" data-profile="walking" onclick="setNavProfile('walking')">🚶</div>
+    <div class="navigate-profile-btn" data-profile="cycling" onclick="setNavProfile('cycling')">🚲</div>
+  </div>
+  <div id="navigateResults" class="navigate-results"></div>
+  <div id="navigateActiveInfo" class="navigate-active-info">
+    <span id="navigateDistanceText"></span>
+    <button class="navigate-clear-btn" id="navigateClearBtn" onclick="clearNavigation()">Clear route</button>
+  </div>
+</div>
+<div id="mapCompass" class="map-compass" title="Heading — tap to toggle map rotation" onclick="toggleHeadingUpMode()">
+  <div class="compass-face">
+    <span class="compass-n">N</span>
+    <div class="compass-needle" id="compassNeedle">
+      <svg viewBox="0 0 24 24"><path d="M12 2 L16 13 L12 11 L8 13 Z" fill="#ff4b4b"/><path d="M12 22 L16 13 L12 15 L8 13 Z" fill="#ccc"/></svg>
+    </div>
+  </div>
+</div>
+
+<!-- Driving mode: simplified quick-report overlay for use while moving -->
+<div id="drivingOverlay" class="driving-overlay">
+  <div class="driving-header">
+    <h3 id="drivingModeTitle">Driving Mode</h3>
+    <button class="driving-exit-btn" onclick="toggleDrivingMode()" title="Exit driving mode">✕</button>
+  </div>
+  <div class="driving-grid">
+    <div class="driving-tile" onclick="quickReportRoad('pothole')"><span class="tile-emoji">🕳️</span><span id="dTilePothole">Pothole</span></div>
+    <div class="driving-tile" onclick="quickReportRoad('cracked')"><span class="tile-emoji">🛣️</span><span id="dTileCracked">Damaged pavement</span></div>
+    <div class="driving-tile" onclick="quickReportRoad('signage')"><span class="tile-emoji">🚧</span><span id="dTileSignage">Bad signage</span></div>
+    <div class="driving-tile" onclick="quickReportRoad('flooding')"><span class="tile-emoji">🌊</span><span id="dTileFlooding">Flooding</span></div>
+    <div class="driving-tile" onclick="quickReportRoad(null)"><span class="tile-emoji">⚠️</span><span id="dTileOther">Other road issue</span></div>
+  </div>
+  <button class="driving-section-btn" id="sectionRecordBtn" onclick="toggleSectionRecording()">
+    <span id="sectionRecordBtnLabel">Start Section Report</span>
+  </button>
+  <div class="driving-hint" id="drivingHint">Tap a tile to instantly log a point issue at your current location. Use section report to trace a whole stretch of bad road.</div>
+</div>
+
+<!-- Section report details modal, shown after ending a section recording -->
+<div id="sectionModal" class="generic-modal-overlay" style="display:none">
+  <div class="generic-modal">
+    <div class="generic-modal-icon">🛣️</div>
+    <h2 id="sectionModalTitle">Describe this section</h2>
+    <div class="row" style="margin-bottom:10px;">
+      <select id="sectionSubcategory" style="width:100%;"></select>
+    </div>
+    <input id="sectionComment" type="text" placeholder="Optional notes..." style="margin-bottom:14px;">
+    <div class="row" style="gap:8px;">
+      <button class="generic-modal-close" style="flex:1;background:#333;" onclick="cancelSectionReport()" id="sectionCancelBtn">Cancel</button>
+      <button class="generic-modal-close" style="flex:1;" onclick="submitSectionReport()" id="sectionSubmitBtn">Submit</button>
+    </div>
+  </div>
+</div>
+
+<div id="toastContainer"></div>
+
+<div class="panel" id="reportFormPanel" style="display:none">
+  <div class="row">
+    <select id="category" onchange="onCategoryChange()">
+      <option value="" disabled selected>Izaberite vrstu kvara…</option>
+      <option value="Water" data-sr="Voda">Voda</option>
+      <option value="Electricity" data-sr="Struja">Struja</option>
+      <option value="Sewage" data-sr="Kanalizacija">Kanalizacija</option>
+      <option value="Gas" data-sr="Gas">Gas</option>
+      <option value="Heating" data-sr="Grejanje">Grejanje</option>
+      <option value="Road" data-sr="Put">Put</option>
+      <option value="Streetlight" data-sr="Ulična rasveta">Ulična rasveta</option>
+      <option value="Waste" data-sr="Otpad">Otpad</option>
+      <option value="Other" data-sr="Ostalo">Ostalo</option>
+    </select>
+  </div>
+
+  <div class="row" id="subcategoryRow" style="display:none">
+    <select id="subcategory" onchange="checkFormReady()"></select>
+  </div>
+
+  <input id="comment" type="text" placeholder="Optional notes...">
+
+  <div class="row" style="align-items:stretch;">
+    <button class="report-btn" id="reportBtn" onclick="reportBreak()"
+            style="width:100%;font-size:14px;" disabled>
+         <span id="reportBtnLabel">REPORT BREAK</span>
+    </button>
+  </div>
+</div>
+
+<!-- Simple inline form switcher for login vs registration -->
+<div class="panel locked-panel" id="lockedFormPanel" style="display:flex">
+  <p id="lockedMsgText">Sign in to secure your profile and reports.</p>
+  
+  <div class="row" style="width:100%; gap:6px;">
+    <input type="text" id="authUsernameInput" placeholder="Username" autocomplete="off" style="flex:1; height:40px;">
+    <div class="pw-wrap" style="flex:1; position:relative;">
+      <input type="password" id="authPasswordInput" placeholder="Password" autocomplete="off" style="width:100%; height:40px;">
+      <button type="button" class="pw-toggle-btn" id="pwToggleBtn" onclick="togglePasswordVisibility()" title="Show/hide password">👁</button>
+    </div>
+  </div>
+
+  <button class="export-btn" id="submitAuthBtn" style="width:100%; background:#a67817; font-size:13px; font-weight:bold; height:40px;" onclick="handleAuthSubmit()">
+    <span id="authBtnLabel">Sign In</span>
+  </button>
+  
+  <span class="auth-toggle-text" id="authToggleBtn" onclick="toggleAuthMode()">Don't have an account? Register</span>
+</div>
+
+</div>
+
+<!-- GPS/Error Alert Modal -->
+<div id="gpsModal" class="generic-modal-overlay" style="display:none">
+  <div class="generic-modal">
+    <div class="generic-modal-icon">📍</div>
+    <h2 id="gpsModalTitle">GPS Not Enabled</h2>
+    <p id="gpsModalBody">Location access is turned off. To report a break at your location, enable it in your settings.</p>
+    <p id="gpsModalAlt" style="font-size:12px;color:#999;margin-bottom:16px;">Or use the 📍 button on the map to drop a pin manually.</p>
+    <button class="generic-modal-close" onclick="hideGpsModal()" id="gpsModalBtn">Got it</button>
+  </div>
+</div>
+
+<!-- Dynamic Instruction Help Modal -->
+<div id="helpModal" class="generic-modal-overlay" style="display:none">
+  <div class="generic-modal" style="max-width: 380px;">
+    <h2 id="helpModalTitle" style="margin-top: 6px;">How to Use</h2>
+    <div id="helpModalContent" style="max-height: 55vh; overflow-y: auto; padding-right: 4px;"></div>
+    <button class="generic-modal-close" onclick="hideHelpModal()" id="helpModalBtn" style="margin-top:14px;">Close</button>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/sr.js"></script>
+<script>
+
+const SUPABASE_URL = 'https://fnkqmwweljsupbmerbkh.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZua3Ftd3dlbGpzdXBibWVyYmtoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3OTcwODUsImV4cCI6MjA5NzM3MzA4NX0.eX3mxnSpGmJ6Ebw7Y4F_jHiJarPH4ri9WNYXwmLi16I';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const TABLE = 'brake_reports';
+const PROFILES_TABLE = 'profiles';
+
+let currentSession = null;   
+let currentProfile = null;   
+let isRegisterMode = false; // Toggles between Login and Registration UI
+
+function toggleAuthMode() {
+  isRegisterMode = !isRegisterMode;
+  const labelBtn = document.getElementById('authBtnLabel');
+  const labelToggle = document.getElementById('authToggleBtn');
+  const msgText = document.getElementById('lockedMsgText');
+
+  if (isRegisterMode) {
+    labelBtn.textContent = lang === 'sr' ? 'Registruj se' : 'Register';
+    labelToggle.textContent = lang === 'sr' ? 'Već imaš nalog? Prijavi se' : 'Already have an account? Sign In';
+    msgText.textContent = lang === 'sr' ? 'Kreirajte novo korisničko ime i lozinku.' : 'Create a new unique username and password.';
+  } else {
+    labelBtn.textContent = lang === 'sr' ? 'Prijavi se' : 'Sign In';
+    labelToggle.textContent = lang === 'sr' ? 'Nemaš nalog? Registruj se' : "Don't have an account? Register";
+    msgText.textContent = lang === 'sr' ? 'Prijavite se da osigurate vaše prijave i profil.' : 'Sign in to secure your profile and reports.';
+  }
+}
+
+function makeFakeEmail(username) {
+  return `${username.toLowerCase().trim()}@tracethebreak.local`;
+}
+
+function togglePasswordVisibility() {
+  const input = document.getElementById('authPasswordInput');
+  const btn = document.getElementById('pwToggleBtn');
+  const showing = input.type === 'text';
+  input.type = showing ? 'password' : 'text';
+  btn.textContent = showing ? '👁' : '🙈';
+  btn.classList.toggle('revealed', !showing);
+}
+
+// Error objects (esp. Supabase AuthError/PostgrestError) often stringify to "{}"
+// because `message` can be non-enumerable. This pulls the real text out reliably.
+function describeAuthError(err) {
+  if (!err) return 'Unknown error';
+  if (typeof err === 'string') return err;
+  const msg = err.message || err.error_description || err.msg || err.hint || err.details;
+  if (msg) return msg + (err.status ? ` (status ${err.status})` : '') + (err.code ? ` [${err.code}]` : '');
+  try {
+    const full = JSON.stringify(err, Object.getOwnPropertyNames(err));
+    if (full && full !== '{}') return full;
+  } catch (e) {}
+  return 'Unknown error (check Supabase Dashboard \u2192 Logs \u2192 Auth Logs for details)';
+}
+
+async function handleAuthSubmit() {
+  const username = document.getElementById('authUsernameInput').value.trim();
+  const password = document.getElementById('authPasswordInput').value;
+
+  if (!username || password.length < 6) {
+    alert(lang === 'sr' ? 'Korisničko ime je obavezno. Lozinka mora imati bar 6 karaktera.' : 'Username is required. Password must be at least 6 characters.');
+    return;
+  }
+
+  const fakeEmail = makeFakeEmail(username);
+
+  if (isRegisterMode) {
+    // 1. Registration Flow
+    try {
+      // First verify if the username exists in the profiles table to prevent profile conflicts
+      const { data: existingProf, error: checkError } = await sb.from(PROFILES_TABLE).select('username').ilike('username', username).maybeSingle();
+      if (checkError) {
+        console.error('Username check error (full):', checkError);
+        throw checkError;
+      }
+      if (existingProf) {
+        alert(lang === 'sr' ? 'Korisničko ime je već zauzeto.' : 'Username already taken.');
+        return;
+      }
+
+      const { data: signUpData, error: signUpError } = await sb.auth.signUp({
+        email: fakeEmail,
+        password: password
+      });
+      if (signUpError) throw signUpError;
+
+      if (signUpData?.user) {
+        // Create matching public profile assignment row
+        const { error: profError } = await sb.from(PROFILES_TABLE).insert([
+          { id: signUpData.user.id, username: username }
+        ]);
+        if (profError) throw profError;
+      }
+
+      document.getElementById('authPasswordInput').value = '';
+
+      alert(lang === 'sr' ? 'Nalog uspešno kreiran! Sada se možete prijaviti.' : 'Account created successfully! You can now sign in.');
+      isRegisterMode = true;
+      toggleAuthMode(); // Flip back to sign-in view automatically
+    } catch (err) {
+      console.error('Registration error (full):', err);
+      alert((lang === 'sr' ? 'Greška pri registraciji: ' : 'Registration failed: ') + describeAuthError(err));
+    }
+  } else {
+    // 2. Sign In Flow
+    try {
+      const { data, error } = await sb.auth.signInWithPassword({
+        email: fakeEmail,
+        password: password
+      });
+      if (error) throw error;
+
+      // Clear the password value BEFORE the field gets hidden by updateAuthUI().
+      // Browsers offer to "save this password" when a password field disappears
+      // right after a successful request while still holding a value — wiping it
+      // first makes that disappearance look like a reset instead of a submit.
+      document.getElementById('authPasswordInput').value = '';
+
+      currentSession = data.session;
+      await loadProfile();
+    } catch (err) {
+      console.error('Sign in error (full):', err);
+      alert((lang === 'sr' ? 'Neuspešna prijava: ' : 'Sign in failed: ') + describeAuthError(err));
+    }
+  }
+}
+
+async function handleUserBadgeClick() {
+  if (!confirm(t('signOutConfirm'))) return;
+  await sb.auth.signOut();
+  currentSession = null;
+  currentProfile = null;
+  
+  document.getElementById('authUsernameInput').value = '';
+  document.getElementById('authPasswordInput').value = '';
+  
+  updateAuthUI();
+  refreshRenderedPopups();
+}
+
+async function loadProfile() {
+  if (!currentSession) return;
+  try {
+    const { data, error } = await sb.from(PROFILES_TABLE)
+      .select('*')
+      .eq('id', currentSession.user.id)
+      .maybeSingle();
+    if (error) throw error;
+
+    if (data) {
+      currentProfile = data;
+    }
+    updateAuthUI();
+  } catch (err) {
+    console.error('Failed to load profile:', err.message);
+  }
+}
+
+function updateAuthUI() {
+  const userBadge = document.getElementById('userBadge');
+  const reportFormPanel = document.getElementById('reportFormPanel');
+  const lockedFormPanel = document.getElementById('lockedFormPanel');
+
+  if (currentSession && currentProfile) {
+    userBadge.style.display = 'flex';
+    document.getElementById('userBadgeName').textContent = currentProfile.username;
+    document.getElementById('userBadgeAdmin').style.display = currentProfile.is_admin ? 'inline-block' : 'none';
+    reportFormPanel.style.display = 'flex';
+    lockedFormPanel.style.display = 'none';
+  } else {
+    userBadge.style.display = 'none';
+    reportFormPanel.style.display = 'none';
+    lockedFormPanel.style.display = 'flex';
+  }
+  checkFormReady();
+  refreshRenderedPopups();
+}
+
+async function initAuth() {
+  const { data: { session } } = await sb.auth.getSession();
+  currentSession = session;
+  if (currentSession) await loadProfile();
+  updateAuthUI();
+
+  sb.auth.onAuthStateChange(async (event, session) => {
+    currentSession = session;
+    if (session) {
+      await loadProfile();
+    } else {
+      currentProfile = null;
+      updateAuthUI();
+    }
+  });
+}
+
+const T = {
+  subtitle:     { en:'Community Infrastructure Reporting Network', sr:'Mreža za prijavu kvarova' },
+  reportCount:  { en:'Reports',                          sr:'Prijava' },
+  drivingModeTitle:  { en:'Driving Mode',                sr:'Režim vožnje' },
+  dTilePothole:      { en:'Pothole',                     sr:'Rupa na putu' },
+  dTileCracked:      { en:'Damaged pavement',            sr:'Oštećen kolovoz' },
+  dTileSignage:      { en:'Bad signage',                 sr:'Loša signalizacija' },
+  dTileFlooding:     { en:'Flooding',                    sr:'Poplava' },
+  dTileOther:        { en:'Other road issue',            sr:'Drugi problem na putu' },
+  startSectionBtn:   { en:'Start Section Report',        sr:'Počni prijavu deonice' },
+  endSectionBtn:     { en:'End Section Report',          sr:'Završi prijavu deonice' },
+  drivingHint:       { en:'Tap a tile to instantly log a point issue at your current location. Use section report to trace a whole stretch of bad road.', sr:'Dodirnite polje da odmah prijavite problem na trenutnoj lokaciji. Koristite prijavu deonice da obeležite ceo loš deo puta.' },
+  sectionModalTitle: { en:'Describe this section',       sr:'Opišite ovu deonicu' },
+  sectionCancelBtn:  { en:'Cancel',                       sr:'Otkaži' },
+  sectionSubmitBtn:  { en:'Submit',                       sr:'Pošalji' },
+  sectionStarted:    { en:'Section recording started',   sr:'Snimanje deonice je počelo' },
+  sectionTooShort:   { en:'Not enough movement recorded — section discarded.', sr:'Nema dovoljno kretanja — deonica je odbačena.' },
+  signInFirst:       { en:'Please sign in first',        sr:'Prijavite se prvo' },
+  followTitle:       { en:'Follow my location',          sr:'Prati moju lokaciju' },
+  drivingBtnTitle:   { en:'Driving mode',                sr:'Režim vožnje' },
+  reportCount1: { en:'Report',                           sr:'Prijava' },
+  reportBtn:    { en:'REPORT BREAK',                     sr:'PRIJAVI KVAR' },
+  csvLabel:     { en:'CSV',                              sr:'CSV' },
+  commentPH:    { en:'Optional notes...',                sr:'Opciona napomena...' },
+  waitGps:      { en:'Waiting for GPS...',               sr:'Čekanje GPS-a...' },
+  submitted:    { en:'Report submitted.',                sr:'Prijava uspešna.' },
+  timeFilter:   { en:'Time Window Filter',               sr:'Filter vremenskog prozora' },
+  catPH:        { en:'Select break type…',               sr:'Izaberite vrstu kvara…' },
+  gpsTitle:     { en:'GPS Not Enabled',                  sr:'GPS nije uključen' },
+  gpsBody:      { en:'Location access is turned off. To report a break at your location, enable it in your settings.', sr:'Pristup lokaciji je isključen. Da biste prijavili kvar, omogućite ga u podešavanjima.' },
+  gpsAlt:       { en:'Or use the 📍 button on the map to drop a pin manually.', sr:'Ili koristite dugme 📍 na karti da ručno postavite pin.' },
+  gpsBtn:       { en:'Got it',                           sr:'Razumem' },
+  noReports:    { en:'No reports in current map view.',  sr:'Nema prijava u vidljivoj oblasti.' },
+  calendarPH:   { en:'Select date range...',             sr:'Izaberi vremenski opseg...' },
+  helpTitle:    { en:'How to use TraceTheBreak',         sr:'Kako se koristi TraceTheBreak' },
+  helpClose:    { en:'Close',                            sr:'Zatvori' },
+  helpStep1:    { en:'1. Choose what broke:',            sr:'1. Izaberite šta se pokvarilo:' },
+  helpStep1Body:{ en:'Select the type of break — water, electricity, sewage, gas, road, streetlight, or other.', sr:'Izaberite vrstu kvara — voda, struja, kanalizacija, gas, put, ulična rasveta ili ostalo.' },
+  helpStep2:    { en:'2. Set your location:',            sr:'2. Odredite vašu lokaciju:' },
+  helpStep2Body:{ en:'Make sure your device GPS is on, or tap the manual pin button (📍) to drop a point on the map yourself.', sr:'Proverite da li je GPS uključen, ili pritisnite dugme za ručnu lokaciju (📍) da sami postavite tačku na mapi.' },
+  helpStep3:    { en:'3. Submit:',                       sr:'3. Pošalji:' },
+  helpStep3Body:{ en:'Add an optional note, then tap "REPORT BREAK".', sr:'Dodajte opcionu napomenu i pritisnite "PRIJAVI KVAR".' },
+  popupStatus:  { en:'Status', sr:'Status' },
+  reportedByLabel: { en:'Reported by', sr:'Prijavio' },
+  reportedAtLabel:    { en:'Reported at',        sr:'Prijavljeno u' },
+  inProgressAtLabel:  { en:'In progress from',   sr:'U toku od' },
+  finishedAtLabel:    { en:'Finished at',         sr:'Završeno u' },
+  statusReported:   { en:'Reported',    sr:'Prijavljeno' },
+  statusInProgress: { en:'In progress', sr:'U toku' },
+  statusFixed:      { en:'Fixed',       sr:'Popravljeno' },
+  signOutConfirm:{ en:'Sign out of TraceTheBreak?',                sr:'Odjaviti se sa TraceTheBreak?' },
+  markInProgress:{ en:'Mark In Progress',                          sr:'Označi U Toku' },
+  markFixed:     { en:'Mark Fixed',                                sr:'Označi Popravljeno' },
+  yourReport:    { en:'Your report',                               sr:'Vaša prijava' },
+  updateFail:    { en:'Could not update status. Try again.',       sr:'Ažuriranje statusa nije uspelo. Pokušajte ponovo.' },
+  adminBadge:    { en:'ADMIN',                                     sr:'ADMIN' },
+  editBtn:       { en:'Edit',                                      sr:'Izmeni' },
+  deleteBtn:     { en:'Delete',                                    sr:'Obriši' },
+  saveBtn:       { en:'Save',                                      sr:'Sačuvaj' },
+  cancelBtn:     { en:'Cancel',                                    sr:'Otkaži' },
+  deleteConfirm: { en:'Delete this report permanently?',           sr:'Trajno obrisati ovu prijavu?' },
+  markReported:  { en:'Mark Reported',                             sr:'Označi kao prijavljeno' },
+  navigateBtnTitle:  { en:'Navigate to a location',                 sr:'Navigacija do lokacije' },
+  navigateSearchPH:  { en:'Search destination...',                  sr:'Pretraži odredište...' },
+  navigateSearching: { en:'Searching...',                           sr:'Pretraga...' },
+  navigateNoResults: { en:'No results found.',                      sr:'Nema rezultata.' },
+  navigateSearchFailed: { en:'Search failed. Check connection.',    sr:'Pretraga nije uspela. Provjerite konekciju.' },
+  navigateNeedLocation: { en:'Waiting for your location...',        sr:'Čekanje vaše lokacije...' },
+  navigateClearBtn:  { en:'Clear route',                             sr:'Ukloni rutu' }
+};
+
+function t(k){ return T[k]?.[lang] ?? k; }
+
+let lang = 'sr';
+let globalActiveData = [];
+let fp = null;
+
+function setLang(l){
+  lang = l;
+  document.querySelectorAll('.lang-btn').forEach(b=>{
+    b.classList.toggle('active', b.getAttribute('onclick').includes("'"+l+"'"));
+  });
+  applyLang();
+
+  if (fp) {
+    const savedDates = fp.selectedDates;
+    fp.destroy();
+    initCalendarFilter(savedDates);
+    loadPinsByWindow();
+  }
+}
+
+function applyLang(){
+  document.getElementById('subtitle').textContent         = t('subtitle');
+  document.getElementById('reportBtnLabel').textContent   = t('reportBtn');
+  document.getElementById('csvLabel').textContent         = t('csvLabel');
+  document.getElementById('filterTitleLabel').textContent = t('timeFilter');
+  document.getElementById('comment').placeholder          = t('commentPH');
+  document.getElementById('dateRangePicker').placeholder  = t('calendarPH');
+  document.getElementById('category').options[0].text     = t('catPH');
+
+  const catEl = document.getElementById('category');
+  const catLabels = lang === 'sr'
+    ? ['Voda','Struja','Kanalizacija','Gas','Grejanje','Put','Ulična rasveta','Otpad','Ostalo']
+    : ['Water','Electricity','Sewage','Gas','Heating','Road','Streetlight','Waste','Other'];
+  Array.from(catEl.options).slice(1).forEach((opt, i) => { opt.textContent = catLabels[i]; });
+
+  const subEl = document.getElementById('subcategory');
+  if (subEl && catEl.value) {
+    populateSubcategoryOptions(subEl, catEl.value, subEl.value);
+  }
+
+  document.querySelectorAll('.leg').forEach(el=>{
+    el.textContent = el.dataset[lang] || el.dataset.en;
+  });
+
+  const gm = document.getElementById('gpsModal');
+  if (gm && gm.style.display !== 'none') updateGpsModalText();
+
+  document.getElementById('userBadgeAdmin').textContent   = '\u2605 ' + t('adminBadge');
+  
+  const userIn = document.getElementById('authUsernameInput');
+  const passIn = document.getElementById('authPasswordInput');
+  if (userIn) userIn.placeholder = lang === 'sr' ? 'Korisničko ime' : 'Username';
+  if (passIn) passIn.placeholder = lang === 'sr' ? 'Lozinka' : 'Password';
+
+  // Force language sync into the auth text variables
+  const currentModeState = isRegisterMode;
+  isRegisterMode = !currentModeState;
+  toggleAuthMode();
+
+  buildHelpModalContent();
+  refreshRenderedPopups();
+
+  document.getElementById('drivingModeTitle').textContent = t('drivingModeTitle');
+  document.getElementById('dTilePothole').textContent     = t('dTilePothole');
+  document.getElementById('dTileCracked').textContent     = t('dTileCracked');
+  document.getElementById('dTileSignage').textContent     = t('dTileSignage');
+  document.getElementById('dTileFlooding').textContent    = t('dTileFlooding');
+  document.getElementById('dTileOther').textContent       = t('dTileOther');
+  document.getElementById('drivingHint').textContent      = t('drivingHint');
+  document.getElementById('sectionModalTitle').textContent= t('sectionModalTitle');
+  document.getElementById('sectionCancelBtn').textContent = t('sectionCancelBtn');
+  document.getElementById('sectionSubmitBtn').textContent = t('sectionSubmitBtn');
+  updateSectionButtonUI();
+  document.getElementById('followGpsBtn').title   = t('followTitle');
+  document.getElementById('drivingModeBtn').title = t('drivingBtnTitle');
+
+  document.getElementById('navigateBtn').title              = t('navigateBtnTitle');
+  document.getElementById('navigateSearchInput').placeholder = t('navigateSearchPH');
+  document.getElementById('navigateClearBtn').textContent    = t('navigateClearBtn');
+}
+
+function showHelpModal() {
+  buildHelpModalContent();
+  document.getElementById('helpModal').style.display = 'flex';
+}
+function hideHelpModal() {
+  document.getElementById('helpModal').style.display = 'none';
+}
+function buildHelpModalContent() {
+  document.getElementById('helpModalTitle').textContent = t('helpTitle');
+  document.getElementById('helpModalBtn').textContent = t('helpClose');
+  const contentEl = document.getElementById('helpModalContent');
+  contentEl.innerHTML = `
+    <div style="text-align: left; font-size: 13px; line-height: 1.6; display: flex; flex-direction: column; gap: 12px; margin-top: 10px;">
+      <p><strong>${t('helpStep1')}</strong> ${t('helpStep1Body')}</p>
+      <p><strong>${t('helpStep2')}</strong> ${t('helpStep2Body')}</p>
+      <p><strong>${t('helpStep3')}</strong> ${t('helpStep3Body')}</p>
+      <p><strong>🧭</strong> ${lang === 'sr' ? 'Uključite praćenje da mapa uvek prati vašu lokaciju, kao navigacija.' : 'Turn on follow mode to keep the map centered on you, like a navigation app.'}</p>
+      <p><strong>🚗</strong> ${lang === 'sr' ? 'Režim vožnje daje velika dugmad za brzu prijavu problema na putu, i opciju za snimanje cele deonice puta.' : 'Driving mode gives you big one-tap buttons to quickly log road problems, plus an option to trace a whole section of road.'}</p>
+    </div>
+  `;
+}
+
+function initCalendarFilter(optionalDefaultDates) {
+  let initialDates = optionalDefaultDates;
+  if (!initialDates || initialDates.length === 0) {
+    const defaultStart = new Date();
+    defaultStart.setDate(defaultStart.getDate() - 14);
+    const defaultEnd = new Date();
+    initialDates = [defaultStart, defaultEnd];
+  }
+  fp = flatpickr("#dateRangePicker", {
+    mode: "range",
+    theme: "dark",
+    dateFormat: "d.m.Y",
+    locale: lang === 'sr' ? flatpickr.l10ns.sr : 'default',
+    defaultDate: initialDates,
+    onClose: async function(selectedDates) {
+      if (selectedDates.length === 2) await loadPinsByWindow();
+    }
+  });
+}
+
+const map = L.map('map').setView([45.25,19.85],11);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  attribution:'© OpenStreetMap',
+  className: 'map-tiles-grayscale'
+}).addTo(map);
+
+// Reparents Leaflet's internal map-pane (tiles + markers + lines + popups)
+// inside a plain div we control, so that div can be CSS-rotated for
+// heading-up navigation without touching the zoom/attribution controls or
+// our own floating buttons, which live outside the map-pane and stay fixed.
+let rotWrapper = null;
+function initRotationWrapper() {
+  const mapPane = map.getPane('mapPane');
+  if (!mapPane || !mapPane.parentElement) return;
+  rotWrapper = document.createElement('div');
+  rotWrapper.className = 'leaflet-rotate-wrapper';
+  mapPane.parentElement.insertBefore(rotWrapper, mapPane);
+  rotWrapper.appendChild(mapPane);
+}
+initRotationWrapper();
+
+let userCoords    = null;
+let userMarker    = null;
+let markerById    = new Map(); // report id -> Leaflet marker, only for reports currently rendered on screen
+let sectionPinById = new Map(); // report id -> extra Leaflet pin marker sitting on top of a section's spline (same popup as the line), only for reports currently rendered on screen
+let dateRangeOnlyData = []; // raw results for the selected date range (used for CSV export)
+let pinMode       = false;
+let manualCoords  = null;
+let manualMarker  = null;
+
+// --- Navigation / driving mode state ---
+let followMode        = false; // when true, map auto-recenters on the user like turn-by-turn nav
+let drivingMode        = false;
+let sectionRecording   = false;
+let sectionPoints      = [];   // array of {lat, lon} collected while recording a section
+let sectionPolyline    = null; // live-drawn Leaflet polyline while recording
+const SECTION_MIN_DISTANCE_M = 8; // ignore GPS jitter smaller than this before adding a new section point
+
+// --- Heading-up map rotation (compass) state ---
+let currentHeading            = null;  // last known compass heading, 0-360°, clockwise from true north; null if unknown
+let compassActive             = false; // true once we've received at least one real device-orientation reading
+let mapBearing                 = 0;     // continuous (unbounded, can exceed 360) bearing currently applied to the map
+let headingUpMode             = true;  // when true (and driving mode is on), the map rotates so travel direction faces up
+let orientationListenersBound = false;
+let orientationPermissionAsked = false;
+
+// Shortest signed angular distance from `fromDeg` to `toDeg`, in (-180, 180].
+// Used so the map/compass always turns the short way instead of spinning
+// all the way around when heading wraps past 0/360.
+function shortestAngleDelta(fromDeg, toDeg) {
+  let d = (toDeg - fromDeg) % 360;
+  if (d > 180) d -= 360;
+  if (d < -180) d += 360;
+  return d;
+}
+
+// Rotates the map (tiles/markers/lines/popups together) and the compass
+// needle to match `targetHeadingDeg`, always turning the shorter way round.
+function applyMapBearing(targetHeadingDeg) {
+  const delta = shortestAngleDelta(mapBearing % 360, targetHeadingDeg);
+  mapBearing += delta;
+  const cssRotation = `rotate(${-mapBearing}deg)`;
+  if (rotWrapper) rotWrapper.style.transform = cssRotation;
+  const needle = document.getElementById('compassNeedle');
+  if (needle) needle.style.transform = cssRotation;
+}
+
+// Eases the map back to north-up (used when leaving driving mode or when
+// the person taps the compass to turn heading-up rotation off).
+function resetMapBearing() {
+  applyMapBearing(0);
+}
+
+function toggleHeadingUpMode() {
+  headingUpMode = !headingUpMode;
+  const btn = document.getElementById('mapCompass');
+  if (btn) btn.classList.toggle('heading-up-disabled', !headingUpMode);
+  if (!headingUpMode) {
+    resetMapBearing();
+  } else if (drivingMode && currentHeading !== null) {
+    applyMapBearing(currentHeading);
+  }
+}
+
+// iOS 13+ requires DeviceOrientationEvent.requestPermission() to be called
+// from a user gesture (e.g. tapping the driving-mode button); everywhere
+// else the events are just available without asking.
+function requestOrientationPermission() {
+  if (orientationPermissionAsked) return;
+  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+    orientationPermissionAsked = true;
+    DeviceOrientationEvent.requestPermission().then(state => {
+      if (state === 'granted') attachOrientationListeners();
+    }).catch(() => {});
+  } else {
+    orientationPermissionAsked = true;
+    attachOrientationListeners();
+  }
+}
+
+function attachOrientationListeners() {
+  if (orientationListenersBound) return;
+  orientationListenersBound = true;
+  // 'deviceorientationabsolute' (Android Chrome/Firefox) gives a true compass
+  // heading; plain 'deviceorientation' is the iOS fallback (uses
+  // webkitCompassHeading, which is already true-north-relative).
+  window.addEventListener('deviceorientationabsolute', handleOrientationEvent, true);
+  window.addEventListener('deviceorientation', handleOrientationEvent, true);
+}
+
+function handleOrientationEvent(event) {
+  let heading = null;
+  if (typeof event.webkitCompassHeading === 'number' && !isNaN(event.webkitCompassHeading)) {
+    heading = event.webkitCompassHeading; // iOS Safari
+  } else if (event.absolute && typeof event.alpha === 'number') {
+    heading = 360 - event.alpha; // Android
+  }
+  if (heading === null || isNaN(heading)) return;
+
+  compassActive = true;
+  currentHeading = (heading + 360) % 360;
+  if (drivingMode && headingUpMode) applyMapBearing(currentHeading);
+}
+
+// Haversine distance in meters between two {lat, lon} points
+function distMeters(a, b) {
+  if (!a || !b) return Infinity;
+  const R = 6371000;
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLon = toRad(b.lon - a.lon);
+  const s = Math.sin(dLat/2)**2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+
+function toast(msg, kind) {
+  const container = document.getElementById('toastContainer');
+  if (!container) { alert(msg); return; }
+  const el = document.createElement('div');
+  el.className = 'toast' + (kind ? ' toast-' + kind : '');
+  el.textContent = msg;
+  container.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('toast-show'));
+  setTimeout(() => {
+    el.classList.remove('toast-show');
+    setTimeout(() => el.remove(), 250);
+  }, 2600);
+}
+
+// --- Point-to-point navigation (destination search + road routing) -------
+// Search a place name, drop a pin on the chosen result, and fetch an actual
+// road route (not a straight line) from the user's live GPS position (or
+// manually-pinned location) to that destination, using the free public OSRM
+// routing API (routing.openstreetmap.de — no key required). The route is
+// re-fetched periodically as the user moves so the line keeps following
+// wherever they actually are, without hammering the API on every 2s GPS tick.
+let destinationCoords  = null; // { lat, lon, label } of the chosen destination, or null if none active
+let destinationMarker  = null; // Leaflet marker for the destination
+let navigationLine     = null; // Leaflet polyline showing the route (or straight-line fallback)
+let navPanelOpen       = false;
+let navProfile         = 'driving'; // 'driving' | 'walking' | 'cycling'
+let navRouteFetching   = false;
+let navLastRouteAt     = 0;      // timestamp of the last successful route fetch
+let navLastRouteFrom   = null;   // {lat,lon} the last route was fetched from, to detect drift
+
+const NAV_REROUTE_INTERVAL_MS = 15000; // don't reroute more often than this
+const NAV_REROUTE_DRIFT_M     = 40;    // ...unless we've drifted this far off the last route origin
+
+const OSRM_ENDPOINTS = {
+  driving: { url: 'https://routing.openstreetmap.de/routed-car/route/v1/driving/',  profile: 'driving' },
+  walking: { url: 'https://routing.openstreetmap.de/routed-foot/route/v1/foot/',    profile: 'foot' },
+  cycling: { url: 'https://routing.openstreetmap.de/routed-bike/route/v1/bike/',    profile: 'bike' }
+};
+
+function toggleNavigatePanel() {
+  navPanelOpen = !navPanelOpen;
+  document.getElementById('navigatePanel').style.display = navPanelOpen ? 'flex' : 'none';
+  document.getElementById('navigateBtn').classList.toggle('active', navPanelOpen);
+  if (navPanelOpen) {
+    setTimeout(() => document.getElementById('navigateSearchInput').focus(), 50);
+  }
+}
+
+function closeNavigatePanel() {
+  navPanelOpen = false;
+  document.getElementById('navigatePanel').style.display = 'none';
+  document.getElementById('navigateBtn').classList.remove('active');
+}
+
+function setNavProfile(profile) {
+  navProfile = profile;
+  document.querySelectorAll('.navigate-profile-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.profile === profile);
+  });
+  // Switching mode implies the previous route geometry no longer applies.
+  if (destinationCoords) {
+    navLastRouteAt = 0;
+    navLastRouteFrom = null;
+    drawNavigationLine();
+  }
+}
+
+async function searchDestination() {
+  const input = document.getElementById('navigateSearchInput');
+  const q = input.value.trim();
+  if (!q) return;
+
+  const resultsEl = document.getElementById('navigateResults');
+  resultsEl.innerHTML = `<div class="navigate-result-empty">${t('navigateSearching')}</div>`;
+
+  try {
+    const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=5&q=' + encodeURIComponent(q);
+    const res = await fetch(url, { headers: { 'Accept-Language': lang } });
+    const data = await res.json();
+
+    if (!data || !data.length) {
+      resultsEl.innerHTML = `<div class="navigate-result-empty">${t('navigateNoResults')}</div>`;
+      return;
+    }
+
+    resultsEl.innerHTML = '';
+    data.forEach(place => {
+      const item = document.createElement('div');
+      item.className = 'navigate-result-item';
+      item.textContent = place.display_name;
+      item.onclick = () => selectDestination(parseFloat(place.lat), parseFloat(place.lon), place.display_name);
+      resultsEl.appendChild(item);
+    });
+  } catch (err) {
+    resultsEl.innerHTML = `<div class="navigate-result-empty">${t('navigateSearchFailed')}</div>`;
+  }
+}
+
+function selectDestination(lat, lon, label) {
+  destinationCoords = { lat, lon, label };
+  navLastRouteAt = 0;
+  navLastRouteFrom = null;
+  document.getElementById('navigateResults').innerHTML = '';
+  document.getElementById('navigateSearchInput').value = label;
+  document.getElementById('navigateActiveInfo').style.display = 'flex';
+
+  const iconHtml = '<div style="width:20px;height:20px;border-radius:50%;background:#00d0ff;' +
+                    'border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,.5);"></div>';
+  if (destinationMarker) map.removeLayer(destinationMarker);
+  destinationMarker = L.marker([lat, lon], {
+    icon: L.divIcon({ className: '', html: iconHtml, iconAnchor: [10, 10] })
+  }).addTo(map);
+
+  const from = userCoords || manualCoords;
+  if (!from) {
+    toast(t('navigateNeedLocation'), 'error');
+    map.setView([lat, lon], 14);
+    return;
+  }
+
+  drawNavigationLine().then(() => {
+    if (navigationLine) map.fitBounds(navigationLine.getBounds(), { padding: [60, 60] });
+  });
+}
+
+// Fetches a real road route from OSRM and returns { coords, distance, duration }
+// with coords already flipped to Leaflet's [lat, lon] order.
+async function fetchRoute(from, to, profile) {
+  const endpoint = OSRM_ENDPOINTS[profile] || OSRM_ENDPOINTS.driving;
+  const url = `${endpoint.url}${from.lon},${from.lat};${to.lon},${to.lat}` +
+              `?overview=full&geometries=geojson`;
+  const res = await fetch(url);
+  const data = await res.json();
+  if (data.code !== 'Ok' || !data.routes || !data.routes.length) {
+    throw new Error(data.message || 'no route found');
+  }
+  const route = data.routes[0];
+  return {
+    coords: route.geometry.coordinates.map(([rlon, rlat]) => [rlat, rlon]),
+    distance: route.distance, // meters
+    duration: route.duration  // seconds
+  };
+}
+
+// Draws/updates the navigation line. Prefers a real road route from OSRM,
+// throttled so we only re-hit the API periodically or after real drift;
+// falls back to a straight dashed line if routing is unavailable (offline,
+// API hiccup, etc.) so navigation never just disappears.
+async function drawNavigationLine() {
+  if (!destinationCoords) return;
+  const from = userCoords || manualCoords;
+  if (!from) return;
+
+  const driftedFar = navLastRouteFrom && distMeters(from, navLastRouteFrom) >= NAV_REROUTE_DRIFT_M;
+  const stale = Date.now() - navLastRouteAt >= NAV_REROUTE_INTERVAL_MS;
+  const needsRoute = !navigationLine || navigationLine._isFallback || driftedFar || stale;
+
+  if (needsRoute && !navRouteFetching) {
+    navRouteFetching = true;
+    try {
+      const route = await fetchRoute(from, destinationCoords, navProfile);
+      navLastRouteAt = Date.now();
+      navLastRouteFrom = { lat: from.lat, lon: from.lon };
+
+      if (navigationLine) map.removeLayer(navigationLine);
+      navigationLine = L.polyline(route.coords, { color: '#00d0ff', weight: 5, opacity: .9 }).addTo(map);
+      navigationLine._isFallback = false;
+
+      updateNavInfoText(route.distance, route.duration);
+    } catch (err) {
+      console.warn('Routing failed, falling back to straight line:', err.message);
+      const latlngs = [[from.lat, from.lon], [destinationCoords.lat, destinationCoords.lon]];
+      if (navigationLine) map.removeLayer(navigationLine);
+      navigationLine = L.polyline(latlngs, {
+        color: '#00d0ff', weight: 4, opacity: .85, dashArray: '8 8'
+      }).addTo(map);
+      navigationLine._isFallback = true;
+      updateNavInfoText(distMeters(from, destinationCoords), null);
+    } finally {
+      navRouteFetching = false;
+    }
+  } else if (navigationLine && !navigationLine._isFallback) {
+    // Route geometry is still fresh enough — just refresh the distance/time
+    // readout against the current position without re-fetching.
+    const remaining = distMeters(from, destinationCoords);
+    updateNavInfoText(remaining, null, true);
+  } else if (navigationLine && navigationLine._isFallback) {
+    navigationLine.setLatLngs([[from.lat, from.lon], [destinationCoords.lat, destinationCoords.lon]]);
+    updateNavInfoText(distMeters(from, destinationCoords), null);
+  }
+}
+
+function updateNavInfoText(meters, seconds, approximate) {
+  const distText = document.getElementById('navigateDistanceText');
+  if (!distText) return;
+  let str = (approximate ? '~' : '') + formatDistance(meters);
+  if (seconds != null) str += ' · ' + formatDuration(seconds);
+  distText.textContent = str;
+}
+
+function formatDistance(m) {
+  if (!isFinite(m)) return '';
+  return m >= 1000 ? (m / 1000).toFixed(1) + ' km' : Math.round(m) + ' m';
+}
+
+function formatDuration(s) {
+  if (!isFinite(s)) return '';
+  const mins = Math.round(s / 60);
+  if (mins < 60) return mins + ' min';
+  return Math.floor(mins / 60) + ' h ' + (mins % 60) + ' min';
+}
+
+function clearNavigation() {
+  destinationCoords = null;
+  navLastRouteAt = 0;
+  navLastRouteFrom = null;
+  if (navigationLine)    { map.removeLayer(navigationLine); navigationLine = null; }
+  if (destinationMarker) { map.removeLayer(destinationMarker); destinationMarker = null; }
+  document.getElementById('navigateActiveInfo').style.display = 'none';
+  document.getElementById('navigateSearchInput').value = '';
+  document.getElementById('navigateResults').innerHTML = '';
+}
+
+
+function toggleFollowMode() {
+  followMode = !followMode;
+  const btn = document.getElementById('followGpsBtn');
+  if (btn) btn.classList.toggle('follow-active', followMode);
+  if (followMode && userCoords) {
+    map.setView([userCoords.lat, userCoords.lon], Math.max(map.getZoom(), 16), { animate: true });
+  }
+}
+
+// If the user drags/zooms the map by hand, drop out of follow mode so we
+// don't fight their input; they can re-enable it with the compass button.
+map.on('dragstart', () => {
+  if (followMode) {
+    followMode = false;
+    const btn = document.getElementById('followGpsBtn');
+    if (btn) btn.classList.remove('follow-active');
+  }
+});
+
+function toggleDrivingMode() {
+  drivingMode = !drivingMode;
+  const overlay = document.getElementById('drivingOverlay');
+  const btn = document.getElementById('drivingModeBtn');
+  const compassBtn = document.getElementById('mapCompass');
+  if (overlay) overlay.classList.toggle('open', drivingMode);
+  if (btn) btn.classList.toggle('active', drivingMode);
+
+  if (drivingMode) {
+    // Driving mode implies following the GPS, navigation-style.
+    if (!followMode) toggleFollowMode();
+    // Turn-by-turn rotation: ask for compass access (iOS needs a user
+    // gesture, which this tap provides) and start rotating the map to
+    // match the direction of travel.
+    if (compassBtn) compassBtn.style.display = 'flex';
+    requestOrientationPermission();
+    if (headingUpMode && currentHeading !== null) applyMapBearing(currentHeading);
+  } else {
+    if (sectionRecording) {
+      // Leaving driving mode mid-recording would strand an unfinished section; stop it cleanly.
+      toggleSectionRecording();
+    }
+    // Ease back to north-up and hide the compass until driving mode resumes.
+    resetMapBearing();
+    if (compassBtn) compassBtn.style.display = 'none';
+  }
+}
+
+// One-tap report for a Road-category issue, used from the driving mode overlay.
+// Skips the normal form entirely so it can be used safely with a single glance.
+async function quickReportRoad(subcategoryKey) {
+  if (!currentSession || !currentProfile) { toast(t('signInFirst') || 'Sign in first', 'error'); return; }
+  if (!userCoords) { toast(t('waitGps'), 'error'); return; }
+
+  try {
+    const { error } = await sb.from(TABLE).insert([{
+      latitude: userCoords.lat,
+      longitude: userCoords.lon,
+      category: 'Road',
+      subcategory: subcategoryKey,
+      status: 'reported',
+      comment: '',
+      created_at: new Date().toISOString(),
+      owner_id: currentSession.user.id,
+      owner_username: currentProfile.username
+    }]);
+    if (error) throw error;
+    toast('✓ ' + t('submitted'), 'success');
+    await loadPinsByWindow();
+  } catch (err) {
+    console.error('Quick report error (full):', err);
+    toast(describeAuthError(err), 'error');
+  }
+}
+
+function toggleSectionRecording() {
+  if (!sectionRecording) {
+    if (!userCoords) { toast(t('waitGps'), 'error'); return; }
+    sectionRecording = true;
+    sectionPoints = [{ lat: userCoords.lat, lon: userCoords.lon }];
+    sectionPolyline = L.polyline([[userCoords.lat, userCoords.lon]], {
+      color: '#ff4b4b', weight: 6, opacity: 0.85, lineCap: 'round'
+    }).addTo(map);
+    updateSectionButtonUI();
+    toast(t('sectionStarted') || 'Section recording started', 'success');
+  } else {
+    sectionRecording = false;
+    updateSectionButtonUI();
+    if (sectionPoints.length < 2) {
+      toast(t('sectionTooShort') || 'Not enough movement recorded — section discarded.', 'error');
+      discardSectionDraft();
+      return;
+    }
+    openSectionModal();
+  }
+}
+
+function updateSectionButtonUI() {
+  const btn = document.getElementById('sectionRecordBtn');
+  const label = document.getElementById('sectionRecordBtnLabel');
+  if (!btn || !label) return;
+  btn.classList.toggle('recording', sectionRecording);
+  label.textContent = sectionRecording
+    ? (t('endSectionBtn') || 'End Section Report')
+    : (t('startSectionBtn') || 'Start Section Report');
+}
+
+function discardSectionDraft() {
+  if (sectionPolyline) { map.removeLayer(sectionPolyline); sectionPolyline = null; }
+  sectionPoints = [];
+}
+
+function openSectionModal() {
+  const sel = document.getElementById('sectionSubcategory');
+  populateSubcategoryOptions(sel, 'Road', null);
+  document.getElementById('sectionComment').value = '';
+  document.getElementById('sectionModal').style.display = 'flex';
+}
+
+function cancelSectionReport() {
+  document.getElementById('sectionModal').style.display = 'none';
+  discardSectionDraft();
+}
+
+async function submitSectionReport() {
+  if (!currentSession || !currentProfile) { toast(t('signInFirst') || 'Sign in first', 'error'); return; }
+  if (sectionPoints.length < 2) { document.getElementById('sectionModal').style.display = 'none'; return; }
+
+  const subcategory = document.getElementById('sectionSubcategory').value || null;
+  const comment = document.getElementById('sectionComment').value;
+
+  // Store the whole traced path; latitude/longitude fall back to the
+  // path's midpoint so this row still behaves like a normal point report
+  // anywhere in the app that doesn't know about the `path` column yet.
+  const mid = sectionPoints[Math.floor(sectionPoints.length / 2)];
+  const pathJson = sectionPoints.map(p => [p.lat, p.lon]);
+
+  try {
+    const { error } = await sb.from(TABLE).insert([{
+      latitude: mid.lat,
+      longitude: mid.lon,
+      category: 'Road',
+      subcategory,
+      status: 'reported',
+      comment,
+      path: pathJson,
+      created_at: new Date().toISOString(),
+      owner_id: currentSession.user.id,
+      owner_username: currentProfile.username
+    }]);
+    if (error) throw error;
+    document.getElementById('sectionModal').style.display = 'none';
+    discardSectionDraft();
+    toast('✓ ' + t('submitted'), 'success');
+    await loadPinsByWindow();
+  } catch (err) {
+    console.error('Section report submit error (full):', err);
+    toast(describeAuthError(err), 'error');
+  }
+}
+
+function updateGpsModalText(){
+  const el = id => document.getElementById(id);
+  if (el('gpsModalTitle')) el('gpsModalTitle').textContent = t('gpsTitle');
+  if (el('gpsModalBody'))  el('gpsModalBody').textContent  = t('gpsBody');
+  if (el('gpsModalAlt'))   el('gpsModalAlt').textContent   = t('gpsAlt');
+  if (el('gpsModalBtn'))   el('gpsModalBtn').textContent   = t('gpsBtn');
+}
+function showGpsModal(){
+  const modal = document.getElementById('gpsModal');
+  if (!modal) return;
+  updateGpsModalText();
+  modal.style.display = 'flex';
+}
+function hideGpsModal(){
+  const modal = document.getElementById('gpsModal');
+  if (modal) modal.style.display = 'none';
+}
+
+function enableManualPinMode() {
+  checkFormReady();
+}
+
+let gpsRequestPending = false;
+
+function startWatching() {
+  const updatePosition = () => {
+    if (gpsRequestPending) return; // don't stack requests if one is still in flight
+    gpsRequestPending = true;
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        gpsRequestPending = false;
+        userCoords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+        hideGpsModal();
+        if (!userMarker) {
+          userMarker = L.circleMarker([userCoords.lat, userCoords.lon], {
+            radius: 8, color: '#00d0ff', fillColor: '#00d0ff', fillOpacity: .85, weight: 2
+          }).addTo(map);
+          map.setView([userCoords.lat, userCoords.lon], 13);
+        } else {
+          userMarker.setLatLng([userCoords.lat, userCoords.lon]);
+        }
+
+        // Navigation-style follow: keep the user centered like a nav app,
+        // rather than requiring them to manually re-pan while moving.
+        if (followMode) {
+          map.setView([userCoords.lat, userCoords.lon], Math.max(map.getZoom(), 16), { animate: true });
+        }
+
+        // Fallback heading source for devices/browsers without a usable
+        // compass: GPS course-over-ground, only trustworthy while actually
+        // moving. The device compass (if active) takes priority since it
+        // also works at a standstill.
+        if (!compassActive && typeof pos.coords.heading === 'number' && !isNaN(pos.coords.heading)) {
+          currentHeading = pos.coords.heading;
+          if (drivingMode && headingUpMode) applyMapBearing(currentHeading);
+        }
+
+        // While tracing a section, extend the live polyline with new points,
+        // filtering out GPS jitter that hasn't actually moved us anywhere.
+        if (sectionRecording) {
+          const last = sectionPoints[sectionPoints.length - 1];
+          if (distMeters(last, userCoords) >= SECTION_MIN_DISTANCE_M) {
+            sectionPoints.push({ lat: userCoords.lat, lon: userCoords.lon });
+            if (sectionPolyline) sectionPolyline.addLatLng([userCoords.lat, userCoords.lon]);
+          }
+        }
+
+        // Keep an active navigation line glued to the live GPS fix.
+        if (destinationCoords) drawNavigationLine();
+
+        checkFormReady();
+      },
+      err => {
+        gpsRequestPending = false;
+        // Only a real permission denial means "GPS not enabled". A timeout or
+        // temporarily unavailable fix (weak signal, indoors) is transient —
+        // the next 2-second tick will just try again, no need to alarm the user.
+        if (err.code === err.PERMISSION_DENIED) {
+          showGpsModal();
+        }
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 2000 }
+    );
+  };
+  updatePosition();
+  setInterval(updatePosition, 2000);
+}
+
+function initGps() {
+  if (!navigator.geolocation) { enableManualPinMode(); return; }
+  navigator.permissions.query({ name: 'geolocation' }).then(result => {
+    if (result.state === 'denied') { showGpsModal(); enableManualPinMode(); }
+    else { startWatching(); }
+  }).catch(() => { startWatching(); });
+}
+initGps();
+
+const PinControl = L.Control.extend({
+  options:{ position:'bottomleft' },
+  onAdd(){
+    const btn = document.getElementById('pinMapBtn');
+    L.DomEvent.disableClickPropagation(btn);
+    return btn;
+  }
+});
+new PinControl().addTo(map);
+document.getElementById('pinMapBtn').style.display = 'flex';
+
+const FollowControl = L.Control.extend({
+  options:{ position:'bottomleft' },
+  onAdd(){
+    const btn = document.getElementById('followGpsBtn');
+    L.DomEvent.disableClickPropagation(btn);
+    return btn;
+  }
+});
+new FollowControl().addTo(map);
+document.getElementById('followGpsBtn').style.display = 'flex';
+
+const DrivingControl = L.Control.extend({
+  options:{ position:'bottomleft' },
+  onAdd(){
+    const btn = document.getElementById('drivingModeBtn');
+    L.DomEvent.disableClickPropagation(btn);
+    return btn;
+  }
+});
+new DrivingControl().addTo(map);
+document.getElementById('drivingModeBtn').style.display = 'flex';
+
+const CompassControl = L.Control.extend({
+  options:{ position:'topright' },
+  onAdd(){
+    const btn = document.getElementById('mapCompass');
+    L.DomEvent.disableClickPropagation(btn);
+    return btn;
+  }
+});
+new CompassControl().addTo(map);
+
+const NavigateControl = L.Control.extend({
+  options:{ position:'bottomleft' },
+  onAdd(){
+    const btn = document.getElementById('navigateBtn');
+    L.DomEvent.disableClickPropagation(btn);
+    return btn;
+  }
+});
+new NavigateControl().addTo(map);
+document.getElementById('navigateBtn').style.display = 'flex';
+
+const NavigatePanelControl = L.Control.extend({
+  options:{ position:'topleft' },
+  onAdd(){
+    const panel = document.getElementById('navigatePanel');
+    L.DomEvent.disableClickPropagation(panel);
+    return panel;
+  }
+});
+new NavigatePanelControl().addTo(map);
+
+function togglePinMode() {
+  pinMode = !pinMode;
+  const btn = document.getElementById('pinMapBtn');
+  btn.classList.toggle('active', pinMode);
+
+  if (pinMode) {
+    clearMarkers();
+  } else {
+    if (manualMarker) { map.removeLayer(manualMarker); manualMarker = null; }
+    manualCoords = null;
+    loadPinsByWindow();
+  }
+  checkFormReady();
+}
+
+map.on('click', function(e) {
+  if (!pinMode) return;
+  manualCoords = { lat: e.latlng.lat, lon: e.latlng.lng };
+  if (manualMarker) {
+    manualMarker.setLatLng(e.latlng);
+  } else {
+    manualMarker = L.marker(e.latlng, {
+      icon: L.divIcon({
+        className: '',
+        html: `<div style="width:20px;height:20px;background:#f5a623;border-radius:50%;border:2px solid white;box-shadow:0 3px 8px rgba(0,0,0,.4)"></div>`,
+        iconAnchor: [10,10]
+      })
+    }).addTo(map);
+  }
+  checkFormReady();
+});
+
+// Only pins currently within (a small buffer around) the visible map area are
+// ever attached to the map, so panning/zooming across a large dataset stays
+// cheap. Re-sync whenever the viewport settles; syncMarkers() itself just
+// adds/removes markers, it never touches the underlying data.
+map.on('moveend', function(){ if (!pinMode) syncMarkers(false); });
+map.on('zoomend', function(){ if (!pinMode) syncMarkers(false); });
+
+const CATEGORY_COLORS = {
+  'Water':        '#1e90ff',
+  'Electricity':  '#f5c518',
+  'Sewage':       '#8b4513',
+  'Gas':          '#ff6b35',
+  'Heating':      '#b71c1c',
+  'Road':         '#6b6b6b',
+  'Streetlight':  '#c9a227',
+  'Waste':        '#6d8b3a',
+  'Other':        '#8342a1',
+};
+const CATEGORY_ICONS = {
+  'Water': '💧', 'Electricity': '⚡', 'Sewage': '🚱', 'Gas': '🔥', 'Heating': '♨️',
+  'Road': '🕳️', 'Streetlight': '💡', 'Waste': '🗑️', 'Other': '❓'
+};
+const SUBCATEGORIES = {
+  Water: [
+    { key:'burst_leak',    en:'Burst pipe / Leak',            sr:'Puknuta cev / Curenje' },
+    { key:'no_supply',     en:'No water supply',              sr:'Nema vode' },
+    { key:'low_pressure',  en:'Low pressure',                 sr:'Nizak pritisak' },
+    { key:'discoloration', en:'Water quality / discoloration',sr:'Kvalitet vode / zamućenost' }
+  ],
+  Electricity: [
+    { key:'outage',       en:'Power outage',                       sr:'Nestanak struje' },
+    { key:'exposed_wire', en:'Exposed / damaged wire',             sr:'Oštećen ili otkriven kabl' },
+    { key:'transformer',  en:'Transformer / substation issue',     sr:'Kvar na trafostanici' },
+    { key:'voltage',      en:'Voltage fluctuation',                sr:'Kolebanje napona' }
+  ],
+  Sewage: [
+    { key:'blockage', en:'Blockage / overflow',                sr:'Začepljenje / izlivanje' },
+    { key:'manhole',  en:'Manhole cover damaged / missing',    sr:'Oštećen ili nedostaje šaht poklopac' },
+    { key:'odor',     en:'Bad odor',                           sr:'Neprijatan miris' }
+  ],
+  Gas: [
+    { key:'leak',   en:'Gas leak / smell', sr:'Curenje / miris gasa' },
+    { key:'outage', en:'Gas outage',       sr:'Nestanak gasa' }
+  ],
+  Heating: [
+    { key:'no_heat',  en:'No heat',           sr:'Nema grejanja' },
+    { key:'leak',     en:'Leak',              sr:'Curenje' },
+    { key:'low_temp', en:'Low temperature',   sr:'Niska temperatura' }
+  ],
+  Road: [
+    { key:'pothole',  en:'Pothole',                          sr:'Rupa na putu' },
+    { key:'cracked',  en:'Cracked / damaged pavement',       sr:'Oštećen kolovoz' },
+    { key:'signage',  en:'Missing / damaged signage',        sr:'Nedostaje ili oštećena signalizacija' },
+    { key:'flooding', en:'Flooding on road',                 sr:'Poplavljen put' }
+  ],
+  Streetlight: [
+    { key:'out',         en:'Light out',   sr:'Ne radi' },
+    { key:'flickering',  en:'Flickering',  sr:'Treperi' },
+    { key:'pole_damage', en:'Pole damage', sr:'Oštećen stub' }
+  ],
+  Waste: [
+    { key:'overflow', en:'Overflowing bin',    sr:'Prepunjena kanta' },
+    { key:'missed',   en:'Missed collection',  sr:'Propušteno odnošenje' },
+    { key:'dumping',  en:'Illegal dumping',    sr:'Nelegalno odlaganje' }
+  ],
+  Other: []
+};
+const STATUS_COLORS = {
+  'reported':    '#ff4b4b',
+  'in_progress': '#f5a623',
+  'fixed':       '#2ecc71',
+};
+function categoryColor(cat) { return CATEGORY_COLORS[cat] || '#aaaaaa'; }
+function categoryIcon(cat)  { return CATEGORY_ICONS[cat] || '❓'; }
+function subcategoryLabel(cat, subKey) {
+  if (!subKey) return '';
+  const list = SUBCATEGORIES[cat] || [];
+  const found = list.find(s => s.key === subKey);
+  return found ? (lang === 'sr' ? found.sr : found.en) : subKey;
+}
+function populateSubcategoryOptions(selectEl, cat, selectedKey) {
+  const list = SUBCATEGORIES[cat] || [];
+  if (!list.length) {
+    selectEl.innerHTML = '';
+    return false;
+  }
+  const placeholder = lang === 'sr' ? 'Detalj (opciono)…' : 'Detail (optional)…';
+  selectEl.innerHTML = `<option value="">${placeholder}</option>` +
+    list.map(s => `<option value="${s.key}" ${s.key === selectedKey ? 'selected' : ''}>${lang === 'sr' ? s.sr : s.en}</option>`).join('');
+  return true;
+}
+function onCategoryChange() {
+  const cat = document.getElementById('category').value;
+  const subSelect = document.getElementById('subcategory');
+  const subRow = document.getElementById('subcategoryRow');
+  const hasSubs = populateSubcategoryOptions(subSelect, cat, null);
+  subRow.style.display = hasSubs ? 'flex' : 'none';
+  checkFormReady();
+}
+function statusColor(s)     { return STATUS_COLORS[s] || '#aaaaaa'; }
+function statusLabel(s) {
+  if (s === 'in_progress') return t('statusInProgress');
+  if (s === 'fixed') return t('statusFixed');
+  return t('statusReported');
+}
+function translateCategory(cat) {
+  const labelsEn = { Water:'Water', Electricity:'Electricity', Sewage:'Sewage', Gas:'Gas', Heating:'Heating', Road:'Road', Streetlight:'Streetlight', Waste:'Waste', Other:'Other' };
+  const labelsSr = { Water:'Voda', Electricity:'Struja', Sewage:'Kanalizacija', Gas:'Gas', Heating:'Grejanje', Road:'Put', Streetlight:'Ulična rasveta', Waste:'Otpad', Other:'Ostalo' };
+  return (lang === 'sr' ? labelsSr[cat] : labelsEn[cat]) || cat;
+}
+
+function checkFormReady() {
+  const category = document.getElementById('category').value;
+  const hasLoc = !!(userCoords || manualCoords);
+  const isAuthed = !!(currentSession && currentProfile);
+  document.getElementById('reportBtn').disabled = !(category && hasLoc && isAuthed);
+}
+
+function resetReportingForm() {
+  document.getElementById('category').selectedIndex = 0;
+  document.getElementById('subcategory').innerHTML = '';
+  document.getElementById('subcategoryRow').style.display = 'none';
+  document.getElementById('comment').value = "";
+  document.getElementById('reportBtn').disabled = true;
+
+  // If the user manually dropped a pin to file this report, turn pin-drop
+  // mode back off so the pin doesn't stay "clicked"/active after submit.
+  if (pinMode) {
+    pinMode = false;
+    document.getElementById('pinMapBtn').classList.remove('active');
+  }
+  if (manualMarker) { map.removeLayer(manualMarker); manualMarker = null; }
+  manualCoords = null;
+}
+
+async function reportBreak(){
+  if (!currentSession || !currentProfile) { updateAuthUI(); return; }
+
+  const coords = pinMode && manualCoords ? manualCoords : userCoords;
+  if (!coords) { alert(t('waitGps')); return; }
+
+  const category    = document.getElementById('category').value;
+  const subcategory = document.getElementById('subcategory').value || null;
+  const comment      = document.getElementById('comment').value;
+
+  try {
+    const { error } = await sb.from(TABLE).insert([{
+      latitude:  parseFloat(coords.lat),
+      longitude: parseFloat(coords.lon),
+      category,
+      subcategory,
+      status: 'reported',
+      comment,
+      created_at: new Date().toISOString(),
+      owner_id: currentSession.user.id,
+      owner_username: currentProfile.username
+    }]);
+    if (error) throw error;
+
+    alert(t('submitted'));
+    resetReportingForm();
+    await loadPinsByWindow();
+  } catch (err) {
+    console.error('Report submit error (full):', err);
+    alert(describeAuthError(err));
+  }
+}
+
+function clearMarkers(){
+  markerById.forEach(m => map.removeLayer(m));
+  markerById.clear();
+  sectionPinById.forEach(m => map.removeLayer(m));
+  sectionPinById.clear();
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function buildTimelineItem(dateStr, reached, color) {
+  const dotColor = reached ? color : 'rgba(255,255,255,.18)';
+  const dateText = reached ? formatDate(dateStr) : '—';
+  return `<div class="timeline-item ${reached ? '' : 'pending'}">
+    <div class="timeline-line"></div>
+    <div class="timeline-dot" style="background:${dotColor};"></div>
+    <span class="timeline-date">${dateText}</span>
+  </div>`;
+}
+
+function buildPopupHtml(report) {
+  const catCol = categoryColor(report.category);
+  const sCol   = statusColor(report.status);
+  const isOwner = !!(currentSession && report.owner_id === currentSession.user.id);
+  const isAdmin = !!(currentProfile && currentProfile.is_admin);
+  const reporterName = report.owner_username || (lang === 'sr' ? 'Nepoznato' : 'Unknown');
+  const headerTitle = report.subcategory
+    ? `${translateCategory(report.category)} / ${subcategoryLabel(report.category, report.subcategory)}`
+    : translateCategory(report.category);
+
+  let actionsHtml = '';
+  if (isAdmin) {
+    // Admins get full control: jump to any status, plus edit/delete
+    const statuses = [
+      { key: 'reported',    label: t('markReported'),   bg: STATUS_COLORS.reported },
+      { key: 'in_progress', label: t('markInProgress'), bg: STATUS_COLORS.in_progress },
+      { key: 'fixed',       label: t('markFixed'),      bg: STATUS_COLORS.fixed }
+    ].filter(s => s.key !== report.status);
+    actionsHtml = `<div class="status-action-row">
+      ${statuses.map(s => `<button class="status-action-btn" style="background:${s.bg};" onclick="updateReportStatus('${report.id}','${s.key}')">${s.label}</button>`).join('')}
+    </div>
+    <div class="status-action-row" style="border-top:none;padding-top:0;">
+      <button class="status-action-btn" style="background:#3a3a3a;" onclick="enterEditMode('${report.id}')">${t('editBtn')}</button>
+      <button class="status-action-btn" style="background:#7a1f1f;" onclick="deleteReport('${report.id}')">${t('deleteBtn')}</button>
+    </div>`;
+  } else if (isOwner && report.status !== 'fixed') {
+    const showProgress = report.status === 'reported';
+    actionsHtml = `<div class="status-action-row">
+      ${showProgress ? `<button class="status-action-btn progress-btn" onclick="updateReportStatus('${report.id}','in_progress')">${t('markInProgress')}</button>` : ''}
+      <button class="status-action-btn fixed-btn" onclick="updateReportStatus('${report.id}','fixed')">${t('markFixed')}</button>
+    </div>`;
+  }
+
+  return `<div class="popup-inner popup-card">
+    <div class="popup-header" style="background:${catCol};">
+      <span class="popup-header-title">${headerTitle}</span>
+      <span class="popup-header-date">${formatDate(report.created_at)}</span>
+    </div>
+    <div class="popup-body">
+      <div class="popup-row">
+        <span class="popup-row-label">${t('popupStatus')}</span>
+        <span class="status-pill" style="background:${sCol};">${statusLabel(report.status)}</span>
+      </div>
+      <div class="popup-row">
+        <span class="popup-row-label">${t('reportedByLabel')}</span>
+        <span class="popup-row-value">${escapeHtml(reporterName)}${isOwner ? ` <span class="owner-tag">(${t('yourReport')})</span>` : ''}</span>
+      </div>
+    </div>
+    <div class="popup-timeline">
+      ${buildTimelineItem(report.created_at, true, STATUS_COLORS.reported)}
+      ${buildTimelineItem(report.in_progress_at, !!report.in_progress_at, STATUS_COLORS.in_progress)}
+      ${buildTimelineItem(report.fixed_at, !!report.fixed_at, STATUS_COLORS.fixed)}
+    </div>
+    ${report.comment ? `<div class="popup-note">${escapeHtml(report.comment)}</div>` : ''}
+    ${actionsHtml}
+  </div>`;
+}
+
+function buildEditPopupHtml(report) {
+  const uid = report.id;
+  const cats = ['Water','Electricity','Sewage','Gas','Heating','Road','Streetlight','Waste','Other'];
+  const catOptions = cats.map(c => `<option value="${c}" ${c === report.category ? 'selected' : ''}>${translateCategory(c)}</option>`).join('');
+  const statuses = [
+    { key:'reported', label: statusLabel('reported') },
+    { key:'in_progress', label: statusLabel('in_progress') },
+    { key:'fixed', label: statusLabel('fixed') }
+  ];
+  const statusOptions = statuses.map(s => `<option value="${s.key}" ${s.key === report.status ? 'selected' : ''}>${s.label}</option>`).join('');
+
+  return `<div class="popup-inner popup-edit-form">
+    <select id="edit-cat-${uid}" style="width:100%;" onchange="onEditCategoryChange('${uid}')">${catOptions}</select>
+    <select id="edit-subcat-${uid}" style="width:100%;"></select>
+    <select id="edit-status-${uid}" style="width:100%;">${statusOptions}</select>
+    <input type="text" id="edit-comment-${uid}" value="${escapeHtml(report.comment || '')}" style="width:100%;">
+    <div class="status-action-row" style="padding:0;border-top:none;">
+      <button class="status-action-btn" style="background:#a67817;" onclick="saveReportEdits('${uid}')">${t('saveBtn')}</button>
+      <button class="status-action-btn" style="background:#3a3a3a;" onclick="cancelEdit('${uid}')">${t('cancelBtn')}</button>
+    </div>
+  </div>`;
+}
+
+function onEditCategoryChange(reportId) {
+  const catSelect = document.getElementById(`edit-cat-${reportId}`);
+  const subSelect = document.getElementById(`edit-subcat-${reportId}`);
+  if (!catSelect || !subSelect) return;
+  populateSubcategoryOptions(subSelect, catSelect.value, null);
+}
+
+function enterEditMode(reportId) {
+  const marker = markerById.get(reportId);
+  const pin = sectionPinById.get(reportId);
+  const report = globalActiveData.find(r => r.id === reportId);
+  if ((!marker && !pin) || !report) return;
+  // A section report has both a line and a pin sharing the same popup markup;
+  // keep both in sync even though only one of them was actually clicked open.
+  if (marker) marker.setPopupContent(buildEditPopupHtml(report));
+  if (pin) pin.setPopupContent(buildEditPopupHtml(report));
+  // subcategory <select> starts empty in the template; populate it now that
+  // it's actually in the DOM, preselecting the report's current subcategory
+  setTimeout(() => {
+    const subSelect = document.getElementById(`edit-subcat-${reportId}`);
+    if (subSelect) populateSubcategoryOptions(subSelect, report.category, report.subcategory);
+  }, 0);
+}
+
+function cancelEdit(reportId) {
+  const marker = markerById.get(reportId);
+  const pin = sectionPinById.get(reportId);
+  const report = globalActiveData.find(r => r.id === reportId);
+  if ((!marker && !pin) || !report) return;
+  if (marker) marker.setPopupContent(buildPopupHtml(report));
+  if (pin) pin.setPopupContent(buildPopupHtml(report));
+}
+
+// Computes which timeline timestamp(s) to set/clear for a given status transition.
+// Moving to in_progress stamps in_progress_at; moving to fixed stamps fixed_at
+// (leaving in_progress_at as-is in case a report skipped straight to fixed);
+// reverting to reported clears both, since the report is back at square one.
+function buildStatusPatch(newStatus) {
+  const now = new Date().toISOString();
+  if (newStatus === 'reported')    return { status: 'reported',    in_progress_at: null, fixed_at: null };
+  if (newStatus === 'in_progress') return { status: 'in_progress', in_progress_at: now,  fixed_at: null };
+  if (newStatus === 'fixed')       return { status: 'fixed',       fixed_at: now };
+  return { status: newStatus };
+}
+
+async function saveReportEdits(reportId) {
+  const category    = document.getElementById(`edit-cat-${reportId}`).value;
+  const subcatEl     = document.getElementById(`edit-subcat-${reportId}`);
+  const subcategory  = (subcatEl && subcatEl.value) ? subcatEl.value : null;
+  const status       = document.getElementById(`edit-status-${reportId}`).value;
+  const comment       = document.getElementById(`edit-comment-${reportId}`).value;
+  try {
+    const { error } = await sb.from(TABLE)
+      .update({ category, subcategory, comment, updated_at: new Date().toISOString(), ...buildStatusPatch(status) })
+      .eq('id', reportId);
+    if (error) throw error;
+    await loadPinsByWindow();
+  } catch (err) {
+    console.error('Edit save error (full):', err);
+    alert(describeAuthError(err));
+  }
+}
+
+async function deleteReport(reportId) {
+  if (!confirm(t('deleteConfirm'))) return;
+  try {
+    const { error } = await sb.from(TABLE).delete().eq('id', reportId);
+    if (error) throw error;
+    await loadPinsByWindow();
+  } catch (err) {
+    console.error('Delete error (full):', err);
+    alert(describeAuthError(err));
+  }
+}
+
+async function updateReportStatus(reportId, newStatus) {
+  if (!currentSession) return;
+  try {
+    const { error } = await sb.from(TABLE)
+      .update({ updated_at: new Date().toISOString(), ...buildStatusPatch(newStatus) })
+      .eq('id', reportId);
+    if (error) throw error;
+    await loadPinsByWindow();
+  } catch (err) {
+    console.error('Status update error (full):', err);
+    alert(t('updateFail'));
+  }
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// Creates the marker for a report if it isn't rendered yet, or updates an
+// already-rendered marker's icon/popup in place (e.g. after a status change)
+// without tearing it down and rebuilding it from scratch.
+// A report is a "section" report (drawn as a spline/polyline instead of a
+// single pin) when it carries a `path` array with more than one point,
+// e.g. produced by the driving-mode section recorder.
+function isSectionReport(report) {
+  return Array.isArray(report.path) && report.path.length > 1;
+}
+
+// Picks a stable point along a section's traced path to anchor its pin,
+// so the pin doesn't jump around if the path is re-set with the same shape.
+function sectionPinLatLng(path) {
+  return path[Math.floor(path.length / 2)];
+}
+
+function upsertSectionPin(report) {
+  const catCol = categoryColor(report.category);
+  const sCol   = statusColor(report.status);
+  const opacity = report.status === 'fixed' ? 0.55 : 1;
+  const iconHtml = `<div style="width:22px;height:22px;border-radius:50%;background:${catCol};border:3px solid ${sCol};opacity:${opacity};box-shadow:0 2px 6px rgba(0,0,0,.5);"></div>`;
+  const latlng = sectionPinLatLng(report.path);
+
+  let pin = sectionPinById.get(report.id);
+  if (pin) {
+    pin.setIcon(L.divIcon({ className: '', html: iconHtml, iconAnchor: [11,11] }));
+    pin.setLatLng(latlng);
+    pin.setPopupContent(buildPopupHtml(report));
+    return pin;
+  }
+
+  pin = L.marker(latlng, {
+    icon: L.divIcon({ className: '', html: iconHtml, iconAnchor: [11,11] })
+  }).addTo(map);
+
+  pin._reportId = report.id;
+  pin.bindPopup(buildPopupHtml(report));
+  sectionPinById.set(report.id, pin);
+  return pin;
+}
+
+function upsertSectionLine(report) {
+  const sCol = statusColor(report.status);
+  const opacity = report.status === 'fixed' ? 0.4 : 0.85;
+
+  upsertSectionPin(report);
+
+  let line = markerById.get(report.id);
+  if (line) {
+    line.setStyle({ color: sCol, opacity });
+    line.setLatLngs(report.path);
+    line.setPopupContent(buildPopupHtml(report));
+    return line;
+  }
+
+  line = L.polyline(report.path, { color: sCol, weight: 6, opacity, lineCap: 'round' }).addTo(map);
+  line._reportId = report.id;
+  line.bindPopup(buildPopupHtml(report));
+  markerById.set(report.id, line);
+  return line;
+}
+
+function upsertMarker(report) {
+  if (isSectionReport(report)) return upsertSectionLine(report);
+
+  const catCol = categoryColor(report.category);
+  const sCol   = statusColor(report.status);
+  const opacity = report.status === 'fixed' ? 0.55 : 1;
+  const iconHtml = `<div style="width:22px;height:22px;border-radius:50%;background:${catCol};border:3px solid ${sCol};opacity:${opacity};box-shadow:0 2px 6px rgba(0,0,0,.5);"></div>`;
+
+  let marker = markerById.get(report.id);
+  if (marker) {
+    marker.setIcon(L.divIcon({ className: '', html: iconHtml, iconAnchor: [11,11] }));
+    marker.setLatLng([report.latitude, report.longitude]);
+    marker.setPopupContent(buildPopupHtml(report));
+    return marker;
+  }
+
+  marker = L.marker([report.latitude, report.longitude], {
+    icon: L.divIcon({ className: '', html: iconHtml, iconAnchor: [11,11] })
+  }).addTo(map);
+
+  marker._reportId = report.id;
+  marker.bindPopup(buildPopupHtml(report));
+  markerById.set(report.id, marker);
+  return marker;
+}
+
+// True if a report should be considered "in view" for the current bounds —
+// point reports check their single coordinate, section reports check
+// whether any part of their traced path intersects the viewport.
+function reportInBounds(report, bounds) {
+  if (isSectionReport(report)) {
+    return report.path.some(([lat, lon]) => bounds.contains(L.latLng(lat, lon)));
+  }
+  return bounds.contains(L.latLng(report.latitude, report.longitude));
+}
+
+// Keeps the on-map markers in sync with globalActiveData, but only ever
+// attaches markers for reports inside (a small buffer around) the current
+// viewport. This is what keeps things fast with a lot of pins: panning and
+// zooming just add/remove the handful of markers at the edge of view instead
+// of touching the whole dataset.
+// - refreshExisting=true also re-applies icon/popup content to markers that
+//   are already on the map (used after a data reload, since a report's
+//   status/category/comment may have changed).
+// - refreshExisting=false (pan/zoom) only adds newly-visible markers and
+//   removes ones that scrolled out of view; unaffected markers are untouched.
+function syncMarkers(refreshExisting) {
+  const bounds = map.getBounds().pad(0.2);
+  const desiredIds = new Set();
+
+  globalActiveData.forEach(r => {
+    if (!reportInBounds(r, bounds)) return;
+    desiredIds.add(r.id);
+    if (refreshExisting || !markerById.has(r.id)) upsertMarker(r);
+  });
+
+  markerById.forEach((marker, id) => {
+    if (!desiredIds.has(id)) {
+      map.removeLayer(marker);
+      markerById.delete(id);
+    }
+  });
+
+  sectionPinById.forEach((pin, id) => {
+    if (!desiredIds.has(id)) {
+      map.removeLayer(pin);
+      sectionPinById.delete(id);
+    }
+  });
+}
+
+function refreshRenderedPopups() {
+  markerById.forEach((marker, id) => {
+    const report = globalActiveData.find(r => r.id === id);
+    if (report) marker.setPopupContent(buildPopupHtml(report));
+  });
+  sectionPinById.forEach((pin, id) => {
+    const report = globalActiveData.find(r => r.id === id);
+    if (report) pin.setPopupContent(buildPopupHtml(report));
+  });
+}
+
+function updateReportCount() {
+  const n = globalActiveData.length;
+  const rcEl = document.getElementById('reportCount');
+  if (rcEl) rcEl.textContent = n + ' ' + (n === 1 ? t('reportCount1') : t('reportCount'));
+}
+
+async function loadPinsByWindow() {
+  if (!fp || !fp.selectedDates || fp.selectedDates.length < 2) return;
+
+  const start = new Date(fp.selectedDates[0]);
+  start.setHours(0,0,0,0);
+  const end = new Date(fp.selectedDates[1]);
+  end.setHours(23,59,59,999);
+
+  try {
+    // Reports inside the selected date range, plus - regardless of the date
+    // filter - any report that isn't fixed yet, so open issues never
+    // disappear from the map just because they fall outside the window.
+    const [dateRangeRes, alwaysOnRes] = await Promise.all([
+      sb.from(TABLE).select('*')
+        .gte('created_at', start.toISOString())
+        .lte('created_at', end.toISOString())
+        .order('created_at', { ascending: true }),
+      sb.from(TABLE).select('*').neq('status', 'fixed')
+    ]);
+
+    if (dateRangeRes.error) throw dateRangeRes.error;
+    if (alwaysOnRes.error) throw alwaysOnRes.error;
+
+    dateRangeOnlyData = dateRangeRes.data || [];
+
+    const merged = new Map();
+    dateRangeOnlyData.forEach(r => merged.set(r.id, r));
+    (alwaysOnRes.data || []).forEach(r => merged.set(r.id, r));
+    globalActiveData = Array.from(merged.values());
+
+    syncMarkers(true);
+    updateReportCount();
+  } catch (err) {
+    console.error('Failed to load reports:', err.message);
+  }
+}
+
+function downloadCSV() {
+  // Exactly what the name on the button implies: reports in the selected
+  // date range AND currently visible on screen (not the always-on open
+  // reports that may be outside the date filter, nor pins off-screen).
+  const bounds = map.getBounds();
+  const visible = dateRangeOnlyData.filter(r => bounds.contains(L.latLng(r.latitude, r.longitude)));
+
+  if (!visible.length) { alert(t('noReports')); return; }
+
+  let csv = `Report Generated/Downloaded On: ${new Date().toLocaleString()}\n\n`;
+  csv += 'ID,ReportedAt,InProgressAt,FixedAt,Latitude,Longitude,Category,Subcategory,Status,ReportedBy,Comment\n';
+  visible.forEach(r => {
+    csv += `${r.id},` +
+           `${r.created_at},` +
+           `${r.in_progress_at || ''},` +
+           `${r.fixed_at || ''},` +
+           `${r.latitude},` +
+           `${r.longitude},` +
+           `${r.category},` +
+           `${r.subcategory || ''},` +
+           `${r.status},` +
+           `"${(r.comment || '').replace(/"/g, '""')}"\n`;
+  });
+
+  let filename = 'TraceTheBreak.csv';
+  if (fp.selectedDates.length === 2) {
+    const pad = (n) => String(n).padStart(2, '0');
+    const d1 = fp.selectedDates[0];
+    const d2 = fp.selectedDates[1];
+    const startStr = `${pad(d1.getDate())}${pad(d1.getMonth() + 1)}${d1.getFullYear()}`;
+    const endStr = `${pad(d2.getDate())}${pad(d2.getMonth() + 1)}${d2.getFullYear()}`;
+    filename = `TraceTheBreak_${startStr}_${endStr}.csv`;
+  }
+
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+(function initMapPanelToggle(){
+  const btn   = document.getElementById('panelToggleBtn');
+  const panel = document.getElementById('appPanel');
+  if (!btn || !panel) return;
+
+  const TRANSITION_MS = 320;
+  let collapsed = false;
+
+  function animateMapDuringTransition(){
+    if (typeof map === 'undefined' || !map.invalidateSize) return;
+    const start = performance.now();
+    function step(now){
+      map.invalidateSize({ animate: false, pan: false });
+      if (now - start < TRANSITION_MS) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  function setCollapsed(next){
+    if (collapsed === next) return;
+    collapsed = next;
+
+    if (collapsed) {
+      panel.style.height = panel.scrollHeight + 'px';
+      panel.getBoundingClientRect();
+      requestAnimationFrame(() => {
+        panel.style.height = '0px';
+        panel.style.opacity = '0';
+      });
+    } else {
+      const target = panel.scrollHeight;
+      panel.style.height = target + 'px';
+      panel.style.opacity = '1';
+      panel.addEventListener('transitionend', function onEnd(e){
+        if (e.propertyName !== 'height') return;
+        panel.removeEventListener('transitionend', onEnd);
+        if (!collapsed) panel.style.height = 'auto';
+      });
+    }
+
+    btn.classList.toggle('collapsed', collapsed);
+    btn.setAttribute('aria-expanded', String(!collapsed));
+    btn.title = collapsed ? 'Show panel' : 'Hide panel';
+    animateMapDuringTransition();
+  }
+
+  btn.addEventListener('click', () => setCollapsed(!collapsed));
+})();
+
+// --- Keep screen awake ---------------------------------------------------
+// Requests a screen wake lock so the display doesn't dim/sleep while the
+// map is open. Re-requests automatically when the tab regains visibility
+// (the lock is released by the browser whenever the tab is hidden).
+let wakeLock = null;
+
+async function requestWakeLock() {
+  if (!('wakeLock' in navigator)) return;
+  try {
+    wakeLock = await navigator.wakeLock.request('screen');
+    wakeLock.addEventListener('release', () => { wakeLock = null; });
+  } catch (err) {
+    console.warn('Wake lock not granted:', err.message);
+  }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') requestWakeLock();
+});
+
+requestWakeLock();
+
+// --- Fullscreen toggle -----------------------------------------------------
+function toggleFullscreen() {
+  const el = document.documentElement;
+  const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement;
+
+  if (!isFullscreen) {
+    (el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen)?.call(el);
+  } else {
+    (document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen)?.call(document);
+  }
+}
+
+function updateFullscreenBtn() {
+  const btn = document.getElementById('fullscreenBtn');
+  if (!btn) return;
+  const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement;
+  btn.textContent = isFullscreen ? '⤢' : '⛶';
+  btn.title = isFullscreen ? 'Exit fullscreen / Napusti celi ekran' : 'Fullscreen / Preko celog ekrana';
+}
+
+['fullscreenchange', 'webkitfullscreenchange'].forEach(evt =>
+  document.addEventListener(evt, () => {
+    updateFullscreenBtn();
+    if (typeof map !== 'undefined' && map.invalidateSize) {
+      setTimeout(() => map.invalidateSize(), 100);
+    }
+  })
+);
+
+initCalendarFilter();
+applyLang();
+showHelpModal();
+loadPinsByWindow();
+initAuth();
+
+</script>
+
+</body>
+</html>
