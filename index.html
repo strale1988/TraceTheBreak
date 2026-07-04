@@ -9,10 +9,10 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
 
-  <link rel="icon" type="image/png" href="favicon.png?v=2">
-  <meta property="og:image" content="https://strale1988.github.io/TraceTheBreak/favicon.png"/>
+  <link rel="icon" type="image/png" href="TraceTheBreak.png">
+  <meta property="og:image" content="https://github.io"/>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-  
+
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
   <style>
@@ -1754,7 +1754,6 @@ function downloadCSV() {
            `${r.category},` +
            `${r.subcategory || ''},` +
            `${r.status},` +
-           `${r.owner_username || ''},` +
            `"${(r.comment || '').replace(/"/g, '""')}"\n`;
   });
 
