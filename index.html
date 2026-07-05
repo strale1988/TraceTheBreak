@@ -500,6 +500,7 @@ body.nav-panel-open .driving-nav-card{
   width:27px; height:27px;
   transition:transform .25s linear;
   filter:drop-shadow(0 2px 5px rgba(0,0,0,.55));
+  rotate(0deg);
 }
 
 /* --- Driving-mode HUD vignette ---
@@ -2138,7 +2139,7 @@ function toggleHeadingUpMode() {
   } else if (drivingMode && currentHeading !== null) {
     applyMapBearing(currentHeading);
   }
-  //updateUserMarkerRotation();
+  updateUserMarkerRotation();
 }
 
 // iOS 13+ requires DeviceOrientationEvent.requestPermission() to be called
