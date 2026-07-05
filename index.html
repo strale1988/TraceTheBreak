@@ -1672,6 +1672,7 @@ function updateAuthUI() {
 async function initAuth() {
   try {
     const { data: { session }, error } = await sb.auth.getSession();
+    console.log('Restored session:', session);
     if (error) throw error;
     currentSession = session;
     if (currentSession) await loadProfile();
