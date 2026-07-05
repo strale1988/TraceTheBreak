@@ -1,0 +1,3880 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>TraceTheBreak</title>
+
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+
+  <link rel="icon" type="image/png" href="TraceTheBreak.png">
+  <meta property="og:image" content="https://github.io"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
+  <style>
+.map-tiles-grayscale { filter: grayscale(1) brightness(0.85); }
+
+*{ margin:0; padding:0; box-sizing:border-box; }
+
+body{
+  font-family:-apple-system,BlinkMacSystemFont,sans-serif;
+  background:#111;
+  color:white;
+  height: 100svh;
+  display:flex;
+  flex-direction:column;
+}
+
+header{
+  padding:10px 12px;
+  background:#181818;
+  border-bottom:1px solid #333;
+}
+
+.header-top{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:8px;
+}
+
+header h1{ font-size:19px; }
+header p{ font-size:11px; opacity:.7; margin-top:2px; }
+
+.right-controls{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  flex-shrink:0;
+}
+
+.lang-toggle{
+  display:flex;
+  gap:4px;
+  align-items:center;
+}
+
+.lang-btn, .help-icon-btn{
+  background:#303030;
+  color:#aaa;
+  border:none;
+  border-radius:6px;
+  padding:5px 8px;
+  font-size:11px;
+  font-weight:600;
+  cursor:pointer;
+  transition:background .15s,color .15s;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+.lang-btn.active{ background:#a67817; color:white; }
+.help-icon-btn{
+  background:#262626;
+  border:1px solid #444;
+  font-size:14px;
+  padding:4px 8px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.help-icon-btn:active{ background:#333; }
+
+#map {
+  flex: 1;
+  height: 0;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.resize-handle {
+  flex-shrink: 0;
+  flex-grow: 0;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  background: #181818;
+  border-top: 1px solid #292929;
+  border-bottom: 1px solid #292929;
+  position: relative;
+  z-index: 5;
+  overflow: visible;
+  padding: 4px 0;
+}
+
+.panel-toggle-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #262626;
+  border: 1px solid #3a3a3a;
+  color: #aaa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  box-shadow: 0 2px 6px rgba(0,0,0,.45);
+  transition: background .15s, color .15s, transform .15s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+.panel-toggle-btn:hover { background:#303030; color:#ddd; }
+.panel-toggle-btn:active { transform: translate(-50%, -50%) scale(.9); }
+.panel-toggle-btn svg { transition: transform .25s ease; }
+.panel-toggle-btn.collapsed svg { transform: rotate(180deg); }
+
+.app-panel {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow: hidden;
+  opacity: 1;
+  transition: height .28s ease, opacity .22s ease;
+}
+
+.filter-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px 4px 14px;
+  background: #181818;
+  font-size: 11px;
+  font-weight: bold;
+}
+
+.filter-title {
+  color: #888;
+  letter-spacing: .3px;
+  text-transform: uppercase;
+  font-size: 10px;
+}
+
+#reportCount {
+  color: #aaa;
+  font-size: 12px;
+  text-align: right;
+  width: 90px;
+}
+
+.filter-select-row {
+  background: #181818;
+  padding: 0 12px 14px 12px;
+  border-bottom: 1px solid #292929;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.select-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.panel{
+  background:#181818;
+  padding:12px 12px;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  flex-shrink: 0;
+}
+
+.row{ display:flex; gap:8px; }
+
+select{
+  flex:1;
+  padding:11px 10px;
+  border:none;
+  border-radius:8px;
+  background:#262626;
+  color:white;
+  font-size:13px;
+  -webkit-appearance:none;
+  appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;
+  background-position:right 10px center;
+  padding-right:28px;
+}
+
+input[type="text"], input[type="password"]{
+  width:100%;
+  padding:11px 10px;
+  border:none;
+  border-radius:8px;
+  background:#262626;
+  color:white;
+  font-size:13px;
+}
+
+button{
+  padding:12px;
+  border:none;
+  border-radius:8px;
+  cursor:pointer;
+  font-weight:bold;
+  font-size:13px;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+
+.report-btn{ background:#ff4b4b; color:white; width:100%; transition:opacity .2s; }
+.report-btn:disabled{ opacity:.35; cursor:not-allowed; }
+.export-btn{ background:#a67817; color:white; width:100%; }
+
+.legend{
+  display:flex;
+  gap:8px;
+  font-size:10px;
+  align-items:center;
+  flex-wrap:wrap;
+  opacity:.9;
+}
+.legend-item{ display:flex; align-items:center; gap:3px; }
+.legend-dot{ width:9px; height:9px; border-radius:50%; display:inline-block; flex-shrink:0; }
+
+.leaflet-popup-content-wrapper{
+  border-radius:10px !important;
+  padding:0 !important;
+  overflow:hidden;
+  min-width:170px;
+  background: rgba(255,255,255,0.82) !important;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.leaflet-popup-content{ margin:0 !important; width:auto !important; }
+.leaflet-popup-tip{ background: rgba(255,255,255,0.82) !important; box-shadow:none !important; }
+.leaflet-popup-close-button{ color:#555 !important; }
+.leaflet-popup-close-button:hover{ color:#000 !important; }
+
+.popup-inner{
+  font-family:-apple-system,BlinkMacSystemFont,sans-serif;
+  font-size:13px;
+  line-height:1.5;
+  color:#111;
+}
+.popup-title{ font-size:14px; font-weight:700; margin-bottom:8px; color:#111; }
+
+.status-pill{
+  display:inline-block;
+  font-size:9px;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.3px;
+  padding:2px 7px;
+  border-radius:20px;
+  color:white;
+}
+
+.pin-map-btn{
+  background:rgba(20,20,20,.88);
+  border:1px solid #3a3a3a;
+  border-radius:8px;
+  width:44px; height:44px;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer; font-size:22px;
+  box-shadow:0 2px 8px rgba(0,0,0,.55);
+  transition:background .15s;
+  user-select:none;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+.pin-map-btn.active{ background:#f5a623; border-color:#f5a623; }
+.pin-map-btn.recording-active{ background:#ff4b4b; border-color:#ff4b4b; animation:pulseRec 1.2s infinite; }
+
+/* --- Destination search panel (simple point-to-point navigation) --- */
+.navigate-panel{
+  display:none;
+  flex-direction:column;
+  width:min(78vw, 260px);
+  background:rgba(20,20,20,.92);
+  border:1px solid #3a3a3a;
+  border-radius:10px;
+  box-shadow:0 2px 8px rgba(0,0,0,.55);
+  padding:8px;
+  gap:6px;
+}
+.navigate-row{ display:flex; gap:6px; align-items:center; }
+.navigate-profile-row{ display:flex; gap:6px; }
+.navigate-profile-btn{
+  flex:1;
+  padding:6px 0;
+  border-radius:6px;
+  background:#232323;
+  border:1px solid #333;
+  color:#999;
+  font-size:15px;
+  text-align:center;
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+.navigate-profile-btn.active{ background:#00d0ff; border-color:#00d0ff; filter:none; }
+.navigate-row input{
+  flex:1;
+  padding:8px 9px;
+  border:none;
+  border-radius:6px;
+  background:#262626;
+  color:white;
+  font-size:12px;
+  min-width:0;
+}
+.navigate-search-btn, .navigate-close-btn{
+  flex-shrink:0;
+  width:30px; height:30px;
+  border-radius:6px;
+  background:#303030;
+  color:#ddd;
+  font-size:13px;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+.navigate-results{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+  max-height:160px;
+  overflow-y:auto;
+}
+.navigate-result-item{
+  padding:7px 8px;
+  border-radius:6px;
+  background:#232323;
+  font-size:11.5px;
+  line-height:1.35;
+  color:#ccc;
+  cursor:pointer;
+}
+.navigate-result-item:active{ background:#2d2d2d; }
+.navigate-result-empty{
+  padding:6px 4px;
+  font-size:11.5px;
+  color:#888;
+  text-align:center;
+}
+@keyframes pulseRec{
+  0%,100%{ box-shadow:0 2px 8px rgba(0,0,0,.55), 0 0 0 0 rgba(255,75,75,.6); }
+  50%{ box-shadow:0 2px 8px rgba(0,0,0,.55), 0 0 0 8px rgba(255,75,75,0); }
+}
+
+/* --- Map rotation wrapper (heading-up navigation in driving mode) ---
+   This div is inserted between the map container and Leaflet's internal
+   map-pane at runtime (see initRotationWrapper()). Rotating it turns tiles,
+   markers, lines and popups together as one rigid unit, while the zoom/
+   attribution controls and our own floating buttons stay fixed and upright
+   because they live outside this wrapper. */
+.leaflet-rotate-wrapper{
+  position:absolute;
+  top:0; left:0; right:0; bottom:0;
+  transition: transform .25s linear;
+  transform-origin:center center;
+}
+
+/* --- Compass widget (driving mode only) ---
+   Fixed to the viewport (not the collapsible app-panel) so it stays
+   reachable regardless of panel state, floating over the map like a
+   real navigation app's heading indicator. */
+.map-compass{
+  width:48px; height:48px;
+  border-radius:50%;
+  background:rgba(20,20,20,.92);
+  border:1px solid #3a3a3a;
+  box-shadow:0 3px 12px rgba(0,0,0,.6);
+  display:none;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  position:fixed;
+  top:calc(12px + env(safe-area-inset-top, 0px));
+  right:12px;
+  z-index:2600;
+  user-select:none;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+.map-compass.heading-up-disabled{ background:rgba(60,60,60,.7); }
+.map-compass .compass-face{
+  position:relative;
+  width:30px; height:30px;
+}
+.map-compass .compass-n{
+  position:absolute;
+  top:-2px; left:50%;
+  transform:translateX(-50%);
+  font-size:8px;
+  font-weight:800;
+  color:#888;
+  letter-spacing:.5px;
+}
+.map-compass .compass-needle{
+  position:absolute;
+  inset:0;
+  transition: transform .25s linear;
+}
+.map-compass .compass-needle svg{ width:100%; height:100%; display:block; }
+
+/* --- User location marker ---
+   Two looks sharing one marker: a plain dot for normal browsing, and a
+   Sygic/Google-Maps-style directional arrow (with a soft radar pulse
+   behind it) that's swapped in for driving mode. */
+.user-dot{
+  width:16px; height:16px;
+  border-radius:50%;
+  background:#00d0ff;
+  border:2px solid white;
+  box-shadow:0 0 0 3px rgba(0,208,255,.35), 0 2px 6px rgba(0,0,0,.45);
+}
+.user-nav-marker{
+  position:relative;
+  width:40px; height:40px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.user-nav-pulse{
+  position:absolute;
+  width:40px; height:40px;
+  border-radius:50%;
+  background:rgba(0,208,255,.28);
+  animation:navPulse 2s ease-out infinite;
+}
+@keyframes navPulse{
+  0%{ transform:scale(.5); opacity:.8; }
+  100%{ transform:scale(1.05); opacity:0; }
+}
+.user-nav-arrow{
+  position:relative;
+  width:27px; height:27px;
+  transition:transform .25s linear;
+  filter:drop-shadow(0 2px 5px rgba(0,0,0,.55));
+}
+
+/* --- Driving-mode HUD vignette ---
+   With the header hidden, a subtle top fade keeps the compass/status
+   readable and gives the full-screen map a proper heads-up-display feel
+   instead of an abrupt hard edge. */
+#drivingTopFade{
+  position:fixed;
+  top:0; left:0; right:0;
+  height:90px;
+  background:linear-gradient(rgba(0,0,0,.5), rgba(0,0,0,0));
+  z-index:2400;
+  pointer-events:none;
+  display:none;
+}
+body.driving-active #drivingTopFade{ display:block; }
+
+/* --- Toasts --- */
+#toastContainer{
+  position:fixed;
+  top:calc(10px + env(safe-area-inset-top, 0px));
+  left:50%;
+  transform:translateX(-50%);
+  z-index:3000;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  align-items:center;
+  pointer-events:none;
+  width:90%;
+  max-width:360px;
+}
+.toast{
+  background:rgba(24,24,24,.95);
+  border:1px solid #3a3a3a;
+  color:white;
+  padding:10px 16px;
+  border-radius:10px;
+  font-size:13px;
+  font-weight:600;
+  box-shadow:0 4px 14px rgba(0,0,0,.5);
+  opacity:0;
+  transform:translateY(-8px);
+  transition:opacity .2s ease, transform .2s ease;
+  text-align:center;
+}
+.toast.toast-show{ opacity:1; transform:translateY(0); }
+.toast.toast-error{ border-color:#7a1f1f; background:rgba(60,20,20,.95); }
+.toast.toast-success{ border-color:#1f7a3f; background:rgba(20,45,28,.95); }
+
+/* --- Driving mode ---
+   Map-first redesign: nothing permanently covers the map. Speed, GPS
+   status, the destination card and the exit/search/recenter buttons are
+   all small floating widgets over the map (Waze/Google-Maps style).
+   Reporting lives behind a single floating "Report" button that opens a
+   collapsible bottom sheet — closed by default, and dismissed immediately
+   after a report is filed, so the sheet only ever covers the map briefly
+   and on purpose. Everything else in the UI (header, legends, filters,
+   forms) is hidden via the body.driving-active rules further below so the
+   map gets full focus at all times. */
+
+.driving-speed-widget{
+  position:fixed;
+  top:calc(12px + env(safe-area-inset-top, 0px));
+  left:12px;
+  z-index:2500;
+  display:none;
+  flex-direction:column;
+  align-items:center;
+  background:rgba(20,20,20,.92);
+  border:1px solid #3a3a3a;
+  border-radius:14px;
+  padding:8px 16px;
+  box-shadow:0 3px 12px rgba(0,0,0,.6);
+  min-width:60px;
+}
+body.driving-active .driving-speed-widget{ display:flex; }
+.driving-speed-value{ font-size:26px; font-weight:800; color:#00d0ff; line-height:1; }
+.driving-speed-unit{ font-size:10px; font-weight:700; color:#888; letter-spacing:.3px; margin-top:1px; }
+.driving-status-label{
+  display:flex; align-items:center; gap:4px;
+  margin-top:6px;
+  font-size:9px; font-weight:700; color:#5ec98a;
+  text-transform:uppercase; letter-spacing:.4px;
+  transition:color .2s;
+}
+.driving-status-label::before{
+  content:''; width:6px; height:6px; border-radius:50%;
+  background:#5ec98a; flex-shrink:0; transition:background .2s;
+}
+.driving-status-label.gps-lost{ color:#ff4b4b; }
+.driving-status-label.gps-lost::before{ background:#ff4b4b; }
+
+.driving-action-cluster{
+  position:fixed;
+  top:calc(68px + env(safe-area-inset-top, 0px));
+  right:12px;
+  z-index:2500;
+  display:none;
+  flex-direction:column;
+  gap:8px;
+}
+body.driving-active .driving-action-cluster{ display:flex; }
+.driving-search-btn, .driving-exit-btn{
+  background:#1e2b2c;
+  border:1px solid #00d0ff;
+  color:#9be8ee;
+  border-radius:50%;
+  width:40px; height:40px;
+  font-size:16px;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer;
+  box-shadow:0 3px 10px rgba(0,0,0,.55);
+  transition:background .15s;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+.driving-search-btn.active{ background:#00d0ff; border-color:#00d0ff; color:#111; }
+.driving-search-btn:active{ background:#254042; }
+.driving-exit-btn{ background:#262626; border-color:#444; color:#ddd; }
+.driving-exit-btn:active{ background:#3a3a3a; }
+
+/* --- Compact floating route card: destination, ETA/distance, end button.
+   Sits top-center between the speed widget and the action cluster, and is
+   only shown once a destination is active (toggled in JS via nav state). --- */
+.driving-nav-card{
+  display:none;
+  position:fixed;
+  top:calc(12px + env(safe-area-inset-top, 0px));
+  left:84px;
+  right:60px;
+  z-index:2500;
+  flex-direction:column;
+  gap:6px;
+  background:rgba(20,20,20,.94);
+  border:1px solid #2c2c2c;
+  border-radius:12px;
+  padding:9px 14px;
+  box-shadow:0 3px 12px rgba(0,0,0,.6);
+}
+
+/* --- Floating "Report" button — the only way reporting UI appears.
+   Doubles as a section-recording status indicator (turns red + pulses)
+   so recording stays visible even while the sheet is closed. --- */
+.driving-report-btn{
+  position:fixed;
+  left:50%;
+  bottom:calc(20px + env(safe-area-inset-bottom, 0px));
+  transform:translateX(-50%);
+  z-index:2500;
+  display:none;
+  align-items:center;
+  gap:7px;
+  background:#a67817;
+  color:white;
+  border:none;
+  border-radius:999px;
+  padding:13px 24px;
+  font-size:14px;
+  font-weight:800;
+  letter-spacing:.2px;
+  box-shadow:0 4px 14px rgba(0,0,0,.55);
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+body.driving-active .driving-report-btn{ display:flex; }
+.driving-report-btn.recording{ background:#ff4b4b; animation:pulseRec 1.2s infinite; }
+
+/* --- Collapsible report sheet: closed by default, slides up from the
+   bottom only while choosing a report type, then closes immediately. --- */
+.driving-report-sheet{
+  position:fixed;
+  left:0; right:0; bottom:0;
+  z-index:2550;
+  background:rgba(16,16,16,.97);
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+  border-top:1px solid #333;
+  border-radius:20px 20px 0 0;
+  box-shadow:0 -6px 24px rgba(0,0,0,.5);
+  padding:8px 16px calc(16px + env(safe-area-inset-bottom, 0px)) 16px;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  max-height:62vh;
+  overflow-y:auto;
+  transform:translateY(100%);
+  transition:transform .28s ease;
+}
+.driving-report-sheet.open{ transform:translateY(0); }
+.driving-handle{
+  width:36px; height:4px;
+  border-radius:3px;
+  background:#444;
+  margin:2px auto 0 auto;
+  cursor:pointer;
+}
+.driving-header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding-bottom:10px;
+  border-bottom:1px solid #2a2a2a;
+}
+.driving-header h3{ font-size:15px; font-weight:800; letter-spacing:.4px; color:#f2f2f2; }
+.driving-sheet-close{
+  background:#262626;
+  border:1px solid #444;
+  color:#ddd;
+  border-radius:50%;
+  width:32px; height:32px;
+  font-size:14px;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+.driving-sheet-close:active{ background:#3a3a3a; }
+.driving-grid{
+  display:grid;
+  grid-template-columns:repeat(3, 1fr);
+  gap:10px;
+}
+.driving-tile{
+  background:#232323;
+  border:1px solid #3a3a3a;
+  border-radius:14px;
+  color:white;
+  padding:14px 6px;
+  font-size:11px;
+  font-weight:700;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:6px;
+  cursor:pointer;
+  transition:background .15s, transform .1s;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+.driving-tile:active{ background:#333; transform:scale(.96); }
+.driving-tile .tile-emoji{ font-size:24px; }
+.driving-section-btn{
+  width:100%;
+  padding:15px;
+  border-radius:14px;
+  font-size:14px;
+  font-weight:800;
+  letter-spacing:.3px;
+  background:#a67817;
+  color:white;
+}
+.driving-section-btn.recording{
+  background:#ff4b4b;
+  animation:pulseRec 1.2s infinite;
+}
+.driving-hint{ font-size:10px; color:#888; text-align:center; }
+.driving-nav-dest{
+  display:block;
+  font-size:13px;
+  font-weight:800;
+  color:#f2f2f2;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.driving-nav-status-text{
+  font-size:11px;
+  font-weight:700;
+  color:#00d0ff;
+}
+.driving-nav-active-info{
+  display:none;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+}
+.driving-nav-active-info #navigateDistanceText{
+  font-size:13px;
+  font-weight:800;
+  color:#00d0ff;
+  white-space:nowrap;
+  flex-shrink:0;
+}
+.driving-nav-btns{ display:flex; gap:8px; flex-shrink:0; }
+.driving-nav-btn{
+  flex-shrink:0;
+  font-size:11px;
+  font-weight:700;
+  padding:7px 12px;
+  border-radius:8px;
+  border:none;
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+.driving-nav-btn-start{ background:#00d0ff; color:#111; }
+.driving-nav-btn-clear{ background:#333; color:#ddd; }
+
+/* --- Driving mode: decluttered, full-screen map like a dedicated
+   navigation app. Legends, header chrome, and the filter/report panel
+   are hidden so only the map, compass, and quick-report sheet remain. --- */
+body.driving-active header,
+body.driving-active #mapLegend,
+body.driving-active #categoryLegend,
+body.driving-active .resize-handle,
+body.driving-active .filter-label-row,
+body.driving-active .filter-select-row,
+body.driving-active #reportFormPanel,
+body.driving-active #lockedFormPanel,
+body.driving-active #pinMapBtn,
+body.driving-active #drivingModeBtn{
+  display:none !important;
+}
+body.driving-active #appPanel{
+  height:auto !important;
+  overflow:visible !important;
+}
+
+/* --- Auth UI --- */
+.user-badge{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  background:#1e2b2c;
+  border:1px solid #a67817;
+  color:#9be8ee;
+  border-radius:6px;
+  padding:5px 8px;
+  font-size:11px;
+  font-weight:600;
+  cursor:pointer;
+  max-width:min(50vw, 180px);
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+  position:absolute;
+  left:12px;
+  top:50%;
+  transform:translateY(-50%);
+}
+.user-badge .username-text{
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  min-width:0;
+}
+.user-badge .admin-pill{
+  flex-shrink:0;
+  background:#3a2a00;
+  color:#f5c518;
+  border-radius:4px;
+  padding:2px 5px;
+  font-size:9px;
+  font-weight:800;
+  letter-spacing:.3px;
+}
+.user-badge .signout-x{
+  flex-shrink:0;
+  opacity:.7;
+  font-size:13px;
+  line-height:1;
+}
+
+.locked-panel{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  padding:12px 10px;
+}
+.locked-panel p{
+  font-size:12px;
+  color:#999;
+  line-height:1.4;
+  text-align:center;
+  margin-bottom:2px;
+}
+
+.auth-toggle-text {
+  font-size: 11px;
+  color: #a67817;
+  text-align: center;
+  cursor: pointer;
+  text-decoration: underline;
+  margin-top: 4px;
+}
+
+.pw-wrap input{ padding-right:34px !important; }
+.pw-toggle-btn{
+  position:absolute;
+  right:6px;
+  top:50%;
+  transform:translateY(-50%);
+  background:none;
+  border:none;
+  padding:4px;
+  font-size:15px;
+  cursor:pointer;
+  opacity:.6;
+  line-height:1;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+.pw-toggle-btn:active{ opacity:1; }
+.pw-toggle-btn.revealed{ opacity:1; }
+
+.popup-card{
+  min-width:170px;
+  max-width:210px;
+}
+.popup-header{
+  padding:6px 8px;
+  display:flex;
+  flex-direction:column;
+  gap:1px;
+}
+.popup-header-title{
+  font-size:11.5px;
+  font-weight:700;
+  color:#fff;
+  line-height:1.3;
+}
+.popup-header-date{
+  font-size:9px;
+  color:rgba(255,255,255,.8);
+}
+.popup-body{
+  padding:2px 8px 1px 8px;
+}
+.popup-row{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:8px;
+  padding:4px 0;
+  border-bottom:1px solid #eee;
+}
+.popup-row:last-child{ border-bottom:none; }
+.popup-row-label{
+  font-size:9px;
+  font-weight:700;
+  letter-spacing:.3px;
+  text-transform:uppercase;
+  color:#888;
+  flex-shrink:0;
+}
+.popup-row-value{
+  font-size:11.5px;
+  font-weight:600;
+  color:#111;
+  text-align:right;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.popup-note{
+  margin:4px 8px 6px 8px;
+  padding:6px 7px;
+  background:rgba(0,0,0,.04);
+  border-radius:6px;
+  font-size:10.5px;
+  color:#444;
+  line-height:1.4;
+  word-break:break-word;
+}
+.popup-timeline{
+  padding:5px 8px 2px 8px;
+  display:flex;
+  flex-direction:column;
+}
+.timeline-item{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  position:relative;
+  padding-bottom:7px;
+}
+.timeline-item:last-child{ padding-bottom:0; }
+.timeline-dot{
+  width:7px;
+  height:7px;
+  border-radius:50%;
+  flex-shrink:0;
+  position:relative;
+  z-index:1;
+}
+.timeline-line{
+  position:absolute;
+  left:2.5px;
+  top:9px;
+  bottom:-2px;
+  width:2px;
+  background:#eee;
+}
+.timeline-item:last-child .timeline-line{ display:none; }
+.timeline-date{
+  font-size:11px;
+  color:#111;
+  font-weight:600;
+}
+.timeline-item.pending .timeline-date{ color:#bbb; font-weight:500; }
+.popup-edit-form{
+  padding:8px;
+  min-width:180px;
+  max-width:210px;
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+}
+.popup-edit-form select,
+.popup-edit-form input[type="text"]{
+  background:#f2f2f2 !important;
+  color:#111 !important;
+  border:1px solid #ddd;
+}
+
+.status-action-row{
+  display:flex;
+  gap:5px;
+  padding:6px 8px 8px 8px;
+  border-top:1px solid #eee;
+  margin-top:1px;
+  flex-wrap:wrap;
+}
+.status-action-btn{
+  flex:1 1 auto;
+  min-width:72px;
+  padding:6px 5px;
+  border:none;
+  border-radius:6px;
+  font-size:9.5px;
+  font-weight:700;
+  cursor:pointer;
+  color:white;
+  text-transform:uppercase;
+  letter-spacing:.2px;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+.status-action-btn.progress-btn{ background:#f5a623; }
+.status-action-btn.fixed-btn{ background:#2ecc71; }
+.status-action-btn:disabled{ opacity:.4; cursor:not-allowed; }
+
+.owner-tag{
+  font-size:9px;
+  color:#00838f;
+  font-weight:700;
+}
+
+.generic-modal-overlay{
+  position:fixed; inset:0;
+  background:rgba(0,0,0,.75);
+  display:flex; align-items:center; justify-content:center;
+  z-index:9999;
+  padding:20px;
+  -webkit-overflow-scrolling:touch;
+}
+.generic-modal{
+  background:#1e1e1e; color:white;
+  border-radius:18px;
+  padding:24px 20px;
+  max-width:340px; width:100%;
+  text-align:center;
+  box-shadow:0 16px 48px rgba(0,0,0,.8);
+  max-height:85vh; overflow-y:auto;
+  pointer-events:all;
+}
+.generic-modal h2{ font-size:18px; font-weight:700; margin-bottom:12px; }
+.generic-modal p{ font-size:13px; line-height:1.6; color:#bbb; margin-bottom:12px; text-align:left; }
+.generic-modal-close{
+  background:#333; color:#eee;
+  border:1px solid #555; border-radius:10px;
+  padding:12px 20px;
+  font-size:14px; font-weight:600;
+  cursor:pointer; width:100%;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+  min-height:44px;
+}
+.generic-modal-close:active{ background:#444; }
+
+#dateRangePicker {
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2' ry='2'%3E%3C/rect%3E%3Cline x1='16' y1='2' x2='16' y2='6'%3E%3C/line%3E%3Cline x1='8' y1='2' x2='8' y2='6'%3E%3C/line%3E%3Cline x1='3' y1='10' x2='21' y2='10'%3E%3C/line%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px !important;
+}
+
+.flatpickr-calendar {
+  background: #181818 !important;
+  border: 1px solid #333 !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6) !important;
+  border-radius: 12px !important;
+  font-family: inherit !important;
+}
+.flatpickr-months .flatpickr-month,
+.flatpickr-months .flatpickr-prev-month,
+.flatpickr-months .flatpickr-next-month {
+  color: #fff !important;
+  fill: #fff !important;
+}
+.flatpickr-months .flatpickr-prev-month:hover,
+.flatpickr-months .flatpickr-next-month:hover {
+  background: #262626 !important;
+}
+.flatpickr-current-month .numInputWrapper span.arrowUp:after { border-bottom-color: #fff !important; }
+.flatpickr-current-month .numInputWrapper span.arrowDown:after { border-top-color: #fff !important; }
+span.flatpickr-weekday {
+  background: #181818 !important;
+  color: #888 !important;
+  font-weight: bold !important;
+}
+.flatpickr-day:hover,
+.flatpickr-day.prevMonthDay:hover,
+.flatpickr-day.nextMonthDay:hover {
+  background: #262626 !important;
+  border-color: #262626 !important;
+  color: #fff !important;
+}
+.flatpickr-day.prevMonthDay,
+.flatpickr-day.nextMonthDay {
+  color: #444 !important;
+}
+.flatpickr-day.selected,
+.flatpickr-day.startRange,
+.flatpickr-day.endRange,
+.flatpickr-day.selected.inRange,
+.flatpickr-day.startRange.inRange,
+.flatpickr-day.endRange.inRange,
+.flatpickr-day.selected:focus,
+.flatpickr-day.startRange:focus,
+.flatpickr-day.endRange:focus,
+.flatpickr-day.selected:hover,
+.flatpickr-day.startRange:hover,
+.flatpickr-day.endRange:hover {
+  background: #a67817 !important;
+  border-color: #a67817 !important;
+  color: white !important;
+}
+.flatpickr-day.inRange,
+.flatpickr-day.prevMonthDay.inRange,
+.flatpickr-day.nextMonthDay.inRange,
+.flatpickr-day.today.inRange,
+.flatpickr-day.prevMonthDay.today.inRange,
+.flatpickr-day.nextMonthDay.today.inRange {
+  background: #a67817 !important;
+  border-color: transparent !important;
+  border-radius: 0 !important;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-top">
+    <div>
+      <h1>TraceTheBreak</h1>
+      <p id="subtitle">Community Infrastructure Reporting Network</p>
+    </div>
+    <div class="right-controls">
+      <button class="help-icon-btn" id="fullscreenBtn" title="Fullscreen / Preko celog ekrana" onclick="toggleFullscreen()">⛶</button>
+      <button class="help-icon-btn" id="helpTopBtn" title="Help / Pomoć" onclick="showHelpModal()">❓</button>
+      <div class="lang-toggle">
+        <button class="lang-btn"        onclick="setLang('en')">🇬🇧 EN</button>
+        <button class="lang-btn active" onclick="setLang('sr')">🇷🇸 SR</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div id="map"></div>
+
+<div id="mapLegend" style="
+  background:rgba(18,18,18,.88);
+  backdrop-filter:blur(4px);
+  -webkit-backdrop-filter:blur(4px);
+  border-radius:10px;
+  padding:5px 10px;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex-wrap:nowrap;
+  pointer-events:none;
+  border:1px solid rgba(255,255,255,.09);
+  box-shadow:0 2px 10px rgba(0,0,0,.45);
+  margin-bottom:4px;
+">
+  <span class="legend-item"><span class="legend-dot" style="background:#ff4b4b"></span>
+  <span class="leg" data-en="Reported" data-sr="Prijavljeno" style="color:#ddd;font-size:10px;">Prijavljeno</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#f5a623"></span><span class="leg" data-en="In progress" data-sr="U toku" style="color:#ddd;font-size:10px;">U toku</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#2ecc71"></span><span class="leg" data-en="Fixed" data-sr="Popravljeno" style="color:#ddd;font-size:10px;">Popravljeno</span></span>
+</div>
+
+<div class="legend" id="categoryLegend" style="
+  background:rgba(18,18,18,.88);
+  backdrop-filter:blur(4px);
+  -webkit-backdrop-filter:blur(4px);
+  border-radius:10px;
+  padding:5px 10px;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex-wrap:wrap;
+  pointer-events:none;
+  border:1px solid rgba(255,255,255,.09);
+  box-shadow:0 2px 10px rgba(0,0,0,.45);
+  margin-bottom:4px;
+">
+  <span class="legend-item"><span class="legend-dot" style="background:#1e90ff"></span><span class="leg" data-en="Water" data-sr="Voda" style="color:#ddd;font-size:10px;">Voda</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#f5c518"></span><span class="leg" data-en="Electricity" data-sr="Struja" style="color:#ddd;font-size:10px;">Struja</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#8b4513"></span><span class="leg" data-en="Sewage" data-sr="Kanalizacija" style="color:#ddd;font-size:10px;">Kanalizacija</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#ff6b35"></span><span class="leg" data-en="Gas" data-sr="Gas" style="color:#ddd;font-size:10px;">Gas</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#b71c1c"></span><span class="leg" data-en="Heating" data-sr="Grejanje" style="color:#ddd;font-size:10px;">Grejanje</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#6b6b6b"></span><span class="leg" data-en="Road" data-sr="Put" style="color:#ddd;font-size:10px;">Put</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#c9a227"></span><span class="leg" data-en="Streetlight" data-sr="Ulična rasveta" style="color:#ddd;font-size:10px;">Ulična rasveta</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#6d8b3a"></span><span class="leg" data-en="Waste" data-sr="Otpad" style="color:#ddd;font-size:10px;">Otpad</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#8342a1"></span><span class="leg" data-en="Other" data-sr="Ostalo" style="color:#ddd;font-size:10px;">Ostalo</span></span>
+</div>
+
+<div class="resize-handle">
+  <div class="user-badge" id="userBadge" style="display:none" onclick="handleUserBadgeClick()" title="Sign out">
+    <span class="username-text" id="userBadgeName"></span>
+    <span class="admin-pill" id="userBadgeAdmin" style="display:none">★ ADMIN</span>
+    <span class="signout-x">✕</span>
+  </div>
+  <button id="panelToggleBtn" class="panel-toggle-btn" type="button"
+          aria-expanded="true" aria-controls="appPanel" title="Hide panel">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+         stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="6 9 12 15 18 9"></polyline>
+    </svg>
+  </button>
+</div>
+
+<div id="appPanel" class="app-panel">
+
+<div class="filter-label-row">
+  <span class="filter-title" id="filterTitleLabel">Time Window Filter</span>
+  <span id="reportCount">0 Reports</span>
+</div>
+
+<div class="filter-select-row">
+  <div class="select-wrap">
+    <input type="text" id="dateRangePicker" placeholder="Select date range..." readonly>
+  </div>
+  <button class="export-btn" onclick="downloadCSV()"
+          style="flex:0 0 auto;width:auto;min-width:0;font-size:12px;padding:0 12px;align-self:stretch;white-space:nowrap;">
+    <span id="csvLabel">CSV</span>
+  </button>
+</div>
+
+<div id="pinMapBtn" class="pin-map-btn" style="display:none" title="Set location manually" onclick="togglePinMode()">📍</div>
+<div id="drivingModeBtn" class="pin-map-btn" style="display:none" title="Driving mode" onclick="toggleDrivingMode()">🚗</div>
+<div id="drivingTopFade"></div>
+
+<div id="navigatePanel" class="navigate-panel">
+  <div class="navigate-row">
+    <input type="text" id="navigateSearchInput" placeholder="Search destination..."
+           onkeydown="if(event.key==='Enter'){event.preventDefault();searchDestination();}">
+    <div class="navigate-search-btn" onclick="searchDestination()">🔍</div>
+    <div class="navigate-close-btn" onclick="closeNavigatePanel()">✕</div>
+  </div>
+  <div class="navigate-profile-row">
+    <div class="navigate-profile-btn active" data-profile="driving" onclick="setNavProfile('driving')">🚗</div>
+    <div class="navigate-profile-btn" data-profile="walking" onclick="setNavProfile('walking')">🚶</div>
+    <div class="navigate-profile-btn" data-profile="cycling" onclick="setNavProfile('cycling')">🚲</div>
+  </div>
+  <div id="navigateResults" class="navigate-results"></div>
+</div>
+<div id="mapCompass" class="map-compass" title="Heading — tap to toggle map rotation" onclick="toggleHeadingUpMode()">
+  <div class="compass-face">
+    <span class="compass-n">N</span>
+    <div class="compass-needle" id="compassNeedle">
+      <svg viewBox="0 0 24 24"><path d="M12 2 L16 13 L12 11 L8 13 Z" fill="#ff4b4b"/><path d="M12 22 L16 13 L12 15 L8 13 Z" fill="#ccc"/></svg>
+    </div>
+  </div>
+</div>
+
+<!-- Driving mode: map-first floating HUD. Nothing here permanently covers
+     the map — the speed/GPS pill, action buttons and route card are small
+     and float over it; the report sheet stays collapsed until requested. -->
+<div class="driving-speed-widget">
+  <span class="driving-speed-value" id="drivingSpeedValue">--</span>
+  <span class="driving-speed-unit">km/h</span>
+  <span class="driving-status-label" id="drivingStatusLabel">GPS</span>
+</div>
+
+<div class="driving-action-cluster">
+  <button class="driving-search-btn" id="drivingCenterBtn" onclick="toggleFollowMode()" title="Center on me">🧭</button>
+  <button class="driving-search-btn" id="drivingSearchBtn" onclick="toggleNavigatePanel()" title="Search destination">🎯</button>
+  <button class="driving-exit-btn" onclick="toggleDrivingMode()" title="Exit driving mode">✕</button>
+</div>
+
+<div id="drivingNavCard" class="driving-nav-card">
+  <span id="navigateDestText" class="driving-nav-dest"></span>
+  <div id="navigateStatusText" class="driving-nav-status-text" style="display:none"></div>
+  <div id="navigateActiveInfo" class="driving-nav-active-info">
+    <span id="navigateDistanceText"></span>
+    <div class="driving-nav-btns">
+      <button id="navigateStartBtn" class="driving-nav-btn driving-nav-btn-start" onclick="startNavigating()">Start</button>
+      <button id="navigateClearBtn" class="driving-nav-btn driving-nav-btn-clear" onclick="clearNavigation()">Clear route</button>
+    </div>
+  </div>
+</div>
+
+<button class="driving-report-btn" id="drivingReportBtn" onclick="toggleReportSheet()">
+  <span id="drivingReportBtnIcon">⚠️</span>
+  <span id="drivingReportBtnLabel">Report</span>
+</button>
+
+<div id="drivingReportSheet" class="driving-report-sheet">
+  <div class="driving-handle" onclick="toggleReportSheet()"></div>
+  <div class="driving-header">
+    <h3 id="drivingModeTitle">Report an issue</h3>
+    <button class="driving-sheet-close" onclick="toggleReportSheet()" title="Close">✕</button>
+  </div>
+  <div class="driving-grid">
+    <div class="driving-tile" onclick="quickReportRoad('pothole'); closeReportSheet();"><span class="tile-emoji">🕳️</span><span id="dTilePothole">Pothole</span></div>
+    <div class="driving-tile" onclick="quickReportRoad('cracked'); closeReportSheet();"><span class="tile-emoji">🛣️</span><span id="dTileCracked">Damaged pavement</span></div>
+    <div class="driving-tile" onclick="quickReportRoad('signage'); closeReportSheet();"><span class="tile-emoji">🚧</span><span id="dTileSignage">Bad signage</span></div>
+    <div class="driving-tile" onclick="quickReportRoad('flooding'); closeReportSheet();"><span class="tile-emoji">🌊</span><span id="dTileFlooding">Flooding</span></div>
+    <div class="driving-tile" onclick="quickReportRoad(null); closeReportSheet();"><span class="tile-emoji">⚠️</span><span id="dTileOther">Other road issue</span></div>
+  </div>
+  <button class="driving-section-btn" id="sectionRecordBtn" onclick="toggleSectionRecording()">
+    <span id="sectionRecordBtnLabel">Start Section Report</span>
+  </button>
+  <div class="driving-hint" id="drivingHint">Tap a tile to instantly log a point issue at your current location. Use section report to trace a whole stretch of bad road.</div>
+</div>
+
+<!-- Section report details modal, shown after ending a section recording -->
+<div id="sectionModal" class="generic-modal-overlay" style="display:none">
+  <div class="generic-modal">
+    <div class="generic-modal-icon">🛣️</div>
+    <h2 id="sectionModalTitle">Describe this section</h2>
+    <div class="row" style="margin-bottom:10px;">
+      <select id="sectionSubcategory" style="width:100%;"></select>
+    </div>
+    <input id="sectionComment" type="text" placeholder="Optional notes..." style="margin-bottom:14px;">
+    <div class="row" style="gap:8px;">
+      <button class="generic-modal-close" style="flex:1;background:#333;" onclick="cancelSectionReport()" id="sectionCancelBtn">Cancel</button>
+      <button class="generic-modal-close" style="flex:1;" onclick="submitSectionReport()" id="sectionSubmitBtn">Submit</button>
+    </div>
+  </div>
+</div>
+
+<div id="toastContainer"></div>
+
+<div class="panel" id="reportFormPanel" style="display:none">
+  <div class="row">
+    <select id="category" onchange="onCategoryChange()">
+      <option value="" disabled selected>Izaberite vrstu kvara…</option>
+      <option value="Water" data-sr="Voda">Voda</option>
+      <option value="Electricity" data-sr="Struja">Struja</option>
+      <option value="Sewage" data-sr="Kanalizacija">Kanalizacija</option>
+      <option value="Gas" data-sr="Gas">Gas</option>
+      <option value="Heating" data-sr="Grejanje">Grejanje</option>
+      <option value="Road" data-sr="Put">Put</option>
+      <option value="Streetlight" data-sr="Ulična rasveta">Ulična rasveta</option>
+      <option value="Waste" data-sr="Otpad">Otpad</option>
+      <option value="Other" data-sr="Ostalo">Ostalo</option>
+    </select>
+  </div>
+
+  <div class="row" id="subcategoryRow" style="display:none">
+    <select id="subcategory" onchange="checkFormReady()"></select>
+  </div>
+
+  <input id="comment" type="text" placeholder="Optional notes...">
+
+  <div class="row" style="align-items:stretch;">
+    <button class="report-btn" id="reportBtn" onclick="reportBreak()"
+            style="width:100%;font-size:14px;" disabled>
+         <span id="reportBtnLabel">REPORT BREAK</span>
+    </button>
+  </div>
+</div>
+
+<!-- Simple inline form switcher for login vs registration -->
+<div class="panel locked-panel" id="lockedFormPanel" style="display:flex">
+  <p id="lockedMsgText">Sign in to secure your profile and reports.</p>
+  
+  <div class="row" style="width:100%; gap:6px;">
+    <input type="text" id="authUsernameInput" placeholder="Username" autocomplete="off" style="flex:1; height:40px;">
+    <div class="pw-wrap" style="flex:1; position:relative;">
+      <input type="password" id="authPasswordInput" placeholder="Password" autocomplete="off" style="width:100%; height:40px;">
+      <button type="button" class="pw-toggle-btn" id="pwToggleBtn" onclick="togglePasswordVisibility()" title="Show/hide password">👁</button>
+    </div>
+  </div>
+
+  <button class="export-btn" id="submitAuthBtn" style="width:100%; background:#a67817; font-size:13px; font-weight:bold; height:40px;" onclick="handleAuthSubmit()">
+    <span id="authBtnLabel">Sign In</span>
+  </button>
+  
+  <span class="auth-toggle-text" id="authToggleBtn" onclick="toggleAuthMode()">Don't have an account? Register</span>
+</div>
+
+</div>
+
+<!-- GPS/Error Alert Modal -->
+<div id="gpsModal" class="generic-modal-overlay" style="display:none">
+  <div class="generic-modal">
+    <div class="generic-modal-icon">📍</div>
+    <h2 id="gpsModalTitle">GPS Not Enabled</h2>
+    <p id="gpsModalBody">Location access is turned off. To report a break at your location, enable it in your settings.</p>
+    <p id="gpsModalAlt" style="font-size:12px;color:#999;margin-bottom:16px;">Or use the 📍 button on the map to drop a pin manually.</p>
+    <button class="generic-modal-close" onclick="hideGpsModal()" id="gpsModalBtn">Got it</button>
+  </div>
+</div>
+
+<!-- Dynamic Instruction Help Modal -->
+<div id="helpModal" class="generic-modal-overlay" style="display:none">
+  <div class="generic-modal" style="max-width: 380px;">
+    <h2 id="helpModalTitle" style="margin-top: 6px;">How to Use</h2>
+    <div id="helpModalContent" style="max-height: 55vh; overflow-y: auto; padding-right: 4px;"></div>
+    <button class="generic-modal-close" onclick="hideHelpModal()" id="helpModalBtn" style="margin-top:14px;">Close</button>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/sr.js"></script>
+<script>
+
+// =============================================================================
+// CONFIG
+// =============================================================================
+const SUPABASE_URL = 'https://fnkqmwweljsupbmerbkh.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZua3Ftd3dlbGpzdXBibWVyYmtoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3OTcwODUsImV4cCI6MjA5NzM3MzA4NX0.eX3mxnSpGmJ6Ebw7Y4F_jHiJarPH4ri9WNYXwmLi16I';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const TABLE = 'brake_reports';
+const PROFILES_TABLE = 'profiles';
+
+// =============================================================================
+// UTILITIES — coordinate validation
+// Every place that draws, saves, uploads, or routes with a lat/lng should
+// run it through these first. Centralizing this means "reject bad
+// coordinates" is a single rule to maintain instead of N ad-hoc checks.
+// =============================================================================
+
+// True only for finite numbers in valid geographic range.
+function isValidLat(lat) { return typeof lat === 'number' && isFinite(lat) && lat >= -90  && lat <= 90; }
+function isValidLng(lng) { return typeof lng === 'number' && isFinite(lng) && lng >= -180 && lng <= 180; }
+function isValidLatLng(lat, lng) { return isValidLat(lat) && isValidLng(lng); }
+
+// Accepts {lat, lon}/{lat, lng}/{latitude, longitude}-shaped objects (all
+// three naming conventions show up across this codebase and in DB rows).
+function isValidCoordObj(obj) {
+  if (!obj || typeof obj !== 'object') return false;
+  const lat = obj.lat ?? obj.latitude;
+  const lng = obj.lon ?? obj.lng ?? obj.longitude;
+  return isValidLatLng(lat, lng);
+}
+
+// Parses a value to a finite number, or returns null if it isn't one.
+// Use this instead of a bare parseFloat() so "not a number" fails loudly
+// (null) rather than silently becoming NaN and slipping through later.
+function toFiniteNumber(value) {
+  const n = typeof value === 'string' ? parseFloat(value) : value;
+  return typeof n === 'number' && isFinite(n) ? n : null;
+}
+
+// Filters an array of [lat, lon] pairs (section report paths) down to only
+// valid points, so one corrupt point doesn't break the whole polyline.
+function sanitizePath(path) {
+  if (!Array.isArray(path)) return [];
+  return path.filter(p => Array.isArray(p) && isValidLatLng(p[0], p[1]));
+}
+
+// =============================================================================
+// SUPABASE / AUTH
+// =============================================================================
+let currentSession = null;   
+let currentProfile = null;   
+let isRegisterMode = false; // Toggles between Login and Registration UI
+
+function toggleAuthMode() {
+  isRegisterMode = !isRegisterMode;
+  const labelBtn = document.getElementById('authBtnLabel');
+  const labelToggle = document.getElementById('authToggleBtn');
+  const msgText = document.getElementById('lockedMsgText');
+
+  if (isRegisterMode) {
+    labelBtn.textContent = lang === 'sr' ? 'Registruj se' : 'Register';
+    labelToggle.textContent = lang === 'sr' ? 'Već imaš nalog? Prijavi se' : 'Already have an account? Sign In';
+    msgText.textContent = lang === 'sr' ? 'Kreirajte novo korisničko ime i lozinku.' : 'Create a new unique username and password.';
+  } else {
+    labelBtn.textContent = lang === 'sr' ? 'Prijavi se' : 'Sign In';
+    labelToggle.textContent = lang === 'sr' ? 'Nemaš nalog? Registruj se' : "Don't have an account? Register";
+    msgText.textContent = lang === 'sr' ? 'Prijavite se da osigurate vaše prijave i profil.' : 'Sign in to secure your profile and reports.';
+  }
+}
+
+function makeFakeEmail(username) {
+  return `${username.toLowerCase().trim()}@tracethebreak.local`;
+}
+
+function togglePasswordVisibility() {
+  const input = document.getElementById('authPasswordInput');
+  const btn = document.getElementById('pwToggleBtn');
+  const showing = input.type === 'text';
+  input.type = showing ? 'password' : 'text';
+  btn.textContent = showing ? '👁' : '🙈';
+  btn.classList.toggle('revealed', !showing);
+}
+
+// Error objects (esp. Supabase AuthError/PostgrestError) often stringify to "{}"
+// because `message` can be non-enumerable. This pulls the real text out reliably.
+function describeAuthError(err) {
+  if (!err) return 'Unknown error';
+  if (typeof err === 'string') return err;
+  const msg = err.message || err.error_description || err.msg || err.hint || err.details;
+  if (msg) return msg + (err.status ? ` (status ${err.status})` : '') + (err.code ? ` [${err.code}]` : '');
+  try {
+    const full = JSON.stringify(err, Object.getOwnPropertyNames(err));
+    if (full && full !== '{}') return full;
+  } catch (e) {}
+  return 'Unknown error (check Supabase Dashboard \u2192 Logs \u2192 Auth Logs for details)';
+}
+
+async function handleAuthSubmit() {
+  const username = document.getElementById('authUsernameInput').value.trim();
+  const password = document.getElementById('authPasswordInput').value;
+
+  if (!username || password.length < 6) {
+    alert(lang === 'sr' ? 'Korisničko ime je obavezno. Lozinka mora imati bar 6 karaktera.' : 'Username is required. Password must be at least 6 characters.');
+    return;
+  }
+
+  const fakeEmail = makeFakeEmail(username);
+
+  if (isRegisterMode) {
+    // 1. Registration Flow
+    try {
+      // First verify if the username exists in the profiles table to prevent profile conflicts
+      const { data: existingProf, error: checkError } = await sb.from(PROFILES_TABLE).select('username').ilike('username', username).maybeSingle();
+      if (checkError) {
+        console.error('Username check error (full):', checkError);
+        throw checkError;
+      }
+      if (existingProf) {
+        alert(lang === 'sr' ? 'Korisničko ime je već zauzeto.' : 'Username already taken.');
+        return;
+      }
+
+      const { data: signUpData, error: signUpError } = await sb.auth.signUp({
+        email: fakeEmail,
+        password: password
+      });
+      if (signUpError) throw signUpError;
+
+      if (signUpData?.user) {
+        // Create matching public profile assignment row
+        const { error: profError } = await sb.from(PROFILES_TABLE).insert([
+          { id: signUpData.user.id, username: username }
+        ]);
+        if (profError) throw profError;
+      }
+
+      document.getElementById('authPasswordInput').value = '';
+
+      alert(lang === 'sr' ? 'Nalog uspešno kreiran! Sada se možete prijaviti.' : 'Account created successfully! You can now sign in.');
+      isRegisterMode = true;
+      toggleAuthMode(); // Flip back to sign-in view automatically
+    } catch (err) {
+      console.error('Registration error (full):', err);
+      alert((lang === 'sr' ? 'Greška pri registraciji: ' : 'Registration failed: ') + describeAuthError(err));
+    }
+  } else {
+    // 2. Sign In Flow
+    try {
+      const { data, error } = await sb.auth.signInWithPassword({
+        email: fakeEmail,
+        password: password
+      });
+      if (error) throw error;
+
+      // Clear the password value BEFORE the field gets hidden by updateAuthUI().
+      // Browsers offer to "save this password" when a password field disappears
+      // right after a successful request while still holding a value — wiping it
+      // first makes that disappearance look like a reset instead of a submit.
+      document.getElementById('authPasswordInput').value = '';
+
+      currentSession = data.session;
+      await loadProfile();
+    } catch (err) {
+      console.error('Sign in error (full):', err);
+      alert((lang === 'sr' ? 'Neuspešna prijava: ' : 'Sign in failed: ') + describeAuthError(err));
+    }
+  }
+}
+
+async function handleUserBadgeClick() {
+  if (!confirm(t('signOutConfirm'))) return;
+  try {
+    const { error } = await sb.auth.signOut();
+    if (error) throw error;
+  } catch (err) {
+    console.error('Sign out failed:', err.message);
+    toast(t('loadFailed'), 'error');
+    return;
+  }
+  currentSession = null;
+  currentProfile = null;
+
+  document.getElementById('authUsernameInput').value = '';
+  document.getElementById('authPasswordInput').value = '';
+
+  updateAuthUI();
+  refreshRenderedPopups();
+}
+
+async function loadProfile() {
+  if (!currentSession) return;
+  try {
+    const { data, error } = await sb.from(PROFILES_TABLE)
+      .select('*')
+      .eq('id', currentSession.user.id)
+      .maybeSingle();
+    if (error) throw error;
+
+    if (data) {
+      currentProfile = data;
+    }
+    updateAuthUI();
+  } catch (err) {
+    console.error('Failed to load profile:', err.message);
+  }
+}
+
+function updateAuthUI() {
+  const userBadge = document.getElementById('userBadge');
+  const reportFormPanel = document.getElementById('reportFormPanel');
+  const lockedFormPanel = document.getElementById('lockedFormPanel');
+
+  if (currentSession && currentProfile) {
+    userBadge.style.display = 'flex';
+    document.getElementById('userBadgeName').textContent = currentProfile.username;
+    document.getElementById('userBadgeAdmin').style.display = currentProfile.is_admin ? 'inline-block' : 'none';
+    reportFormPanel.style.display = 'flex';
+    lockedFormPanel.style.display = 'none';
+  } else {
+    userBadge.style.display = 'none';
+    reportFormPanel.style.display = 'none';
+    lockedFormPanel.style.display = 'flex';
+  }
+  checkFormReady();
+  refreshRenderedPopups();
+}
+
+async function initAuth() {
+  try {
+    const { data: { session }, error } = await sb.auth.getSession();
+    if (error) throw error;
+    currentSession = session;
+    if (currentSession) await loadProfile();
+  } catch (err) {
+    console.error('Failed to restore session:', err.message);
+    currentSession = null;
+    currentProfile = null;
+  }
+  updateAuthUI();
+
+  sb.auth.onAuthStateChange(async (event, session) => {
+    currentSession = session;
+    if (session) {
+      await loadProfile();
+    } else {
+      currentProfile = null;
+      updateAuthUI();
+    }
+  });
+}
+
+// =============================================================================
+// I18N / UI TEXT
+// =============================================================================
+const T = {
+  subtitle:     { en:'Community Infrastructure Reporting Network', sr:'Mreža za prijavu kvarova' },
+  reportCount:  { en:'Reports',                          sr:'Prijava' },
+  drivingModeTitle:  { en:'Report an issue',              sr:'Prijavi problem' },
+  drivingGpsLabel:   { en:'GPS ready',                     sr:'GPS spreman' },
+  drivingNoGps:      { en:'No GPS',                        sr:'Nema GPS-a' },
+  reportBtnLabel:    { en:'Report',                        sr:'Prijavi' },
+  recordingLabel:    { en:'Recording…',                    sr:'Snimanje…' },
+  dTilePothole:      { en:'Pothole',                     sr:'Rupa na putu' },
+  dTileCracked:      { en:'Damaged pavement',            sr:'Oštećen kolovoz' },
+  dTileSignage:      { en:'Bad signage',                 sr:'Loša signalizacija' },
+  dTileFlooding:     { en:'Flooding',                    sr:'Poplava' },
+  dTileOther:        { en:'Other road issue',            sr:'Drugi problem na putu' },
+  startSectionBtn:   { en:'Start Section Report',        sr:'Počni prijavu deonice' },
+  endSectionBtn:     { en:'End Section Report',          sr:'Završi prijavu deonice' },
+  drivingHint:       { en:'Tap a tile to instantly log a point issue at your current location. Use section report to trace a whole stretch of bad road.', sr:'Dodirnite polje da odmah prijavite problem na trenutnoj lokaciji. Koristite prijavu deonice da obeležite ceo loš deo puta.' },
+  sectionModalTitle: { en:'Describe this section',       sr:'Opišite ovu deonicu' },
+  sectionCancelBtn:  { en:'Cancel',                       sr:'Otkaži' },
+  sectionSubmitBtn:  { en:'Submit',                       sr:'Pošalji' },
+  sectionStarted:    { en:'Section recording started',   sr:'Snimanje deonice je počelo' },
+  sectionTooShort:   { en:'Not enough movement recorded — section discarded.', sr:'Nema dovoljno kretanja — deonica je odbačena.' },
+  signInFirst:       { en:'Please sign in first',        sr:'Prijavite se prvo' },
+  followTitle:       { en:'Follow my location',          sr:'Prati moju lokaciju' },
+  drivingBtnTitle:   { en:'Driving mode',                sr:'Režim vožnje' },
+  reportCount1: { en:'Report',                           sr:'Prijava' },
+  reportBtn:    { en:'REPORT BREAK',                     sr:'PRIJAVI KVAR' },
+  csvLabel:     { en:'CSV',                              sr:'CSV' },
+  commentPH:    { en:'Optional notes...',                sr:'Opciona napomena...' },
+  waitGps:      { en:'Waiting for GPS...',               sr:'Čekanje GPS-a...' },
+  submitted:    { en:'Report submitted.',                sr:'Prijava uspešna.' },
+  timeFilter:   { en:'Time Window Filter',               sr:'Filter vremenskog prozora' },
+  catPH:        { en:'Select break type…',               sr:'Izaberite vrstu kvara…' },
+  gpsTitle:     { en:'GPS Not Enabled',                  sr:'GPS nije uključen' },
+  gpsBody:      { en:'Location access is turned off. To report a break at your location, enable it in your settings.', sr:'Pristup lokaciji je isključen. Da biste prijavili kvar, omogućite ga u podešavanjima.' },
+  gpsAlt:       { en:'Or use the 📍 button on the map to drop a pin manually.', sr:'Ili koristite dugme 📍 na karti da ručno postavite pin.' },
+  gpsBtn:       { en:'Got it',                           sr:'Razumem' },
+  noReports:    { en:'No reports in current map view.',  sr:'Nema prijava u vidljivoj oblasti.' },
+  calendarPH:   { en:'Select date range...',             sr:'Izaberi vremenski opseg...' },
+  helpTitle:    { en:'How to use TraceTheBreak',         sr:'Kako se koristi TraceTheBreak' },
+  helpClose:    { en:'Close',                            sr:'Zatvori' },
+  helpStep1:    { en:'1. Choose what broke:',            sr:'1. Izaberite šta se pokvarilo:' },
+  helpStep1Body:{ en:'Select the type of break — water, electricity, sewage, gas, road, streetlight, or other.', sr:'Izaberite vrstu kvara — voda, struja, kanalizacija, gas, put, ulična rasveta ili ostalo.' },
+  helpStep2:    { en:'2. Set your location:',            sr:'2. Odredite vašu lokaciju:' },
+  helpStep2Body:{ en:'Make sure your device GPS is on, or tap the manual pin button (📍) to drop a point on the map yourself.', sr:'Proverite da li je GPS uključen, ili pritisnite dugme za ručnu lokaciju (📍) da sami postavite tačku na mapi.' },
+  helpStep3:    { en:'3. Submit:',                       sr:'3. Pošalji:' },
+  helpStep3Body:{ en:'Add an optional note, then tap "REPORT BREAK".', sr:'Dodajte opcionu napomenu i pritisnite "PRIJAVI KVAR".' },
+  popupStatus:  { en:'Status', sr:'Status' },
+  reportedByLabel: { en:'Reported by', sr:'Prijavio' },
+  reportedAtLabel:    { en:'Reported at',        sr:'Prijavljeno u' },
+  inProgressAtLabel:  { en:'In progress from',   sr:'U toku od' },
+  finishedAtLabel:    { en:'Finished at',         sr:'Završeno u' },
+  statusReported:   { en:'Reported',    sr:'Prijavljeno' },
+  statusInProgress: { en:'In progress', sr:'U toku' },
+  statusFixed:      { en:'Fixed',       sr:'Popravljeno' },
+  signOutConfirm:{ en:'Sign out of TraceTheBreak?',                sr:'Odjaviti se sa TraceTheBreak?' },
+  markInProgress:{ en:'Mark In Progress',                          sr:'Označi U Toku' },
+  markFixed:     { en:'Mark Fixed',                                sr:'Označi Popravljeno' },
+  yourReport:    { en:'Your report',                               sr:'Vaša prijava' },
+  updateFail:    { en:'Could not update status. Try again.',       sr:'Ažuriranje statusa nije uspelo. Pokušajte ponovo.' },
+  adminBadge:    { en:'ADMIN',                                     sr:'ADMIN' },
+  editBtn:       { en:'Edit',                                      sr:'Izmeni' },
+  deleteBtn:     { en:'Delete',                                    sr:'Obriši' },
+  saveBtn:       { en:'Save',                                      sr:'Sačuvaj' },
+  cancelBtn:     { en:'Cancel',                                    sr:'Otkaži' },
+  deleteConfirm: { en:'Delete this report permanently?',           sr:'Trajno obrisati ovu prijavu?' },
+  markReported:  { en:'Mark Reported',                             sr:'Označi kao prijavljeno' },
+  navigateBtnTitle:  { en:'Navigate to a location',                 sr:'Navigacija do lokacije' },
+  navigateSearchPH:  { en:'Search destination...',                  sr:'Pretraži odredište...' },
+  navigateSearching: { en:'Searching...',                           sr:'Pretraga...' },
+  navigateNoResults: { en:'No results found.',                      sr:'Nema rezultata.' },
+  navigateSearchFailed: { en:'Search failed. Check connection.',    sr:'Pretraga nije uspela. Provjerite konekciju.' },
+  navigateNeedLocation: { en:'Waiting for your location...',        sr:'Čekanje vaše lokacije...' },
+  navigateClearBtn:  { en:'Clear route',                             sr:'Ukloni rutu' },
+  invalidLocation:   { en:'Location looks invalid. Try setting it again.', sr:'Lokacija izgleda neispravno. Pokušajte ponovo.' },
+  loadFailed:        { en:'Could not load reports. Check your connection.', sr:'Prijave nisu učitane. Proverite konekciju.' },
+  navCalculating:    { en:'Calculating route…',                      sr:'Računanje rute…' },
+  navPreview:        { en:'Route ready — tap Start to begin',         sr:'Ruta spremna — pritisnite Start' },
+  navNavigating:     { en:'Navigating',                               sr:'Navigacija u toku' },
+  navOffRoute:       { en:'Off route — recalculating shortly',        sr:'Skrenuli ste s rute — preračunavanje uskoro' },
+  navRecalculating:  { en:'Recalculating route…',                     sr:'Preračunavanje rute…' },
+  navigateArrived:   { en:'You have arrived',                         sr:'Stigli ste' },
+  navigateStartBtn:  { en:'Start',                                     sr:'Start' }
+};
+
+function t(k){ return T[k]?.[lang] ?? k; }
+
+// =============================================================================
+// GLOBAL STATE
+// =============================================================================
+let lang = 'sr';
+let globalActiveData = [];
+let fp = null;
+
+function setLang(l){
+  lang = l;
+  document.querySelectorAll('.lang-btn').forEach(b=>{
+    b.classList.toggle('active', b.getAttribute('onclick').includes("'"+l+"'"));
+  });
+  applyLang();
+
+  if (fp) {
+    const savedDates = fp.selectedDates;
+    fp.destroy();
+    initCalendarFilter(savedDates);
+    loadPinsByWindow();
+  }
+}
+
+function applyLang(){
+  document.getElementById('subtitle').textContent         = t('subtitle');
+  document.getElementById('reportBtnLabel').textContent   = t('reportBtn');
+  document.getElementById('csvLabel').textContent         = t('csvLabel');
+  document.getElementById('filterTitleLabel').textContent = t('timeFilter');
+  document.getElementById('comment').placeholder          = t('commentPH');
+  document.getElementById('dateRangePicker').placeholder  = t('calendarPH');
+  document.getElementById('category').options[0].text     = t('catPH');
+
+  const catEl = document.getElementById('category');
+  const catLabels = lang === 'sr'
+    ? ['Voda','Struja','Kanalizacija','Gas','Grejanje','Put','Ulična rasveta','Otpad','Ostalo']
+    : ['Water','Electricity','Sewage','Gas','Heating','Road','Streetlight','Waste','Other'];
+  Array.from(catEl.options).slice(1).forEach((opt, i) => { opt.textContent = catLabels[i]; });
+
+  const subEl = document.getElementById('subcategory');
+  if (subEl && catEl.value) {
+    populateSubcategoryOptions(subEl, catEl.value, subEl.value);
+  }
+
+  document.querySelectorAll('.leg').forEach(el=>{
+    el.textContent = el.dataset[lang] || el.dataset.en;
+  });
+
+  const gm = document.getElementById('gpsModal');
+  if (gm && gm.style.display !== 'none') updateGpsModalText();
+
+  document.getElementById('userBadgeAdmin').textContent   = '\u2605 ' + t('adminBadge');
+  
+  const userIn = document.getElementById('authUsernameInput');
+  const passIn = document.getElementById('authPasswordInput');
+  if (userIn) userIn.placeholder = lang === 'sr' ? 'Korisničko ime' : 'Username';
+  if (passIn) passIn.placeholder = lang === 'sr' ? 'Lozinka' : 'Password';
+
+  // Force language sync into the auth text variables
+  const currentModeState = isRegisterMode;
+  isRegisterMode = !currentModeState;
+  toggleAuthMode();
+
+  buildHelpModalContent();
+  refreshRenderedPopups();
+
+  document.getElementById('drivingModeTitle').textContent = t('drivingModeTitle');
+  updateDrivingGpsStatus();
+  document.getElementById('dTilePothole').textContent     = t('dTilePothole');
+  document.getElementById('dTileCracked').textContent     = t('dTileCracked');
+  document.getElementById('dTileSignage').textContent     = t('dTileSignage');
+  document.getElementById('dTileFlooding').textContent    = t('dTileFlooding');
+  document.getElementById('dTileOther').textContent       = t('dTileOther');
+  document.getElementById('drivingHint').textContent      = t('drivingHint');
+  document.getElementById('sectionModalTitle').textContent= t('sectionModalTitle');
+  document.getElementById('sectionCancelBtn').textContent = t('sectionCancelBtn');
+  document.getElementById('sectionSubmitBtn').textContent = t('sectionSubmitBtn');
+  updateSectionButtonUI();
+  document.getElementById('drivingCenterBtn').title = t('followTitle');
+  document.getElementById('drivingModeBtn').title = t('drivingBtnTitle');
+
+  document.getElementById('navigateSearchInput').placeholder = t('navigateSearchPH');
+  document.getElementById('navigateClearBtn').textContent    = t('navigateClearBtn');
+  document.getElementById('navigateStartBtn').textContent    = t('navigateStartBtn');
+  updateNavStatusText();
+}
+
+function showHelpModal() {
+  buildHelpModalContent();
+  document.getElementById('helpModal').style.display = 'flex';
+}
+function hideHelpModal() {
+  document.getElementById('helpModal').style.display = 'none';
+}
+function buildHelpModalContent() {
+  document.getElementById('helpModalTitle').textContent = t('helpTitle');
+  document.getElementById('helpModalBtn').textContent = t('helpClose');
+  const contentEl = document.getElementById('helpModalContent');
+  contentEl.innerHTML = `
+    <div style="text-align: left; font-size: 13px; line-height: 1.6; display: flex; flex-direction: column; gap: 12px; margin-top: 10px;">
+      <p><strong>${t('helpStep1')}</strong> ${t('helpStep1Body')}</p>
+      <p><strong>${t('helpStep2')}</strong> ${t('helpStep2Body')}</p>
+      <p><strong>${t('helpStep3')}</strong> ${t('helpStep3Body')}</p>
+      <p><strong>🧭</strong> ${lang === 'sr' ? 'Uključite praćenje da mapa uvek prati vašu lokaciju, kao navigacija.' : 'Turn on follow mode to keep the map centered on you, like a navigation app.'}</p>
+      <p><strong>🚗</strong> ${lang === 'sr' ? 'Režim vožnje daje velika dugmad za brzu prijavu problema na putu, i opciju za snimanje cele deonice puta.' : 'Driving mode gives you big one-tap buttons to quickly log road problems, plus an option to trace a whole section of road.'}</p>
+    </div>
+  `;
+}
+
+function initCalendarFilter(optionalDefaultDates) {
+  let initialDates = optionalDefaultDates;
+  if (!initialDates || initialDates.length === 0) {
+    const defaultStart = new Date();
+    defaultStart.setDate(defaultStart.getDate() - 14);
+    const defaultEnd = new Date();
+    initialDates = [defaultStart, defaultEnd];
+  }
+  fp = flatpickr("#dateRangePicker", {
+    mode: "range",
+    theme: "dark",
+    dateFormat: "d.m.Y",
+    locale: lang === 'sr' ? flatpickr.l10ns.sr : 'default',
+    defaultDate: initialDates,
+    onClose: async function(selectedDates) {
+      if (selectedDates.length === 2) await loadPinsByWindow();
+    }
+  });
+}
+
+// =============================================================================
+// MAP
+// =============================================================================
+const map = L.map('map').setView([45.25,19.85],11);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  attribution:'© OpenStreetMap',
+  className: 'map-tiles-grayscale'
+}).addTo(map);
+
+// Reparents Leaflet's internal map-pane (tiles + markers + lines + popups)
+// inside a plain div we control, so that div can be CSS-rotated for
+// heading-up navigation without touching the zoom/attribution controls or
+// our own floating buttons, which live outside the map-pane and stay fixed.
+let rotWrapper = null;
+function initRotationWrapper() {
+  const mapPane = map.getPane('mapPane');
+  if (!mapPane || !mapPane.parentElement) return;
+  rotWrapper = document.createElement('div');
+  rotWrapper.className = 'leaflet-rotate-wrapper';
+  mapPane.parentElement.insertBefore(rotWrapper, mapPane);
+  rotWrapper.appendChild(mapPane);
+}
+initRotationWrapper();
+
+let userCoords    = null;
+let userMarker    = null;
+let userMarkerNavStyle = false; // true once the puck has been swapped to the driving-mode arrow look
+let markerById    = new Map(); // report id -> Leaflet marker, only for reports currently rendered on screen
+let sectionPinById = new Map(); // report id -> extra Leaflet pin marker sitting on top of a section's spline (same popup as the line), only for reports currently rendered on screen
+let dateRangeOnlyData = []; // raw results for the selected date range (used for CSV export)
+let pinMode       = false;
+let manualCoords  = null;
+let manualMarker  = null;
+
+// --- Navigation / driving mode state ---
+let followMode        = false; // when true, map auto-recenters on the user like turn-by-turn nav
+let drivingMode        = false;
+let sectionRecording   = false;
+let sectionPoints      = [];   // array of {lat, lon} collected while recording a section
+let sectionPolyline    = null; // live-drawn Leaflet polyline while recording
+const SECTION_MIN_DISTANCE_M = 8; // ignore GPS jitter smaller than this before adding a new section point
+
+// --- Heading-up map rotation (compass) state ---
+let currentHeading            = null;  // last known compass heading, 0-360°, clockwise from true north; null if unknown
+let compassActive             = false; // true once we've received at least one real device-orientation reading
+let mapBearing                 = 0;     // continuous (unbounded, can exceed 360) bearing currently applied to the map
+let headingUpMode             = true;  // when true (and driving mode is on), the map rotates so travel direction faces up
+let orientationListenersBound = false;
+let orientationPermissionAsked = false;
+
+// Shortest signed angular distance from `fromDeg` to `toDeg`, in (-180, 180].
+// Used so the map/compass always turns the short way instead of spinning
+// all the way around when heading wraps past 0/360.
+function shortestAngleDelta(fromDeg, toDeg) {
+  let d = (toDeg - fromDeg) % 360;
+  if (d > 180) d -= 360;
+  if (d < -180) d += 360;
+  return d;
+}
+
+// Rotates the map (tiles/markers/lines/popups together) and the compass
+// needle to match `targetHeadingDeg`, always turning the shorter way round.
+function applyMapBearing(targetHeadingDeg) {
+  const delta = shortestAngleDelta(mapBearing % 360, targetHeadingDeg);
+  mapBearing += delta;
+  const cssRotation = `rotate(${-mapBearing}deg)`;
+  if (rotWrapper) rotWrapper.style.transform = cssRotation;
+  const needle = document.getElementById('compassNeedle');
+  if (needle) needle.style.transform = cssRotation;
+  // Hand dragging over to the rotation-aware custom handler while the map
+  // is visibly rotated, and back to Leaflet's native handler once it's
+  // north-up again (see initRotationAwareDragging further below).
+  if (typeof setNativeDraggingEnabled === 'function') setNativeDraggingEnabled(!rotationActive());
+}
+
+// Eases the map back to north-up (used when leaving driving mode or when
+// the person taps the compass to turn heading-up rotation off).
+function resetMapBearing() {
+  applyMapBearing(0);
+}
+
+// Computes where to actually center the map so a followed point (the GPS
+// dot) lands inside the part of the screen that's really visible — not
+// dead-center of the whole container, which in driving mode is partly
+// covered by the bottom sheet. Real turn-by-turn apps (Sygic, Google Maps,
+// Waze) keep the puck a bit below the middle of the open space instead,
+// leaving more road visible ahead than behind.
+function getFollowCenter(lat, lon, zoom) {
+  const targetLatLng = L.latLng(lat, lon);
+  if (!drivingMode) return targetLatLng;
+
+  // The map is full-screen almost all the time now — this only needs to
+  // account for the report sheet on the rare occasions it's open.
+  const sheet = document.getElementById('drivingReportSheet');
+  const sheetH = (sheet && sheet.classList.contains('open'))
+    ? sheet.getBoundingClientRect().height
+    : 0;
+  const size = map.getSize(); // {x, y} in CSS pixels
+  const visibleH = size.y - sheetH;
+  if (visibleH <= 40) return targetLatLng; // sanity guard on tiny screens
+
+  const desiredScreenY = visibleH * 0.62; // puck sits a little below the middle of the open area
+  const dy = desiredScreenY - (size.y / 2); // vertical offset from the container's true center
+
+  // The visible map is rotated by a CSS transform (heading-up mode) that
+  // Leaflet's own projection math doesn't know about, so a plain vertical
+  // screen offset has to be rotated back into the map's own unrotated
+  // pixel space first — same trick used for rotation-aware dragging above.
+  const rad = (mapBearing * Math.PI) / 180;
+  const dxMap = -dy * Math.sin(rad);
+  const dyMap =  dy * Math.cos(rad);
+
+  const targetPoint = map.project(targetLatLng, zoom);
+  const centerPoint = targetPoint.subtract([dxMap, dyMap]);
+  return map.unproject(centerPoint, zoom);
+}
+
+// Recenters the map on a followed point using getFollowCenter, at a proper
+// close-in "turn-by-turn" zoom rather than whatever zoom the person happens
+// to be at.
+function followMapTo(lat, lon, options) {
+  const zoom = Math.max(map.getZoom(), drivingMode ? 17 : 16);
+  map.setView(getFollowCenter(lat, lon, zoom), zoom, options || { animate: true });
+}
+
+// Builds the marker HTML for the user's location: a plain dot for normal
+// browsing, or a Sygic/Google-Maps-style directional arrow with a soft
+// radar pulse behind it while driving.
+function buildUserMarkerHtml(navStyle) {
+  if (navStyle) {
+    return '<div class="user-nav-marker">' +
+             '<div class="user-nav-pulse"></div>' +
+             '<div class="user-nav-arrow">' +
+               '<svg viewBox="0 0 24 24" width="27" height="27">' +
+                 '<path d="M12 1.5 L20.5 21 L12 16.2 L3.5 21 Z" fill="#00d0ff" stroke="white" stroke-width="1.1"/>' +
+               '</svg>' +
+             '</div>' +
+           '</div>';
+  }
+  return '<div class="user-dot"></div>';
+}
+
+// Swaps the puck's look in place (no need to recreate the marker) whenever
+// driving mode is entered or left.
+function setUserMarkerStyle(navStyle) {
+  userMarkerNavStyle = navStyle;
+  if (!userMarker) return;
+  const size = navStyle ? 40 : 16;
+  userMarker.setIcon(L.divIcon({
+    className: '',
+    html: buildUserMarkerHtml(navStyle),
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2]
+  }));
+  updateUserMarkerRotation();
+}
+
+// Keeps the nav-style arrow pointed the right way: fixed straight up while
+// the whole map is rotating to match heading (heading-up mode), or rotated
+// to match the raw heading directly when the map itself stays north-up.
+function updateUserMarkerRotation() {
+  if (!userMarker || !userMarkerNavStyle) return;
+  const el = userMarker.getElement();
+  if (!el) return;
+  const arrow = el.querySelector('.user-nav-arrow');
+  if (!arrow) return;
+  const angle = (drivingMode && headingUpMode) ? 0 : (currentHeading || 0);
+  arrow.style.transform = `rotate(${angle}deg)`;
+}
+
+function toggleHeadingUpMode() {
+  headingUpMode = !headingUpMode;
+  const btn = document.getElementById('mapCompass');
+  if (btn) btn.classList.toggle('heading-up-disabled', !headingUpMode);
+  if (!headingUpMode) {
+    resetMapBearing();
+  } else if (drivingMode && currentHeading !== null) {
+    applyMapBearing(currentHeading);
+  }
+  updateUserMarkerRotation();
+}
+
+// iOS 13+ requires DeviceOrientationEvent.requestPermission() to be called
+// from a user gesture (e.g. tapping the driving-mode button); everywhere
+// else the events are just available without asking.
+function requestOrientationPermission() {
+  if (orientationPermissionAsked) return;
+  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+    orientationPermissionAsked = true;
+    DeviceOrientationEvent.requestPermission().then(state => {
+      if (state === 'granted') attachOrientationListeners();
+    }).catch(() => {});
+  } else {
+    orientationPermissionAsked = true;
+    attachOrientationListeners();
+  }
+}
+
+function attachOrientationListeners() {
+  if (orientationListenersBound) return;
+  orientationListenersBound = true;
+  // 'deviceorientationabsolute' (Android Chrome/Firefox) gives a true compass
+  // heading; plain 'deviceorientation' is the iOS fallback (uses
+  // webkitCompassHeading, which is already true-north-relative).
+  window.addEventListener('deviceorientationabsolute', handleOrientationEvent, true);
+  window.addEventListener('deviceorientation', handleOrientationEvent, true);
+}
+
+function handleOrientationEvent(event) {
+  let heading = null;
+  if (typeof event.webkitCompassHeading === 'number' && !isNaN(event.webkitCompassHeading)) {
+    heading = event.webkitCompassHeading; // iOS Safari
+  } else if (event.absolute && typeof event.alpha === 'number') {
+    heading = 360 - event.alpha; // Android
+  }
+  if (heading === null || isNaN(heading)) return;
+
+  compassActive = true;
+  smoothedHeading = smoothHeading(smoothedHeading, (heading + 360) % 360, HEADING_SMOOTHING_FACTOR);
+  currentHeading = smoothedHeading;
+  if (drivingMode && headingUpMode) applyMapBearing(currentHeading);
+  updateUserMarkerRotation();
+}
+
+// Haversine distance in meters between two {lat, lon} points
+function distMeters(a, b) {
+  if (!a || !b) return Infinity;
+  const R = 6371000;
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLon = toRad(b.lon - a.lon);
+  const s = Math.sin(dLat/2)**2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+
+// Nearest point to `p` ({lat, lon}) on the segment a→b (each a plain
+// [lat, lon] pair), using a local flat-earth projection (longitude scaled
+// by cos(latitude)) — accurate enough at road-segment scale and much
+// cheaper than full geodesic segment math.
+function nearestPointOnSegment(p, a, b) {
+  const latRef = (a[0] + b[0]) / 2;
+  const cosLat = Math.cos(latRef * Math.PI / 180) || 1e-9;
+  const ax = a[1] * cosLat, ay = a[0];
+  const bx = b[1] * cosLat, by = b[0];
+  const px = p.lon * cosLat, py = p.lat;
+
+  const dx = bx - ax, dy = by - ay;
+  const lenSq = dx * dx + dy * dy;
+  let tt = lenSq > 0 ? ((px - ax) * dx + (py - ay) * dy) / lenSq : 0;
+  tt = Math.max(0, Math.min(1, tt));
+  return { lat: a[0] + tt * (b[0] - a[0]), lon: a[1] + tt * (b[1] - a[1]) };
+}
+
+// Shortest distance in meters from a point to a polyline (array of
+// [lat, lon] or Leaflet LatLng entries). Used to detect drifting off the
+// drawn route rather than just drifting away from its start point.
+function distanceToPolylineMeters(point, latlngs) {
+  if (!point || !Array.isArray(latlngs) || latlngs.length < 2) return Infinity;
+  let best = Infinity;
+  for (let i = 0; i < latlngs.length - 1; i++) {
+    const raw1 = latlngs[i], raw2 = latlngs[i + 1];
+    const a = Array.isArray(raw1) ? raw1 : [raw1.lat, raw1.lng];
+    const b = Array.isArray(raw2) ? raw2 : [raw2.lat, raw2.lng];
+    if (!isValidLatLng(a[0], a[1]) || !isValidLatLng(b[0], b[1])) continue;
+    const nearest = nearestPointOnSegment(point, a, b);
+    const d = distMeters(point, nearest);
+    if (d < best) best = d;
+  }
+  return best;
+}
+
+function toast(msg, kind) {
+  const container = document.getElementById('toastContainer');
+  if (!container) { alert(msg); return; }
+  const el = document.createElement('div');
+  el.className = 'toast' + (kind ? ' toast-' + kind : '');
+  el.textContent = msg;
+  container.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('toast-show'));
+  setTimeout(() => {
+    el.classList.remove('toast-show');
+    setTimeout(() => el.remove(), 250);
+  }, 2600);
+}
+
+// =============================================================================
+// NAVIGATION — point-to-point navigation (destination search + road routing)
+// =============================================================================
+
+// --- Navigation state machine ---------------------------------------------
+// Every UI action and GPS-driven check goes through setNavState() so the
+// app can never jump between navigation states incorrectly (e.g. showing
+// "arrived" while still mid-search, or following before a route exists).
+const NavState = Object.freeze({
+  IDLE:          'idle',          // no destination chosen
+  SEARCHING:     'searching',     // search panel open, typing/browsing results
+  CALCULATING:   'calculating',   // destination picked, first route fetch in flight
+  PREVIEW:       'preview',       // route drawn, waiting for the user to confirm "Start"
+  NAVIGATING:    'navigating',    // actively following the route
+  OFF_ROUTE:     'off_route',     // drifted too far from the drawn route
+  RECALCULATING: 'recalculating', // fetching a fresh route after going off-route
+  ARRIVED:       'arrived',       // within arrival radius of the destination
+  FINISHED:      'finished'       // brief terminal state before resetting to idle
+});
+
+const NAV_TRANSITIONS = {
+  [NavState.IDLE]:          [NavState.SEARCHING],
+  [NavState.SEARCHING]:     [NavState.CALCULATING, NavState.IDLE],
+  [NavState.CALCULATING]:   [NavState.PREVIEW, NavState.IDLE],
+  [NavState.PREVIEW]:       [NavState.NAVIGATING, NavState.SEARCHING, NavState.IDLE],
+  [NavState.NAVIGATING]:    [NavState.OFF_ROUTE, NavState.ARRIVED, NavState.IDLE],
+  [NavState.OFF_ROUTE]:     [NavState.RECALCULATING, NavState.NAVIGATING, NavState.IDLE],
+  [NavState.RECALCULATING]: [NavState.NAVIGATING, NavState.OFF_ROUTE, NavState.IDLE],
+  [NavState.ARRIVED]:       [NavState.FINISHED, NavState.IDLE],
+  [NavState.FINISHED]:      [NavState.IDLE]
+};
+
+let navState = NavState.IDLE;
+
+// Central, validated state transition. Anything that isn't in the allowed
+// list for the current state is refused (logged, not thrown) rather than
+// silently letting the UI end up in an inconsistent combination of states.
+function setNavState(next) {
+  if (next === navState) return;
+  const allowed = NAV_TRANSITIONS[navState] || [];
+  if (!allowed.includes(next)) {
+    console.warn(`Blocked invalid nav transition: ${navState} -> ${next}`);
+    return;
+  }
+  const prev = navState;
+  navState = next;
+  onNavStateChange(prev, next);
+}
+
+// Side effects that should happen exactly once, right as we enter a state
+// (rather than being scattered across every function that might lead here).
+function onNavStateChange(prev, next) {
+  updateNavStatusText();
+
+  const navCard = document.getElementById('drivingNavCard');
+  if (navCard) {
+    navCard.style.display = (next === NavState.IDLE || next === NavState.SEARCHING) ? 'none' : 'flex';
+  }
+
+  const startBtn = document.getElementById('navigateStartBtn');
+  if (startBtn) startBtn.style.display = (next === NavState.PREVIEW) ? 'inline-flex' : 'none';
+
+  if (next === NavState.NAVIGATING) {
+    setFollowMode(true);
+    const from = userCoords || manualCoords;
+    if (from) followMapTo(from.lat, from.lon);
+  }
+
+  if (next === NavState.ARRIVED) {
+    toast(t('navigateArrived'), 'success');
+    setTimeout(() => {
+      setNavState(NavState.FINISHED);
+      setNavState(NavState.IDLE);
+      clearNavigation();
+    }, 2500);
+  }
+
+  if (next === NavState.IDLE) {
+    setFollowMode(false);
+  }
+}
+
+// Reflects the current nav state in the small status line under the
+// destination search panel (full driving-mode HUD polish lands in a later
+// pass; this keeps the state machine honest and visible in the meantime).
+function updateNavStatusText() {
+  const el = document.getElementById('navigateStatusText');
+  if (!el) return;
+  const labels = {
+    [NavState.CALCULATING]:   t('navCalculating'),
+    [NavState.PREVIEW]:       t('navPreview'),
+    [NavState.NAVIGATING]:    t('navNavigating'),
+    [NavState.OFF_ROUTE]:     t('navOffRoute'),
+    [NavState.RECALCULATING]: t('navRecalculating'),
+    [NavState.ARRIVED]:       t('navigateArrived')
+  };
+  const text = labels[navState] || '';
+  el.textContent = text;
+  el.style.display = text ? 'block' : 'none';
+}
+
+const ARRIVAL_RADIUS_M    = 25; // within this distance of the destination, consider the trip complete
+const OFF_ROUTE_THRESHOLD_M = 40; // perpendicular distance from the route line that counts as "off route"
+// Recovering from OFF_ROUTE needs to come back closer than the distance that
+// triggered it in the first place (hysteresis) — otherwise a fix that lands
+// right around 40m away can flip the state back and forth every GPS tick.
+const ON_ROUTE_RECOVER_THRESHOLD_M = 25;
+// Search a place name, drop a pin on the chosen result, and fetch an actual
+// road route (not a straight line) from the user's live GPS position (or
+// manually-pinned location) to that destination, using the free public OSRM
+// routing API (routing.openstreetmap.de — no key required). The route is
+// re-fetched periodically as the user moves so the line keeps following
+// wherever they actually are, without hammering the API on every 2s GPS tick.
+let destinationCoords  = null; // { lat, lon, label } of the chosen destination, or null if none active
+let destinationMarker  = null; // Leaflet marker for the destination
+let navigationLine     = null; // Leaflet polyline showing the route (or straight-line fallback)
+let navPanelOpen       = false;
+let navProfile         = 'driving'; // 'driving' | 'walking' | 'cycling'
+let navRouteFetching   = false;
+let navLastRouteAt     = 0;      // timestamp of the last successful route fetch
+let navLastRouteFrom   = null;   // {lat,lon} the last route was fetched from, to detect drift
+
+const NAV_REROUTE_INTERVAL_MS = 15000; // don't reroute more often than this
+const NAV_REROUTE_DRIFT_M     = 40;    // ...unless we've drifted this far off the last route origin
+
+const OSRM_ENDPOINTS = {
+  driving: { url: 'https://routing.openstreetmap.de/routed-car/route/v1/driving/',  profile: 'driving' },
+  walking: { url: 'https://routing.openstreetmap.de/routed-foot/route/v1/foot/',    profile: 'foot' },
+  cycling: { url: 'https://routing.openstreetmap.de/routed-bike/route/v1/bike/',    profile: 'bike' }
+};
+
+function toggleNavigatePanel() {
+  navPanelOpen = !navPanelOpen;
+  document.getElementById('navigatePanel').style.display = navPanelOpen ? 'flex' : 'none';
+  const sBtn = document.getElementById('drivingSearchBtn');
+  if (sBtn) sBtn.classList.toggle('active', navPanelOpen);
+  if (navPanelOpen) {
+    setTimeout(() => document.getElementById('navigateSearchInput').focus(), 50);
+    if (navState === NavState.IDLE) setNavState(NavState.SEARCHING);
+  } else if (navState === NavState.SEARCHING) {
+    setNavState(NavState.IDLE);
+  }
+}
+
+function closeNavigatePanel() {
+  navPanelOpen = false;
+  document.getElementById('navigatePanel').style.display = 'none';
+  const sBtn = document.getElementById('drivingSearchBtn');
+  if (sBtn) sBtn.classList.remove('active');
+}
+
+function setNavProfile(profile) {
+  navProfile = profile;
+  document.querySelectorAll('.navigate-profile-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.profile === profile);
+  });
+  // Switching mode implies the previous route geometry no longer applies.
+  if (destinationCoords) {
+    navLastRouteAt = 0;
+    navLastRouteFrom = null;
+    drawNavigationLine();
+  }
+}
+
+async function searchDestination() {
+  const input = document.getElementById('navigateSearchInput');
+  const q = input.value.trim();
+  if (!q) return;
+
+  const resultsEl = document.getElementById('navigateResults');
+  resultsEl.innerHTML = `<div class="navigate-result-empty">${t('navigateSearching')}</div>`;
+
+  try {
+    const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=5&q=' + encodeURIComponent(q);
+    const res = await fetch(url, { headers: { 'Accept-Language': lang } });
+    const data = await res.json();
+
+    if (!data || !data.length) {
+      resultsEl.innerHTML = `<div class="navigate-result-empty">${t('navigateNoResults')}</div>`;
+      return;
+    }
+
+    const usable = data.filter(place => isValidLatLng(toFiniteNumber(place.lat), toFiniteNumber(place.lon)));
+    if (!usable.length) {
+      resultsEl.innerHTML = `<div class="navigate-result-empty">${t('navigateNoResults')}</div>`;
+      return;
+    }
+
+    resultsEl.innerHTML = '';
+    usable.forEach(place => {
+      const item = document.createElement('div');
+      item.className = 'navigate-result-item';
+      item.textContent = place.display_name;
+      item.onclick = () => selectDestination(parseFloat(place.lat), parseFloat(place.lon), place.display_name);
+      resultsEl.appendChild(item);
+    });
+  } catch (err) {
+    resultsEl.innerHTML = `<div class="navigate-result-empty">${t('navigateSearchFailed')}</div>`;
+  }
+}
+
+function selectDestination(lat, lon, label) {
+  if (!isValidLatLng(lat, lon)) {
+    console.error('Rejected destination with invalid coordinates:', lat, lon);
+    toast(t('invalidLocation'), 'error');
+    return;
+  }
+  if (navState === NavState.IDLE) setNavState(NavState.SEARCHING);
+  setNavState(NavState.CALCULATING);
+
+  destinationCoords = { lat, lon, label };
+  navLastRouteAt = 0;
+  navLastRouteFrom = null;
+  document.getElementById('navigateResults').innerHTML = '';
+  document.getElementById('navigateSearchInput').value = '';
+  document.getElementById('navigateDestText').textContent = label;
+  document.getElementById('navigateActiveInfo').style.display = 'flex';
+  // The search job is done — collapse the floating search card so the
+  // route info (now shown in the driving sheet below) isn't duplicated
+  // across two overlapping surfaces on the map.
+  closeNavigatePanel();
+
+  const iconHtml = '<div style="width:20px;height:20px;border-radius:50%;background:#00d0ff;' +
+                    'border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,.5);"></div>';
+  if (destinationMarker) map.removeLayer(destinationMarker);
+  destinationMarker = L.marker([lat, lon], {
+    icon: L.divIcon({ className: '', html: iconHtml, iconAnchor: [10, 10] })
+  }).addTo(map);
+
+  const from = userCoords || manualCoords;
+  if (!from) {
+    toast(t('navigateNeedLocation'), 'error');
+    map.setView([lat, lon], 14);
+    return; // stays in CALCULATING; resolves to PREVIEW once a GPS fix lets us draw a route
+  }
+
+  drawNavigationLine().then(() => {
+    if (navigationLine) map.fitBounds(navigationLine.getBounds(), { padding: [60, 60] });
+    if (navState === NavState.CALCULATING) setNavState(NavState.PREVIEW);
+  });
+}
+
+// Confirms the route preview and begins turn-by-turn following. Only valid
+// from PREVIEW (see NAV_TRANSITIONS) — e.g. a stray double-tap can't push
+// navigation forward twice.
+function startNavigating() {
+  if (navState !== NavState.PREVIEW) return;
+  setNavState(NavState.NAVIGATING);
+}
+
+// Fetches a real road route from OSRM and returns { coords, distance, duration }
+// with coords already flipped to Leaflet's [lat, lon] order.
+async function fetchRoute(from, to, profile) {
+  if (!isValidCoordObj(from) || !isValidCoordObj(to)) {
+    throw new Error('invalid coordinates for routing');
+  }
+  const endpoint = OSRM_ENDPOINTS[profile] || OSRM_ENDPOINTS.driving;
+  const url = `${endpoint.url}${from.lon},${from.lat};${to.lon},${to.lat}` +
+              `?overview=full&geometries=geojson`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`routing request failed (HTTP ${res.status})`);
+  const data = await res.json();
+  if (data.code !== 'Ok' || !data.routes || !data.routes.length) {
+    throw new Error(data.message || 'no route found');
+  }
+  const route = data.routes[0];
+  return {
+    coords: route.geometry.coordinates.map(([rlon, rlat]) => [rlat, rlon]),
+    distance: route.distance, // meters
+    duration: route.duration  // seconds
+  };
+}
+
+// Draws/updates the navigation line. Prefers a real road route from OSRM,
+// throttled so we only re-hit the API periodically or after real drift;
+// falls back to a straight dashed line if routing is unavailable (offline,
+// API hiccup, etc.) so navigation never just disappears.
+async function drawNavigationLine(force) {
+  if (!destinationCoords) return;
+  const from = userCoords || manualCoords;
+  if (!from) return;
+
+  const driftedFar = navLastRouteFrom && distMeters(from, navLastRouteFrom) >= NAV_REROUTE_DRIFT_M;
+  const stale = Date.now() - navLastRouteAt >= NAV_REROUTE_INTERVAL_MS;
+  // Note: being in fallback mode does NOT by itself force an immediate
+  // retry — that used to hammer the OSRM API every 2s (every GPS tick)
+  // whenever routing was unavailable. A failed attempt now still stamps
+  // navLastRouteAt/navLastRouteFrom below, so retries are throttled the
+  // same way successful routes are, whether the last attempt succeeded or not.
+  const needsRoute = !navigationLine || driftedFar || stale || force;
+
+  if (needsRoute && !navRouteFetching) {
+    navRouteFetching = true;
+    try {
+      const route = await fetchRoute(from, destinationCoords, navProfile);
+      navLastRouteAt = Date.now();
+      navLastRouteFrom = { lat: from.lat, lon: from.lon };
+
+      if (navigationLine) map.removeLayer(navigationLine);
+      navigationLine = L.polyline(route.coords, { color: '#00d0ff', weight: 5, opacity: .9 }).addTo(map);
+      navigationLine._isFallback = false;
+
+      updateNavInfoText(route.distance, route.duration);
+    } catch (err) {
+      console.warn('Routing failed, falling back to straight line:', err.message);
+      navLastRouteAt = Date.now();
+      navLastRouteFrom = { lat: from.lat, lon: from.lon };
+      const latlngs = [[from.lat, from.lon], [destinationCoords.lat, destinationCoords.lon]];
+      if (navigationLine) map.removeLayer(navigationLine);
+      navigationLine = L.polyline(latlngs, {
+        color: '#00d0ff', weight: 4, opacity: .85, dashArray: '8 8'
+      }).addTo(map);
+      navigationLine._isFallback = true;
+      updateNavInfoText(distMeters(from, destinationCoords), null);
+    } finally {
+      navRouteFetching = false;
+    }
+  } else if (navigationLine && !navigationLine._isFallback) {
+    // Route geometry is still fresh enough — just refresh the distance/time
+    // readout against the current position without re-fetching.
+    const remaining = distMeters(from, destinationCoords);
+    updateNavInfoText(remaining, null, true);
+  } else if (navigationLine && navigationLine._isFallback) {
+    navigationLine.setLatLngs([[from.lat, from.lon], [destinationCoords.lat, destinationCoords.lon]]);
+    updateNavInfoText(distMeters(from, destinationCoords), null);
+  }
+}
+
+function updateNavInfoText(meters, seconds, approximate) {
+  const distText = document.getElementById('navigateDistanceText');
+  if (!distText) return;
+  let str = (approximate ? '~' : '') + formatDistance(meters);
+  if (seconds != null) str += ' · ' + formatDuration(seconds);
+  distText.textContent = str;
+}
+
+// Checks the live GPS fix against the destination (arrival) and the drawn
+// route (off-route drift), and drives the nav state machine accordingly.
+// Only does anything once navigation has actually started (NAVIGATING/
+// OFF_ROUTE/RECALCULATING) — never fires "arrived" during preview.
+function evaluateNavigationProgress() {
+  if (!destinationCoords) return;
+  if (![NavState.NAVIGATING, NavState.OFF_ROUTE, NavState.RECALCULATING].includes(navState)) return;
+
+  const from = userCoords || manualCoords;
+  if (!from) return;
+
+  const distToDest = distMeters(from, destinationCoords);
+  if (distToDest <= ARRIVAL_RADIUS_M) {
+    setNavState(NavState.ARRIVED);
+    return;
+  }
+
+  if (!navigationLine || navigationLine._isFallback) return; // nothing to measure drift against yet
+
+  const offRouteDist = distanceToPolylineMeters(from, navigationLine.getLatLngs());
+  // While already off-route (or mid-recalculation), require getting back
+  // within the tighter recovery threshold before counting it as "on route"
+  // again — plain re-use of OFF_ROUTE_THRESHOLD_M both ways would let a fix
+  // hovering near 40m flip the state back and forth every tick.
+  const currentlyOffRoute = navState === NavState.OFF_ROUTE || navState === NavState.RECALCULATING;
+  const threshold = currentlyOffRoute ? ON_ROUTE_RECOVER_THRESHOLD_M : OFF_ROUTE_THRESHOLD_M;
+  const isOffRoute = offRouteDist > threshold;
+
+  if (isOffRoute && navState === NavState.NAVIGATING) {
+    setNavState(NavState.OFF_ROUTE);
+  }
+
+  if (isOffRoute && navState === NavState.OFF_ROUTE && !navRouteFetching) {
+    setNavState(NavState.RECALCULATING);
+    drawNavigationLine(true).then(() => {
+      if (navState === NavState.RECALCULATING) setNavState(NavState.NAVIGATING);
+    });
+  }
+
+  if (!isOffRoute && navState === NavState.OFF_ROUTE) {
+    setNavState(NavState.NAVIGATING); // drifted back onto the route without needing a new fetch
+  }
+}
+
+function formatDistance(m) {
+  if (!isFinite(m)) return '';
+  return m >= 1000 ? (m / 1000).toFixed(1) + ' km' : Math.round(m) + ' m';
+}
+
+function formatDuration(s) {
+  if (!isFinite(s)) return '';
+  const mins = Math.round(s / 60);
+  if (mins < 60) return mins + ' min';
+  return Math.floor(mins / 60) + ' h ' + (mins % 60) + ' min';
+}
+
+function clearNavigation() {
+  destinationCoords = null;
+  navLastRouteAt = 0;
+  navLastRouteFrom = null;
+  if (navigationLine)    { map.removeLayer(navigationLine); navigationLine = null; }
+  if (destinationMarker) { map.removeLayer(destinationMarker); destinationMarker = null; }
+  document.getElementById('navigateActiveInfo').style.display = 'none';
+  document.getElementById('navigateDestText').textContent = '';
+  document.getElementById('navigateSearchInput').value = '';
+  document.getElementById('navigateResults').innerHTML = '';
+  setNavState(NavState.IDLE);
+}
+
+
+function setFollowMode(enabled) {
+  followMode = enabled;
+  const btn = document.getElementById('drivingCenterBtn');
+  if (btn) btn.classList.toggle('active', enabled);
+}
+
+function toggleFollowMode() {
+  setFollowMode(!followMode);
+  if (followMode && userCoords) {
+    followMapTo(userCoords.lat, userCoords.lon);
+  }
+}
+
+// If the user drags/zooms the map by hand, drop out of follow mode so we
+// don't fight their input; they can re-enable it with the centering button.
+map.on('dragstart', () => {
+  if (followMode) setFollowMode(false);
+});
+
+// --- Rotation-aware map dragging -----------------------------------------
+// Leaflet's built-in drag handler pans the map based on raw screen-pixel
+// mouse/touch movement, which is only correct when the map is unrotated.
+// In driving mode's heading-up view the tiles are visually rotated by a
+// CSS transform (see applyMapBearing) that Leaflet's own drag math knows
+// nothing about, so a drag gesture used to pan in the wrong screen
+// direction once any rotation was applied. While rotated, we disable
+// Leaflet's native dragging and pan manually instead, rotating the
+// pointer's movement vector back into the map's own coordinate space
+// before applying it — so dragging always tracks the finger correctly,
+// no matter which way the map is currently turned.
+let customDragActive = false;
+let customDragLast   = null;
+
+function rotationActive() {
+  return drivingMode && headingUpMode && Math.abs(((mapBearing % 360) + 360) % 360) > 0.5;
+}
+
+function setNativeDraggingEnabled(enabled) {
+  if (!map.dragging) return;
+  if (enabled) {
+    if (!map.dragging.enabled()) map.dragging.enable();
+    map.getContainer().style.touchAction = '';
+  } else {
+    if (map.dragging.enabled()) map.dragging.disable();
+    map.getContainer().style.touchAction = 'none';
+  }
+}
+
+function customDragPointerDown(e) {
+  if (!rotationActive()) return;
+  customDragActive = true;
+  customDragLast = { x: e.clientX, y: e.clientY };
+  if (followMode) setFollowMode(false);
+}
+
+function customDragPointerMove(e) {
+  if (!customDragActive) return;
+  const dx = e.clientX - customDragLast.x;
+  const dy = e.clientY - customDragLast.y;
+  customDragLast = { x: e.clientX, y: e.clientY };
+  // The wrapper's CSS rotation is `-mapBearing` degrees; rotating the
+  // screen-space delta by +mapBearing converts it into the equivalent
+  // delta in the map's own (unrotated) pixel space.
+  const rad = (mapBearing * Math.PI) / 180;
+  const cos = Math.cos(rad), sin = Math.sin(rad);
+  const mapDx = dx * cos - dy * sin;
+  const mapDy = dx * sin + dy * cos;
+  map.panBy([-mapDx, -mapDy], { animate: false });
+}
+
+function customDragPointerUp() {
+  customDragActive = false;
+  customDragLast = null;
+}
+
+(function initRotationAwareDragging(){
+  const el = map.getContainer();
+  el.addEventListener('pointerdown', customDragPointerDown, { passive: true });
+  el.addEventListener('pointermove', customDragPointerMove, { passive: true });
+  window.addEventListener('pointerup', customDragPointerUp, { passive: true });
+  window.addEventListener('pointercancel', customDragPointerUp, { passive: true });
+})();
+
+// =============================================================================
+// DRIVING MODE
+// =============================================================================
+function toggleDrivingMode() {
+  drivingMode = !drivingMode;
+  const btn = document.getElementById('drivingModeBtn');
+  const compassBtn = document.getElementById('mapCompass');
+
+  // Declutter the UI, nav-app style: legends, header, and the filter/
+  // report panel all hide via this body class (see CSS), leaving just
+  // the full-screen map plus a handful of small floating widgets.
+  document.body.classList.toggle('driving-active', drivingMode);
+
+  // The report sheet should never persist open across a mode toggle —
+  // entering driving mode always starts map-first, and leaving it should
+  // never leave a stray sheet cluttering the normal view underneath.
+  closeReportSheet();
+
+  if (btn) btn.classList.toggle('active', drivingMode);
+
+  // The map container's real size just changed (header/legends/panel hidden
+  // or restored, bottom sheet opened or closed). Leaflet caches its
+  // container size internally and only refreshes it on invalidateSize(),
+  // so without this, getFollowCenter()/followMapTo() below would compute
+  // their offset using the *old* stale dimensions — which is exactly why
+  // the dot kept landing dead-center instead of in the offset "road ahead"
+  // spot. pan:false because we're about to call setView explicitly anyway.
+  if (map.invalidateSize) map.invalidateSize({ animate: false, pan: false });
+
+  if (drivingMode) {
+    updateDrivingGpsStatus();
+    // Driving mode implies following the GPS, navigation-style.
+    if (!followMode) toggleFollowMode();
+    // Give the puck the Sygic/Google-Maps-style directional arrow look,
+    // and immediately snap the view into the offset "road ahead" framing
+    // — even if follow mode was already on, in which case toggleFollowMode()
+    // above was a no-op and wouldn't have recentered on its own.
+    setUserMarkerStyle(true);
+    if (userCoords) followMapTo(userCoords.lat, userCoords.lon);
+    // Turn-by-turn rotation: ask for compass access (iOS needs a user
+    // gesture, which this tap provides) and start rotating the map to
+    // match the direction of travel.
+    if (compassBtn) compassBtn.style.display = 'flex';
+    requestOrientationPermission();
+    if (headingUpMode && currentHeading !== null) applyMapBearing(currentHeading);
+  } else {
+    if (sectionRecording) {
+      // Leaving driving mode mid-recording would strand an unfinished section; stop it cleanly.
+      toggleSectionRecording();
+    }
+    // Navigation only exists inside driving mode now, so leaving it wipes
+    // any active search/route entirely rather than leaving stale state
+    // (or a lingering route line) behind on the map.
+    if (navPanelOpen) closeNavigatePanel();
+    clearNavigation();
+    // Back to the plain dot now that we're not navigating.
+    setUserMarkerStyle(false);
+    // Ease back to north-up and hide the compass until driving mode resumes.
+    resetMapBearing();
+    if (compassBtn) compassBtn.style.display = 'none';
+  }
+
+  // The map's available height changes once the header/legends/panel are
+  // hidden or restored, so give Leaflet a moment to re-measure its
+  // container — otherwise tiles can look cut off or misaligned.
+  setTimeout(() => { if (typeof map !== 'undefined' && map.invalidateSize) map.invalidateSize(); }, 60);
+}
+
+// --- Collapsible report sheet -------------------------------------------
+// Closed by default; opened only by tapping the floating Report button (or
+// the section-recording status it doubles as), and closed immediately again
+// once a report type is tapped — so it never lingers over the map.
+let reportSheetOpen = false;
+
+function toggleReportSheet() {
+  reportSheetOpen = !reportSheetOpen;
+  const sheet = document.getElementById('drivingReportSheet');
+  if (sheet) sheet.classList.toggle('open', reportSheetOpen);
+}
+
+function closeReportSheet() {
+  reportSheetOpen = false;
+  const sheet = document.getElementById('drivingReportSheet');
+  if (sheet) sheet.classList.remove('open');
+}
+
+// One-tap report for a Road-category issue, used from the driving mode overlay.
+// Skips the normal form entirely so it can be used safely with a single glance.
+async function quickReportRoad(subcategoryKey) {
+  if (!currentSession || !currentProfile) { toast(t('signInFirst') || 'Sign in first', 'error'); return; }
+  if (!userCoords) { toast(t('waitGps'), 'error'); return; }
+  if (!isValidCoordObj(userCoords)) { toast(t('invalidLocation'), 'error'); return; }
+
+  try {
+    const { error } = await sb.from(TABLE).insert([{
+      latitude: userCoords.lat,
+      longitude: userCoords.lon,
+      category: 'Road',
+      subcategory: subcategoryKey,
+      status: 'reported',
+      comment: '',
+      created_at: new Date().toISOString(),
+      owner_id: currentSession.user.id,
+      owner_username: currentProfile.username
+    }]);
+    if (error) throw error;
+    toast('✓ ' + t('submitted'), 'success');
+    await loadPinsByWindow();
+  } catch (err) {
+    console.error('Quick report error (full):', err);
+    toast(describeAuthError(err), 'error');
+  }
+}
+
+function toggleSectionRecording() {
+  if (!sectionRecording) {
+    if (!userCoords) { toast(t('waitGps'), 'error'); return; }
+    if (!isValidCoordObj(userCoords)) { toast(t('invalidLocation'), 'error'); return; }
+    sectionRecording = true;
+    sectionPoints = [{ lat: userCoords.lat, lon: userCoords.lon }];
+    sectionPolyline = L.polyline([[userCoords.lat, userCoords.lon]], {
+      color: '#ff4b4b', weight: 6, opacity: 0.85, lineCap: 'round'
+    }).addTo(map);
+    updateSectionButtonUI();
+    // Close the sheet immediately so the map (and the road being traced)
+    // stays fully visible while recording; the floating Report button
+    // itself turns red as the recording indicator (see updateSectionButtonUI).
+    closeReportSheet();
+    toast(t('sectionStarted') || 'Section recording started', 'success');
+  } else {
+    sectionRecording = false;
+    updateSectionButtonUI();
+    closeReportSheet();
+    if (sectionPoints.length < 2) {
+      toast(t('sectionTooShort') || 'Not enough movement recorded — section discarded.', 'error');
+      discardSectionDraft();
+      return;
+    }
+    openSectionModal();
+  }
+}
+
+function updateSectionButtonUI() {
+  const btn = document.getElementById('sectionRecordBtn');
+  const label = document.getElementById('sectionRecordBtnLabel');
+  if (btn && label) {
+    btn.classList.toggle('recording', sectionRecording);
+    label.textContent = sectionRecording
+      ? (t('endSectionBtn') || 'End Section Report')
+      : (t('startSectionBtn') || 'Start Section Report');
+  }
+
+  // Mirror the recording state onto the floating Report button so it keeps
+  // acting as a status indicator even while the sheet itself is closed —
+  // tapping it again while recording reopens the sheet showing "End Section
+  // Report" instead of the normal grid of report types.
+  const reportBtn   = document.getElementById('drivingReportBtn');
+  const reportLabel = document.getElementById('drivingReportBtnLabel');
+  const reportIcon  = document.getElementById('drivingReportBtnIcon');
+  if (reportBtn && reportLabel && reportIcon) {
+    reportBtn.classList.toggle('recording', sectionRecording);
+    reportLabel.textContent = sectionRecording
+      ? (t('recordingLabel') || 'Recording…')
+      : (t('reportBtnLabel') || 'Report');
+    reportIcon.textContent = sectionRecording ? '🔴' : '⚠️';
+  }
+}
+
+function discardSectionDraft() {
+  if (sectionPolyline) { map.removeLayer(sectionPolyline); sectionPolyline = null; }
+  sectionPoints = [];
+}
+
+function openSectionModal() {
+  const sel = document.getElementById('sectionSubcategory');
+  populateSubcategoryOptions(sel, 'Road', null);
+  document.getElementById('sectionComment').value = '';
+  document.getElementById('sectionModal').style.display = 'flex';
+}
+
+function cancelSectionReport() {
+  document.getElementById('sectionModal').style.display = 'none';
+  discardSectionDraft();
+}
+
+async function submitSectionReport() {
+  if (!currentSession || !currentProfile) { toast(t('signInFirst') || 'Sign in first', 'error'); return; }
+  if (sectionPoints.length < 2) { document.getElementById('sectionModal').style.display = 'none'; return; }
+
+  const subcategory = document.getElementById('sectionSubcategory').value || null;
+  const comment = document.getElementById('sectionComment').value;
+
+  // Store the whole traced path; latitude/longitude fall back to the
+  // path's midpoint so this row still behaves like a normal point report
+  // anywhere in the app that doesn't know about the `path` column yet.
+  const rawPath = sectionPoints.map(p => [p.lat, p.lon]);
+  const pathJson = sanitizePath(rawPath);
+  if (pathJson.length < 2) {
+    document.getElementById('sectionModal').style.display = 'none';
+    discardSectionDraft();
+    toast(t('invalidLocation'), 'error');
+    return;
+  }
+  const mid = pathJson[Math.floor(pathJson.length / 2)];
+
+  try {
+    const { error } = await sb.from(TABLE).insert([{
+      latitude: mid[0],
+      longitude: mid[1],
+      category: 'Road',
+      subcategory,
+      status: 'reported',
+      comment,
+      path: pathJson,
+      created_at: new Date().toISOString(),
+      owner_id: currentSession.user.id,
+      owner_username: currentProfile.username
+    }]);
+    if (error) throw error;
+    document.getElementById('sectionModal').style.display = 'none';
+    discardSectionDraft();
+    toast('✓ ' + t('submitted'), 'success');
+    await loadPinsByWindow();
+  } catch (err) {
+    console.error('Section report submit error (full):', err);
+    toast(describeAuthError(err), 'error');
+  }
+}
+
+// =============================================================================
+// GPS
+// =============================================================================
+function updateGpsModalText(){
+  const el = id => document.getElementById(id);
+  if (el('gpsModalTitle')) el('gpsModalTitle').textContent = t('gpsTitle');
+  if (el('gpsModalBody'))  el('gpsModalBody').textContent  = t('gpsBody');
+  if (el('gpsModalAlt'))   el('gpsModalAlt').textContent   = t('gpsAlt');
+  if (el('gpsModalBtn'))   el('gpsModalBtn').textContent   = t('gpsBtn');
+}
+function showGpsModal(){
+  const modal = document.getElementById('gpsModal');
+  if (!modal) return;
+  updateGpsModalText();
+  modal.style.display = 'flex';
+}
+function hideGpsModal(){
+  const modal = document.getElementById('gpsModal');
+  if (modal) modal.style.display = 'none';
+}
+
+function enableManualPinMode() {
+  checkFormReady();
+}
+
+let gpsRequestPending = false;
+
+// --- GPS noise filtering / smoothing --------------------------------------
+let lastAcceptedFix   = null; // {lat, lon, t} of the last fix that passed the plausibility check
+let smoothedHeading   = null; // EMA-smoothed heading in degrees, used for map bearing + marker rotation
+let smoothedSpeedKmh  = null; // EMA-smoothed speed shown on the driving-mode HUD
+const GPS_MAX_PLAUSIBLE_SPEED_MPS = 55;  // ~200 km/h; a bigger implied speed between fixes is treated as a GPS glitch
+const GPS_MAX_ACCEPTABLE_ACCURACY_M = 100; // fixes reported less precise than this are suspect
+const GPS_STALE_FIX_MS = 10000; // don't hold onto an old "good" fix forever if accuracy stays poor
+const HEADING_SMOOTHING_FACTOR     = 0.25; // 0..1, higher = follows raw heading faster / smooths less
+const SPEED_SMOOTHING_FACTOR       = 0.3;
+
+// Exponential moving average over the shortest angular path, so heading
+// smoothing doesn't get confused by the 359°→1° wraparound.
+function smoothHeading(previous, rawHeading, factor) {
+  if (previous === null) return ((rawHeading % 360) + 360) % 360;
+  const next = previous + shortestAngleDelta(previous, rawHeading) * factor;
+  return ((next % 360) + 360) % 360;
+}
+
+// Drives the driving-mode HUD's small "GPS" / "No signal" label. This used
+// to just say "GPS" unconditionally (the "No signal" string existed in the
+// translations but nothing ever set it) — now it actually reflects whether
+// a fix has come in recently, both right after a fix arrives and via the
+// watchdog interval below in case fixes stop arriving altogether.
+const GPS_SIGNAL_LOST_MS = 8000; // matches the geolocation call's own timeout
+function updateDrivingGpsStatus() {
+  const dsl = document.getElementById('drivingStatusLabel');
+  if (!dsl || !drivingMode) return;
+  const stale = !lastAcceptedFix || (Date.now() - lastAcceptedFix.t) > GPS_SIGNAL_LOST_MS;
+  dsl.textContent = stale ? t('drivingNoGps') : t('drivingGpsLabel');
+  dsl.classList.toggle('gps-lost', stale);
+}
+setInterval(updateDrivingGpsStatus, 2000);
+
+function startWatching() {
+  const updatePosition = () => {
+    if (gpsRequestPending) return; // don't stack requests if one is still in flight
+    gpsRequestPending = true;
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        gpsRequestPending = false;
+
+        // Defensive: real devices essentially never hand back a bad fix, but
+        // a corrupt/mocked location provider could. Skip the update entirely
+        // rather than letting NaN/out-of-range coords propagate into the map,
+        // the section trace, or a report.
+        if (!isValidLatLng(pos.coords.latitude, pos.coords.longitude)) {
+          console.error('Ignored GPS fix with invalid coordinates:', pos.coords);
+          return;
+        }
+
+        const candidate = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+
+        // Accuracy filter: a fix reported with a very large accuracy radius
+        // (weak signal, indoors, urban canyon) can be tens or hundreds of
+        // meters off. Skip it in favor of the last good fix, but only while
+        // that last fix is still recent — a stale-but-precise position is
+        // worse than a rough current one once enough time has passed.
+        const accuracy = pos.coords.accuracy;
+        if (
+          typeof accuracy === 'number' && !isNaN(accuracy) &&
+          accuracy > GPS_MAX_ACCEPTABLE_ACCURACY_M &&
+          lastAcceptedFix && (pos.timestamp - lastAcceptedFix.t) < GPS_STALE_FIX_MS
+        ) {
+          console.warn(`Ignored low-accuracy GPS fix: ±${Math.round(accuracy)}m`);
+          return;
+        }
+
+        // Noise filter: if the implied speed between this fix and the last
+        // accepted one is wildly higher than anything plausible for a moving
+        // vehicle, treat it as a GPS glitch and keep the previous fix rather
+        // than letting the map/marker/route jump.
+        if (lastAcceptedFix) {
+          const dtSeconds = (pos.timestamp - (lastAcceptedFix.t || pos.timestamp)) / 1000;
+          const jumpMeters = distMeters(lastAcceptedFix, candidate);
+          if (dtSeconds > 0 && (jumpMeters / dtSeconds) > GPS_MAX_PLAUSIBLE_SPEED_MPS) {
+            console.warn(`Ignored implausible GPS jump: ${jumpMeters.toFixed(0)}m in ${dtSeconds.toFixed(1)}s`);
+            return;
+          }
+        }
+        lastAcceptedFix = { lat: candidate.lat, lon: candidate.lon, t: pos.timestamp };
+
+        userCoords = candidate;
+        hideGpsModal();
+        updateDrivingGpsStatus();
+        if (!userMarker) {
+          userMarker = L.marker([userCoords.lat, userCoords.lon], {
+            icon: L.divIcon({
+              className: '',
+              html: buildUserMarkerHtml(userMarkerNavStyle),
+              iconSize: userMarkerNavStyle ? [40, 40] : [16, 16],
+              iconAnchor: userMarkerNavStyle ? [20, 20] : [8, 8]
+            }),
+            zIndexOffset: 1000
+          }).addTo(map);
+          map.setView(getFollowCenter(userCoords.lat, userCoords.lon, 13), 13);
+        } else {
+          userMarker.setLatLng([userCoords.lat, userCoords.lon]);
+        }
+
+        // Navigation-style follow: keep the user centered like a nav app,
+        // rather than requiring them to manually re-pan while moving.
+        if (followMode) {
+          followMapTo(userCoords.lat, userCoords.lon);
+        }
+
+        // Fallback heading source for devices/browsers without a usable
+        // compass: GPS course-over-ground, only trustworthy while actually
+        // moving. The device compass (if active) takes priority since it
+        // also works at a standstill.
+        if (!compassActive && typeof pos.coords.heading === 'number' && !isNaN(pos.coords.heading)) {
+          smoothedHeading = smoothHeading(smoothedHeading, pos.coords.heading, HEADING_SMOOTHING_FACTOR);
+          currentHeading = smoothedHeading;
+          if (drivingMode && headingUpMode) applyMapBearing(currentHeading);
+          updateUserMarkerRotation();
+        }
+
+        // Live speed readout for the driving-mode status strip (Sygic-style
+        // heads-up display). GPS speed comes in m/s; convert to km/h. Below
+        // ~1.5 km/h is just GPS jitter while stationary, not real movement —
+        // displayed as 0 rather than a misleading "1 km/h" while parked.
+        const SPEED_DISPLAY_DEADZONE_KMH = 1.5;
+        if (drivingMode) {
+          const speedEl = document.getElementById('drivingSpeedValue');
+          if (speedEl) {
+            if (typeof pos.coords.speed === 'number' && !isNaN(pos.coords.speed) && pos.coords.speed >= 0) {
+              const kmh = pos.coords.speed * 3.6;
+              smoothedSpeedKmh = smoothedSpeedKmh === null ? kmh : smoothedSpeedKmh + (kmh - smoothedSpeedKmh) * SPEED_SMOOTHING_FACTOR;
+              speedEl.textContent = smoothedSpeedKmh < SPEED_DISPLAY_DEADZONE_KMH ? 0 : Math.round(smoothedSpeedKmh);
+            } else {
+              smoothedSpeedKmh = null;
+              speedEl.textContent = '--';
+            }
+          }
+        }
+
+        // While tracing a section, extend the live polyline with new points,
+        // filtering out GPS jitter that hasn't actually moved us anywhere.
+        if (sectionRecording) {
+          const last = sectionPoints[sectionPoints.length - 1];
+          if (distMeters(last, userCoords) >= SECTION_MIN_DISTANCE_M) {
+            sectionPoints.push({ lat: userCoords.lat, lon: userCoords.lon });
+            if (sectionPolyline) sectionPolyline.addLatLng([userCoords.lat, userCoords.lon]);
+          }
+        }
+
+        // Keep an active navigation line glued to the live GPS fix, and let
+        // the nav state machine check for arrival / drifting off-route.
+        if (destinationCoords) {
+          drawNavigationLine();
+          evaluateNavigationProgress();
+        }
+
+        checkFormReady();
+      },
+      err => {
+        gpsRequestPending = false;
+        // Only a real permission denial means "GPS not enabled". A timeout or
+        // temporarily unavailable fix (weak signal, indoors) is transient —
+        // the next 2-second tick will just try again, no need to alarm the user.
+        if (err.code === err.PERMISSION_DENIED) {
+          showGpsModal();
+        }
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 2000 }
+    );
+  };
+  updatePosition();
+  setInterval(updatePosition, 2000);
+}
+
+function initGps() {
+  if (!navigator.geolocation) { enableManualPinMode(); return; }
+  navigator.permissions.query({ name: 'geolocation' }).then(result => {
+    if (result.state === 'denied') { showGpsModal(); enableManualPinMode(); }
+    else { startWatching(); }
+  }).catch(() => { startWatching(); });
+}
+initGps();
+
+const PinControl = L.Control.extend({
+  options:{ position:'bottomleft' },
+  onAdd(){
+    const btn = document.getElementById('pinMapBtn');
+    L.DomEvent.disableClickPropagation(btn);
+    return btn;
+  }
+});
+new PinControl().addTo(map);
+document.getElementById('pinMapBtn').style.display = 'flex';
+
+const DrivingControl = L.Control.extend({
+  options:{ position:'bottomleft' },
+  onAdd(){
+    const btn = document.getElementById('drivingModeBtn');
+    L.DomEvent.disableClickPropagation(btn);
+    return btn;
+  }
+});
+new DrivingControl().addTo(map);
+document.getElementById('drivingModeBtn').style.display = 'flex';
+
+const CompassControl = L.Control.extend({
+  options:{ position:'topright' },
+  onAdd(){
+    const btn = document.getElementById('mapCompass');
+    L.DomEvent.disableClickPropagation(btn);
+    return btn;
+  }
+});
+new CompassControl().addTo(map);
+
+const NavigatePanelControl = L.Control.extend({
+  options:{ position:'topleft' },
+  onAdd(){
+    const panel = document.getElementById('navigatePanel');
+    L.DomEvent.disableClickPropagation(panel);
+    return panel;
+  }
+});
+new NavigatePanelControl().addTo(map);
+
+function togglePinMode() {
+  pinMode = !pinMode;
+  const btn = document.getElementById('pinMapBtn');
+  btn.classList.toggle('active', pinMode);
+
+  if (pinMode) {
+    clearMarkers();
+  } else {
+    if (manualMarker) { map.removeLayer(manualMarker); manualMarker = null; }
+    manualCoords = null;
+    loadPinsByWindow();
+  }
+  checkFormReady();
+}
+
+map.on('click', function(e) {
+  if (!pinMode) return;
+  if (!isValidLatLng(e.latlng.lat, e.latlng.lng)) {
+    console.error('Ignored map click with invalid coordinates:', e.latlng);
+    toast(t('invalidLocation'), 'error');
+    return;
+  }
+  manualCoords = { lat: e.latlng.lat, lon: e.latlng.lng };
+  if (manualMarker) {
+    manualMarker.setLatLng(e.latlng);
+  } else {
+    manualMarker = L.marker(e.latlng, {
+      icon: L.divIcon({
+        className: '',
+        html: `<div style="width:20px;height:20px;background:#f5a623;border-radius:50%;border:2px solid white;box-shadow:0 3px 8px rgba(0,0,0,.4)"></div>`,
+        iconAnchor: [10,10]
+      })
+    }).addTo(map);
+  }
+  checkFormReady();
+});
+
+// Only pins currently within (a small buffer around) the visible map area are
+// ever attached to the map, so panning/zooming across a large dataset stays
+// cheap. Re-sync whenever the viewport settles; syncMarkers() itself just
+// adds/removes markers, it never touches the underlying data.
+map.on('moveend', function(){ if (!pinMode) syncMarkers(false); });
+map.on('zoomend', function(){ if (!pinMode) syncMarkers(false); });
+
+// =============================================================================
+// REPORTS — categories, subcategories, status, and the report form
+// =============================================================================
+const CATEGORY_COLORS = {
+  'Water':        '#1e90ff',
+  'Electricity':  '#f5c518',
+  'Sewage':       '#8b4513',
+  'Gas':          '#ff6b35',
+  'Heating':      '#b71c1c',
+  'Road':         '#6b6b6b',
+  'Streetlight':  '#c9a227',
+  'Waste':        '#6d8b3a',
+  'Other':        '#8342a1',
+};
+const CATEGORY_ICONS = {
+  'Water': '💧', 'Electricity': '⚡', 'Sewage': '🚱', 'Gas': '🔥', 'Heating': '♨️',
+  'Road': '🕳️', 'Streetlight': '💡', 'Waste': '🗑️', 'Other': '❓'
+};
+const SUBCATEGORIES = {
+  Water: [
+    { key:'burst_leak',    en:'Burst pipe / Leak',            sr:'Puknuta cev / Curenje' },
+    { key:'no_supply',     en:'No water supply',              sr:'Nema vode' },
+    { key:'low_pressure',  en:'Low pressure',                 sr:'Nizak pritisak' },
+    { key:'discoloration', en:'Water quality / discoloration',sr:'Kvalitet vode / zamućenost' }
+  ],
+  Electricity: [
+    { key:'outage',       en:'Power outage',                       sr:'Nestanak struje' },
+    { key:'exposed_wire', en:'Exposed / damaged wire',             sr:'Oštećen ili otkriven kabl' },
+    { key:'transformer',  en:'Transformer / substation issue',     sr:'Kvar na trafostanici' },
+    { key:'voltage',      en:'Voltage fluctuation',                sr:'Kolebanje napona' }
+  ],
+  Sewage: [
+    { key:'blockage', en:'Blockage / overflow',                sr:'Začepljenje / izlivanje' },
+    { key:'manhole',  en:'Manhole cover damaged / missing',    sr:'Oštećen ili nedostaje šaht poklopac' },
+    { key:'odor',     en:'Bad odor',                           sr:'Neprijatan miris' }
+  ],
+  Gas: [
+    { key:'leak',   en:'Gas leak / smell', sr:'Curenje / miris gasa' },
+    { key:'outage', en:'Gas outage',       sr:'Nestanak gasa' }
+  ],
+  Heating: [
+    { key:'no_heat',  en:'No heat',           sr:'Nema grejanja' },
+    { key:'leak',     en:'Leak',              sr:'Curenje' },
+    { key:'low_temp', en:'Low temperature',   sr:'Niska temperatura' }
+  ],
+  Road: [
+    { key:'pothole',  en:'Pothole',                          sr:'Rupa na putu' },
+    { key:'cracked',  en:'Cracked / damaged pavement',       sr:'Oštećen kolovoz' },
+    { key:'signage',  en:'Missing / damaged signage',        sr:'Nedostaje ili oštećena signalizacija' },
+    { key:'flooding', en:'Flooding on road',                 sr:'Poplavljen put' }
+  ],
+  Streetlight: [
+    { key:'out',         en:'Light out',   sr:'Ne radi' },
+    { key:'flickering',  en:'Flickering',  sr:'Treperi' },
+    { key:'pole_damage', en:'Pole damage', sr:'Oštećen stub' }
+  ],
+  Waste: [
+    { key:'overflow', en:'Overflowing bin',    sr:'Prepunjena kanta' },
+    { key:'missed',   en:'Missed collection',  sr:'Propušteno odnošenje' },
+    { key:'dumping',  en:'Illegal dumping',    sr:'Nelegalno odlaganje' }
+  ],
+  Other: []
+};
+const STATUS_COLORS = {
+  'reported':    '#ff4b4b',
+  'in_progress': '#f5a623',
+  'fixed':       '#2ecc71',
+};
+function categoryColor(cat) { return CATEGORY_COLORS[cat] || '#aaaaaa'; }
+function subcategoryLabel(cat, subKey) {
+  if (!subKey) return '';
+  const list = SUBCATEGORIES[cat] || [];
+  const found = list.find(s => s.key === subKey);
+  return found ? (lang === 'sr' ? found.sr : found.en) : subKey;
+}
+function populateSubcategoryOptions(selectEl, cat, selectedKey) {
+  const list = SUBCATEGORIES[cat] || [];
+  if (!list.length) {
+    selectEl.innerHTML = '';
+    return false;
+  }
+  const placeholder = lang === 'sr' ? 'Detalj (opciono)…' : 'Detail (optional)…';
+  selectEl.innerHTML = `<option value="">${placeholder}</option>` +
+    list.map(s => `<option value="${s.key}" ${s.key === selectedKey ? 'selected' : ''}>${lang === 'sr' ? s.sr : s.en}</option>`).join('');
+  return true;
+}
+function onCategoryChange() {
+  const cat = document.getElementById('category').value;
+  const subSelect = document.getElementById('subcategory');
+  const subRow = document.getElementById('subcategoryRow');
+  const hasSubs = populateSubcategoryOptions(subSelect, cat, null);
+  subRow.style.display = hasSubs ? 'flex' : 'none';
+  checkFormReady();
+}
+function statusColor(s)     { return STATUS_COLORS[s] || '#aaaaaa'; }
+function statusLabel(s) {
+  if (s === 'in_progress') return t('statusInProgress');
+  if (s === 'fixed') return t('statusFixed');
+  return t('statusReported');
+}
+function translateCategory(cat) {
+  const labelsEn = { Water:'Water', Electricity:'Electricity', Sewage:'Sewage', Gas:'Gas', Heating:'Heating', Road:'Road', Streetlight:'Streetlight', Waste:'Waste', Other:'Other' };
+  const labelsSr = { Water:'Voda', Electricity:'Struja', Sewage:'Kanalizacija', Gas:'Gas', Heating:'Grejanje', Road:'Put', Streetlight:'Ulična rasveta', Waste:'Otpad', Other:'Ostalo' };
+  return (lang === 'sr' ? labelsSr[cat] : labelsEn[cat]) || cat;
+}
+
+function checkFormReady() {
+  const category = document.getElementById('category').value;
+  const hasLoc = !!(userCoords || manualCoords);
+  const isAuthed = !!(currentSession && currentProfile);
+  document.getElementById('reportBtn').disabled = !(category && hasLoc && isAuthed);
+}
+
+function resetReportingForm() {
+  document.getElementById('category').selectedIndex = 0;
+  document.getElementById('subcategory').innerHTML = '';
+  document.getElementById('subcategoryRow').style.display = 'none';
+  document.getElementById('comment').value = "";
+  document.getElementById('reportBtn').disabled = true;
+
+  // If the user manually dropped a pin to file this report, turn pin-drop
+  // mode back off so the pin doesn't stay "clicked"/active after submit.
+  if (pinMode) {
+    pinMode = false;
+    document.getElementById('pinMapBtn').classList.remove('active');
+  }
+  if (manualMarker) { map.removeLayer(manualMarker); manualMarker = null; }
+  manualCoords = null;
+}
+
+async function reportBreak(){
+  if (!currentSession || !currentProfile) { updateAuthUI(); return; }
+
+  const coords = pinMode && manualCoords ? manualCoords : userCoords;
+  if (!coords) { alert(t('waitGps')); return; }
+
+  const lat = toFiniteNumber(coords.lat);
+  const lon = toFiniteNumber(coords.lon);
+  if (!isValidLatLng(lat, lon)) {
+    console.error('Rejected report: invalid coordinates', coords);
+    alert(t('invalidLocation'));
+    return;
+  }
+
+  const category    = document.getElementById('category').value;
+  const subcategory = document.getElementById('subcategory').value || null;
+  const comment      = document.getElementById('comment').value;
+
+  try {
+    const { error } = await sb.from(TABLE).insert([{
+      latitude:  lat,
+      longitude: lon,
+      category,
+      subcategory,
+      status: 'reported',
+      comment,
+      created_at: new Date().toISOString(),
+      owner_id: currentSession.user.id,
+      owner_username: currentProfile.username
+    }]);
+    if (error) throw error;
+
+    alert(t('submitted'));
+    resetReportingForm();
+    await loadPinsByWindow();
+  } catch (err) {
+    console.error('Report submit error (full):', err);
+    alert(describeAuthError(err));
+  }
+}
+
+// =============================================================================
+// MARKERS — rendering reports on the map, popups, and viewport sync
+// =============================================================================
+function clearMarkers(){
+  markerById.forEach(m => map.removeLayer(m));
+  markerById.clear();
+  sectionPinById.forEach(m => map.removeLayer(m));
+  sectionPinById.clear();
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function buildTimelineItem(dateStr, reached, color) {
+  const dotColor = reached ? color : 'rgba(255,255,255,.18)';
+  const dateText = reached ? formatDate(dateStr) : '—';
+  return `<div class="timeline-item ${reached ? '' : 'pending'}">
+    <div class="timeline-line"></div>
+    <div class="timeline-dot" style="background:${dotColor};"></div>
+    <span class="timeline-date">${dateText}</span>
+  </div>`;
+}
+
+function buildPopupHtml(report) {
+  const catCol = categoryColor(report.category);
+  const sCol   = statusColor(report.status);
+  const isOwner = !!(currentSession && report.owner_id === currentSession.user.id);
+  const isAdmin = !!(currentProfile && currentProfile.is_admin);
+  const reporterName = report.owner_username || (lang === 'sr' ? 'Nepoznato' : 'Unknown');
+  const headerTitle = report.subcategory
+    ? `${translateCategory(report.category)} / ${subcategoryLabel(report.category, report.subcategory)}`
+    : translateCategory(report.category);
+
+  let actionsHtml = '';
+  if (isAdmin) {
+    // Admins get full control: jump to any status, plus edit/delete
+    const statuses = [
+      { key: 'reported',    label: t('markReported'),   bg: STATUS_COLORS.reported },
+      { key: 'in_progress', label: t('markInProgress'), bg: STATUS_COLORS.in_progress },
+      { key: 'fixed',       label: t('markFixed'),      bg: STATUS_COLORS.fixed }
+    ].filter(s => s.key !== report.status);
+    actionsHtml = `<div class="status-action-row">
+      ${statuses.map(s => `<button class="status-action-btn" style="background:${s.bg};" onclick="updateReportStatus('${report.id}','${s.key}')">${s.label}</button>`).join('')}
+    </div>
+    <div class="status-action-row" style="border-top:none;padding-top:0;">
+      <button class="status-action-btn" style="background:#3a3a3a;" onclick="enterEditMode('${report.id}')">${t('editBtn')}</button>
+      <button class="status-action-btn" style="background:#7a1f1f;" onclick="deleteReport('${report.id}')">${t('deleteBtn')}</button>
+    </div>`;
+  } else if (isOwner && report.status !== 'fixed') {
+    const showProgress = report.status === 'reported';
+    actionsHtml = `<div class="status-action-row">
+      ${showProgress ? `<button class="status-action-btn progress-btn" onclick="updateReportStatus('${report.id}','in_progress')">${t('markInProgress')}</button>` : ''}
+      <button class="status-action-btn fixed-btn" onclick="updateReportStatus('${report.id}','fixed')">${t('markFixed')}</button>
+    </div>`;
+  }
+
+  return `<div class="popup-inner popup-card">
+    <div class="popup-header" style="background:${catCol};">
+      <span class="popup-header-title">${headerTitle}</span>
+      <span class="popup-header-date">${formatDate(report.created_at)}</span>
+    </div>
+    <div class="popup-body">
+      <div class="popup-row">
+        <span class="popup-row-label">${t('popupStatus')}</span>
+        <span class="status-pill" style="background:${sCol};">${statusLabel(report.status)}</span>
+      </div>
+      <div class="popup-row">
+        <span class="popup-row-label">${t('reportedByLabel')}</span>
+        <span class="popup-row-value">${escapeHtml(reporterName)}${isOwner ? ` <span class="owner-tag">(${t('yourReport')})</span>` : ''}</span>
+      </div>
+    </div>
+    <div class="popup-timeline">
+      ${buildTimelineItem(report.created_at, true, STATUS_COLORS.reported)}
+      ${buildTimelineItem(report.in_progress_at, !!report.in_progress_at, STATUS_COLORS.in_progress)}
+      ${buildTimelineItem(report.fixed_at, !!report.fixed_at, STATUS_COLORS.fixed)}
+    </div>
+    ${report.comment ? `<div class="popup-note">${escapeHtml(report.comment)}</div>` : ''}
+    ${actionsHtml}
+  </div>`;
+}
+
+function buildEditPopupHtml(report) {
+  const uid = report.id;
+  const cats = ['Water','Electricity','Sewage','Gas','Heating','Road','Streetlight','Waste','Other'];
+  const catOptions = cats.map(c => `<option value="${c}" ${c === report.category ? 'selected' : ''}>${translateCategory(c)}</option>`).join('');
+  const statuses = [
+    { key:'reported', label: statusLabel('reported') },
+    { key:'in_progress', label: statusLabel('in_progress') },
+    { key:'fixed', label: statusLabel('fixed') }
+  ];
+  const statusOptions = statuses.map(s => `<option value="${s.key}" ${s.key === report.status ? 'selected' : ''}>${s.label}</option>`).join('');
+
+  return `<div class="popup-inner popup-edit-form">
+    <select id="edit-cat-${uid}" style="width:100%;" onchange="onEditCategoryChange('${uid}')">${catOptions}</select>
+    <select id="edit-subcat-${uid}" style="width:100%;"></select>
+    <select id="edit-status-${uid}" style="width:100%;">${statusOptions}</select>
+    <input type="text" id="edit-comment-${uid}" value="${escapeHtml(report.comment || '')}" style="width:100%;">
+    <div class="status-action-row" style="padding:0;border-top:none;">
+      <button class="status-action-btn" style="background:#a67817;" onclick="saveReportEdits('${uid}')">${t('saveBtn')}</button>
+      <button class="status-action-btn" style="background:#3a3a3a;" onclick="cancelEdit('${uid}')">${t('cancelBtn')}</button>
+    </div>
+  </div>`;
+}
+
+function onEditCategoryChange(reportId) {
+  const catSelect = document.getElementById(`edit-cat-${reportId}`);
+  const subSelect = document.getElementById(`edit-subcat-${reportId}`);
+  if (!catSelect || !subSelect) return;
+  populateSubcategoryOptions(subSelect, catSelect.value, null);
+}
+
+function enterEditMode(reportId) {
+  const marker = markerById.get(reportId);
+  const pin = sectionPinById.get(reportId);
+  const report = globalActiveData.find(r => r.id === reportId);
+  if ((!marker && !pin) || !report) return;
+  // A section report has both a line and a pin sharing the same popup markup;
+  // keep both in sync even though only one of them was actually clicked open.
+  if (marker) marker.setPopupContent(buildEditPopupHtml(report));
+  if (pin) pin.setPopupContent(buildEditPopupHtml(report));
+  // subcategory <select> starts empty in the template; populate it now that
+  // it's actually in the DOM, preselecting the report's current subcategory
+  setTimeout(() => {
+    const subSelect = document.getElementById(`edit-subcat-${reportId}`);
+    if (subSelect) populateSubcategoryOptions(subSelect, report.category, report.subcategory);
+  }, 0);
+}
+
+function cancelEdit(reportId) {
+  const marker = markerById.get(reportId);
+  const pin = sectionPinById.get(reportId);
+  const report = globalActiveData.find(r => r.id === reportId);
+  if ((!marker && !pin) || !report) return;
+  if (marker) marker.setPopupContent(buildPopupHtml(report));
+  if (pin) pin.setPopupContent(buildPopupHtml(report));
+}
+
+// Computes which timeline timestamp(s) to set/clear for a given status transition.
+// Moving to in_progress stamps in_progress_at; moving to fixed stamps fixed_at
+// (leaving in_progress_at as-is in case a report skipped straight to fixed);
+// reverting to reported clears both, since the report is back at square one.
+function buildStatusPatch(newStatus) {
+  const now = new Date().toISOString();
+  if (newStatus === 'reported')    return { status: 'reported',    in_progress_at: null, fixed_at: null };
+  if (newStatus === 'in_progress') return { status: 'in_progress', in_progress_at: now,  fixed_at: null };
+  if (newStatus === 'fixed')       return { status: 'fixed',       fixed_at: now };
+  return { status: newStatus };
+}
+
+async function saveReportEdits(reportId) {
+  const category    = document.getElementById(`edit-cat-${reportId}`).value;
+  const subcatEl     = document.getElementById(`edit-subcat-${reportId}`);
+  const subcategory  = (subcatEl && subcatEl.value) ? subcatEl.value : null;
+  const status       = document.getElementById(`edit-status-${reportId}`).value;
+  const comment       = document.getElementById(`edit-comment-${reportId}`).value;
+  try {
+    const { error } = await sb.from(TABLE)
+      .update({ category, subcategory, comment, updated_at: new Date().toISOString(), ...buildStatusPatch(status) })
+      .eq('id', reportId);
+    if (error) throw error;
+    await loadPinsByWindow();
+  } catch (err) {
+    console.error('Edit save error (full):', err);
+    alert(describeAuthError(err));
+  }
+}
+
+async function deleteReport(reportId) {
+  if (!confirm(t('deleteConfirm'))) return;
+  try {
+    const { error } = await sb.from(TABLE).delete().eq('id', reportId);
+    if (error) throw error;
+    await loadPinsByWindow();
+  } catch (err) {
+    console.error('Delete error (full):', err);
+    alert(describeAuthError(err));
+  }
+}
+
+async function updateReportStatus(reportId, newStatus) {
+  if (!currentSession) return;
+  try {
+    const { error } = await sb.from(TABLE)
+      .update({ updated_at: new Date().toISOString(), ...buildStatusPatch(newStatus) })
+      .eq('id', reportId);
+    if (error) throw error;
+    await loadPinsByWindow();
+  } catch (err) {
+    console.error('Status update error (full):', err);
+    alert(t('updateFail'));
+  }
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// Creates the marker for a report if it isn't rendered yet, or updates an
+// already-rendered marker's icon/popup in place (e.g. after a status change)
+// without tearing it down and rebuilding it from scratch.
+// A report is a "section" report (drawn as a spline/polyline instead of a
+// single pin) when it carries a `path` array with more than one point,
+// e.g. produced by the driving-mode section recorder.
+function isSectionReport(report) {
+  return sanitizePath(report.path).length > 1;
+}
+
+// Picks a stable point along a section's traced path to anchor its pin,
+// so the pin doesn't jump around if the path is re-set with the same shape.
+// Assumes `path` has already been through sanitizePath().
+function sectionPinLatLng(path) {
+  return path[Math.floor(path.length / 2)];
+}
+
+function upsertSectionPin(report) {
+  const catCol = categoryColor(report.category);
+  const sCol   = statusColor(report.status);
+  const opacity = report.status === 'fixed' ? 0.55 : 1;
+  const iconHtml = `<div style="width:22px;height:22px;border-radius:50%;background:${catCol};border:3px solid ${sCol};opacity:${opacity};box-shadow:0 2px 6px rgba(0,0,0,.5);"></div>`;
+  const latlng = sectionPinLatLng(sanitizePath(report.path));
+
+  let pin = sectionPinById.get(report.id);
+  if (pin) {
+    pin.setIcon(L.divIcon({ className: '', html: iconHtml, iconAnchor: [11,11] }));
+    pin.setLatLng(latlng);
+    pin.setPopupContent(buildPopupHtml(report));
+    return pin;
+  }
+
+  pin = L.marker(latlng, {
+    icon: L.divIcon({ className: '', html: iconHtml, iconAnchor: [11,11] })
+  }).addTo(map);
+
+  pin._reportId = report.id;
+  pin.bindPopup(buildPopupHtml(report));
+  sectionPinById.set(report.id, pin);
+  return pin;
+}
+
+function upsertSectionLine(report) {
+  const sCol = statusColor(report.status);
+  const opacity = report.status === 'fixed' ? 0.4 : 0.85;
+  const path = sanitizePath(report.path);
+
+  upsertSectionPin(report);
+
+  let line = markerById.get(report.id);
+  if (line) {
+    line.setStyle({ color: sCol, opacity });
+    line.setLatLngs(path);
+    line.setPopupContent(buildPopupHtml(report));
+    return line;
+  }
+
+  line = L.polyline(path, { color: sCol, weight: 6, opacity, lineCap: 'round' }).addTo(map);
+  line._reportId = report.id;
+  line.bindPopup(buildPopupHtml(report));
+  markerById.set(report.id, line);
+  return line;
+}
+
+function upsertMarker(report) {
+  if (isSectionReport(report)) return upsertSectionLine(report);
+
+  if (!isValidLatLng(report.latitude, report.longitude)) {
+    console.error('Skipped rendering report with invalid coordinates:', report.id, report.latitude, report.longitude);
+    return null;
+  }
+
+  const catCol = categoryColor(report.category);
+  const sCol   = statusColor(report.status);
+  const opacity = report.status === 'fixed' ? 0.55 : 1;
+  const iconHtml = `<div style="width:22px;height:22px;border-radius:50%;background:${catCol};border:3px solid ${sCol};opacity:${opacity};box-shadow:0 2px 6px rgba(0,0,0,.5);"></div>`;
+
+  let marker = markerById.get(report.id);
+  if (marker) {
+    marker.setIcon(L.divIcon({ className: '', html: iconHtml, iconAnchor: [11,11] }));
+    marker.setLatLng([report.latitude, report.longitude]);
+    marker.setPopupContent(buildPopupHtml(report));
+    return marker;
+  }
+
+  marker = L.marker([report.latitude, report.longitude], {
+    icon: L.divIcon({ className: '', html: iconHtml, iconAnchor: [11,11] })
+  }).addTo(map);
+
+  marker._reportId = report.id;
+  marker.bindPopup(buildPopupHtml(report));
+  markerById.set(report.id, marker);
+  return marker;
+}
+
+// True if a report should be considered "in view" for the current bounds —
+// point reports check their single coordinate, section reports check
+// whether any part of their traced path intersects the viewport.
+function reportInBounds(report, bounds) {
+  if (isSectionReport(report)) {
+    return sanitizePath(report.path).some(([lat, lon]) => bounds.contains(L.latLng(lat, lon)));
+  }
+  if (!isValidLatLng(report.latitude, report.longitude)) return false;
+  return bounds.contains(L.latLng(report.latitude, report.longitude));
+}
+
+// Keeps the on-map markers in sync with globalActiveData, but only ever
+// attaches markers for reports inside (a small buffer around) the current
+// viewport. This is what keeps things fast with a lot of pins: panning and
+// zooming just add/remove the handful of markers at the edge of view instead
+// of touching the whole dataset.
+// - refreshExisting=true also re-applies icon/popup content to markers that
+//   are already on the map (used after a data reload, since a report's
+//   status/category/comment may have changed).
+// - refreshExisting=false (pan/zoom) only adds newly-visible markers and
+//   removes ones that scrolled out of view; unaffected markers are untouched.
+function syncMarkers(refreshExisting) {
+  const bounds = map.getBounds().pad(0.2);
+  const desiredIds = new Set();
+
+  globalActiveData.forEach(r => {
+    if (!reportInBounds(r, bounds)) return;
+    desiredIds.add(r.id);
+    if (refreshExisting || !markerById.has(r.id)) upsertMarker(r);
+  });
+
+  markerById.forEach((marker, id) => {
+    if (!desiredIds.has(id)) {
+      map.removeLayer(marker);
+      markerById.delete(id);
+    }
+  });
+
+  sectionPinById.forEach((pin, id) => {
+    if (!desiredIds.has(id)) {
+      map.removeLayer(pin);
+      sectionPinById.delete(id);
+    }
+  });
+}
+
+function refreshRenderedPopups() {
+  markerById.forEach((marker, id) => {
+    const report = globalActiveData.find(r => r.id === id);
+    if (report) marker.setPopupContent(buildPopupHtml(report));
+  });
+  sectionPinById.forEach((pin, id) => {
+    const report = globalActiveData.find(r => r.id === id);
+    if (report) pin.setPopupContent(buildPopupHtml(report));
+  });
+}
+
+function updateReportCount() {
+  const n = globalActiveData.length;
+  const rcEl = document.getElementById('reportCount');
+  if (rcEl) rcEl.textContent = n + ' ' + (n === 1 ? t('reportCount1') : t('reportCount'));
+}
+
+async function loadPinsByWindow() {
+  if (!fp || !fp.selectedDates || fp.selectedDates.length < 2) return;
+
+  const start = new Date(fp.selectedDates[0]);
+  start.setHours(0,0,0,0);
+  const end = new Date(fp.selectedDates[1]);
+  end.setHours(23,59,59,999);
+
+  try {
+    // Reports inside the selected date range, plus - regardless of the date
+    // filter - any report that isn't fixed yet, so open issues never
+    // disappear from the map just because they fall outside the window.
+    const [dateRangeRes, alwaysOnRes] = await Promise.all([
+      sb.from(TABLE).select('*')
+        .gte('created_at', start.toISOString())
+        .lte('created_at', end.toISOString())
+        .order('created_at', { ascending: true }),
+      sb.from(TABLE).select('*').neq('status', 'fixed')
+    ]);
+
+    if (dateRangeRes.error) throw dateRangeRes.error;
+    if (alwaysOnRes.error) throw alwaysOnRes.error;
+
+    dateRangeOnlyData = dateRangeRes.data || [];
+
+    const merged = new Map();
+    dateRangeOnlyData.forEach(r => merged.set(r.id, r));
+    (alwaysOnRes.data || []).forEach(r => merged.set(r.id, r));
+    globalActiveData = Array.from(merged.values());
+
+    syncMarkers(true);
+    updateReportCount();
+  } catch (err) {
+    console.error('Failed to load reports:', err.message);
+    toast(t('loadFailed'), 'error');
+  }
+}
+
+function downloadCSV() {
+  // Exactly what the name on the button implies: reports in the selected
+  // date range AND currently visible on screen (not the always-on open
+  // reports that may be outside the date filter, nor pins off-screen).
+  const bounds = map.getBounds();
+  const visible = dateRangeOnlyData.filter(r =>
+    isValidLatLng(r.latitude, r.longitude) && bounds.contains(L.latLng(r.latitude, r.longitude))
+  );
+
+  if (!visible.length) { alert(t('noReports')); return; }
+
+  let csv = `Report Generated/Downloaded On: ${new Date().toLocaleString()}\n\n`;
+  csv += 'ID,ReportedAt,InProgressAt,FixedAt,Latitude,Longitude,Category,Subcategory,Status,ReportedBy,Comment\n';
+  visible.forEach(r => {
+    csv += `${r.id},` +
+           `${r.created_at},` +
+           `${r.in_progress_at || ''},` +
+           `${r.fixed_at || ''},` +
+           `${r.latitude},` +
+           `${r.longitude},` +
+           `${r.category},` +
+           `${r.subcategory || ''},` +
+           `${r.status},` +
+           `"${(r.comment || '').replace(/"/g, '""')}"\n`;
+  });
+
+  let filename = 'TraceTheBreak.csv';
+  if (fp.selectedDates.length === 2) {
+    const pad = (n) => String(n).padStart(2, '0');
+    const d1 = fp.selectedDates[0];
+    const d2 = fp.selectedDates[1];
+    const startStr = `${pad(d1.getDate())}${pad(d1.getMonth() + 1)}${d1.getFullYear()}`;
+    const endStr = `${pad(d2.getDate())}${pad(d2.getMonth() + 1)}${d2.getFullYear()}`;
+    filename = `TraceTheBreak_${startStr}_${endStr}.csv`;
+  }
+
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+// =============================================================================
+// UI — panel collapse, wake lock, fullscreen
+// =============================================================================
+(function initMapPanelToggle(){
+  const btn   = document.getElementById('panelToggleBtn');
+  const panel = document.getElementById('appPanel');
+  if (!btn || !panel) return;
+
+  const TRANSITION_MS = 320;
+  let collapsed = false;
+
+  function animateMapDuringTransition(){
+    if (typeof map === 'undefined' || !map.invalidateSize) return;
+    const start = performance.now();
+    function step(now){
+      map.invalidateSize({ animate: false, pan: false });
+      if (now - start < TRANSITION_MS) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  function setCollapsed(next){
+    if (collapsed === next) return;
+    collapsed = next;
+
+    if (collapsed) {
+      panel.style.height = panel.scrollHeight + 'px';
+      panel.getBoundingClientRect();
+      requestAnimationFrame(() => {
+        panel.style.height = '0px';
+        panel.style.opacity = '0';
+      });
+    } else {
+      const target = panel.scrollHeight;
+      panel.style.height = target + 'px';
+      panel.style.opacity = '1';
+      panel.addEventListener('transitionend', function onEnd(e){
+        if (e.propertyName !== 'height') return;
+        panel.removeEventListener('transitionend', onEnd);
+        if (!collapsed) panel.style.height = 'auto';
+      });
+    }
+
+    btn.classList.toggle('collapsed', collapsed);
+    btn.setAttribute('aria-expanded', String(!collapsed));
+    btn.title = collapsed ? 'Show panel' : 'Hide panel';
+    animateMapDuringTransition();
+  }
+
+  btn.addEventListener('click', () => setCollapsed(!collapsed));
+})();
+
+// --- Keep screen awake ---------------------------------------------------
+// Requests a screen wake lock so the display doesn't dim/sleep while the
+// map is open. Re-requests automatically when the tab regains visibility
+// (the lock is released by the browser whenever the tab is hidden).
+let wakeLock = null;
+
+async function requestWakeLock() {
+  if (!('wakeLock' in navigator)) return;
+  try {
+    wakeLock = await navigator.wakeLock.request('screen');
+    wakeLock.addEventListener('release', () => { wakeLock = null; });
+  } catch (err) {
+    console.warn('Wake lock not granted:', err.message);
+  }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') requestWakeLock();
+});
+
+requestWakeLock();
+
+// --- Fullscreen toggle -----------------------------------------------------
+function toggleFullscreen() {
+  const el = document.documentElement;
+  const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement;
+
+  if (!isFullscreen) {
+    (el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen)?.call(el);
+  } else {
+    (document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen)?.call(document);
+  }
+}
+
+function updateFullscreenBtn() {
+  const btn = document.getElementById('fullscreenBtn');
+  if (!btn) return;
+  const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement;
+  btn.textContent = isFullscreen ? '⤢' : '⛶';
+  btn.title = isFullscreen ? 'Exit fullscreen / Napusti celi ekran' : 'Fullscreen / Preko celog ekrana';
+}
+
+['fullscreenchange', 'webkitfullscreenchange'].forEach(evt =>
+  document.addEventListener(evt, () => {
+    updateFullscreenBtn();
+    if (typeof map !== 'undefined' && map.invalidateSize) {
+      setTimeout(() => map.invalidateSize(), 100);
+    }
+  })
+);
+
+// =============================================================================
+// STARTUP
+// =============================================================================
+initCalendarFilter();
+applyLang();
+showHelpModal();
+loadPinsByWindow();
+initAuth();
+
+</script>
+
+</body>
+</html>
