@@ -579,6 +579,25 @@ body.driving-active #drivingTopFade{ display:block; }
 body.driving-active .driving-speed-widget{ display:flex; }
 .driving-speed-value{ font-size:26px; font-weight:800; color:#00d0ff; line-height:1; }
 .driving-speed-unit{ font-size:10px; font-weight:700; color:#888; letter-spacing:.3px; margin-top:1px; }
+/* Speed-limit "sign" — sits directly under the actual speed, styled like a
+   real speed-limit sign so it reads instantly at a glance. Dims to a bare
+   outline when no limit could be found nearby rather than disappearing,
+   so the layout never jumps around as it comes and goes. */
+.driving-speed-limit{
+  margin-top:7px;
+  width:32px; height:32px;
+  border-radius:50%;
+  background:#fff;
+  border:3px solid #d61f1f;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:13px;
+  font-weight:800;
+  color:#111;
+  transition:opacity .2s;
+}
+.driving-speed-limit.no-data{ opacity:.3; }
 .driving-status-label{
   display:flex; align-items:center; gap:4px;
   margin-top:6px;
@@ -622,54 +641,41 @@ body.driving-active .driving-action-cluster{ display:flex; }
 .driving-exit-btn{ background:#262626; border-color:#444; color:#ddd; }
 .driving-exit-btn:active{ background:#3a3a3a; }
 
-/* --- Compact floating route card: destination, ETA/distance, end button.
-   Sits top-center between the speed widget and the action cluster, and is
-   only shown once a destination is active (toggled in JS via nav state). --- */
+/* --- Destination header bar: a full-width strip pinned above every other
+   floating widget (speed pill, action cluster, compass) so it never
+   overlaps them — those widgets shift down instead (see body.nav-card-open
+   below). Only the destination name/status and a single X to close;
+   selecting a destination starts navigating immediately, no separate
+   "Start" step. --- */
 .driving-nav-card{
   display:none;
   position:fixed;
-  top:calc(12px + env(safe-area-inset-top, 0px));
-  left:84px;
-  right:60px;
-  z-index:2500;
-  flex-direction:column;
-  gap:6px;
-  background:rgba(20,20,20,.94);
-  border:1px solid #2c2c2c;
-  border-radius:12px;
-  padding:9px 14px;
+  top:0;
+  left:0;
+  right:0;
+  z-index:2700;
+  flex-direction:row;
+  align-items:center;
+  gap:10px;
+  background:rgba(20,20,20,.96);
+  border-bottom:1px solid #2c2c2c;
+  padding:calc(10px + env(safe-area-inset-top, 0px)) 16px 10px 16px;
   box-shadow:0 3px 12px rgba(0,0,0,.6);
 }
-
-/* --- Floating "Report" button — the only way reporting UI appears.
-   Doubles as a section-recording status indicator (turns red + pulses)
-   so recording stays visible even while the sheet is closed. --- */
-.driving-report-btn{
-  position:fixed;
-  left:50%;
-  bottom:calc(20px + env(safe-area-inset-bottom, 0px));
-  transform:translateX(-50%);
-  z-index:2500;
-  display:none;
-  align-items:center;
-  gap:7px;
-  background:#a67817;
-  color:white;
-  border:none;
-  border-radius:999px;
-  padding:13px 24px;
-  font-size:14px;
-  font-weight:800;
-  letter-spacing:.2px;
-  box-shadow:0 4px 14px rgba(0,0,0,.55);
-  -webkit-tap-highlight-color:transparent;
-  touch-action:manipulation;
+/* The destination header takes the top strip, so the speed pill, action
+   cluster, and compass all move down out of its way while it's showing. */
+body.nav-card-open .driving-speed-widget,
+body.nav-card-open .map-compass{
+  top: calc(64px + 12px + env(safe-area-inset-top, 0px)) !important;
 }
-body.driving-active .driving-report-btn{ display:flex; }
-.driving-report-btn.recording{ background:#ff4b4b; animation:pulseRec 1.2s infinite; }
+body.nav-card-open .driving-action-cluster{
+  top: calc(64px + 68px + env(safe-area-inset-top, 0px)) !important;
+}
 
-/* --- Collapsible report sheet: closed by default, slides up from the
-   bottom only while choosing a report type, then closes immediately. --- */
+/* --- Always-visible road-report bar: sits pinned to the bottom of the
+   map in driving mode. No expand/collapse step — the section-record
+   button and the one-row of quick-report tiles are always on screen so
+   reporting never takes more than a single tap. --- */
 .driving-report-sheet{
   position:fixed;
   left:0; right:0; bottom:0;
@@ -680,71 +686,74 @@ body.driving-active .driving-report-btn{ display:flex; }
   border-top:1px solid #333;
   border-radius:20px 20px 0 0;
   box-shadow:0 -6px 24px rgba(0,0,0,.5);
-  padding:8px 16px calc(16px + env(safe-area-inset-bottom, 0px)) 16px;
-  display:flex;
+  padding:12px 14px calc(14px + env(safe-area-inset-bottom, 0px)) 14px;
+  display:none;
   flex-direction:column;
-  gap:12px;
-  max-height:62vh;
-  overflow-y:auto;
-  transform:translateY(100%);
-  transition:transform .28s ease;
+  gap:10px;
 }
-.driving-report-sheet.open{ transform:translateY(0); }
-.driving-handle{
-  width:36px; height:4px;
-  border-radius:3px;
-  background:#444;
-  margin:2px auto 0 auto;
-  cursor:pointer;
-}
-.driving-header{
-  display:flex;
-  justify-content:space-between;
+body.driving-active .driving-report-sheet{ display:flex; }
+
+/* Thin status bar that replaces the section-record button the moment
+   recording stops, prompting the person to tap one of the tiles below
+   to categorize (or discard) the section they just traced. */
+.section-awaiting-bar{
+  display:none;
   align-items:center;
-  padding-bottom:10px;
-  border-bottom:1px solid #2a2a2a;
+  justify-content:space-between;
+  gap:10px;
+  background:#2a2308;
+  border:1px solid #a67817;
+  border-radius:14px;
+  padding:11px 14px;
 }
-.driving-header h3{ font-size:15px; font-weight:800; letter-spacing:.4px; color:#f2f2f2; }
-.driving-sheet-close{
-  background:#262626;
-  border:1px solid #444;
-  color:#ddd;
+#sectionAwaitingText{ font-size:12px; font-weight:700; color:#f5c518; line-height:1.3; }
+.section-awaiting-cancel{
+  flex-shrink:0;
+  width:30px; height:30px;
   border-radius:50%;
-  width:32px; height:32px;
-  font-size:14px;
+  background:#333;
+  border:1px solid #4a4a4a;
+  color:#ddd;
+  font-size:13px;
   display:flex; align-items:center; justify-content:center;
   cursor:pointer;
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
 }
-.driving-sheet-close:active{ background:#3a3a3a; }
-.driving-grid{
-  display:grid;
-  grid-template-columns:repeat(3, 1fr);
-  gap:10px;
+.section-awaiting-cancel:active{ background:#444; }
+/* One-row of quick-report tiles, always visible (no grid/expand step).
+   flex:1 on each tile keeps exactly five equal-width buttons on one line
+   even on narrow phones. */
+.driving-tile-row{
+  display:flex;
+  gap:6px;
 }
 .driving-tile{
+  flex:1;
+  min-width:0;
   background:#232323;
   border:1px solid #3a3a3a;
-  border-radius:14px;
+  border-radius:12px;
   color:white;
-  padding:14px 6px;
-  font-size:11px;
+  padding:9px 2px;
+  font-size:9px;
   font-weight:700;
+  line-height:1.15;
+  text-align:center;
   display:flex;
   flex-direction:column;
   align-items:center;
-  gap:6px;
+  gap:4px;
   cursor:pointer;
   transition:background .15s, transform .1s;
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
 }
 .driving-tile:active{ background:#333; transform:scale(.96); }
-.driving-tile .tile-emoji{ font-size:24px; }
+.driving-tile .tile-emoji{ font-size:19px; }
 .driving-section-btn{
   width:100%;
-  padding:15px;
+  padding:14px;
   border-radius:14px;
   font-size:14px;
   font-weight:800;
@@ -756,15 +765,27 @@ body.driving-active .driving-report-btn{ display:flex; }
   background:#ff4b4b;
   animation:pulseRec 1.2s infinite;
 }
-.driving-hint{ font-size:10px; color:#888; text-align:center; }
 .driving-nav-dest{
   display:block;
-  font-size:13px;
+  font-size:14px;
   font-weight:800;
   color:#f2f2f2;
   white-space:nowrap;
   overflow:hidden;
   text-overflow:ellipsis;
+}
+.driving-nav-card-info{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+  min-width:0;
+  flex:1;
+}
+.driving-nav-card-sub{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-height:14px;
 }
 .driving-nav-status-text{
   font-size:11px;
@@ -774,30 +795,29 @@ body.driving-active .driving-report-btn{ display:flex; }
 .driving-nav-active-info{
   display:none;
   align-items:center;
-  justify-content:space-between;
   gap:8px;
 }
 .driving-nav-active-info #navigateDistanceText{
-  font-size:13px;
-  font-weight:800;
-  color:#00d0ff;
+  font-size:12px;
+  font-weight:700;
+  color:#9be8ee;
   white-space:nowrap;
   flex-shrink:0;
 }
-.driving-nav-btns{ display:flex; gap:8px; flex-shrink:0; }
-.driving-nav-btn{
+.driving-nav-close-btn{
   flex-shrink:0;
-  font-size:11px;
-  font-weight:700;
-  padding:7px 12px;
-  border-radius:8px;
-  border:none;
+  width:34px; height:34px;
+  border-radius:50%;
+  background:#262626;
+  border:1px solid #444;
+  color:#ddd;
+  font-size:15px;
+  display:flex; align-items:center; justify-content:center;
   cursor:pointer;
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
 }
-.driving-nav-btn-start{ background:#00d0ff; color:#111; }
-.driving-nav-btn-clear{ background:#333; color:#ddd; }
+.driving-nav-close-btn:active{ background:#3a3a3a; }
 
 /* --- Driving mode: decluttered, full-screen map like a dedicated
    navigation app. Legends, header chrome, and the filter/report panel
@@ -1289,6 +1309,7 @@ span.flatpickr-weekday {
 <div class="driving-speed-widget">
   <span class="driving-speed-value" id="drivingSpeedValue">--</span>
   <span class="driving-speed-unit">km/h</span>
+  <div class="driving-speed-limit no-data" id="drivingSpeedLimit">--</div>
   <span class="driving-status-label" id="drivingStatusLabel">GPS</span>
 </div>
 
@@ -1299,54 +1320,36 @@ span.flatpickr-weekday {
 </div>
 
 <div id="drivingNavCard" class="driving-nav-card">
-  <span id="navigateDestText" class="driving-nav-dest"></span>
-  <div id="navigateStatusText" class="driving-nav-status-text" style="display:none"></div>
-  <div id="navigateActiveInfo" class="driving-nav-active-info">
-    <span id="navigateDistanceText"></span>
-    <div class="driving-nav-btns">
-      <button id="navigateStartBtn" class="driving-nav-btn driving-nav-btn-start" onclick="startNavigating()">Start</button>
-      <button id="navigateClearBtn" class="driving-nav-btn driving-nav-btn-clear" onclick="clearNavigation()">Clear route</button>
+  <div class="driving-nav-card-info">
+    <span id="navigateDestText" class="driving-nav-dest"></span>
+    <div class="driving-nav-card-sub">
+      <span id="navigateStatusText" class="driving-nav-status-text" style="display:none"></span>
+      <div id="navigateActiveInfo" class="driving-nav-active-info">
+        <span id="navigateDistanceText"></span>
+      </div>
     </div>
   </div>
+  <button id="navigateClearBtn" class="driving-nav-close-btn" onclick="clearNavigation()" title="Close">✕</button>
 </div>
 
-<button class="driving-report-btn" id="drivingReportBtn" onclick="toggleReportSheet()">
-  <span id="drivingReportBtnIcon">⚠️</span>
-  <span id="drivingReportBtnLabel">Report</span>
-</button>
-
+<!-- Always-visible road-report bar: the section-record button plus one row
+     of quick-report tiles. No expand/collapse step. The same tiles are
+     reused after a section recording is stopped — tapping one then
+     categorizes and submits the section instead of logging a new point. -->
 <div id="drivingReportSheet" class="driving-report-sheet">
-  <div class="driving-handle" onclick="toggleReportSheet()"></div>
-  <div class="driving-header">
-    <h3 id="drivingModeTitle">Report an issue</h3>
-    <button class="driving-sheet-close" onclick="toggleReportSheet()" title="Close">✕</button>
-  </div>
-  <div class="driving-grid">
-    <div class="driving-tile" onclick="quickReportRoad('pothole'); closeReportSheet();"><span class="tile-emoji">🕳️</span><span id="dTilePothole">Pothole</span></div>
-    <div class="driving-tile" onclick="quickReportRoad('cracked'); closeReportSheet();"><span class="tile-emoji">🛣️</span><span id="dTileCracked">Damaged pavement</span></div>
-    <div class="driving-tile" onclick="quickReportRoad('signage'); closeReportSheet();"><span class="tile-emoji">🚧</span><span id="dTileSignage">Bad signage</span></div>
-    <div class="driving-tile" onclick="quickReportRoad('flooding'); closeReportSheet();"><span class="tile-emoji">🌊</span><span id="dTileFlooding">Flooding</span></div>
-    <div class="driving-tile" onclick="quickReportRoad(null); closeReportSheet();"><span class="tile-emoji">⚠️</span><span id="dTileOther">Other road issue</span></div>
+  <div id="sectionAwaitingBar" class="section-awaiting-bar" style="display:none">
+    <span id="sectionAwaitingText">Tap a type below to save this section</span>
+    <button class="section-awaiting-cancel" onclick="cancelPendingSection()" title="Discard">✕</button>
   </div>
   <button class="driving-section-btn" id="sectionRecordBtn" onclick="toggleSectionRecording()">
     <span id="sectionRecordBtnLabel">Start Section Report</span>
   </button>
-  <div class="driving-hint" id="drivingHint">Tap a tile to instantly log a point issue at your current location. Use section report to trace a whole stretch of bad road.</div>
-</div>
-
-<!-- Section report details modal, shown after ending a section recording -->
-<div id="sectionModal" class="generic-modal-overlay" style="display:none">
-  <div class="generic-modal">
-    <div class="generic-modal-icon">🛣️</div>
-    <h2 id="sectionModalTitle">Describe this section</h2>
-    <div class="row" style="margin-bottom:10px;">
-      <select id="sectionSubcategory" style="width:100%;"></select>
-    </div>
-    <input id="sectionComment" type="text" placeholder="Optional notes..." style="margin-bottom:14px;">
-    <div class="row" style="gap:8px;">
-      <button class="generic-modal-close" style="flex:1;background:#333;" onclick="cancelSectionReport()" id="sectionCancelBtn">Cancel</button>
-      <button class="generic-modal-close" style="flex:1;" onclick="submitSectionReport()" id="sectionSubmitBtn">Submit</button>
-    </div>
+  <div class="driving-tile-row">
+    <div class="driving-tile" onclick="handleTileTap('pothole')"><span class="tile-emoji">🕳️</span><span id="dTilePothole">Pothole</span></div>
+    <div class="driving-tile" onclick="handleTileTap('cracked')"><span class="tile-emoji">🛣️</span><span id="dTileCracked">Damaged pavement</span></div>
+    <div class="driving-tile" onclick="handleTileTap('signage')"><span class="tile-emoji">🚧</span><span id="dTileSignage">Bad signage</span></div>
+    <div class="driving-tile" onclick="handleTileTap('flooding')"><span class="tile-emoji">🌊</span><span id="dTileFlooding">Flooding</span></div>
+    <div class="driving-tile" onclick="handleTileTap(null)"><span class="tile-emoji">⚠️</span><span id="dTileOther">Other road issue</span></div>
   </div>
 </div>
 
@@ -1434,7 +1437,17 @@ span.flatpickr-weekday {
 // =============================================================================
 const SUPABASE_URL = 'https://fnkqmwweljsupbmerbkh.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZua3Ftd3dlbGpzdXBibWVyYmtoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3OTcwODUsImV4cCI6MjA5NzM3MzA4NX0.eX3mxnSpGmJ6Ebw7Y4F_jHiJarPH4ri9WNYXwmLi16I';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const sb = supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_KEY,
+    {
+        auth: {
+            persistSession: true,
+            autoRefreshToken: true,
+            detectSessionInUrl: true
+        }
+    }
+);
 const TABLE = 'brake_reports';
 const PROFILES_TABLE = 'profiles';
 
@@ -1785,8 +1798,15 @@ function setLang(l){
   if (fp) {
     const savedDates = fp.selectedDates;
     fp.destroy();
-    initCalendarFilter(savedDates);
-    loadPinsByWindow();
+    initCalendarFilter();
+
+    setTimeout(async () => {
+        await loadPinsByWindow();
+    }, 0);
+
+    applyLang();
+    showHelpModal();
+    initAuth();
   }
 }
 
@@ -1893,6 +1913,7 @@ function initCalendarFilter(optionalDefaultDates) {
       if (selectedDates.length === 2) await loadPinsByWindow();
     }
   });
+  setTimeout(loadPinsByWindow, 0);
 }
 
 // =============================================================================
@@ -1934,6 +1955,7 @@ let manualMarker  = null;
 let followMode        = false; // when true, map auto-recenters on the user like turn-by-turn nav
 let drivingMode        = false;
 let sectionRecording   = false;
+let sectionAwaitingCategory = false; // true right after "Stop" is tapped, until a tile is chosen to categorize the just-traced section
 let sectionPoints      = [];   // array of {lat, lon} collected while recording a section
 let sectionPolyline    = null; // live-drawn Leaflet polyline while recording
 const SECTION_MIN_DISTANCE_M = 8; // ignore GPS jitter smaller than this before adding a new section point
@@ -2736,11 +2758,6 @@ function toggleDrivingMode() {
   // the full-screen map plus a handful of small floating widgets.
   document.body.classList.toggle('driving-active', drivingMode);
 
-  // The report sheet should never persist open across a mode toggle —
-  // entering driving mode always starts map-first, and leaving it should
-  // never leave a stray sheet cluttering the normal view underneath.
-  closeReportSheet();
-
   if (btn) btn.classList.toggle('active', drivingMode);
 
   // The map container's real size just changed (header/legends/panel hidden
@@ -2792,24 +2809,17 @@ function toggleDrivingMode() {
   setTimeout(() => { if (typeof map !== 'undefined' && map.invalidateSize) { map.invalidateSize(); updateRotationOrigin(); } }, 60);
 }
 
-// --- Collapsible report sheet -------------------------------------------
-// Closed by default; opened only by tapping the floating Report button (or
-// the section-recording status it doubles as), and closed immediately again
-// once a report type is tapped — so it never lingers over the map.
-let reportSheetOpen = false;
-
-function toggleReportSheet() {
-  reportSheetOpen = !reportSheetOpen;
-  const sheet = document.getElementById('drivingReportSheet');
-  if (sheet) sheet.classList.toggle('open', reportSheetOpen);
-  updateRotationOrigin();
-}
-
-function closeReportSheet() {
-  reportSheetOpen = false;
-  const sheet = document.getElementById('drivingReportSheet');
-  if (sheet) sheet.classList.remove('open');
-  updateRotationOrigin();
+// Routes a tap on one of the always-visible road-report tiles: normally
+// it's an instant point report at the current location, but right after a
+// section recording is stopped the same tiles switch to categorizing (and
+// submitting) that section instead — same buttons, different meaning,
+// clearly flagged by the awaiting-category bar above them.
+function handleTileTap(subcategoryKey) {
+  if (sectionAwaitingCategory) {
+    finalizeSectionReport(subcategoryKey);
+  } else {
+    quickReportRoad(subcategoryKey);
+  }
 }
 
 // One-tap report for a Road-category issue, used from the driving mode overlay.
@@ -2850,81 +2860,48 @@ function toggleSectionRecording() {
       color: '#ff4b4b', weight: 6, opacity: 0.85, lineCap: 'round'
     }).addTo(map);
     updateSectionButtonUI();
-    // Close the sheet immediately so the map (and the road being traced)
-    // stays fully visible while recording; the floating Report button
-    // itself turns red as the recording indicator (see updateSectionButtonUI).
-    closeReportSheet();
     toast(t('sectionStarted') || 'Section recording started', 'success');
   } else {
     sectionRecording = false;
-    updateSectionButtonUI();
-    closeReportSheet();
     if (sectionPoints.length < 2) {
+      updateSectionButtonUI();
       toast(t('sectionTooShort') || 'Not enough movement recorded — section discarded.', 'error');
       discardSectionDraft();
       return;
     }
-    openSectionModal();
+    // Don't ask via a separate modal — hand off straight to the same
+    // report tiles below (now repurposed to categorize this section) so
+    // finishing a report never takes more than one extra tap.
+    sectionAwaitingCategory = true;
+    updateSectionButtonUI();
   }
 }
 
-function updateSectionButtonUI() {
-  const btn = document.getElementById('sectionRecordBtn');
-  const label = document.getElementById('sectionRecordBtnLabel');
-  if (btn && label) {
-    btn.classList.toggle('recording', sectionRecording);
-    label.textContent = sectionRecording
-      ? (t('endSectionBtn') || 'End Section Report')
-      : (t('startSectionBtn') || 'Start Section Report');
-  }
-
-  // Mirror the recording state onto the floating Report button so it keeps
-  // acting as a status indicator even while the sheet itself is closed —
-  // tapping it again while recording reopens the sheet showing "End Section
-  // Report" instead of the normal grid of report types.
-  const reportBtn   = document.getElementById('drivingReportBtn');
-  const reportLabel = document.getElementById('drivingReportBtnLabel');
-  const reportIcon  = document.getElementById('drivingReportBtnIcon');
-  if (reportBtn && reportLabel && reportIcon) {
-    reportBtn.classList.toggle('recording', sectionRecording);
-    reportLabel.textContent = sectionRecording
-      ? (t('recordingLabel') || 'Recording…')
-      : (t('reportBtnLabel') || 'Report');
-    reportIcon.textContent = sectionRecording ? '🔴' : '⚠️';
-  }
-}
-
-function discardSectionDraft() {
-  if (sectionPolyline) { map.removeLayer(sectionPolyline); sectionPolyline = null; }
-  sectionPoints = [];
-}
-
-function openSectionModal() {
-  const sel = document.getElementById('sectionSubcategory');
-  populateSubcategoryOptions(sel, 'Road', null);
-  document.getElementById('sectionComment').value = '';
-  document.getElementById('sectionModal').style.display = 'flex';
-}
-
-function cancelSectionReport() {
-  document.getElementById('sectionModal').style.display = 'none';
+// Discards the section just stopped, without saving it.
+function cancelPendingSection() {
+  sectionAwaitingCategory = false;
+  updateSectionButtonUI();
   discardSectionDraft();
+  toast(t('sectionDiscarded') || 'Section discarded', 'error');
 }
 
-async function submitSectionReport() {
+// Finishes a stopped section recording by tagging it with the tapped tile's
+// subcategory and submitting it — the same one-tap flow as a normal quick
+// report, just operating on the traced path instead of a single point.
+async function finalizeSectionReport(subcategoryKey) {
   if (!currentSession || !currentProfile) { toast(t('signInFirst') || 'Sign in first', 'error'); return; }
-  if (sectionPoints.length < 2) { document.getElementById('sectionModal').style.display = 'none'; return; }
+  if (sectionPoints.length < 2) {
+    sectionAwaitingCategory = false;
+    updateSectionButtonUI();
+    discardSectionDraft();
+    return;
+  }
 
-  const subcategory = document.getElementById('sectionSubcategory').value || null;
-  const comment = document.getElementById('sectionComment').value;
-
-  // Store the whole traced path; latitude/longitude fall back to the
-  // path's midpoint so this row still behaves like a normal point report
-  // anywhere in the app that doesn't know about the `path` column yet.
   const rawPath = sectionPoints.map(p => [p.lat, p.lon]);
   const pathJson = sanitizePath(rawPath);
   if (pathJson.length < 2) {
-    document.getElementById('sectionModal').style.display = 'none';
+    sectionAwaitingCategory = false;
+    updateSectionButtonUI();
     discardSectionDraft();
     toast(t('invalidLocation'), 'error');
     return;
@@ -2936,16 +2913,17 @@ async function submitSectionReport() {
       latitude: mid[0],
       longitude: mid[1],
       category: 'Road',
-      subcategory,
+      subcategory: subcategoryKey,
       status: 'reported',
-      comment,
+      comment: '',
       path: pathJson,
       created_at: new Date().toISOString(),
       owner_id: currentSession.user.id,
       owner_username: currentProfile.username
     }]);
     if (error) throw error;
-    document.getElementById('sectionModal').style.display = 'none';
+    sectionAwaitingCategory = false;
+    updateSectionButtonUI();
     discardSectionDraft();
     toast('✓ ' + t('submitted'), 'success');
     await loadPinsByWindow();
@@ -2953,6 +2931,29 @@ async function submitSectionReport() {
     console.error('Section report submit error (full):', err);
     toast(describeAuthError(err), 'error');
   }
+}
+
+function updateSectionButtonUI() {
+  const btn  = document.getElementById('sectionRecordBtn');
+  const label = document.getElementById('sectionRecordBtnLabel');
+  const bar  = document.getElementById('sectionAwaitingBar');
+  const barText = document.getElementById('sectionAwaitingText');
+
+  if (bar) bar.style.display = sectionAwaitingCategory ? 'flex' : 'none';
+  if (btn) btn.style.display = sectionAwaitingCategory ? 'none' : 'flex';
+  if (barText) barText.textContent = t('pickSectionType') || 'Tap a type below to save this section';
+
+  if (btn && label) {
+    btn.classList.toggle('recording', sectionRecording);
+    label.textContent = sectionRecording
+      ? (t('endSectionBtn') || 'Stop Recording')
+      : (t('startSectionBtn') || 'Start Section Report');
+  }
+}
+
+function discardSectionDraft() {
+  if (sectionPolyline) { map.removeLayer(sectionPolyline); sectionPolyline = null; }
+  sectionPoints = [];
 }
 
 // =============================================================================
