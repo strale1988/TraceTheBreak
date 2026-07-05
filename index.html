@@ -500,7 +500,6 @@ body.nav-panel-open .driving-nav-card{
   width:27px; height:27px;
   transition:transform .25s linear;
   filter:drop-shadow(0 2px 5px rgba(0,0,0,.55));
-  transform: rotate(0deg);
 }
 
 /* --- Driving-mode HUD vignette ---
@@ -2127,7 +2126,7 @@ function updateUserMarkerRotation() {
   const arrow = el.querySelector('.user-nav-arrow');
   if (!arrow) return;
   const angle = (drivingMode && headingUpMode) ? 0 : (currentHeading || 0);
-  // arrow.style.transform = `rotate(${angle}deg)`;
+  arrow.style.transform = `rotate(${angle}deg)`;
 }
 
 function toggleHeadingUpMode() {
