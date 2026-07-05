@@ -1871,7 +1871,9 @@ function applyLang(){
 
   document.getElementById('navigateSearchInput').placeholder = t('navigateSearchPH');
   document.getElementById('navigateClearBtn').textContent    = t('navigateClearBtn');
-  document.getElementById('navigateStartBtn').textContent    = t('navigateStartBtn');
+  //document.getElementById('navigateStartBtn').textContent    = t('navigateStartBtn');
+  const navStartBtn = document.getElementById('navigateStartBtn');
+if (navStartBtn) navStartBtn.textContent = t('navigateStartBtn');
   updateNavStatusText();
 }
 
