@@ -2127,7 +2127,7 @@ function updateUserMarkerRotation() {
   const arrow = el.querySelector('.user-nav-arrow');
   if (!arrow) return;
   const angle = (drivingMode && headingUpMode) ? 0 : (currentHeading || 0);
-  arrow.style.transform = `rotate(${angle}deg)`;
+  // arrow.style.transform = `rotate(${angle}deg)`;
 }
 
 function toggleHeadingUpMode() {
