@@ -341,21 +341,6 @@ body.nav-panel-open .driving-nav-card{
   display:none !important;
 }
 .navigate-row{ display:flex; gap:6px; align-items:center; }
-.navigate-profile-row{ display:flex; gap:6px; }
-.navigate-profile-btn{
-  flex:1;
-  padding:6px 0;
-  border-radius:6px;
-  background:#232323;
-  border:1px solid #333;
-  color:#999;
-  font-size:15px;
-  text-align:center;
-  cursor:pointer;
-  -webkit-tap-highlight-color:transparent;
-  touch-action:manipulation;
-}
-.navigate-profile-btn.active{ background:#00d0ff; border-color:#00d0ff; filter:none; }
 .navigate-row input{
   flex:1;
   padding:8px 9px;
@@ -635,6 +620,33 @@ body.driving-active .driving-speed-widget{ display:flex; }
   transition:background .2s;
 }
 .driving-status-dot.gps-lost{ background:#ff4b4b; }
+
+/* Upcoming-turn HUD — sits directly under the speed/speed-limit widget in
+   the same left-hand floating stack. Kept compact (fits one line of turn
+   text) since it has to coexist with the map underneath it. */
+.turn-by-turn-card{
+  display:none;
+  flex-direction:row;
+  align-items:center;
+  gap:8px;
+  max-width:220px;
+  background:rgba(20,20,20,.88);
+  border:1px solid #3a3a3a;
+  border-radius:10px;
+  padding:7px 10px;
+  box-shadow:0 3px 12px rgba(0,0,0,.55);
+}
+.turn-by-turn-icon{ font-size:22px; line-height:1; flex-shrink:0; }
+.turn-by-turn-info{ display:flex; flex-direction:column; gap:1px; min-width:0; }
+.turn-by-turn-dist{ font-size:14px; font-weight:800; color:#00d0ff; line-height:1.1; }
+.turn-by-turn-text{
+  font-size:11.5px;
+  color:#ddd;
+  line-height:1.2;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
 
 /* --- Action row: back button (left) + search/recenter buttons (right),
    sitting directly above the section-record button and quick-report
@@ -1315,11 +1327,6 @@ span.flatpickr-weekday {
     <div class="navigate-close-btn" onclick="closeNavigatePanel()">✕</div>
   </div>
   <div id="navigatePinHint" class="navigate-pin-hint" style="display:none">Tap the map to drop a destination pin</div>
-  <div class="navigate-profile-row">
-    <div class="navigate-profile-btn active" data-profile="driving" onclick="setNavProfile('driving')">🚗</div>
-    <div class="navigate-profile-btn" data-profile="walking" onclick="setNavProfile('walking')">🚶</div>
-    <div class="navigate-profile-btn" data-profile="cycling" onclick="setNavProfile('cycling')">🚲</div>
-  </div>
   <div id="navigateResults" class="navigate-results"></div>
 </div>
 <!-- Driving mode: map-first floating HUD. Nothing here permanently covers
@@ -1336,6 +1343,13 @@ span.flatpickr-weekday {
       <span class="driving-speed-unit">km/h</span>
     </div>
     <div class="driving-speed-limit no-data" id="drivingSpeedLimit">--</div>
+  </div>
+  <div id="turnByTurnCard" class="turn-by-turn-card" style="display:none">
+    <span class="turn-by-turn-icon" id="turnByTurnIcon">⬆️</span>
+    <div class="turn-by-turn-info">
+      <span class="turn-by-turn-dist" id="turnByTurnDist"></span>
+      <span class="turn-by-turn-text" id="turnByTurnText"></span>
+    </div>
   </div>
 </div>
 
@@ -1801,7 +1815,23 @@ const T = {
   navNavigating:     { en:'Navigating',                               sr:'Navigacija u toku' },
   navOffRoute:       { en:'Off route — recalculating shortly',        sr:'Skrenuli ste s rute — preračunavanje uskoro' },
   navRecalculating:  { en:'Recalculating route…',                     sr:'Preračunavanje rute…' },
-  navigateArrived:   { en:'You have arrived',                         sr:'Stigli ste' }
+  navigateArrived:   { en:'You have arrived',                         sr:'Stigli ste' },
+  turnLeft:          { en:'Turn left',                                 sr:'Skrenite levo' },
+  turnRight:         { en:'Turn right',                                sr:'Skrenite desno' },
+  turnSlightLeft:    { en:'Slight left',                               sr:'Blago levo' },
+  turnSlightRight:   { en:'Slight right',                              sr:'Blago desno' },
+  turnSharpLeft:      { en:'Sharp left',                                sr:'Oštro levo' },
+  turnSharpRight:     { en:'Sharp right',                               sr:'Oštro desno' },
+  turnStraight:      { en:'Continue straight',                         sr:'Nastavite pravo' },
+  turnUturn:         { en:'Make a U-turn',                             sr:'Napravite polukružno okretanje' },
+  turnContinue:      { en:'Continue',                                  sr:'Nastavite' },
+  turnMerge:         { en:'Merge',                                     sr:'Uključite se' },
+  turnFork:          { en:'Keep at the fork',                          sr:'Držite se na račvanju' },
+  turnEndOfRoad:     { en:'Follow the road',                           sr:'Pratite put' },
+  turnRamp:          { en:'Take the ramp',                             sr:'Uzmite rampu' },
+  turnRoundabout:    { en:'Enter the roundabout',                      sr:'Uđite u kružni tok' },
+  turnExit:          { en:'exit',                                      sr:'izlaz' },
+  turnArrive:        { en:'Arrive at destination',                     sr:'Stigli ste na odredište' }
 };
 
 function t(k){ return T[k]?.[lang] ?? k; }
@@ -2445,8 +2475,9 @@ const ON_ROUTE_RECOVER_THRESHOLD_M = 25;
 let destinationCoords  = null; // { lat, lon, label } of the chosen destination, or null if none active
 let destinationMarker  = null; // Leaflet marker for the destination
 let navigationLine     = null; // Leaflet polyline showing the route (or straight-line fallback)
+let navRouteSteps      = [];   // turn-by-turn maneuver list for the current route (see buildTurnSteps)
+let navStepIndex       = 0;    // index into navRouteSteps of the *upcoming* maneuver
 let navPanelOpen       = false;
-let navProfile         = 'driving'; // 'driving' | 'walking' | 'cycling'
 let navRouteFetching   = false;
 let navLastRouteAt     = 0;      // timestamp of the last successful route fetch
 let navLastRouteFrom   = null;   // {lat,lon} the last route was fetched from, to detect drift
@@ -2454,11 +2485,9 @@ let navLastRouteFrom   = null;   // {lat,lon} the last route was fetched from, t
 const NAV_REROUTE_INTERVAL_MS = 15000; // don't reroute more often than this
 const NAV_REROUTE_DRIFT_M     = 40;    // ...unless we've drifted this far off the last route origin
 
-const OSRM_ENDPOINTS = {
-  driving: { url: 'https://routing.openstreetmap.de/routed-car/route/v1/driving/',  profile: 'driving' },
-  walking: { url: 'https://routing.openstreetmap.de/routed-foot/route/v1/foot/',    profile: 'foot' },
-  cycling: { url: 'https://routing.openstreetmap.de/routed-bike/route/v1/bike/',    profile: 'bike' }
-};
+// Car-only navigation now — walking/cycling profiles and the profile
+// picker were removed, so there's just the one OSRM car routing endpoint.
+const OSRM_CAR_ENDPOINT = 'https://routing.openstreetmap.de/routed-car/route/v1/driving/';
 
 // --- Road snapping (driving mode) -------------------------------------------
 // Raw GPS fixes routinely land a few meters to one side of the actual road
@@ -2587,19 +2616,6 @@ function toggleNavPinMode() {
   if (hint) hint.style.display = navPinMode ? 'block' : 'none';
 }
 
-function setNavProfile(profile) {
-  navProfile = profile;
-  document.querySelectorAll('.navigate-profile-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.profile === profile);
-  });
-  // Switching mode implies the previous route geometry no longer applies.
-  if (destinationCoords) {
-    navLastRouteAt = 0;
-    navLastRouteFrom = null;
-    drawNavigationLine();
-  }
-}
-
 async function searchDestination() {
   const input = document.getElementById('navigateSearchInput');
   const q = input.value.trim();
@@ -2678,15 +2694,15 @@ function selectDestination(lat, lon, label) {
   });
 }
 
-// Fetches a real road route from OSRM and returns { coords, distance, duration }
-// with coords already flipped to Leaflet's [lat, lon] order.
-async function fetchRoute(from, to, profile) {
+// Fetches a real road route from OSRM and returns { coords, distance, duration, steps }
+// with coords already flipped to Leaflet's [lat, lon] order. steps=true pulls in the
+// turn-by-turn maneuver list (see buildTurnSteps) used for the upcoming-turn HUD.
+async function fetchRoute(from, to) {
   if (!isValidCoordObj(from) || !isValidCoordObj(to)) {
     throw new Error('invalid coordinates for routing');
   }
-  const endpoint = OSRM_ENDPOINTS[profile] || OSRM_ENDPOINTS.driving;
-  const url = `${endpoint.url}${from.lon},${from.lat};${to.lon},${to.lat}` +
-              `?overview=full&geometries=geojson`;
+  const url = `${OSRM_CAR_ENDPOINT}${from.lon},${from.lat};${to.lon},${to.lat}` +
+              `?overview=full&geometries=geojson&steps=true`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`routing request failed (HTTP ${res.status})`);
   const data = await res.json();
@@ -2694,11 +2710,30 @@ async function fetchRoute(from, to, profile) {
     throw new Error(data.message || 'no route found');
   }
   const route = data.routes[0];
+  const leg = route.legs && route.legs[0];
   return {
     coords: route.geometry.coordinates.map(([rlon, rlat]) => [rlat, rlon]),
     distance: route.distance, // meters
-    duration: route.duration  // seconds
+    duration: route.duration,  // seconds
+    steps: buildTurnSteps(leg)
   };
+}
+
+// Flattens an OSRM leg's steps into the small shape the turn-by-turn HUD
+// needs: where the maneuver happens, what kind of turn it is, and the
+// street it leads onto. maneuver.location is [lon, lat] in OSRM, flipped
+// here to {lat, lon} so it matches the rest of the app's coordinate shape.
+function buildTurnSteps(leg) {
+  if (!leg || !Array.isArray(leg.steps)) return [];
+  return leg.steps.map(step => ({
+    type: step.maneuver?.type || 'continue',
+    modifier: step.maneuver?.modifier || null,
+    exit: step.maneuver?.exit || null,
+    name: step.name || '',
+    location: step.maneuver?.location
+      ? { lat: step.maneuver.location[1], lon: step.maneuver.location[0] }
+      : null
+  })).filter(s => s.location);
 }
 
 // Draws/updates the navigation line. Prefers a real road route from OSRM,
@@ -2722,13 +2757,20 @@ async function drawNavigationLine(force) {
   if (needsRoute && !navRouteFetching) {
     navRouteFetching = true;
     try {
-      const route = await fetchRoute(from, destinationCoords, navProfile);
+      const route = await fetchRoute(from, destinationCoords);
       navLastRouteAt = Date.now();
       navLastRouteFrom = { lat: from.lat, lon: from.lon };
 
       if (navigationLine) map.removeLayer(navigationLine);
       navigationLine = L.polyline(route.coords, { color: '#00d0ff', weight: 5, opacity: .9 }).addTo(map);
       navigationLine._isFallback = false;
+
+      // A fresh route means fresh maneuvers — start the upcoming-turn
+      // pointer over from the first real turn (index 0 is "depart",
+      // already behind us the moment a route is drawn).
+      navRouteSteps = route.steps;
+      navStepIndex = navRouteSteps.length > 1 ? 1 : 0;
+      updateTurnByTurnDisplay(from);
 
       updateNavInfoText(route.distance, route.duration);
     } catch (err) {
@@ -2741,6 +2783,11 @@ async function drawNavigationLine(force) {
         color: '#00d0ff', weight: 4, opacity: .85, dashArray: '8 8'
       }).addTo(map);
       navigationLine._isFallback = true;
+      // No maneuver list without a real routed leg — hide the turn HUD
+      // rather than show stale directions from a previous route.
+      navRouteSteps = [];
+      navStepIndex = 0;
+      hideTurnByTurnDisplay();
       updateNavInfoText(distMeters(from, destinationCoords), null);
     } finally {
       navRouteFetching = false;
@@ -2762,6 +2809,80 @@ function updateNavInfoText(meters, seconds, approximate) {
   let str = (approximate ? '~' : '') + formatDistance(meters);
   if (seconds != null) str += ' · ' + formatDuration(seconds);
   distText.textContent = str;
+}
+
+// --- Turn-by-turn HUD --------------------------------------------------
+// Small "next instruction" card shown under the speed/speed-limit widget.
+// Maps OSRM's maneuver type+modifier onto an arrow icon and a short piece
+// of text, and tracks which upcoming maneuver (navStepIndex into
+// navRouteSteps) is currently closest ahead of the driver.
+const TURN_ARRIVE_RADIUS_M = 25; // close enough to a maneuver point to consider it "reached"
+
+const TURN_ICONS = {
+  'sharp left':  '↰', 'left':  '⬅️', 'slight left':  '↖️',
+  'sharp right': '↱', 'right': '➡️', 'slight right': '↗️',
+  straight: '⬆️', uturn: '↩️'
+};
+
+function instructionForStep(step) {
+  if (!step) return null;
+  const { type, modifier, exit, name } = step;
+
+  if (type === 'arrive') return { icon: '🏁', text: t('turnArrive') };
+  if (type === 'depart')  return null;
+
+  if (type === 'roundabout' || type === 'rotary' || type === 'roundabout turn') {
+    const label = exit ? `${t('turnRoundabout')} — ${t('turnExit')} ${exit}` : t('turnRoundabout');
+    return { icon: '🔄', text: name ? `${label} (${name})` : label };
+  }
+
+  let icon = '⬆️';
+  let text = t('turnContinue');
+  if (modifier && TURN_ICONS[modifier]) {
+    icon = TURN_ICONS[modifier];
+    const key = {
+      'sharp left': 'turnSharpLeft', left: 'turnLeft', 'slight left': 'turnSlightLeft',
+      'sharp right': 'turnSharpRight', right: 'turnRight', 'slight right': 'turnSlightRight',
+      straight: 'turnStraight', uturn: 'turnUturn'
+    }[modifier];
+    text = t(key);
+  } else if (type === 'merge')      { icon = '⤴️'; text = t('turnMerge'); }
+  else if (type === 'fork')         { icon = '⑂';  text = t('turnFork'); }
+  else if (type === 'end of road')  { icon = '⏹️'; text = t('turnEndOfRoad'); }
+  else if (type === 'on ramp' || type === 'off ramp') { icon = '⤴️'; text = t('turnRamp'); }
+
+  return { icon, text: name ? `${text} — ${name}` : text };
+}
+
+// Called on every accepted GPS fix while a route is active. Advances past
+// any maneuver point already reached, then renders the next one with a
+// live "in Xm" distance so it counts down as the driver approaches it.
+function updateTurnByTurnDisplay(from) {
+  const card = document.getElementById('turnByTurnCard');
+  if (!card) return;
+  if (!from || !navRouteSteps.length || navState === NavState.PREVIEW) { hideTurnByTurnDisplay(); return; }
+
+  while (
+    navStepIndex < navRouteSteps.length - 1 &&
+    distMeters(from, navRouteSteps[navStepIndex].location) <= TURN_ARRIVE_RADIUS_M
+  ) {
+    navStepIndex++;
+  }
+
+  const step = navRouteSteps[navStepIndex];
+  const info = instructionForStep(step);
+  if (!info) { hideTurnByTurnDisplay(); return; }
+
+  const distToTurn = distMeters(from, step.location);
+  document.getElementById('turnByTurnIcon').textContent = info.icon;
+  document.getElementById('turnByTurnText').textContent = info.text;
+  document.getElementById('turnByTurnDist').textContent = formatDistance(distToTurn);
+  card.style.display = 'flex';
+}
+
+function hideTurnByTurnDisplay() {
+  const card = document.getElementById('turnByTurnCard');
+  if (card) card.style.display = 'none';
 }
 
 // Checks the live GPS fix against the destination (arrival) and the drawn
@@ -2824,6 +2945,9 @@ function clearNavigation() {
   destinationCoords = null;
   navLastRouteAt = 0;
   navLastRouteFrom = null;
+  navRouteSteps = [];
+  navStepIndex = 0;
+  hideTurnByTurnDisplay();
   if (navigationLine)    { map.removeLayer(navigationLine); navigationLine = null; }
   if (destinationMarker) { map.removeLayer(destinationMarker); destinationMarker = null; }
   document.getElementById('navigateActiveInfo').style.display = 'none';
@@ -3406,6 +3530,7 @@ function startWatching() {
         if (destinationCoords) {
           drawNavigationLine();
           evaluateNavigationProgress();
+          updateTurnByTurnDisplay(userCoords);
         }
 
         checkFormReady();
