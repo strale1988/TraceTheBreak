@@ -2196,6 +2196,18 @@ function attachOrientationListeners() {
 const ABSOLUTE_HEADING_STALE_MS = 3000; // if no true-north reading in this long, trust relative alpha again
 
 function handleOrientationEvent(event) {
+  // GPS course-over-ground is the authoritative heading source while
+  // driving (see the fix handler in startWatching for why). The device
+  // compass fires far more often than GPS fixes arrive, so without this
+  // gate it would constantly stomp the correct GPS-derived bearing with a
+  // noisy magnetometer reading — which is exactly what was making the map
+  // rotate the wrong way while actually driving. Only let the compass
+  // through once the last GPS course has gone stale (stopped at a light,
+  // just starting to move, etc.).
+  if (drivingMode && headingUpMode && (Date.now() - lastGpsHeadingAt) < GPS_HEADING_FRESH_MS) {
+    return;
+  }
+
   let heading = null;
   let isAbsolute = false;
 
@@ -2209,7 +2221,7 @@ function handleOrientationEvent(event) {
 
   if (isAbsolute) {
     lastAbsoluteHeadingAt = Date.now();
-  } else if (typeof event.alpha === 'number' && Date.now() - lastAbsoluteHeadingAt > ABSOLUTE_HEADING_STALE_MS) {
+  } else if (compassActive && typeof event.alpha === 'number' && Date.now() - lastAbsoluteHeadingAt > ABSOLUTE_HEADING_STALE_MS) {
     // Several Android/Chrome builds only fire 'deviceorientationabsolute'
     // sporadically — sometimes a few times at the start of a session and
     // then not again (e.g. after a magnetometer recalibration). A one-way
@@ -2219,6 +2231,14 @@ function handleOrientationEvent(event) {
     // time. Tracking a timestamp instead lets the relative fallback kick
     // back in whenever absolute readings have gone quiet for a bit, so
     // rotation keeps moving in real time either way.
+    //
+    // Guarded by `compassActive` — meaning we've received at least one real
+    // *absolute* reading earlier in this session, establishing a true-north
+    // reference. Plain 'deviceorientation' events report alpha relative to
+    // whatever angle the phone happened to be at when the listener was
+    // attached, not true north. Treating that as an absolute bearing on a
+    // device that has never given a real compass fix (alpha's zero point is
+    // arbitrary) was the other half of the wrong-direction rotation bug.
     heading = 360 - event.alpha;
   }
   if (heading === null || isNaN(heading)) return;
@@ -2239,6 +2259,18 @@ function distMeters(a, b) {
   const dLon = toRad(b.lon - a.lon);
   const s = Math.sin(dLat/2)**2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon/2)**2;
   return 2 * R * Math.asin(Math.sqrt(s));
+}
+
+// Moves a {lat, lon} point `meters` in the direction `bearingDeg` (clockwise
+// from true north). Flat-earth approximation — plenty accurate at the
+// few-meter, lane-width scale this is used for (see ROAD_SIDE_OFFSET_M).
+function offsetLatLng(lat, lon, bearingDeg, meters) {
+  const R = 6371000;
+  const brng = bearingDeg * Math.PI / 180;
+  const latRad = lat * Math.PI / 180;
+  const dLat = (meters * Math.cos(brng)) / R;
+  const dLon = (meters * Math.sin(brng)) / (R * Math.cos(latRad));
+  return { lat: lat + dLat * 180 / Math.PI, lon: lon + dLon * 180 / Math.PI };
 }
 
 // Nearest point to `p` ({lat, lon}) on the segment a→b (each a plain
@@ -2443,6 +2475,13 @@ const ROAD_SNAP_URL_BASE        = 'https://routing.openstreetmap.de/routed-car/n
 const ROAD_SNAP_MIN_INTERVAL_MS = 1200;  // don't fire a new network request more often than this
 const ROAD_SNAP_MAX_ACCEPT_M    = 30;    // ignore a snap result this far from the raw fix (off-road)
 const ROAD_SNAP_FALLBACK_MS     = 1800;  // if a snap attempt hasn't resolved by then, show the raw fix instead of freezing the puck
+// OSRM's /nearest snaps to the road *centerline*, which for a two-way
+// street puts the puck straddling the middle of both lanes rather than the
+// side actually being driven on. Once we know the travel heading we nudge
+// the snapped point sideways by half a lane width, to the right of the
+// direction of travel — Serbia (and most of the region) drives on the
+// right, so "right of travel direction" is the correct/near lane.
+const ROAD_SIDE_OFFSET_M        = 3;     // ~half a typical lane width
 let roadSnapFetching        = false;
 let lastRoadSnapAt          = 0;
 let snappedUserCoords       = null; // last accepted on-road position, or null if nothing's been snapped yet
@@ -2481,12 +2520,21 @@ function snapUserToRoadThenShow(lat, lon) {
     .then(res => res.json())
     .then(data => {
       const wp = data && data.code === 'Ok' && data.waypoints && data.waypoints[0];
-      const snapped = wp ? { lat: wp.location[1], lon: wp.location[0] } : null;
+      let snapped = wp ? { lat: wp.location[1], lon: wp.location[0] } : null;
       // Only accept a snap that's a plausible distance from the raw fix —
       // otherwise we're genuinely off-road (parking lot, driveway) and
       // forcing the puck onto the nearest street would be misleading.
       const useSnap = snapped && distMeters(snapped, { lat, lon }) <= ROAD_SNAP_MAX_ACCEPT_M;
-      if (useSnap) snappedUserCoords = snapped;
+      if (useSnap) {
+        // Nudge off the centerline onto the side of the road we're driving
+        // on, using the current travel heading (GPS course-over-ground —
+        // the same authoritative heading used for map rotation).
+        if (typeof currentHeading === 'number' && !isNaN(currentHeading)) {
+          const sideBearing = (currentHeading + 90) % 360;
+          snapped = offsetLatLng(snapped.lat, snapped.lon, sideBearing, ROAD_SIDE_OFFSET_M);
+        }
+        snappedUserCoords = snapped;
+      }
       if (roadSnapFallbackTimer) clearTimeout(roadSnapFallbackTimer);
       showDrivingPosition(useSnap ? snapped.lat : lat, useSnap ? snapped.lon : lon, fixToken);
     })
@@ -3121,7 +3169,14 @@ let smoothedFixCoords = null; // EMA-smoothed raw position, used to damp fix-to-
 const GPS_MAX_PLAUSIBLE_SPEED_MPS = 55;  // ~200 km/h; a bigger implied speed between fixes is treated as a GPS glitch
 const GPS_MAX_ACCEPTABLE_ACCURACY_M = 100; // fixes reported less precise than this are suspect
 const GPS_STALE_FIX_MS = 10000; // don't hold onto an old "good" fix forever if accuracy stays poor
+const GPS_POLL_INTERVAL_MS = 500; // how often we ask the browser for a fresh fix while watching
 const HEADING_SMOOTHING_FACTOR     = 0.35; // 0..1, higher = follows raw heading faster / smooths less
+// GPS course-over-ground (pos.coords.heading) is the authoritative heading
+// source while driving — see the big comment at the GPS fix handler below.
+// This tracks how recently we last got one, so the noisy device compass
+// (magnetometer) knows to back off and not fight it while it's fresh.
+let lastGpsHeadingAt = 0;
+const GPS_HEADING_FRESH_MS = 4000; // ~8 poll cycles of slack for a missed/rejected fix before compass is allowed back in
 const SPEED_SMOOTHING_FACTOR       = 0.45;
 // Position smoothing: a plain phone GPS fix routinely wobbles a few meters
 // side to side even standing still (multipath, receiver noise), which reads
@@ -3309,6 +3364,7 @@ function startWatching() {
         // exactly when we want it to win; see handleOrientationEvent for
         // the device-compass fallback used the rest of the time.
         if (typeof pos.coords.heading === 'number' && !isNaN(pos.coords.heading)) {
+          lastGpsHeadingAt = Date.now(); // marks GPS course as fresh — tells the compass handler to stand down
           smoothedHeading = smoothHeading(smoothedHeading, pos.coords.heading, HEADING_SMOOTHING_FACTOR);
           currentHeading = smoothedHeading;
           if (drivingMode && headingUpMode) applyMapBearing(currentHeading);
@@ -3358,16 +3414,16 @@ function startWatching() {
         gpsRequestPending = false;
         // Only a real permission denial means "GPS not enabled". A timeout or
         // temporarily unavailable fix (weak signal, indoors) is transient —
-        // the next 1-second tick will just try again, no need to alarm the user.
+        // the next tick will just try again, no need to alarm the user.
         if (err.code === err.PERMISSION_DENIED) {
           showGpsModal();
         }
       },
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 1000 }
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: GPS_POLL_INTERVAL_MS }
     );
   };
   updatePosition();
-  setInterval(updatePosition, 1000);
+  setInterval(updatePosition, GPS_POLL_INTERVAL_MS);
 }
 
 function initGps() {
