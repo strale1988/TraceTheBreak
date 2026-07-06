@@ -1732,8 +1732,6 @@ const T = {
   reportCount:  { en:'Reports',                          sr:'Prijava' },
   drivingGpsLabel:   { en:'GPS ready',                     sr:'GPS spreman' },
   drivingNoGps:      { en:'No GPS',                        sr:'Nema GPS-a' },
-  reportBtnLabel:    { en:'Report',                        sr:'Prijavi' },
-  recordingLabel:    { en:'Recording…',                    sr:'Snimanje…' },
   dTilePothole:      { en:'Pothole',                     sr:'Rupa na putu' },
   dTileCracked:      { en:'Damaged pavement',            sr:'Oštećen kolovoz' },
   dTileSignage:      { en:'Bad signage',                 sr:'Loša signalizacija' },
@@ -1772,9 +1770,6 @@ const T = {
   helpStep3Body:{ en:'Add an optional note, then tap "REPORT BREAK".', sr:'Dodajte opcionu napomenu i pritisnite "PRIJAVI KVAR".' },
   popupStatus:  { en:'Status', sr:'Status' },
   reportedByLabel: { en:'Reported by', sr:'Prijavio' },
-  reportedAtLabel:    { en:'Reported at',        sr:'Prijavljeno u' },
-  inProgressAtLabel:  { en:'In progress from',   sr:'U toku od' },
-  finishedAtLabel:    { en:'Finished at',         sr:'Završeno u' },
   statusReported:   { en:'Reported',    sr:'Prijavljeno' },
   statusInProgress: { en:'In progress', sr:'U toku' },
   statusFixed:      { en:'Fixed',       sr:'Popravljeno' },
@@ -1790,7 +1785,6 @@ const T = {
   cancelBtn:     { en:'Cancel',                                    sr:'Otkaži' },
   deleteConfirm: { en:'Delete this report permanently?',           sr:'Trajno obrisati ovu prijavu?' },
   markReported:  { en:'Mark Reported',                             sr:'Označi kao prijavljeno' },
-  navigateBtnTitle:  { en:'Navigate to a location',                 sr:'Navigacija do lokacije' },
   navigateSearchPH:  { en:'Search destination...',                  sr:'Pretraži odredište...' },
   navigateSearching: { en:'Searching...',                           sr:'Pretraga...' },
   navigateNoResults: { en:'No results found.',                      sr:'Nema rezultata.' },
@@ -3124,7 +3118,6 @@ let lastAcceptedFix   = null; // {lat, lon, t} of the last fix that passed the p
 let smoothedHeading   = null; // EMA-smoothed heading in degrees, used for map bearing + marker rotation
 let smoothedSpeedKmh  = null; // EMA-smoothed speed shown on the driving-mode HUD
 let smoothedFixCoords = null; // EMA-smoothed raw position, used to damp fix-to-fix jitter before it ever reaches the puck/road-snap logic
-let lastGpsHeadingAt  = 0;    // timestamp of the last usable GPS course-over-ground reading
 const GPS_MAX_PLAUSIBLE_SPEED_MPS = 55;  // ~200 km/h; a bigger implied speed between fixes is treated as a GPS glitch
 const GPS_MAX_ACCEPTABLE_ACCURACY_M = 100; // fixes reported less precise than this are suspect
 const GPS_STALE_FIX_MS = 10000; // don't hold onto an old "good" fix forever if accuracy stays poor
@@ -3153,15 +3146,6 @@ function smoothPositionFix(candidate) {
   };
   return smoothedFixCoords;
 }
-// While actually moving, GPS course-over-ground reflects the real direction
-// of travel far more reliably than a phone's magnetometer (which drifts
-// and reacts to a car's metal body/electronics). So GPS heading is treated
-// as authoritative for this long after it last arrived; the device compass
-// only takes over once it's gone stale — i.e. standing still or briefly
-// between fixes — so the map still turns promptly when looking around
-// while parked, but doesn't fight the true direction of travel while driving.
-const GPS_HEADING_FRESH_MS = 4000;
-
 // Exponential moving average over the shortest angular path, so heading
 // smoothing doesn't get confused by the 359°→1° wraparound.
 function smoothHeading(previous, rawHeading, factor) {
@@ -3325,7 +3309,6 @@ function startWatching() {
         // exactly when we want it to win; see handleOrientationEvent for
         // the device-compass fallback used the rest of the time.
         if (typeof pos.coords.heading === 'number' && !isNaN(pos.coords.heading)) {
-          lastGpsHeadingAt = Date.now();
           smoothedHeading = smoothHeading(smoothedHeading, pos.coords.heading, HEADING_SMOOTHING_FACTOR);
           currentHeading = smoothedHeading;
           if (drivingMode && headingUpMode) applyMapBearing(currentHeading);
@@ -3520,10 +3503,6 @@ const CATEGORY_COLORS = {
   'Streetlight':  '#c9a227',
   'Waste':        '#6d8b3a',
   'Other':        '#8342a1',
-};
-const CATEGORY_ICONS = {
-  'Water': '💧', 'Electricity': '⚡', 'Sewage': '🚱', 'Gas': '🔥', 'Heating': '♨️',
-  'Road': '🕳️', 'Streetlight': '💡', 'Waste': '🗑️', 'Other': '❓'
 };
 const SUBCATEGORIES = {
   Water: [
@@ -3889,13 +3868,6 @@ function escapeHtml(str) {
 // e.g. produced by the driving-mode section recorder.
 function isSectionReport(report) {
   return sanitizePath(report.path).length > 1;
-}
-
-// Picks a stable point along a section's traced path to anchor its pin,
-// so the pin doesn't jump around if the path is re-set with the same shape.
-// Assumes `path` has already been through sanitizePath().
-function sectionPinLatLng(path) {
-  return path[Math.floor(path.length / 2)];
 }
 
 function upsertSectionLine(report) {
