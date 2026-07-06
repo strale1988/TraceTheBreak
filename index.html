@@ -1942,7 +1942,7 @@ let mapBearing                 = 0;     // continuous (unbounded, can exceed 360
 let headingUpMode             = true;  // when true (and driving mode is on), the map rotates so travel direction faces up
 let orientationListenersBound = false;
 let orientationPermissionAsked = false;
-let hasAbsoluteHeading        = false; // true once a true-north reading has ever arrived; gates the relative-event fallback
+let lastAbsoluteHeadingAt      = 0; // timestamp of the last true-north (absolute) orientation reading
 
 // Shortest signed angular distance from `fromDeg` to `toDeg`, in (-180, 180].
 // Used so the map/compass always turns the short way instead of spinning
@@ -2153,33 +2153,37 @@ function attachOrientationListeners() {
   window.addEventListener('deviceorientation', handleOrientationEvent, true);
 }
 
+const ABSOLUTE_HEADING_STALE_MS = 3000; // if no true-north reading in this long, trust relative alpha again
+
 function handleOrientationEvent(event) {
   let heading = null;
+  let isAbsolute = false;
+
   if (typeof event.webkitCompassHeading === 'number' && !isNaN(event.webkitCompassHeading)) {
     heading = event.webkitCompassHeading; // iOS Safari — always true-north-relative
-    hasAbsoluteHeading = true;
+    isAbsolute = true;
   } else if (event.absolute && typeof event.alpha === 'number') {
     heading = 360 - event.alpha; // Android, true compass heading
-    hasAbsoluteHeading = true;
-  } else if (!hasAbsoluteHeading && typeof event.alpha === 'number') {
-    // Several Android/Chrome builds never fire 'deviceorientationabsolute' at
-    // all (only the plain relative event), which used to mean currentHeading
-    // stayed null forever and the map never rotated. Falling back to the
-    // relative alpha still gives useful turn-by-turn rotation — it just
-    // isn't locked to true north — and gets replaced the moment a real
-    // absolute reading does arrive.
+    isAbsolute = true;
+  }
+
+  if (isAbsolute) {
+    lastAbsoluteHeadingAt = Date.now();
+  } else if (typeof event.alpha === 'number' && Date.now() - lastAbsoluteHeadingAt > ABSOLUTE_HEADING_STALE_MS) {
+    // Several Android/Chrome builds only fire 'deviceorientationabsolute'
+    // sporadically — sometimes a few times at the start of a session and
+    // then not again (e.g. after a magnetometer recalibration). A one-way
+    // "never fall back once we've seen one absolute reading" flag used to
+    // mean rotation could get permanently stuck the moment those stopped
+    // arriving, even though plain 'deviceorientation' kept firing the whole
+    // time. Tracking a timestamp instead lets the relative fallback kick
+    // back in whenever absolute readings have gone quiet for a bit, so
+    // rotation keeps moving in real time either way.
     heading = 360 - event.alpha;
   }
   if (heading === null || isNaN(heading)) return;
 
   compassActive = true;
-
-  // While moving, a fresh GPS course-over-ground reading is the authoritative
-  // heading source (see GPS_HEADING_FRESH_MS) — the magnetometer is only
-  // used to fill the gap when that's stale, e.g. standing still or just
-  // after entering driving mode before the first course reading arrives.
-  if (Date.now() - lastGpsHeadingAt < GPS_HEADING_FRESH_MS) return;
-
   smoothedHeading = smoothHeading(smoothedHeading, (heading + 360) % 360, HEADING_SMOOTHING_FACTOR);
   currentHeading = smoothedHeading;
   if (drivingMode && headingUpMode) applyMapBearing(currentHeading);
