@@ -555,11 +555,11 @@ body.driving-active #drivingTopFade{ display:block; }
    map gets full focus at all times. */
 
 /* --- Floating left/right widget stacks (driving mode only) ---
-   Two fixed vertical stacks pinned to the top corners of the screen: the
-   back button + speed readout on the left, the compass + recenter/search
-   buttons on the right. Grouping them into stacks (rather than each
-   widget positioning itself) means they never overlap no matter how tall
-   the speed widget gets (with/without a speed-limit sign showing). */
+   Two fixed widgets pinned to the top corners of the screen: the speed
+   readout on the left, the heading compass on the right. The back,
+   search and recenter buttons live lower down, as a row sitting right
+   above the report buttons in the bottom sheet (see .driving-action-row
+   further below and the HTML in #drivingReportSheet). */
 .driving-left-stack, .driving-right-stack{
   position:fixed;
   top:calc(12px + env(safe-area-inset-top, 0px));
@@ -622,6 +622,18 @@ body.driving-active .driving-speed-widget{ display:flex; }
 }
 .driving-status-dot.gps-lost{ background:#ff4b4b; }
 
+/* --- Action row: back button (left) + search/recenter buttons (right),
+   sitting directly above the section-record button and quick-report
+   tiles inside the bottom sheet. Embedded in the sheet (rather than
+   floating separately) so it always sits right above the report
+   buttons no matter how tall the sheet currently is (e.g. while
+   awaiting a section category). */
+.driving-action-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+}
+.driving-action-row-right{ display:flex; gap:8px; }
 .driving-back-btn, .driving-search-btn{
   background:#1e2b2c;
   border:1px solid #00d0ff;
@@ -1294,12 +1306,11 @@ span.flatpickr-weekday {
 </div>
 <!-- Driving mode: map-first floating HUD. Nothing here permanently covers
      the map except the always-visible report bar pinned to the bottom;
-     the back button, speed/GPS readout, compass and recenter/search
-     buttons are small floating widgets over the map itself, grouped into
-     a left stack (back + speed) and a right stack (compass + recenter +
-     search) so they never collide with each other. -->
+     the speed/GPS readout and compass are small floating widgets over
+     the map itself, top-left and top-right. The back, search and
+     recenter buttons sit lower down, right above the report buttons
+     (see .driving-action-row inside #drivingReportSheet below). -->
 <div class="driving-left-stack">
-  <button class="driving-back-btn" onclick="toggleDrivingMode()" title="Back">←</button>
   <div class="driving-speed-widget">
     <span class="driving-status-dot" id="drivingStatusLabel" title="GPS status"></span>
     <div class="driving-speed-main">
@@ -1319,8 +1330,6 @@ span.flatpickr-weekday {
       </div>
     </div>
   </div>
-  <button class="driving-search-btn" id="drivingCenterBtn" onclick="toggleFollowMode()" title="Center on me">🎯</button>
-  <button class="driving-search-btn" id="drivingSearchBtn" onclick="toggleNavigatePanel()" title="Search destination">🔍</button>
 </div>
 
 <div id="drivingNavCard" class="driving-nav-card">
@@ -1342,6 +1351,13 @@ span.flatpickr-weekday {
      recording is stopped — tapping one then categorizes and submits
      the section instead of logging a new point. -->
 <div id="drivingReportSheet" class="driving-report-sheet">
+  <div class="driving-action-row">
+    <button class="driving-back-btn" onclick="toggleDrivingMode()" title="Back">←</button>
+    <div class="driving-action-row-right">
+      <button class="driving-search-btn" id="drivingSearchBtn" onclick="toggleNavigatePanel()" title="Search destination">🔍</button>
+      <button class="driving-search-btn" id="drivingCenterBtn" onclick="toggleFollowMode()" title="Center on me">🎯</button>
+    </div>
+  </div>
   <div id="sectionAwaitingBar" class="section-awaiting-bar" style="display:none">
     <span id="sectionAwaitingText">Tap a type below to save this section</span>
     <button class="section-awaiting-cancel" onclick="cancelPendingSection()" title="Discard">✕</button>
@@ -2391,55 +2407,73 @@ const OSRM_ENDPOINTS = {
   cycling: { url: 'https://routing.openstreetmap.de/routed-bike/route/v1/bike/',    profile: 'bike' }
 };
 
-// --- Road snapping ----------------------------------------------------------
+// --- Road snapping (driving mode) -------------------------------------------
 // Raw GPS fixes routinely land a few meters to one side of the actual road
 // (multipath reflections, lane width, plain receiver noise), which looks
-// wrong for a puck that's supposed to be riding the road it's on. This
-// snaps the displayed position onto the nearest routable way using OSRM's
-// /nearest service (same OSRM instance already used for routing), throttled
-// by both time and distance so it never fires on every 1s GPS tick, and
-// only accepted when it's a plausible distance from the raw fix — otherwise
-// we're genuinely off-road (parking lot, driveway, walking through a
-// field) and forcing the puck onto the nearest street would be actively
-// misleading rather than helpful.
+// wrong for a puck that's supposed to be riding the road it's on. Rather
+// than showing the raw fix right away and then correcting it a moment
+// later (which reads as a little jump/jitter every update), the puck in
+// driving mode simply waits: each fix is sent to OSRM's /nearest service
+// (same OSRM instance already used for routing) and only shown once we
+// know where it actually belongs on the road — or, if the snap attempt
+// is throttled/offline/slow, after a short fallback delay so the puck
+// never just freezes waiting on a network call.
 const ROAD_SNAP_URL_BASE        = 'https://routing.openstreetmap.de/routed-car/nearest/v1/driving/';
-const ROAD_SNAP_MIN_INTERVAL_MS = 2500;  // don't re-query more often than this...
-const ROAD_SNAP_MIN_DRIFT_M     = 12;    // ...unless we've moved this far since the last query
+const ROAD_SNAP_MIN_INTERVAL_MS = 1200;  // don't fire a new network request more often than this
 const ROAD_SNAP_MAX_ACCEPT_M    = 30;    // ignore a snap result this far from the raw fix (off-road)
-let roadSnapFetching  = false;
-let lastRoadSnapAt    = 0;
-let lastRoadSnapLoc   = null;
-let snappedUserCoords = null; // last accepted on-road position, or null if nothing's been snapped yet
+const ROAD_SNAP_FALLBACK_MS     = 1800;  // if a snap attempt hasn't resolved by then, show the raw fix instead of freezing the puck
+let roadSnapFetching        = false;
+let lastRoadSnapAt          = 0;
+let snappedUserCoords       = null; // last accepted on-road position, or null if nothing's been snapped yet
+let roadSnapFallbackTimer   = null;
 
-function maybeSnapUserToRoad(lat, lon) {
-  if (roadSnapFetching) return;
+// Actually moves the puck (and recentres the map if following). Guarded by
+// a fix token so a slow response can't clobber a newer position that has
+// already arrived and been shown.
+function showDrivingPosition(lat, lon, fixToken) {
+  if (!userMarker) return;
+  if (lastAcceptedFix && lastAcceptedFix.t !== fixToken) return;
+  userMarker.setLatLng([lat, lon]);
+  if (followMode) followMapTo(lat, lon);
+}
+
+// Entry point called on every accepted GPS fix while driving. Holds the
+// fix back from the puck until it's been snapped to the road, or the
+// fallback timer fires.
+function snapUserToRoadThenShow(lat, lon) {
+  const fixToken = lastAcceptedFix ? lastAcceptedFix.t : Date.now();
+
+  if (roadSnapFallbackTimer) clearTimeout(roadSnapFallbackTimer);
+  roadSnapFallbackTimer = setTimeout(() => {
+    showDrivingPosition(lat, lon, fixToken);
+  }, ROAD_SNAP_FALLBACK_MS);
+
   const now = Date.now();
-  const driftedFar = !lastRoadSnapLoc || distMeters(lastRoadSnapLoc, { lat, lon }) >= ROAD_SNAP_MIN_DRIFT_M;
-  const stale = now - lastRoadSnapAt >= ROAD_SNAP_MIN_INTERVAL_MS;
-  if (!driftedFar && !stale) return;
+  if (roadSnapFetching || now - lastRoadSnapAt < ROAD_SNAP_MIN_INTERVAL_MS) {
+    return; // the fallback timer above still guarantees the puck moves for this tick
+  }
 
   roadSnapFetching = true;
   lastRoadSnapAt = now;
-  lastRoadSnapLoc = { lat, lon };
-  const fixToken = lastAcceptedFix ? lastAcceptedFix.t : now;
 
   fetch(`${ROAD_SNAP_URL_BASE}${lon},${lat}?number=1`)
     .then(res => res.json())
     .then(data => {
       const wp = data && data.code === 'Ok' && data.waypoints && data.waypoints[0];
-      if (!wp) return;
-      const snapped = { lat: wp.location[1], lon: wp.location[0] };
-      if (distMeters(snapped, { lat, lon }) > ROAD_SNAP_MAX_ACCEPT_M) return; // off-road — trust the raw fix instead
-      snappedUserCoords = snapped;
-      // Only move the puck if this is still the freshest fix — a slow
-      // response shouldn't clobber a newer position that's arrived since.
-      if (userMarker && (!lastAcceptedFix || lastAcceptedFix.t === fixToken)) {
-        userMarker.setLatLng([snapped.lat, snapped.lon]);
-        if (followMode) followMapTo(snapped.lat, snapped.lon);
-      }
+      const snapped = wp ? { lat: wp.location[1], lon: wp.location[0] } : null;
+      // Only accept a snap that's a plausible distance from the raw fix —
+      // otherwise we're genuinely off-road (parking lot, driveway) and
+      // forcing the puck onto the nearest street would be misleading.
+      const useSnap = snapped && distMeters(snapped, { lat, lon }) <= ROAD_SNAP_MAX_ACCEPT_M;
+      if (useSnap) snappedUserCoords = snapped;
+      if (roadSnapFallbackTimer) clearTimeout(roadSnapFallbackTimer);
+      showDrivingPosition(useSnap ? snapped.lat : lat, useSnap ? snapped.lon : lon, fixToken);
     })
     .catch(() => {
-      // Offline or a routing-server hiccup — just keep showing the raw fix.
+      // Offline or a routing-server hiccup — show the raw fix rather than
+      // leaving the puck stuck on an old position.
+      if (roadSnapFallbackTimer) clearTimeout(roadSnapFallbackTimer);
+      showDrivingPosition(lat, lon, fixToken);
     })
     .finally(() => { roadSnapFetching = false; });
 }
@@ -3202,20 +3236,15 @@ function startWatching() {
             zIndexOffset: 1000
           }).addTo(map);
           map.setView(getFollowCenter(userCoords.lat, userCoords.lon, 13), 13);
+        } else if (drivingMode) {
+          // Don't show the raw fix right away — hold it back until it's
+          // been snapped to the road (or the fallback timeout fires), so
+          // the puck doesn't jump-then-correct on every update.
+          snapUserToRoadThenShow(userCoords.lat, userCoords.lon);
         } else {
           userMarker.setLatLng([userCoords.lat, userCoords.lon]);
+          if (followMode) followMapTo(userCoords.lat, userCoords.lon);
         }
-
-        // Navigation-style follow: keep the user centered like a nav app,
-        // rather than requiring them to manually re-pan while moving.
-        if (followMode) {
-          followMapTo(userCoords.lat, userCoords.lon);
-        }
-
-        // Snap the puck onto the actual road surface instead of leaving it
-        // wherever the raw GPS fix landed (see maybeSnapUserToRoad above).
-        // Runs async and nudges the marker/map again once it resolves.
-        maybeSnapUserToRoad(userCoords.lat, userCoords.lon);
 
         // Primary heading source: GPS course-over-ground. This is the
         // actual direction of travel, which is what heading-up rotation
