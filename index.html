@@ -16,7 +16,6 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
   <style>
-.map-tiles-grayscale { filter: grayscale(1) brightness(0.85); }
 
 *{ margin:0; padding:0; box-sizing:border-box; }
 
@@ -338,9 +337,6 @@ button{
    the extra .driving-active qualifier is redundant; simplifying to just
    "search panel open" and listing whole widgets (not individual buttons)
    makes this hide reliably instead of leaving stragglers behind. */
-body.nav-panel-open .driving-speed-widget,
-body.nav-panel-open .driving-action-cluster,
-body.nav-panel-open .map-compass,
 body.nav-panel-open .driving-nav-card{
   display:none !important;
 }
@@ -428,7 +424,7 @@ body.nav-panel-open .driving-nav-card{
    reachable regardless of panel state, floating over the map like a
    real navigation app's heading indicator. */
 .map-compass{
-  width:48px; height:48px;
+  width:44px; height:44px;
   border-radius:50%;
   background:rgba(20,20,20,.92);
   border:1px solid #3a3a3a;
@@ -437,10 +433,7 @@ body.nav-panel-open .driving-nav-card{
   align-items:center;
   justify-content:center;
   cursor:pointer;
-  position:fixed;
-  top:calc(12px + env(safe-area-inset-top, 0px));
-  right:12px;
-  z-index:2600;
+  flex-shrink:0;
   user-select:none;
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
@@ -561,70 +554,75 @@ body.driving-active #drivingTopFade{ display:block; }
    forms) is hidden via the body.driving-active rules further below so the
    map gets full focus at all times. */
 
-.driving-speed-widget{
+/* --- Floating left/right widget stacks (driving mode only) ---
+   Two fixed vertical stacks pinned to the top corners of the screen: the
+   back button + speed readout on the left, the compass + recenter/search
+   buttons on the right. Grouping them into stacks (rather than each
+   widget positioning itself) means they never overlap no matter how tall
+   the speed widget gets (with/without a speed-limit sign showing). */
+.driving-left-stack, .driving-right-stack{
   position:fixed;
   top:calc(12px + env(safe-area-inset-top, 0px));
-  left:12px;
-  z-index:2500;
+  z-index:2600;
   display:none;
   flex-direction:column;
+  gap:10px;
+}
+.driving-left-stack{ left:12px; align-items:flex-start; }
+.driving-right-stack{ right:12px; align-items:flex-end; }
+body.driving-active .driving-left-stack,
+body.driving-active .driving-right-stack{ display:flex; }
+body.nav-panel-open .driving-left-stack,
+body.nav-panel-open .driving-right-stack,
+body.nav-panel-open .driving-nav-card{
+  display:none !important;
+}
+
+/* Speed readout — no more dark card behind it, just the numbers floating
+   directly over the map with enough text-shadow to stay legible over any
+   tile color. Laid out as a single compact row instead of a tall column. */
+.driving-speed-widget{
+  display:none;
+  flex-direction:row;
   align-items:center;
-  background:rgba(20,20,20,.92);
-  border:1px solid #3a3a3a;
-  border-radius:14px;
-  padding:8px 16px;
-  box-shadow:0 3px 12px rgba(0,0,0,.6);
-  min-width:60px;
+  gap:7px;
 }
 body.driving-active .driving-speed-widget{ display:flex; }
-.driving-speed-value{ font-size:26px; font-weight:800; color:#00d0ff; line-height:1; }
-.driving-speed-unit{ font-size:10px; font-weight:700; color:#888; letter-spacing:.3px; margin-top:1px; }
-/* Speed-limit "sign" — sits directly under the actual speed, styled like a
-   real speed-limit sign so it reads instantly at a glance. Dims to a bare
-   outline when no limit could be found nearby rather than disappearing,
-   so the layout never jumps around as it comes and goes. */
+.driving-speed-main{ display:flex; flex-direction:column; align-items:center; line-height:1; }
+.driving-speed-value{ font-size:19px; font-weight:800; color:#00d0ff; line-height:1; text-shadow:0 1px 3px rgba(0,0,0,.85), 0 0 6px rgba(0,0,0,.6); }
+.driving-speed-unit{ font-size:8px; font-weight:700; color:#e2e2e2; letter-spacing:.3px; margin-top:1px; text-shadow:0 1px 3px rgba(0,0,0,.9); }
+/* Speed-limit "sign" — styled like a real speed-limit sign so it reads
+   instantly at a glance. Dims to a bare outline when no limit could be
+   found nearby rather than disappearing, so the layout never jumps
+   around as it comes and goes. */
 .driving-speed-limit{
-  margin-top:7px;
-  width:32px; height:32px;
+  width:26px; height:26px;
   border-radius:50%;
   background:#fff;
-  border:3px solid #d61f1f;
+  border:2.5px solid #d61f1f;
   display:flex;
   align-items:center;
   justify-content:center;
-  font-size:13px;
+  font-size:11px;
   font-weight:800;
   color:#111;
+  box-shadow:0 1px 4px rgba(0,0,0,.5);
   transition:opacity .2s;
 }
 .driving-speed-limit.no-data{ opacity:.3; }
-.driving-status-label{
-  display:flex; align-items:center; gap:4px;
-  margin-top:6px;
-  font-size:9px; font-weight:700; color:#5ec98a;
-  text-transform:uppercase; letter-spacing:.4px;
-  transition:color .2s;
+/* GPS status — just a small colored dot now (green = fix available, red =
+   no signal), no label text. */
+.driving-status-dot{
+  width:9px; height:9px; border-radius:50%;
+  background:#5ec98a;
+  border:1px solid rgba(0,0,0,.4);
+  box-shadow:0 0 4px rgba(0,0,0,.6);
+  flex-shrink:0;
+  transition:background .2s;
 }
-.driving-status-label::before{
-  content:''; width:6px; height:6px; border-radius:50%;
-  background:#5ec98a; flex-shrink:0; transition:background .2s;
-}
-.driving-status-label.gps-lost{ color:#ff4b4b; }
-.driving-status-label.gps-lost::before{ background:#ff4b4b; }
+.driving-status-dot.gps-lost{ background:#ff4b4b; }
 
-/* Now embedded as the first row inside #drivingReportSheet (see HTML),
-   sitting directly above the section-record button — no more fixed
-   top-right position, so it always lines up with the report bar no
-   matter how tall that bar currently is (e.g. while awaiting a
-   section category). */
-.driving-action-cluster{
-  display:none;
-  flex-direction:row;
-  gap:8px;
-  align-self:flex-start;
-}
-body.driving-active .driving-action-cluster{ display:flex; }
-.driving-search-btn, .driving-exit-btn{
+.driving-back-btn, .driving-search-btn{
   background:#1e2b2c;
   border:1px solid #00d0ff;
   color:#9be8ee;
@@ -640,8 +638,8 @@ body.driving-active .driving-action-cluster{ display:flex; }
 }
 .driving-search-btn.active{ background:#00d0ff; border-color:#00d0ff; color:#111; }
 .driving-search-btn:active{ background:#254042; }
-.driving-exit-btn{ background:#262626; border-color:#444; color:#ddd; }
-.driving-exit-btn:active{ background:#3a3a3a; }
+.driving-back-btn{ background:#262626; border-color:#444; color:#ddd; }
+.driving-back-btn:active{ background:#3a3a3a; }
 
 /* --- Destination header bar: a full-width strip pinned above every other
    floating widget (speed pill, compass) so it never overlaps them — those
@@ -667,8 +665,8 @@ body.driving-active .driving-action-cluster{ display:flex; }
    compass move down out of its way while it's showing. The action
    cluster no longer needs this — it now lives at the bottom, embedded
    in the report bar. */
-body.nav-card-open .driving-speed-widget,
-body.nav-card-open .map-compass{
+body.nav-card-open .driving-left-stack,
+body.nav-card-open .driving-right-stack{
   top: calc(64px + 12px + env(safe-area-inset-top, 0px)) !important;
 }
 
@@ -1294,24 +1292,35 @@ span.flatpickr-weekday {
   </div>
   <div id="navigateResults" class="navigate-results"></div>
 </div>
-<div id="mapCompass" class="map-compass" title="Heading — tap to toggle map rotation" onclick="toggleHeadingUpMode()">
-  <div class="compass-face">
-    <span class="compass-n">N</span>
-    <div class="compass-needle" id="compassNeedle">
-      <svg viewBox="0 0 24 24"><path d="M12 2 L16 13 L12 11 L8 13 Z" fill="#ff4b4b"/><path d="M12 22 L16 13 L12 15 L8 13 Z" fill="#ccc"/></svg>
+<!-- Driving mode: map-first floating HUD. Nothing here permanently covers
+     the map except the always-visible report bar pinned to the bottom;
+     the back button, speed/GPS readout, compass and recenter/search
+     buttons are small floating widgets over the map itself, grouped into
+     a left stack (back + speed) and a right stack (compass + recenter +
+     search) so they never collide with each other. -->
+<div class="driving-left-stack">
+  <button class="driving-back-btn" onclick="toggleDrivingMode()" title="Back">←</button>
+  <div class="driving-speed-widget">
+    <span class="driving-status-dot" id="drivingStatusLabel" title="GPS status"></span>
+    <div class="driving-speed-main">
+      <span class="driving-speed-value" id="drivingSpeedValue">--</span>
+      <span class="driving-speed-unit">km/h</span>
     </div>
+    <div class="driving-speed-limit no-data" id="drivingSpeedLimit">--</div>
   </div>
 </div>
 
-<!-- Driving mode: map-first floating HUD. Nothing here permanently covers
-     the map except the always-visible report bar pinned to the bottom;
-     the speed/GPS pill, action buttons and destination header are small
-     floating widgets over the map itself. -->
-<div class="driving-speed-widget">
-  <span class="driving-speed-value" id="drivingSpeedValue">--</span>
-  <span class="driving-speed-unit">km/h</span>
-  <div class="driving-speed-limit no-data" id="drivingSpeedLimit">--</div>
-  <span class="driving-status-label" id="drivingStatusLabel">GPS</span>
+<div class="driving-right-stack">
+  <div id="mapCompass" class="map-compass" title="Heading — tap to toggle map rotation" onclick="toggleHeadingUpMode()">
+    <div class="compass-face">
+      <span class="compass-n">N</span>
+      <div class="compass-needle" id="compassNeedle">
+        <svg viewBox="0 0 24 24"><path d="M12 2 L16 13 L12 11 L8 13 Z" fill="#ff4b4b"/><path d="M12 22 L16 13 L12 15 L8 13 Z" fill="#ccc"/></svg>
+      </div>
+    </div>
+  </div>
+  <button class="driving-search-btn" id="drivingCenterBtn" onclick="toggleFollowMode()" title="Center on me">🎯</button>
+  <button class="driving-search-btn" id="drivingSearchBtn" onclick="toggleNavigatePanel()" title="Search destination">🔍</button>
 </div>
 
 <div id="drivingNavCard" class="driving-nav-card">
@@ -1333,11 +1342,6 @@ span.flatpickr-weekday {
      recording is stopped — tapping one then categorizes and submits
      the section instead of logging a new point. -->
 <div id="drivingReportSheet" class="driving-report-sheet">
-  <div class="driving-action-cluster">
-    <button class="driving-search-btn" id="drivingCenterBtn" onclick="toggleFollowMode()" title="Center on me">🎯</button>
-    <button class="driving-search-btn" id="drivingSearchBtn" onclick="toggleNavigatePanel()" title="Search destination">🔍</button>
-    <button class="driving-exit-btn" onclick="toggleDrivingMode()" title="Back">←</button>
-  </div>
   <div id="sectionAwaitingBar" class="section-awaiting-bar" style="display:none">
     <span id="sectionAwaitingText">Tap a type below to save this section</span>
     <button class="section-awaiting-cancel" onclick="cancelPendingSection()" title="Discard">✕</button>
@@ -1897,8 +1901,7 @@ function initCalendarFilter(optionalDefaultDates) {
 const map = L.map('map').setView([45.25,19.85],11);
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-  attribution:'© OpenStreetMap',
-  className: 'map-tiles-grayscale'
+  attribution:'© OpenStreetMap'
 }).addTo(map);
 
 // Reparents Leaflet's internal map-pane (tiles + markers + lines + popups)
@@ -2387,6 +2390,59 @@ const OSRM_ENDPOINTS = {
   walking: { url: 'https://routing.openstreetmap.de/routed-foot/route/v1/foot/',    profile: 'foot' },
   cycling: { url: 'https://routing.openstreetmap.de/routed-bike/route/v1/bike/',    profile: 'bike' }
 };
+
+// --- Road snapping ----------------------------------------------------------
+// Raw GPS fixes routinely land a few meters to one side of the actual road
+// (multipath reflections, lane width, plain receiver noise), which looks
+// wrong for a puck that's supposed to be riding the road it's on. This
+// snaps the displayed position onto the nearest routable way using OSRM's
+// /nearest service (same OSRM instance already used for routing), throttled
+// by both time and distance so it never fires on every 1s GPS tick, and
+// only accepted when it's a plausible distance from the raw fix — otherwise
+// we're genuinely off-road (parking lot, driveway, walking through a
+// field) and forcing the puck onto the nearest street would be actively
+// misleading rather than helpful.
+const ROAD_SNAP_URL_BASE        = 'https://routing.openstreetmap.de/routed-car/nearest/v1/driving/';
+const ROAD_SNAP_MIN_INTERVAL_MS = 2500;  // don't re-query more often than this...
+const ROAD_SNAP_MIN_DRIFT_M     = 12;    // ...unless we've moved this far since the last query
+const ROAD_SNAP_MAX_ACCEPT_M    = 30;    // ignore a snap result this far from the raw fix (off-road)
+let roadSnapFetching  = false;
+let lastRoadSnapAt    = 0;
+let lastRoadSnapLoc   = null;
+let snappedUserCoords = null; // last accepted on-road position, or null if nothing's been snapped yet
+
+function maybeSnapUserToRoad(lat, lon) {
+  if (roadSnapFetching) return;
+  const now = Date.now();
+  const driftedFar = !lastRoadSnapLoc || distMeters(lastRoadSnapLoc, { lat, lon }) >= ROAD_SNAP_MIN_DRIFT_M;
+  const stale = now - lastRoadSnapAt >= ROAD_SNAP_MIN_INTERVAL_MS;
+  if (!driftedFar && !stale) return;
+
+  roadSnapFetching = true;
+  lastRoadSnapAt = now;
+  lastRoadSnapLoc = { lat, lon };
+  const fixToken = lastAcceptedFix ? lastAcceptedFix.t : now;
+
+  fetch(`${ROAD_SNAP_URL_BASE}${lon},${lat}?number=1`)
+    .then(res => res.json())
+    .then(data => {
+      const wp = data && data.code === 'Ok' && data.waypoints && data.waypoints[0];
+      if (!wp) return;
+      const snapped = { lat: wp.location[1], lon: wp.location[0] };
+      if (distMeters(snapped, { lat, lon }) > ROAD_SNAP_MAX_ACCEPT_M) return; // off-road — trust the raw fix instead
+      snappedUserCoords = snapped;
+      // Only move the puck if this is still the freshest fix — a slow
+      // response shouldn't clobber a newer position that's arrived since.
+      if (userMarker && (!lastAcceptedFix || lastAcceptedFix.t === fixToken)) {
+        userMarker.setLatLng([snapped.lat, snapped.lon]);
+        if (followMode) followMapTo(snapped.lat, snapped.lon);
+      }
+    })
+    .catch(() => {
+      // Offline or a routing-server hiccup — just keep showing the raw fix.
+    })
+    .finally(() => { roadSnapFetching = false; });
+}
 
 function toggleNavigatePanel() {
   navPanelOpen = !navPanelOpen;
@@ -3009,17 +3065,17 @@ function smoothHeading(previous, rawHeading, factor) {
   return ((next % 360) + 360) % 360;
 }
 
-// Drives the driving-mode HUD's small "GPS" / "No signal" label. This used
-// to just say "GPS" unconditionally (the "No signal" string existed in the
-// translations but nothing ever set it) — now it actually reflects whether
-// a fix has come in recently, both right after a fix arrives and via the
-// watchdog interval below in case fixes stop arriving altogether.
+// Drives the driving-mode HUD's small GPS status dot: green while a fix
+// has come in recently, red once it's gone stale. Used to also carry a
+// "GPS" / "No signal" text label; now it's just the colored dot, updated
+// both right after a fix arrives and via the watchdog interval below in
+// case fixes stop arriving altogether.
 const GPS_SIGNAL_LOST_MS = 8000; // matches the geolocation call's own timeout
 function updateDrivingGpsStatus() {
   const dsl = document.getElementById('drivingStatusLabel');
   if (!dsl || !drivingMode) return;
   const stale = !lastAcceptedFix || (Date.now() - lastAcceptedFix.t) > GPS_SIGNAL_LOST_MS;
-  dsl.textContent = stale ? t('drivingNoGps') : t('drivingGpsLabel');
+  dsl.title = stale ? t('drivingNoGps') : t('drivingGpsLabel');
   dsl.classList.toggle('gps-lost', stale);
 }
 setInterval(updateDrivingGpsStatus, 2000);
@@ -3155,6 +3211,11 @@ function startWatching() {
         if (followMode) {
           followMapTo(userCoords.lat, userCoords.lon);
         }
+
+        // Snap the puck onto the actual road surface instead of leaving it
+        // wherever the raw GPS fix landed (see maybeSnapUserToRoad above).
+        // Runs async and nudges the marker/map again once it resolves.
+        maybeSnapUserToRoad(userCoords.lat, userCoords.lon);
 
         // Primary heading source: GPS course-over-ground. This is the
         // actual direction of travel, which is what heading-up rotation
