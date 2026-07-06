@@ -500,7 +500,6 @@ body.nav-panel-open .driving-nav-card{
   width:27px; height:27px;
   transition:transform .25s linear;
   filter:drop-shadow(0 2px 5px rgba(0,0,0,.55));
-  rotate(0deg);
 }
 
 /* --- Driving-mode HUD vignette ---
@@ -1305,8 +1304,9 @@ span.flatpickr-weekday {
 </div>
 
 <!-- Driving mode: map-first floating HUD. Nothing here permanently covers
-     the map — the speed/GPS pill, action buttons and route card are small
-     and float over it; the report sheet stays collapsed until requested. -->
+     the map except the always-visible report bar pinned to the bottom;
+     the speed/GPS pill, action buttons and destination header are small
+     floating widgets over the map itself. -->
 <div class="driving-speed-widget">
   <span class="driving-speed-value" id="drivingSpeedValue">--</span>
   <span class="driving-speed-unit">km/h</span>
@@ -1438,17 +1438,7 @@ span.flatpickr-weekday {
 // =============================================================================
 const SUPABASE_URL = 'https://fnkqmwweljsupbmerbkh.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZua3Ftd3dlbGpzdXBibWVyYmtoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3OTcwODUsImV4cCI6MjA5NzM3MzA4NX0.eX3mxnSpGmJ6Ebw7Y4F_jHiJarPH4ri9WNYXwmLi16I';
-const sb = supabase.createClient(
-    SUPABASE_URL,
-    SUPABASE_KEY,
-    {
-        auth: {
-            persistSession: true,
-            autoRefreshToken: true,
-            detectSessionInUrl: true
-        }
-    }
-);
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const TABLE = 'brake_reports';
 const PROFILES_TABLE = 'profiles';
 
@@ -1672,7 +1662,6 @@ function updateAuthUI() {
 async function initAuth() {
   try {
     const { data: { session }, error } = await sb.auth.getSession();
-    console.log('Restored session:', session);
     if (error) throw error;
     currentSession = session;
     if (currentSession) await loadProfile();
@@ -1700,7 +1689,6 @@ async function initAuth() {
 const T = {
   subtitle:     { en:'Community Infrastructure Reporting Network', sr:'Mreža za prijavu kvarova' },
   reportCount:  { en:'Reports',                          sr:'Prijava' },
-  drivingModeTitle:  { en:'Report an issue',              sr:'Prijavi problem' },
   drivingGpsLabel:   { en:'GPS ready',                     sr:'GPS spreman' },
   drivingNoGps:      { en:'No GPS',                        sr:'Nema GPS-a' },
   reportBtnLabel:    { en:'Report',                        sr:'Prijavi' },
@@ -1711,13 +1699,11 @@ const T = {
   dTileFlooding:     { en:'Flooding',                    sr:'Poplava' },
   dTileOther:        { en:'Other road issue',            sr:'Drugi problem na putu' },
   startSectionBtn:   { en:'Start Section Report',        sr:'Počni prijavu deonice' },
-  endSectionBtn:     { en:'End Section Report',          sr:'Završi prijavu deonice' },
-  drivingHint:       { en:'Tap a tile to instantly log a point issue at your current location. Use section report to trace a whole stretch of bad road.', sr:'Dodirnite polje da odmah prijavite problem na trenutnoj lokaciji. Koristite prijavu deonice da obeležite ceo loš deo puta.' },
-  sectionModalTitle: { en:'Describe this section',       sr:'Opišite ovu deonicu' },
-  sectionCancelBtn:  { en:'Cancel',                       sr:'Otkaži' },
-  sectionSubmitBtn:  { en:'Submit',                       sr:'Pošalji' },
+  endSectionBtn:     { en:'Stop Recording',              sr:'Zaustavi snimanje' },
+  pickSectionType:   { en:'Tap a type below to save this section', sr:'Dodirnite tip ispod da sačuvate ovu deonicu' },
   sectionStarted:    { en:'Section recording started',   sr:'Snimanje deonice je počelo' },
   sectionTooShort:   { en:'Not enough movement recorded — section discarded.', sr:'Nema dovoljno kretanja — deonica je odbačena.' },
+  sectionDiscarded:  { en:'Section discarded',           sr:'Deonica odbačena' },
   signInFirst:       { en:'Please sign in first',        sr:'Prijavite se prvo' },
   followTitle:       { en:'Follow my location',          sr:'Prati moju lokaciju' },
   drivingBtnTitle:   { en:'Driving mode',                sr:'Režim vožnje' },
@@ -1769,16 +1755,15 @@ const T = {
   navigateNoResults: { en:'No results found.',                      sr:'Nema rezultata.' },
   navigateSearchFailed: { en:'Search failed. Check connection.',    sr:'Pretraga nije uspela. Provjerite konekciju.' },
   navigateNeedLocation: { en:'Waiting for your location...',        sr:'Čekanje vaše lokacije...' },
-  navigateClearBtn:  { en:'Clear route',                             sr:'Ukloni rutu' },
+  navigateCloseTitle: { en:'Close',                                   sr:'Zatvori' },
   invalidLocation:   { en:'Location looks invalid. Try setting it again.', sr:'Lokacija izgleda neispravno. Pokušajte ponovo.' },
   loadFailed:        { en:'Could not load reports. Check your connection.', sr:'Prijave nisu učitane. Proverite konekciju.' },
   navCalculating:    { en:'Calculating route…',                      sr:'Računanje rute…' },
-  navPreview:        { en:'Route ready — tap Start to begin',         sr:'Ruta spremna — pritisnite Start' },
+  navPreview:        { en:'Route ready',                             sr:'Ruta spremna' },
   navNavigating:     { en:'Navigating',                               sr:'Navigacija u toku' },
   navOffRoute:       { en:'Off route — recalculating shortly',        sr:'Skrenuli ste s rute — preračunavanje uskoro' },
   navRecalculating:  { en:'Recalculating route…',                     sr:'Preračunavanje rute…' },
-  navigateArrived:   { en:'You have arrived',                         sr:'Stigli ste' },
-  navigateStartBtn:  { en:'Start',                                     sr:'Start' }
+  navigateArrived:   { en:'You have arrived',                         sr:'Stigli ste' }
 };
 
 function t(k){ return T[k]?.[lang] ?? k; }
@@ -1800,15 +1785,8 @@ function setLang(l){
   if (fp) {
     const savedDates = fp.selectedDates;
     fp.destroy();
-    initCalendarFilter();
-
-    setTimeout(async () => {
-        await loadPinsByWindow();
-    }, 0);
-
-    applyLang();
-    showHelpModal();
-    initAuth();
+    initCalendarFilter(savedDates);
+    loadPinsByWindow();
   }
 }
 
@@ -1854,26 +1832,18 @@ function applyLang(){
   buildHelpModalContent();
   refreshRenderedPopups();
 
-  document.getElementById('drivingModeTitle').textContent = t('drivingModeTitle');
   updateDrivingGpsStatus();
   document.getElementById('dTilePothole').textContent     = t('dTilePothole');
   document.getElementById('dTileCracked').textContent     = t('dTileCracked');
   document.getElementById('dTileSignage').textContent     = t('dTileSignage');
   document.getElementById('dTileFlooding').textContent    = t('dTileFlooding');
   document.getElementById('dTileOther').textContent       = t('dTileOther');
-  document.getElementById('drivingHint').textContent      = t('drivingHint');
-  document.getElementById('sectionModalTitle').textContent= t('sectionModalTitle');
-  document.getElementById('sectionCancelBtn').textContent = t('sectionCancelBtn');
-  document.getElementById('sectionSubmitBtn').textContent = t('sectionSubmitBtn');
   updateSectionButtonUI();
   document.getElementById('drivingCenterBtn').title = t('followTitle');
   document.getElementById('drivingModeBtn').title = t('drivingBtnTitle');
 
   document.getElementById('navigateSearchInput').placeholder = t('navigateSearchPH');
-  document.getElementById('navigateClearBtn').textContent    = t('navigateClearBtn');
-  //document.getElementById('navigateStartBtn').textContent    = t('navigateStartBtn');
-  const navStartBtn = document.getElementById('navigateStartBtn');
-if (navStartBtn) navStartBtn.textContent = t('navigateStartBtn');
+  document.getElementById('navigateClearBtn').title = t('navigateCloseTitle');
   updateNavStatusText();
 }
 
@@ -1894,7 +1864,12 @@ function buildHelpModalContent() {
       <p><strong>${t('helpStep2')}</strong> ${t('helpStep2Body')}</p>
       <p><strong>${t('helpStep3')}</strong> ${t('helpStep3Body')}</p>
       <p><strong>🧭</strong> ${lang === 'sr' ? 'Uključite praćenje da mapa uvek prati vašu lokaciju, kao navigacija.' : 'Turn on follow mode to keep the map centered on you, like a navigation app.'}</p>
-      <p><strong>🚗</strong> ${lang === 'sr' ? 'Režim vožnje daje velika dugmad za brzu prijavu problema na putu, i opciju za snimanje cele deonice puta.' : 'Driving mode gives you big one-tap buttons to quickly log road problems, plus an option to trace a whole section of road.'}</p>
+      <p><strong>🚗</strong> ${lang === 'sr'
+        ? 'Režim vožnje prikazuje dugmad za prijavu problema na putu na dnu ekrana. Dodirnite jedno da odmah prijavite problem na trenutnoj lokaciji. Da obeležite ceo loš deo puta, pritisnite "Počni prijavu deonice", provozite se preko problematičnog dela, pa pritisnite dugme opet da zaustavite snimanje — zatim dodirnite jedno od istih dugmadi da izaberete vrstu problema i sačuvate deonicu.'
+        : 'Driving mode shows road-report buttons along the bottom of the screen. Tap one to instantly log a problem at your current location. To mark a whole stretch of bad road, tap "Start Section Report", drive over it, then tap the button again to stop recording — tapping one of the same buttons then picks a type and saves the section.'}</p>
+      <p><strong>🚦</strong> ${lang === 'sr'
+        ? 'Trenutna brzina se prikazuje u gornjem levom uglu; ispod nje se prikazuje ograničenje brzine za put na kom se trenutno nalazite, kada je poznato.'
+        : 'Your current speed is shown top-left; the speed limit for the road you\'re on appears just below it, when known.'}</p>
     </div>
   `;
 }
@@ -1917,7 +1892,6 @@ function initCalendarFilter(optionalDefaultDates) {
       if (selectedDates.length === 2) await loadPinsByWindow();
     }
   });
-  setTimeout(loadPinsByWindow, 0);
 }
 
 // =============================================================================
@@ -2191,6 +2165,13 @@ function handleOrientationEvent(event) {
   if (heading === null || isNaN(heading)) return;
 
   compassActive = true;
+
+  // While moving, a fresh GPS course-over-ground reading is the authoritative
+  // heading source (see GPS_HEADING_FRESH_MS) — the magnetometer is only
+  // used to fill the gap when that's stale, e.g. standing still or just
+  // after entering driving mode before the first course reading arrives.
+  if (Date.now() - lastGpsHeadingAt < GPS_HEADING_FRESH_MS) return;
+
   smoothedHeading = smoothHeading(smoothedHeading, (heading + 360) % 360, HEADING_SMOOTHING_FACTOR);
   currentHeading = smoothedHeading;
   if (drivingMode && headingUpMode) applyMapBearing(currentHeading);
@@ -2312,13 +2293,19 @@ function setNavState(next) {
 function onNavStateChange(prev, next) {
   updateNavStatusText();
 
+  const navCardVisible = (next !== NavState.IDLE && next !== NavState.SEARCHING);
   const navCard = document.getElementById('drivingNavCard');
-  if (navCard) {
-    navCard.style.display = (next === NavState.IDLE || next === NavState.SEARCHING) ? 'none' : 'flex';
-  }
+  if (navCard) navCard.style.display = navCardVisible ? 'flex' : 'none';
+  // The destination header takes the top strip while it's showing, so the
+  // speed pill/action cluster/compass shift down out of its way (see CSS).
+  document.body.classList.toggle('nav-card-open', navCardVisible);
 
-  const startBtn = document.getElementById('navigateStartBtn');
-  if (startBtn) startBtn.style.display = (next === NavState.PREVIEW) ? 'inline-flex' : 'none';
+  // No manual "Start" step anymore — a computed route is immediately
+  // confirmed and turn-by-turn following begins right away.
+  if (next === NavState.PREVIEW) {
+    setNavState(NavState.NAVIGATING);
+    return;
+  }
 
   if (next === NavState.NAVIGATING) {
     setFollowMode(true);
@@ -2500,14 +2487,6 @@ function selectDestination(lat, lon, label) {
     if (navigationLine) map.fitBounds(navigationLine.getBounds(), { padding: [60, 60] });
     if (navState === NavState.CALCULATING) setNavState(NavState.PREVIEW);
   });
-}
-
-// Confirms the route preview and begins turn-by-turn following. Only valid
-// from PREVIEW (see NAV_TRANSITIONS) — e.g. a stray double-tap can't push
-// navigation forward twice.
-function startNavigating() {
-  if (navState !== NavState.PREVIEW) return;
-  setNavState(NavState.NAVIGATING);
 }
 
 // Fetches a real road route from OSRM and returns { coords, distance, duration }
@@ -2795,6 +2774,10 @@ function toggleDrivingMode() {
       // Leaving driving mode mid-recording would strand an unfinished section; stop it cleanly.
       toggleSectionRecording();
     }
+    if (sectionAwaitingCategory) {
+      // Stopped but never categorized — discard rather than leave it stranded.
+      cancelPendingSection();
+    }
     // Navigation only exists inside driving mode now, so leaving it wipes
     // any active search/route entirely rather than leaving stale state
     // (or a lingering route line) behind on the map.
@@ -2991,11 +2974,20 @@ let gpsRequestPending = false;
 let lastAcceptedFix   = null; // {lat, lon, t} of the last fix that passed the plausibility check
 let smoothedHeading   = null; // EMA-smoothed heading in degrees, used for map bearing + marker rotation
 let smoothedSpeedKmh  = null; // EMA-smoothed speed shown on the driving-mode HUD
+let lastGpsHeadingAt  = 0;    // timestamp of the last usable GPS course-over-ground reading
 const GPS_MAX_PLAUSIBLE_SPEED_MPS = 55;  // ~200 km/h; a bigger implied speed between fixes is treated as a GPS glitch
 const GPS_MAX_ACCEPTABLE_ACCURACY_M = 100; // fixes reported less precise than this are suspect
 const GPS_STALE_FIX_MS = 10000; // don't hold onto an old "good" fix forever if accuracy stays poor
-const HEADING_SMOOTHING_FACTOR     = 0.25; // 0..1, higher = follows raw heading faster / smooths less
-const SPEED_SMOOTHING_FACTOR       = 0.3;
+const HEADING_SMOOTHING_FACTOR     = 0.35; // 0..1, higher = follows raw heading faster / smooths less
+const SPEED_SMOOTHING_FACTOR       = 0.45;
+// While actually moving, GPS course-over-ground reflects the real direction
+// of travel far more reliably than a phone's magnetometer (which drifts
+// and reacts to a car's metal body/electronics). So GPS heading is treated
+// as authoritative for this long after it last arrived; the device compass
+// only takes over once it's gone stale — i.e. standing still or briefly
+// between fixes — so the map still turns promptly when looking around
+// while parked, but doesn't fight the true direction of travel while driving.
+const GPS_HEADING_FRESH_MS = 4000;
 
 // Exponential moving average over the shortest angular path, so heading
 // smoothing doesn't get confused by the 359°→1° wraparound.
@@ -3019,6 +3011,66 @@ function updateDrivingGpsStatus() {
   dsl.classList.toggle('gps-lost', stale);
 }
 setInterval(updateDrivingGpsStatus, 2000);
+
+// --- Speed limit lookup ----------------------------------------------------
+// Best-effort "what's the limit here" sign shown under the actual speed.
+// Queries OpenStreetMap's Overpass API for the nearest tagged road and reads
+// its maxspeed tag. Throttled by both time and distance so it never fires
+// on every 1s GPS tick — a nearby limit doesn't change from one second to
+// the next, and Overpass is a shared public service that shouldn't be
+// hammered. Fails silently: a speed limit is a nice-to-have and should
+// never interrupt or block the rest of the driving HUD.
+let speedLimitFetching     = false;
+let lastSpeedLimitFetchAt  = 0;
+let lastSpeedLimitFetchLoc = null;
+const SPEED_LIMIT_REFRESH_MS      = 15000; // don't re-query more often than this...
+const SPEED_LIMIT_REFRESH_DRIFT_M = 150;   // ...unless we've moved this far since the last query
+const SPEED_LIMIT_SEARCH_RADIUS_M = 25;    // how far from the GPS fix to look for a tagged road
+
+function maybeFetchSpeedLimit(lat, lon) {
+  if (!drivingMode || speedLimitFetching) return;
+  const now = Date.now();
+  const driftedFar = !lastSpeedLimitFetchLoc || distMeters(lastSpeedLimitFetchLoc, { lat, lon }) >= SPEED_LIMIT_REFRESH_DRIFT_M;
+  const stale = now - lastSpeedLimitFetchAt >= SPEED_LIMIT_REFRESH_MS;
+  if (!driftedFar && !stale) return;
+
+  speedLimitFetching = true;
+  lastSpeedLimitFetchAt = now;
+  lastSpeedLimitFetchLoc = { lat, lon };
+
+  const query = `[out:json][timeout:5];way(around:${SPEED_LIMIT_SEARCH_RADIUS_M},${lat},${lon})[highway][maxspeed];out tags 3;`;
+  const url = 'https://overpass-api.de/api/interpreter?data=' + encodeURIComponent(query);
+
+  fetch(url).then(res => res.json()).then(data => {
+    const way = (data.elements || []).find(el => el.tags && el.tags.maxspeed);
+    updateSpeedLimitDisplay(way ? parseSpeedLimitTag(way.tags.maxspeed) : null);
+  }).catch(() => {
+    // Offline or Overpass hiccup — leave whatever was last shown in place
+    // rather than blanking it out over a transient network error.
+  }).finally(() => {
+    speedLimitFetching = false;
+  });
+}
+
+// OSM's maxspeed tag is usually a plain number (km/h) but can carry a unit
+// suffix like "50 mph" or regional strings like "RS:urban" — this pulls out
+// the first number and ignores anything it can't confidently parse.
+function parseSpeedLimitTag(raw) {
+  const match = String(raw).match(/\d+/);
+  return match ? parseInt(match[0], 10) : null;
+}
+
+function updateSpeedLimitDisplay(value) {
+  const el = document.getElementById('drivingSpeedLimit');
+  if (!el) return;
+  if (value) {
+    el.textContent = value;
+    el.classList.remove('no-data');
+  } else {
+    el.textContent = '--';
+    el.classList.add('no-data');
+  }
+}
 
 function startWatching() {
   const updatePosition = () => {
@@ -3092,11 +3144,15 @@ function startWatching() {
           followMapTo(userCoords.lat, userCoords.lon);
         }
 
-        // Fallback heading source for devices/browsers without a usable
-        // compass: GPS course-over-ground, only trustworthy while actually
-        // moving. The device compass (if active) takes priority since it
-        // also works at a standstill.
-        if (!compassActive && typeof pos.coords.heading === 'number' && !isNaN(pos.coords.heading)) {
+        // Primary heading source: GPS course-over-ground. This is the
+        // actual direction of travel, which is what heading-up rotation
+        // should follow — far steadier than a phone's magnetometer, which
+        // drifts and reacts to a car's metal body/electronics. Browsers
+        // only report a heading here while actually moving, which is
+        // exactly when we want it to win; see handleOrientationEvent for
+        // the device-compass fallback used the rest of the time.
+        if (typeof pos.coords.heading === 'number' && !isNaN(pos.coords.heading)) {
+          lastGpsHeadingAt = Date.now();
           smoothedHeading = smoothHeading(smoothedHeading, pos.coords.heading, HEADING_SMOOTHING_FACTOR);
           currentHeading = smoothedHeading;
           if (drivingMode && headingUpMode) applyMapBearing(currentHeading);
@@ -3120,6 +3176,7 @@ function startWatching() {
               speedEl.textContent = '--';
             }
           }
+          maybeFetchSpeedLimit(userCoords.lat, userCoords.lon);
         }
 
         // While tracing a section, extend the live polyline with new points,
@@ -3145,16 +3202,16 @@ function startWatching() {
         gpsRequestPending = false;
         // Only a real permission denial means "GPS not enabled". A timeout or
         // temporarily unavailable fix (weak signal, indoors) is transient —
-        // the next 2-second tick will just try again, no need to alarm the user.
+        // the next 1-second tick will just try again, no need to alarm the user.
         if (err.code === err.PERMISSION_DENIED) {
           showGpsModal();
         }
       },
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 2000 }
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 1000 }
     );
   };
   updatePosition();
-  setInterval(updatePosition, 2000);
+  setInterval(updatePosition, 1000);
 }
 
 function initGps() {
@@ -3643,6 +3700,12 @@ function sectionPinLatLng(path) {
   return path[Math.floor(path.length / 2)];
 }
 
+// No longer called from upsertSectionLine — a section's polyline has its
+// own popup and is clickable on its own, so the extra pin marker that used
+// to sit on top of it was redundant. Left in place (sectionPinById simply
+// stays empty) rather than ripped out, since a few other functions
+// (enterEditMode, cancelEdit, clearMarkers, syncMarkers) still harmlessly
+// check it in case that ever changes.
 function upsertSectionPin(report) {
   const catCol = categoryColor(report.category);
   const sCol   = statusColor(report.status);
@@ -3672,8 +3735,6 @@ function upsertSectionLine(report) {
   const sCol = statusColor(report.status);
   const opacity = report.status === 'fixed' ? 0.4 : 0.85;
   const path = sanitizePath(report.path);
-
-  upsertSectionPin(report);
 
   let line = markerById.get(report.id);
   if (line) {
