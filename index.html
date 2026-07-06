@@ -433,7 +433,10 @@ body.nav-panel-open .driving-nav-card{
   align-items:center;
   justify-content:center;
   cursor:pointer;
-  flex-shrink:0;
+  position:fixed;
+  top:calc(12px + env(safe-area-inset-top, 0px));
+  right:12px;
+  z-index:2600;
   user-select:none;
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
@@ -554,26 +557,30 @@ body.driving-active #drivingTopFade{ display:block; }
    forms) is hidden via the body.driving-active rules further below so the
    map gets full focus at all times. */
 
-/* --- Floating left/right widget stacks (driving mode only) ---
-   Two fixed widgets pinned to the top corners of the screen: the speed
-   readout on the left, the heading compass on the right. The back,
-   search and recenter buttons live lower down, as a row sitting right
-   above the report buttons in the bottom sheet (see .driving-action-row
+/* --- Floating widgets (driving mode only) ---
+   The speed readout is grouped in a left-side stack (nothing else lives
+   in it currently, but it keeps room for more later without needing a
+   layout rework). The compass is a Leaflet control (see CompassControl
+   further down) that Leaflet physically reparents into its own control
+   container at runtime, so it's positioned independently via its own
+   fixed top/right — wrapping it in a sibling stack div would leave that
+   div empty once Leaflet moves the compass out of it. The back, search
+   and recenter buttons live lower down, as a row sitting right above
+   the report buttons in the bottom sheet (see .driving-action-row
    further below and the HTML in #drivingReportSheet). */
-.driving-left-stack, .driving-right-stack{
+.driving-left-stack{
   position:fixed;
   top:calc(12px + env(safe-area-inset-top, 0px));
+  left:12px;
   z-index:2600;
   display:none;
   flex-direction:column;
+  align-items:flex-start;
   gap:10px;
 }
-.driving-left-stack{ left:12px; align-items:flex-start; }
-.driving-right-stack{ right:12px; align-items:flex-end; }
-body.driving-active .driving-left-stack,
-body.driving-active .driving-right-stack{ display:flex; }
+body.driving-active .driving-left-stack{ display:flex; }
 body.nav-panel-open .driving-left-stack,
-body.nav-panel-open .driving-right-stack,
+body.nav-panel-open .map-compass,
 body.nav-panel-open .driving-nav-card{
   display:none !important;
 }
@@ -678,7 +685,7 @@ body.driving-active .driving-speed-widget{ display:flex; }
    cluster no longer needs this — it now lives at the bottom, embedded
    in the report bar. */
 body.nav-card-open .driving-left-stack,
-body.nav-card-open .driving-right-stack{
+body.nav-card-open .map-compass{
   top: calc(64px + 12px + env(safe-area-inset-top, 0px)) !important;
 }
 
@@ -840,6 +847,7 @@ body.driving-active .filter-label-row,
 body.driving-active .filter-select-row,
 body.driving-active #reportFormPanel,
 body.driving-active #lockedFormPanel,
+body.driving-active #followLocationBtn,
 body.driving-active #pinMapBtn,
 body.driving-active #drivingModeBtn{
   display:none !important;
@@ -1286,6 +1294,7 @@ span.flatpickr-weekday {
   </button>
 </div>
 
+<div id="followLocationBtn" class="pin-map-btn" style="display:none" title="Follow my location" onclick="toggleFollowMode()">🎯</div>
 <div id="pinMapBtn" class="pin-map-btn" style="display:none" title="Set location manually" onclick="togglePinMode()">📍</div>
 <div id="drivingModeBtn" class="pin-map-btn" style="display:none" title="Driving mode" onclick="toggleDrivingMode()">🚗</div>
 <div id="drivingTopFade"></div>
@@ -1321,13 +1330,11 @@ span.flatpickr-weekday {
   </div>
 </div>
 
-<div class="driving-right-stack">
-  <div id="mapCompass" class="map-compass" title="Heading — tap to toggle map rotation" onclick="toggleHeadingUpMode()">
-    <div class="compass-face">
-      <span class="compass-n">N</span>
-      <div class="compass-needle" id="compassNeedle">
-        <svg viewBox="0 0 24 24"><path d="M12 2 L16 13 L12 11 L8 13 Z" fill="#ff4b4b"/><path d="M12 22 L16 13 L12 15 L8 13 Z" fill="#ccc"/></svg>
-      </div>
+<div id="mapCompass" class="map-compass" title="Heading — tap to toggle map rotation" onclick="toggleHeadingUpMode()">
+  <div class="compass-face">
+    <span class="compass-n">N</span>
+    <div class="compass-needle" id="compassNeedle">
+      <svg viewBox="0 0 24 24"><path d="M12 2 L16 13 L12 11 L8 13 Z" fill="#ff4b4b"/><path d="M12 22 L16 13 L12 15 L8 13 Z" fill="#ccc"/></svg>
     </div>
   </div>
 </div>
@@ -2751,6 +2758,8 @@ function setFollowMode(enabled) {
   followMode = enabled;
   const btn = document.getElementById('drivingCenterBtn');
   if (btn) btn.classList.toggle('active', enabled);
+  const generalBtn = document.getElementById('followLocationBtn');
+  if (generalBtn) generalBtn.classList.toggle('active', enabled);
 }
 
 function toggleFollowMode() {
@@ -3325,6 +3334,17 @@ function initGps() {
 }
 initGps();
 
+const FollowLocationControl = L.Control.extend({
+  options:{ position:'bottomleft' },
+  onAdd(){
+    const btn = document.getElementById('followLocationBtn');
+    L.DomEvent.disableClickPropagation(btn);
+    return btn;
+  }
+});
+new FollowLocationControl().addTo(map);
+document.getElementById('followLocationBtn').style.display = 'flex';
+
 const PinControl = L.Control.extend({
   options:{ position:'bottomleft' },
   onAdd(){
@@ -3800,37 +3820,6 @@ function isSectionReport(report) {
 // Assumes `path` has already been through sanitizePath().
 function sectionPinLatLng(path) {
   return path[Math.floor(path.length / 2)];
-}
-
-// No longer called from upsertSectionLine — a section's polyline has its
-// own popup and is clickable on its own, so the extra pin marker that used
-// to sit on top of it was redundant. Left in place (sectionPinById simply
-// stays empty) rather than ripped out, since a few other functions
-// (enterEditMode, cancelEdit, clearMarkers, syncMarkers) still harmlessly
-// check it in case that ever changes.
-function upsertSectionPin(report) {
-  const catCol = categoryColor(report.category);
-  const sCol   = statusColor(report.status);
-  const opacity = report.status === 'fixed' ? 0.55 : 1;
-  const iconHtml = `<div style="width:22px;height:22px;border-radius:50%;background:${catCol};border:3px solid ${sCol};opacity:${opacity};box-shadow:0 2px 6px rgba(0,0,0,.5);"></div>`;
-  const latlng = sectionPinLatLng(sanitizePath(report.path));
-
-  let pin = sectionPinById.get(report.id);
-  if (pin) {
-    pin.setIcon(L.divIcon({ className: '', html: iconHtml, iconAnchor: [11,11] }));
-    pin.setLatLng(latlng);
-    pin.setPopupContent(buildPopupHtml(report));
-    return pin;
-  }
-
-  pin = L.marker(latlng, {
-    icon: L.divIcon({ className: '', html: iconHtml, iconAnchor: [11,11] })
-  }).addTo(map);
-
-  pin._reportId = report.id;
-  pin.bindPopup(buildPopupHtml(report));
-  sectionPinById.set(report.id, pin);
-  return pin;
 }
 
 function upsertSectionLine(report) {
