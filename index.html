@@ -612,14 +612,16 @@ body.driving-active .driving-speed-widget{ display:flex; }
 .driving-status-label.gps-lost{ color:#ff4b4b; }
 .driving-status-label.gps-lost::before{ background:#ff4b4b; }
 
+/* Now embedded as the first row inside #drivingReportSheet (see HTML),
+   sitting directly above the section-record button — no more fixed
+   top-right position, so it always lines up with the report bar no
+   matter how tall that bar currently is (e.g. while awaiting a
+   section category). */
 .driving-action-cluster{
-  position:fixed;
-  top:calc(68px + env(safe-area-inset-top, 0px));
-  right:16px;
-  z-index:2500;
   display:none;
-  flex-direction:column;
+  flex-direction:row;
   gap:8px;
+  align-self:flex-start;
 }
 body.driving-active .driving-action-cluster{ display:flex; }
 .driving-search-btn, .driving-exit-btn{
@@ -642,11 +644,10 @@ body.driving-active .driving-action-cluster{ display:flex; }
 .driving-exit-btn:active{ background:#3a3a3a; }
 
 /* --- Destination header bar: a full-width strip pinned above every other
-   floating widget (speed pill, action cluster, compass) so it never
-   overlaps them — those widgets shift down instead (see body.nav-card-open
-   below). Only the destination name/status and a single X to close;
-   selecting a destination starts navigating immediately, no separate
-   "Start" step. --- */
+   floating widget (speed pill, compass) so it never overlaps them — those
+   widgets shift down instead (see body.nav-card-open below). Only the
+   destination name/status and a single X to close; selecting a
+   destination starts navigating immediately, no separate "Start" step. --- */
 .driving-nav-card{
   display:none;
   position:fixed;
@@ -662,14 +663,13 @@ body.driving-active .driving-action-cluster{ display:flex; }
   padding:calc(10px + env(safe-area-inset-top, 0px)) 16px 10px 16px;
   box-shadow:0 3px 12px rgba(0,0,0,.6);
 }
-/* The destination header takes the top strip, so the speed pill, action
-   cluster, and compass all move down out of its way while it's showing. */
+/* The destination header takes the top strip, so the speed pill and
+   compass move down out of its way while it's showing. The action
+   cluster no longer needs this — it now lives at the bottom, embedded
+   in the report bar. */
 body.nav-card-open .driving-speed-widget,
 body.nav-card-open .map-compass{
   top: calc(64px + 12px + env(safe-area-inset-top, 0px)) !important;
-}
-body.nav-card-open .driving-action-cluster{
-  top: calc(64px + 68px + env(safe-area-inset-top, 0px)) !important;
 }
 
 /* --- Always-visible road-report bar: sits pinned to the bottom of the
@@ -1314,12 +1314,6 @@ span.flatpickr-weekday {
   <span class="driving-status-label" id="drivingStatusLabel">GPS</span>
 </div>
 
-<div class="driving-action-cluster">
-  <button class="driving-search-btn" id="drivingCenterBtn" onclick="toggleFollowMode()" title="Center on me">🎯</button>
-  <button class="driving-search-btn" id="drivingSearchBtn" onclick="toggleNavigatePanel()" title="Search destination">🔍</button>
-  <button class="driving-exit-btn" onclick="toggleDrivingMode()" title="Exit driving mode">✕</button>
-</div>
-
 <div id="drivingNavCard" class="driving-nav-card">
   <div class="driving-nav-card-info">
     <span id="navigateDestText" class="driving-nav-dest"></span>
@@ -1333,11 +1327,17 @@ span.flatpickr-weekday {
   <button id="navigateClearBtn" class="driving-nav-close-btn" onclick="clearNavigation()" title="Close">✕</button>
 </div>
 
-<!-- Always-visible road-report bar: the section-record button plus one row
-     of quick-report tiles. No expand/collapse step. The same tiles are
-     reused after a section recording is stopped — tapping one then
-     categorizes and submits the section instead of logging a new point. -->
+<!-- Always-visible road-report bar: follow/search/back buttons, the
+     section-record button, and one row of quick-report tiles. No
+     expand/collapse step. The same tiles are reused after a section
+     recording is stopped — tapping one then categorizes and submits
+     the section instead of logging a new point. -->
 <div id="drivingReportSheet" class="driving-report-sheet">
+  <div class="driving-action-cluster">
+    <button class="driving-search-btn" id="drivingCenterBtn" onclick="toggleFollowMode()" title="Center on me">🎯</button>
+    <button class="driving-search-btn" id="drivingSearchBtn" onclick="toggleNavigatePanel()" title="Search destination">🔍</button>
+    <button class="driving-exit-btn" onclick="toggleDrivingMode()" title="Back">←</button>
+  </div>
   <div id="sectionAwaitingBar" class="section-awaiting-bar" style="display:none">
     <span id="sectionAwaitingText">Tap a type below to save this section</span>
     <button class="section-awaiting-cancel" onclick="cancelPendingSection()" title="Discard">✕</button>
@@ -1867,9 +1867,6 @@ function buildHelpModalContent() {
       <p><strong>🚗</strong> ${lang === 'sr'
         ? 'Režim vožnje prikazuje dugmad za prijavu problema na putu na dnu ekrana. Dodirnite jedno da odmah prijavite problem na trenutnoj lokaciji. Da obeležite ceo loš deo puta, pritisnite "Počni prijavu deonice", provozite se preko problematičnog dela, pa pritisnite dugme opet da zaustavite snimanje — zatim dodirnite jedno od istih dugmadi da izaberete vrstu problema i sačuvate deonicu.'
         : 'Driving mode shows road-report buttons along the bottom of the screen. Tap one to instantly log a problem at your current location. To mark a whole stretch of bad road, tap "Start Section Report", drive over it, then tap the button again to stop recording — tapping one of the same buttons then picks a type and saves the section.'}</p>
-      <p><strong>🚦</strong> ${lang === 'sr'
-        ? 'Trenutna brzina se prikazuje u gornjem levom uglu; ispod nje se prikazuje ograničenje brzine za put na kom se trenutno nalazite, kada je poznato.'
-        : 'Your current speed is shown top-left; the speed limit for the road you\'re on appears just below it, when known.'}</p>
     </div>
   `;
 }
@@ -1988,6 +1985,8 @@ function applyMapBearing(targetHeadingDeg) {
   // Counter-rotate every currently-open popup by the opposite angle so they
   // read upright no matter which way the map is currently turned.
   updateAllPopupRotations();
+  // Same problem, same fix, for the GPS puck itself — see updateUserMarkerRotation.
+  updateUserMarkerRotation();
 }
 
 // --- Keeping popups upright while the map is rotated ----------------------
@@ -2097,13 +2096,22 @@ function setUserMarkerStyle(navStyle) {
 // Keeps the nav-style arrow pointed the right way: fixed straight up while
 // the whole map is rotating to match heading (heading-up mode), or rotated
 // to match the raw heading directly when the map itself stays north-up.
+//
+// The puck's DOM lives inside the same CSS-rotated .leaflet-rotate-wrapper
+// as the tiles (Leaflet markers are reparented into it just like the map
+// pane — see initRotationWrapper), so simply setting its own rotation to 0
+// does NOT make it point up on screen: the wrapper's own rotate(-mapBearing)
+// still applies on top of it, and the puck ends up visibly spinning with
+// the map instead of staying fixed. Same problem popups have, same fix:
+// counter-rotate by +mapBearing so it cancels the wrapper's rotation and
+// the net visible angle is 0, regardless of how far the map has turned.
 function updateUserMarkerRotation() {
   if (!userMarker || !userMarkerNavStyle) return;
   const el = userMarker.getElement();
   if (!el) return;
   const arrow = el.querySelector('.user-nav-arrow');
   if (!arrow) return;
-  const angle = (drivingMode && headingUpMode) ? 0 : (currentHeading || 0);
+  const angle = (drivingMode && headingUpMode) ? mapBearing : (currentHeading || 0);
   arrow.style.transform = `rotate(${angle}deg)`;
 }
 
