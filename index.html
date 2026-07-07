@@ -1036,6 +1036,17 @@ body.driving-active .leaflet-control-zoom{
   line-height:1.4;
   word-break:break-word;
 }
+.mapillary-link{
+  margin:0 8px 6px 8px;
+  align-items:center;
+  gap:5px;
+  font-size:10.5px;
+  font-weight:600;
+  color:#0a7cff;
+  text-decoration:none;
+}
+.mapillary-link:hover{ text-decoration:underline; }
+.mapillary-link .icon-img-inline{ margin:0; }
 .popup-timeline{
   padding:5px 8px 2px 8px;
   display:flex;
@@ -1794,6 +1805,7 @@ const T = {
   helpStep3Body:{ en:'Add an optional note, then tap "REPORT BREAK".', sr:'Dodajte opcionu napomenu i pritisnite "PRIJAVI KVAR".' },
   popupStatus:  { en:'Status', sr:'Status' },
   reportedByLabel: { en:'Reported by', sr:'Prijavio' },
+  viewOnMapillary: { en:'View street-level photo', sr:'Pogledaj uličnu fotografiju' },
   statusReported:   { en:'Reported',    sr:'Prijavljeno' },
   statusInProgress: { en:'In progress', sr:'U toku' },
   statusFixed:      { en:'Fixed',       sr:'Popravljeno' },
@@ -2114,7 +2126,55 @@ function updateAllPopupRotations() {
 map.on('popupopen', e => {
   const popupEl = e.popup && e.popup._container;
   if (popupEl) rotatePopupElement(popupEl);
+  if (popupEl) checkMapillaryLinks(popupEl);
 });
+
+// --- Mapillary "street-level photo" link -----------------------------------
+// Get a free client token at https://www.mapillary.com/developer and paste it
+// below. Without a token this feature silently stays hidden (no errors).
+const MAPILLARY_ACCESS_TOKEN = 'MLY|27654351744203827|eb156565ee556fb6b5e78fc8b3e27bc3';
+
+// How far (in degrees, roughly) to search around a report for nearby
+// Mapillary imagery. ~0.0005 deg is about 50m at most latitudes.
+const MAPILLARY_SEARCH_RADIUS_DEG = 0.0005;
+
+const mapillaryCoverageCache = new Map(); // "lat,lng" -> boolean, avoids re-querying the same popup
+
+async function checkMapillaryLinks(popupEl) {
+  if (!MAPILLARY_ACCESS_TOKEN || MAPILLARY_ACCESS_TOKEN === 'YOUR_MAPILLARY_ACCESS_TOKEN') return;
+  const links = popupEl.querySelectorAll('.mapillary-link');
+  for (const link of links) {
+    const lat = parseFloat(link.dataset.lat);
+    const lng = parseFloat(link.dataset.lng);
+    if (!isFinite(lat) || !isFinite(lng)) continue;
+
+    const cacheKey = `${lat.toFixed(5)},${lng.toFixed(5)}`;
+    if (mapillaryCoverageCache.has(cacheKey)) {
+      if (mapillaryCoverageCache.get(cacheKey)) showMapillaryLink(link, lat, lng);
+      continue;
+    }
+
+    try {
+      const r = MAPILLARY_SEARCH_RADIUS_DEG;
+      const bbox = `${lng - r},${lat - r},${lng + r},${lat + r}`;
+      const url = `https://graph.mapillary.com/images?access_token=${MAPILLARY_ACCESS_TOKEN}&fields=id&bbox=${bbox}&limit=1`;
+      const res = await fetch(url);
+      if (!res.ok) { mapillaryCoverageCache.set(cacheKey, false); continue; }
+      const data = await res.json();
+      const hasCoverage = !!(data && data.data && data.data.length > 0);
+      mapillaryCoverageCache.set(cacheKey, hasCoverage);
+      if (hasCoverage) showMapillaryLink(link, lat, lng);
+    } catch (err) {
+      // Network hiccup or API unavailable — just leave the link hidden.
+      mapillaryCoverageCache.set(cacheKey, false);
+    }
+  }
+}
+
+function showMapillaryLink(link, lat, lng) {
+  link.href = `https://www.mapillary.com/app/?lat=${lat}&lng=${lng}&z=18&focus=photo`;
+  link.style.display = 'flex';
+}
 
 // Eases the map back to north-up (used when leaving driving mode or when
 // the person taps the compass to turn heading-up rotation off).
@@ -4022,6 +4082,10 @@ function buildPopupHtml(report) {
       ${buildTimelineItem(report.fixed_at, !!report.fixed_at, STATUS_COLORS.fixed)}
     </div>
     ${report.comment ? `<div class="popup-note">${escapeHtml(report.comment)}</div>` : ''}
+    <a class="mapillary-link" href="#" target="_blank" rel="noopener" style="display:none"
+       data-lat="${report.latitude}" data-lng="${report.longitude}">
+      <img class="icon-img icon-img-inline" src="icons/mapillary.png" alt="Mapillary">${t('viewOnMapillary')}
+    </a>
     ${actionsHtml}
   </div>`;
 }
