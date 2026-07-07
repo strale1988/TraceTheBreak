@@ -306,6 +306,15 @@ button{
 .pin-map-btn.active{ background:#f5a623; border-color:#f5a623; }
 .pin-map-btn.recording-active{ background:#ff4b4b; border-color:#ff4b4b; animation:pulseRec 1.2s infinite; }
 
+/* Custom PNG icons (https://strale1988.github.io/TraceTheStuff/) replacing
+   the previous emoji glyphs. Sized to match the emoji footprint they
+   replace in each context; object-fit:contain keeps non-square source
+   images from distorting. */
+.icon-img{ width:22px; height:22px; object-fit:contain; vertical-align:middle; }
+.icon-img.icon-img-tile{ width:19px; height:19px; }
+.icon-img.icon-img-inline{ width:16px; height:16px; margin:0 1px -3px; }
+.icon-img.icon-img-modal{ width:28px; height:28px; }
+
 /* --- Destination search panel (simple point-to-point navigation) ---
    Was a Leaflet topleft control, which put it in exactly the same corner
    as the floating speed widget — they'd stack on top of each other the
@@ -330,9 +339,9 @@ button{
   gap:8px;
 }
 /* Was scoped to body.driving-active.nav-panel-open, and only hid two of the
-   three action-cluster buttons — the compass and the 🎯 recenter button
+   three action-cluster buttons — the compass and the recenter button
    stayed on screen, crowded right next to the search card (see screenshot:
-   0km/h pill + GPS label + 🎯/🔍/✕ + compass all fighting the search box for
+   0km/h pill + GPS label + recenter/search/close + compass all fighting the search box for
    the same top strip). The search card only ever exists in driving mode, so
    the extra .driving-active qualifier is redundant; simplifying to just
    "search panel open" and listing whole widgets (not individual buttons)
@@ -786,7 +795,6 @@ body.driving-active .driving-report-sheet{ display:flex; }
   touch-action:manipulation;
 }
 .driving-tile:active{ background:#333; transform:scale(.96); }
-.driving-tile .tile-emoji{ font-size:19px; }
 .driving-section-btn{
   width:100%;
   padding:14px;
@@ -1313,17 +1321,17 @@ span.flatpickr-weekday {
   </button>
 </div>
 
-<div id="followLocationBtn" class="pin-map-btn" style="display:none" title="Follow my location" onclick="toggleFollowMode()">🎯</div>
-<div id="pinMapBtn" class="pin-map-btn" style="display:none" title="Set location manually" onclick="togglePinMode()">📍</div>
-<div id="drivingModeBtn" class="pin-map-btn" style="display:none" title="Driving mode" onclick="toggleDrivingMode()">🚗</div>
+<div id="followLocationBtn" class="pin-map-btn" style="display:none" title="Follow my location" onclick="toggleFollowMode()"><img class="icon-img" src="https://strale1988.github.io/TraceTheStuff/icons/target.png" alt="Recenter"></div>
+<div id="pinMapBtn" class="pin-map-btn" style="display:none" title="Set location manually" onclick="togglePinMode()"><img class="icon-img" src="https://strale1988.github.io/TraceTheStuff/icons/pin.png" alt="Pin"></div>
+<div id="drivingModeBtn" class="pin-map-btn" style="display:none" title="Driving mode" onclick="toggleDrivingMode()"><img class="icon-img" src="https://strale1988.github.io/TraceTheStuff/icons/car.png" alt="Driving mode"></div>
 <div id="drivingTopFade"></div>
 
 <div id="navigatePanel" class="navigate-panel">
   <div class="navigate-row">
     <input type="text" id="navigateSearchInput" placeholder="Search destination..."
            onkeydown="if(event.key==='Enter'){event.preventDefault();searchDestination();}">
-    <div class="navigate-search-btn" onclick="searchDestination()">🔍</div>
-    <div class="navigate-search-btn" id="navigatePinBtn" onclick="toggleNavPinMode()" title="Place destination pin manually">📍</div>
+    <div class="navigate-search-btn" onclick="searchDestination()"><img class="icon-img" src="https://strale1988.github.io/TraceTheStuff/icons/search.png" alt="Search"></div>
+    <div class="navigate-search-btn" id="navigatePinBtn" onclick="toggleNavPinMode()" title="Place destination pin manually"><img class="icon-img" src="https://strale1988.github.io/TraceTheStuff/icons/pin.png" alt="Pin"></div>
     <div class="navigate-close-btn" onclick="closeNavigatePanel()">✕</div>
   </div>
   <div id="navigatePinHint" class="navigate-pin-hint" style="display:none">Tap the map to drop a destination pin</div>
@@ -1389,8 +1397,8 @@ span.flatpickr-weekday {
       </svg>
     </button>
     <div class="driving-action-row-right">
-      <button class="driving-search-btn" id="drivingSearchBtn" onclick="toggleNavigatePanel()" title="Search destination">🔍</button>
-      <button class="driving-search-btn" id="drivingCenterBtn" onclick="toggleFollowMode()" title="Center on me">🎯</button>
+      <button class="driving-search-btn" id="drivingSearchBtn" onclick="toggleNavigatePanel()" title="Search destination"><img class="icon-img" src="https://strale1988.github.io/TraceTheStuff/icons/search.png" alt="Search"></button>
+      <button class="driving-search-btn" id="drivingCenterBtn" onclick="toggleFollowMode()" title="Center on me"><img class="icon-img" src="https://strale1988.github.io/TraceTheStuff/icons/target.png" alt="Center"></button>
     </div>
   </div>
   <div id="sectionAwaitingBar" class="section-awaiting-bar" style="display:none">
@@ -1401,11 +1409,11 @@ span.flatpickr-weekday {
     <span id="sectionRecordBtnLabel">Start Section Report</span>
   </button>
   <div class="driving-tile-row">
-    <div class="driving-tile" onclick="handleTileTap('pothole')"><span class="tile-emoji">🕳️</span><span id="dTilePothole">Pothole</span></div>
-    <div class="driving-tile" onclick="handleTileTap('cracked')"><span class="tile-emoji">🛣️</span><span id="dTileCracked">Damaged pavement</span></div>
-    <div class="driving-tile" onclick="handleTileTap('signage')"><span class="tile-emoji">🚧</span><span id="dTileSignage">Bad signage</span></div>
-    <div class="driving-tile" onclick="handleTileTap('flooding')"><span class="tile-emoji">🌊</span><span id="dTileFlooding">Flooding</span></div>
-    <div class="driving-tile" onclick="handleTileTap(null)"><span class="tile-emoji">⚠️</span><span id="dTileOther">Other road issue</span></div>
+    <div class="driving-tile" onclick="handleTileTap('pothole')"><img class="icon-img icon-img-tile" src="https://strale1988.github.io/TraceTheStuff/icons/pothole.png" alt="Pothole"><span id="dTilePothole">Pothole</span></div>
+    <div class="driving-tile" onclick="handleTileTap('cracked')"><img class="icon-img icon-img-tile" src="https://strale1988.github.io/TraceTheStuff/icons/road.png" alt="Damaged pavement"><span id="dTileCracked">Damaged pavement</span></div>
+    <div class="driving-tile" onclick="handleTileTap('signage')"><img class="icon-img icon-img-tile" src="https://strale1988.github.io/TraceTheStuff/icons/traffic-cone.png" alt="Bad signage"><span id="dTileSignage">Bad signage</span></div>
+    <div class="driving-tile" onclick="handleTileTap('flooding')"><img class="icon-img icon-img-tile" src="https://strale1988.github.io/TraceTheStuff/icons/flood-risk.png" alt="Flooding"><span id="dTileFlooding">Flooding</span></div>
+    <div class="driving-tile" onclick="handleTileTap(null)"><img class="icon-img icon-img-tile" src="https://strale1988.github.io/TraceTheStuff/icons/warning-symbol.png" alt="Other road issue"><span id="dTileOther">Other road issue</span></div>
   </div>
 </div>
 
@@ -1465,10 +1473,10 @@ span.flatpickr-weekday {
 <!-- GPS/Error Alert Modal -->
 <div id="gpsModal" class="generic-modal-overlay" style="display:none">
   <div class="generic-modal">
-    <div class="generic-modal-icon">📍</div>
+    <div class="generic-modal-icon"><img class="icon-img icon-img-modal" src="https://strale1988.github.io/TraceTheStuff/icons/pin.png" alt="Pin"></div>
     <h2 id="gpsModalTitle">GPS Not Enabled</h2>
     <p id="gpsModalBody">Location access is turned off. To report a break at your location, enable it in your settings.</p>
-    <p id="gpsModalAlt" style="font-size:12px;color:#999;margin-bottom:16px;">Or use the 📍 button on the map to drop a pin manually.</p>
+    <p id="gpsModalAlt" style="font-size:12px;color:#999;margin-bottom:16px;">Or use the <img class="icon-img icon-img-inline" src="https://strale1988.github.io/TraceTheStuff/icons/pin.png" alt="pin"> button on the map to drop a pin manually.</p>
     <button class="generic-modal-close" onclick="hideGpsModal()" id="gpsModalBtn">Got it</button>
   </div>
 </div>
@@ -1770,7 +1778,7 @@ const T = {
   catPH:        { en:'Select break type…',               sr:'Izaberite vrstu kvara…' },
   gpsTitle:     { en:'GPS Not Enabled',                  sr:'GPS nije uključen' },
   gpsBody:      { en:'Location access is turned off. To report a break at your location, enable it in your settings.', sr:'Pristup lokaciji je isključen. Da biste prijavili kvar, omogućite ga u podešavanjima.' },
-  gpsAlt:       { en:'Or use the 📍 button on the map to drop a pin manually.', sr:'Ili koristite dugme 📍 na karti da ručno postavite pin.' },
+  gpsAlt:       { en:'Or use the <img class="icon-img icon-img-inline" src="https://strale1988.github.io/TraceTheStuff/icons/pin.png" alt="pin"> button on the map to drop a pin manually.', sr:'Ili koristite dugme <img class="icon-img icon-img-inline" src="https://strale1988.github.io/TraceTheStuff/icons/pin.png" alt="pin"> na karti da ručno postavite pin.' },
   gpsBtn:       { en:'Got it',                           sr:'Razumem' },
   noReports:    { en:'No reports in current map view.',  sr:'Nema prijava u vidljivoj oblasti.' },
   calendarPH:   { en:'Select date range...',             sr:'Izaberi vremenski opseg...' },
@@ -1779,7 +1787,7 @@ const T = {
   helpStep1:    { en:'1. Choose what broke:',            sr:'1. Izaberite šta se pokvarilo:' },
   helpStep1Body:{ en:'Select the type of break — water, electricity, sewage, gas, road, streetlight, or other.', sr:'Izaberite vrstu kvara — voda, struja, kanalizacija, gas, put, ulična rasveta ili ostalo.' },
   helpStep2:    { en:'2. Set your location:',            sr:'2. Odredite vašu lokaciju:' },
-  helpStep2Body:{ en:'Make sure your device GPS is on, or tap the manual pin button (📍) to drop a point on the map yourself.', sr:'Proverite da li je GPS uključen, ili pritisnite dugme za ručnu lokaciju (📍) da sami postavite tačku na mapi.' },
+  helpStep2Body:{ en:'Make sure your device GPS is on, or tap the manual pin button (<img class="icon-img icon-img-inline" src="https://strale1988.github.io/TraceTheStuff/icons/pin.png" alt="pin">) to drop a point on the map yourself.', sr:'Proverite da li je GPS uključen, ili pritisnite dugme za ručnu lokaciju (<img class="icon-img icon-img-inline" src="https://strale1988.github.io/TraceTheStuff/icons/pin.png" alt="pin">) da sami postavite tačku na mapi.' },
   helpStep3:    { en:'3. Submit:',                       sr:'3. Pošalji:' },
   helpStep3Body:{ en:'Add an optional note, then tap "REPORT BREAK".', sr:'Dodajte opcionu napomenu i pritisnite "PRIJAVI KVAR".' },
   popupStatus:  { en:'Status', sr:'Status' },
@@ -1934,7 +1942,7 @@ function buildHelpModalContent() {
       <p><strong>${t('helpStep2')}</strong> ${t('helpStep2Body')}</p>
       <p><strong>${t('helpStep3')}</strong> ${t('helpStep3Body')}</p>
       <p><strong>🧭</strong> ${lang === 'sr' ? 'Uključite praćenje da mapa uvek prati vašu lokaciju, kao navigacija.' : 'Turn on follow mode to keep the map centered on you, like a navigation app.'}</p>
-      <p><strong>🚗</strong> ${lang === 'sr'
+      <p><strong><img class="icon-img icon-img-inline" src="https://strale1988.github.io/TraceTheStuff/icons/car.png" alt="car"></strong> ${lang === 'sr'
         ? 'Režim vožnje prikazuje dugmad za prijavu problema na putu na dnu ekrana. Dodirnite jedno da odmah prijavite problem na trenutnoj lokaciji. Da obeležite ceo loš deo puta, pritisnite "Počni prijavu deonice", provozite se preko problematičnog dela, pa pritisnite dugme opet da zaustavite snimanje — zatim dodirnite jedno od istih dugmadi da izaberete vrstu problema i sačuvate deonicu.'
         : 'Driving mode shows road-report buttons along the bottom of the screen. Tap one to instantly log a problem at your current location. To mark a whole stretch of bad road, tap "Start Section Report", drive over it, then tap the button again to stop recording — tapping one of the same buttons then picks a type and saves the section.'}</p>
     </div>
@@ -3336,7 +3344,7 @@ function updateGpsModalText(){
   const el = id => document.getElementById(id);
   if (el('gpsModalTitle')) el('gpsModalTitle').textContent = t('gpsTitle');
   if (el('gpsModalBody'))  el('gpsModalBody').textContent  = t('gpsBody');
-  if (el('gpsModalAlt'))   el('gpsModalAlt').textContent   = t('gpsAlt');
+  if (el('gpsModalAlt'))   el('gpsModalAlt').innerHTML     = t('gpsAlt');
   if (el('gpsModalBtn'))   el('gpsModalBtn').textContent   = t('gpsBtn');
 }
 let gpsModalShownOnce = false;
