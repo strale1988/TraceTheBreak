@@ -260,6 +260,59 @@ button{
 .leaflet-popup-close-button{ color:#555 !important; }
 .leaflet-popup-close-button:hover{ color:#000 !important; }
 
+/* --- Mobile pin popups: full-screen dialog instead of a map-anchored
+   bubble --------------------------------------------------------------
+   On a small screen a marker-anchored popup either has to stay tiny or
+   risks being taller than the map itself — which is exactly what made it
+   "open and disappear instantly": Leaflet's autoPan tried to fit an
+   oversized bubble into a short map viewport and fought itself. Instead,
+   below this width every open popup is re-staged as a centered dialog
+   that covers the whole screen with a dimmed backdrop, same visual
+   language as .generic-modal-overlay used elsewhere in the app. This is
+   pure CSS — it doesn't touch how popups are built/updated, so
+   setPopupContent()/edit mode keep working exactly as before. */
+@media (max-width: 640px){
+  .leaflet-popup-pane{
+    position:fixed !important;
+    inset:0 !important;
+    width:100vw !important;
+    height:100vh !important;
+    display:flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    background:rgba(0,0,0,.75);
+    z-index:9999;
+    padding:20px;
+    box-sizing:border-box;
+  }
+  .leaflet-popup{
+    position:static !important;
+    transform:none !important;
+    margin:0 auto !important;
+    width:100%;
+    max-width:340px;
+  }
+  .leaflet-popup-tip-container{ display:none !important; }
+  /* The map may be mid-rotation (heading-up driving mode); a fixed,
+     full-screen dialog should never tilt along with it. */
+  .popup-rotate-wrap{ transform:none !important; }
+  .leaflet-popup-content-wrapper{
+    width:100%;
+    max-height:80vh;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+    box-shadow:0 16px 48px rgba(0,0,0,.8);
+  }
+  .leaflet-popup-close-button{
+    width:32px !important;
+    height:32px !important;
+    font-size:22px !important;
+    line-height:32px !important;
+    top:8px !important;
+    right:8px !important;
+  }
+}
+
 /* --- Popup counter-rotation (see rotatePopupElement/updateAllPopupRotations) ---
    Popups live inside the CSS-rotated .leaflet-rotate-wrapper along with the
    tiles, so in heading-up mode they'd otherwise tip sideways/upside-down as
@@ -884,6 +937,14 @@ body.driving-active #drivingModeBtn{
 body.driving-active #appPanel{
   height:auto !important;
   overflow:visible !important;
+  /* If the panel-collapse button was tapped before driving mode was turned
+     on, its JS leaves an inline opacity:0 on #appPanel. That opacity applies
+     to the whole element as a group, so without this override every driving-
+     mode widget living inside #appPanel (report sheet, nav buttons, etc.)
+     would inherit it and render invisible even though height/overflow above
+     are already being forced back open. Force it visible too so the
+     collapsed panel state never leaks into driving mode. */
+  opacity:1 !important;
 }
 /* Manual zoom buttons crowd the speed widget and add nothing turn-by-turn
    apps don't already give you via pinch-to-zoom, so they're hidden here. */
@@ -1036,32 +1097,6 @@ body.driving-active .leaflet-control-zoom{
   line-height:1.4;
   word-break:break-word;
 }
-.mapillary-link{
-  margin:0 8px 6px 8px;
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  width:26px;
-  height:26px;
-  border-radius:50%;
-  background:#eef0f2;
-  border:1px solid #d7dbe0;
-  text-decoration:none;
-  opacity:.55;
-  pointer-events:none;
-  cursor:default;
-  box-sizing:border-box;
-  transition:opacity .15s ease, background .15s ease, border-color .15s ease;
-}
-.mapillary-link.enabled{
-  opacity:1;
-  background:#e6f1ff;
-  border-color:#0a7cff;
-  pointer-events:auto;
-  cursor:pointer;
-}
-.mapillary-link.enabled:hover{ background:#d6e8ff; }
-.mapillary-link .icon-img-inline{ margin:0; width:16px; height:16px; }
 .popup-timeline{
   padding:5px 8px 2px 8px;
   display:flex;
@@ -1099,18 +1134,47 @@ body.driving-active .leaflet-control-zoom{
 }
 .timeline-item.pending .timeline-date{ color:#bbb; font-weight:500; }
 .popup-edit-form{
-  padding:8px;
-  min-width:180px;
-  max-width:210px;
+  min-width:200px;
+  max-width:240px;
+}
+.popup-edit-form .popup-header{
+  margin-bottom:2px;
+}
+.popup-edit-body{
+  padding:8px 10px 10px 10px;
   display:flex;
   flex-direction:column;
-  gap:5px;
+  gap:8px;
+}
+.popup-edit-field{
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+}
+.popup-edit-field-label{
+  font-size:9px;
+  font-weight:700;
+  letter-spacing:.3px;
+  text-transform:uppercase;
+  color:#888;
 }
 .popup-edit-form select,
 .popup-edit-form input[type="text"]{
-  background:#f2f2f2 !important;
+  background:#f7f7f7 !important;
   color:#111 !important;
   border:1px solid #ddd;
+  border-radius:7px;
+  padding:7px 8px;
+  font-size:12.5px;
+  width:100%;
+  box-sizing:border-box;
+  -webkit-tap-highlight-color:transparent;
+}
+.popup-edit-form select:focus,
+.popup-edit-form input[type="text"]:focus{
+  outline:none;
+  border-color:#a67817;
+  background:#fff !important;
 }
 
 .status-action-row{
@@ -1820,7 +1884,6 @@ const T = {
   helpStep3Body:{ en:'Add an optional note, then tap "REPORT BREAK".', sr:'Dodajte opcionu napomenu i pritisnite "PRIJAVI KVAR".' },
   popupStatus:  { en:'Status', sr:'Status' },
   reportedByLabel: { en:'Reported by', sr:'Prijavio' },
-  viewOnMapillary: { en:'View street-level photo', sr:'Pogledaj uličnu fotografiju' },
   statusReported:   { en:'Reported',    sr:'Prijavljeno' },
   statusInProgress: { en:'In progress', sr:'U toku' },
   statusFixed:      { en:'Fixed',       sr:'Popravljeno' },
@@ -1831,6 +1894,11 @@ const T = {
   updateFail:    { en:'Could not update status. Try again.',       sr:'Ažuriranje statusa nije uspelo. Pokušajte ponovo.' },
   adminBadge:    { en:'ADMIN',                                     sr:'ADMIN' },
   editBtn:       { en:'Edit',                                      sr:'Izmeni' },
+  editTitle:     { en:'Edit report',                               sr:'Izmeni prijavu' },
+  editCategoryLabel:    { en:'Type',      sr:'Vrsta' },
+  editSubcategoryLabel: { en:'Subtype',   sr:'Podvrsta' },
+  editStatusLabel:      { en:'Status',    sr:'Status' },
+  editCommentLabel:     { en:'Note',      sr:'Napomena' },
   deleteBtn:     { en:'Delete',                                    sr:'Obriši' },
   saveBtn:       { en:'Save',                                      sr:'Sačuvaj' },
   cancelBtn:     { en:'Cancel',                                    sr:'Otkaži' },
@@ -2141,70 +2209,17 @@ function updateAllPopupRotations() {
 map.on('popupopen', e => {
   const popupEl = e.popup && e.popup._container;
   if (popupEl) rotatePopupElement(popupEl);
-  if (popupEl) checkMapillaryLinks(popupEl, e.popup);
 });
 
-// --- Mapillary "street-level photo" link -----------------------------------
-// Get a free client token at https://www.mapillary.com/developer and paste it
-// below. Without a token this feature silently stays hidden (no errors).
-const MAPILLARY_ACCESS_TOKEN = 'MLY|27654351744203827|eb156565ee556fb6b5e78fc8b3e27bc3';
-
-// How far (in degrees, roughly) to search around a report for nearby
-// Mapillary imagery. ~0.002 deg is roughly 200m at most latitudes — wide
-// enough to usually find something nearby, not necessarily at the exact spot.
-const MAPILLARY_SEARCH_RADIUS_DEG = 0.002;
-
-const mapillaryCoverageCache = new Map(); // "lat,lng" -> boolean, avoids re-querying the same popup
-
-async function checkMapillaryLinks(popupEl, popup) {
-  if (!MAPILLARY_ACCESS_TOKEN || MAPILLARY_ACCESS_TOKEN === 'YOUR_MAPILLARY_ACCESS_TOKEN') return;
-  const links = popupEl.querySelectorAll('.mapillary-link');
-  for (const link of links) {
-    const lat = parseFloat(link.dataset.lat);
-    const lng = parseFloat(link.dataset.lng);
-    if (!isFinite(lat) || !isFinite(lng)) continue;
-
-    const cacheKey = `${lat.toFixed(5)},${lng.toFixed(5)}`;
-    if (mapillaryCoverageCache.has(cacheKey)) {
-      const cached = mapillaryCoverageCache.get(cacheKey);
-      if (cached) { showMapillaryLink(link, cached.lat, cached.lng, cached.id); }
-      continue;
-    }
-
-    try {
-      const r = MAPILLARY_SEARCH_RADIUS_DEG;
-      const bbox = `${lng - r},${lat - r},${lng + r},${lat + r}`;
-      const url = `https://graph.mapillary.com/images?access_token=${MAPILLARY_ACCESS_TOKEN}&fields=id,geometry&bbox=${bbox}&limit=1`;
-      console.log('[Mapillary] request URL:', url);
-      const res = await fetch(url);
-      if (!res.ok) {
-        console.warn('[Mapillary] request failed', res.status, await res.text().catch(() => ''));
-        mapillaryCoverageCache.set(cacheKey, false);
-        continue;
-      }
-      const data = await res.json();
-      const nearest = data && data.data && data.data[0];
-      console.log('[Mapillary] checked', cacheKey, '-> coverage:', !!nearest, data);
-      if (nearest) {
-        // geometry.coordinates is GeoJSON [lng, lat] — use the photo's own
-        // location so the link lands exactly on real imagery, not just near it.
-        const [photoLng, photoLat] = nearest.geometry.coordinates;
-        mapillaryCoverageCache.set(cacheKey, { lat: photoLat, lng: photoLng, id: nearest.id });
-        showMapillaryLink(link, photoLat, photoLng, nearest.id);
-      } else {
-        mapillaryCoverageCache.set(cacheKey, false);
-      }
-    } catch (err) {
-      // Network hiccup or API unavailable — just leave the link hidden.
-      console.warn('[Mapillary] request error', err);
-      mapillaryCoverageCache.set(cacheKey, false);
-    }
-  }
-}
-
-function showMapillaryLink(link, lat, lng, photoId) {
-  link.href = `https://www.mapillary.com/app/?pKey=${encodeURIComponent(photoId)}&lat=${lat}&lng=${lng}&z=18&focus=photo`;
-  link.classList.add('enabled');
+// On mobile the popup pane becomes a full-screen dimmed backdrop (see the
+// @media block above) — tapping that backdrop, outside the dialog itself,
+// should close the popup like tapping outside any other modal in the app.
+const MOBILE_POPUP_MQ = window.matchMedia('(max-width: 640px)');
+const popupPaneEl = map.getPane('popupPane');
+if (popupPaneEl) {
+  popupPaneEl.addEventListener('click', e => {
+    if (MOBILE_POPUP_MQ.matches && e.target === popupPaneEl) map.closePopup();
+  });
 }
 
 // Eases the map back to north-up (used when leaving driving mode or when
@@ -3219,6 +3234,23 @@ function customDragPointerUp() {
 // =============================================================================
 // DRIVING MODE
 // =============================================================================
+// Driving mode pushes a history entry the moment it opens, purely so the
+// phone's hardware/gesture back button has something to "go back" from —
+// without it, back would leave the page entirely (or do nothing) instead of
+// closing driving mode the same way the on-screen back button does.
+// drivingModeHistoryPushed tracks whether that entry is still outstanding;
+// handlingDrivingPopstate guards against the history.back() we trigger below
+// re-entering this same handler and double-toggling.
+let drivingModeHistoryPushed = false;
+let handlingDrivingPopstate = false;
+
+window.addEventListener('popstate', () => {
+  if (!drivingMode) return;
+  handlingDrivingPopstate = true;
+  toggleDrivingMode();
+  handlingDrivingPopstate = false;
+});
+
 function toggleDrivingMode() {
   drivingMode = !drivingMode;
   const btn = document.getElementById('drivingModeBtn');
@@ -3257,7 +3289,21 @@ function toggleDrivingMode() {
     if (compassBtn) compassBtn.style.display = 'flex';
     requestOrientationPermission();
     if (headingUpMode && currentHeading !== null) applyMapBearing(currentHeading);
+    // See popstate listener above — this is the entry the hardware/gesture
+    // back button will consume to close driving mode instead of the page.
+    history.pushState({ drivingMode: true }, '');
+    drivingModeHistoryPushed = true;
   } else {
+    // If the pushed history entry from above is still there, it means we
+    // got here from the on-screen back button (or the car icon), not from
+    // the hardware back button — history.back() consumes it so a later,
+    // unrelated back press doesn't land on a stale "driving mode" entry.
+    // When handlingDrivingPopstate is true, the browser already popped it
+    // for us, so skip this and avoid a duplicate/undesired history.back().
+    if (drivingModeHistoryPushed && !handlingDrivingPopstate) {
+      history.back();
+    }
+    drivingModeHistoryPushed = false;
     if (sectionRecording) {
       // Leaving driving mode mid-recording would strand an unfinished section; stop it cleanly.
       toggleSectionRecording();
@@ -4113,16 +4159,13 @@ function buildPopupHtml(report) {
       ${buildTimelineItem(report.fixed_at, !!report.fixed_at, STATUS_COLORS.fixed)}
     </div>
     ${report.comment ? `<div class="popup-note">${escapeHtml(report.comment)}</div>` : ''}
-    <a class="mapillary-link" href="#" target="_blank" rel="noopener" title="${t('viewOnMapillary')}"
-       data-lat="${report.latitude}" data-lng="${report.longitude}">
-      <img class="icon-img icon-img-inline" src="icons/mapillary.png" alt="Mapillary">
-    </a>
     ${actionsHtml}
   </div>`;
 }
 
 function buildEditPopupHtml(report) {
   const uid = report.id;
+  const catCol = categoryColor(report.category);
   const cats = ['Water','Electricity','Sewage','Gas','Heating','Road','Streetlight','Waste','Other'];
   const catOptions = cats.map(c => `<option value="${c}" ${c === report.category ? 'selected' : ''}>${translateCategory(c)}</option>`).join('');
   const statuses = [
@@ -4132,14 +4175,31 @@ function buildEditPopupHtml(report) {
   ];
   const statusOptions = statuses.map(s => `<option value="${s.key}" ${s.key === report.status ? 'selected' : ''}>${s.label}</option>`).join('');
 
-  return `<div class="popup-inner popup-edit-form">
-    <select id="edit-cat-${uid}" style="width:100%;" onchange="onEditCategoryChange('${uid}')">${catOptions}</select>
-    <select id="edit-subcat-${uid}" style="width:100%;"></select>
-    <select id="edit-status-${uid}" style="width:100%;">${statusOptions}</select>
-    <input type="text" id="edit-comment-${uid}" value="${escapeHtml(report.comment || '')}" style="width:100%;">
-    <div class="status-action-row" style="padding:0;border-top:none;">
-      <button class="status-action-btn" style="background:#a67817;" onclick="saveReportEdits('${uid}')">${t('saveBtn')}</button>
-      <button class="status-action-btn" style="background:#3a3a3a;" onclick="cancelEdit('${uid}')">${t('cancelBtn')}</button>
+  return `<div class="popup-inner popup-card popup-edit-form">
+    <div class="popup-header" style="background:${catCol};">
+      <span class="popup-header-title">${t('editTitle')}</span>
+    </div>
+    <div class="popup-edit-body">
+      <div class="popup-edit-field">
+        <span class="popup-edit-field-label">${t('editCategoryLabel')}</span>
+        <select id="edit-cat-${uid}" onchange="onEditCategoryChange('${uid}')">${catOptions}</select>
+      </div>
+      <div class="popup-edit-field">
+        <span class="popup-edit-field-label">${t('editSubcategoryLabel')}</span>
+        <select id="edit-subcat-${uid}"></select>
+      </div>
+      <div class="popup-edit-field">
+        <span class="popup-edit-field-label">${t('editStatusLabel')}</span>
+        <select id="edit-status-${uid}">${statusOptions}</select>
+      </div>
+      <div class="popup-edit-field">
+        <span class="popup-edit-field-label">${t('editCommentLabel')}</span>
+        <input type="text" id="edit-comment-${uid}" value="${escapeHtml(report.comment || '')}" placeholder="${t('commentPH')}">
+      </div>
+      <div class="status-action-row" style="padding:2px 0 0 0;border-top:none;">
+        <button class="status-action-btn" style="background:#a67817;" onclick="saveReportEdits('${uid}')">${t('saveBtn')}</button>
+        <button class="status-action-btn" style="background:#3a3a3a;" onclick="cancelEdit('${uid}')">${t('cancelBtn')}</button>
+      </div>
     </div>
   </div>`;
 }
@@ -4264,7 +4324,7 @@ function upsertSectionLine(report) {
 
   line = L.polyline(path, { color: sCol, weight: 6, opacity, lineCap: 'round' }).addTo(map);
   line._reportId = report.id;
-  line.bindPopup(buildPopupHtml(report));
+  line.bindPopup(buildPopupHtml(report), { autoPan: !MOBILE_POPUP_MQ.matches });
   markerById.set(report.id, line);
   return line;
 }
@@ -4295,7 +4355,7 @@ function upsertMarker(report) {
   }).addTo(map);
 
   marker._reportId = report.id;
-  marker.bindPopup(buildPopupHtml(report));
+  marker.bindPopup(buildPopupHtml(report), { autoPan: !MOBILE_POPUP_MQ.matches });
   markerById.set(report.id, marker);
   return marker;
 }
