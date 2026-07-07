@@ -2126,7 +2126,7 @@ function updateAllPopupRotations() {
 map.on('popupopen', e => {
   const popupEl = e.popup && e.popup._container;
   if (popupEl) rotatePopupElement(popupEl);
-  if (popupEl) checkMapillaryLinks(popupEl);
+  if (popupEl) checkMapillaryLinks(popupEl, e.popup);
 });
 
 // --- Mapillary "street-level photo" link -----------------------------------
@@ -2141,7 +2141,7 @@ const MAPILLARY_SEARCH_RADIUS_DEG = 0.002;
 
 const mapillaryCoverageCache = new Map(); // "lat,lng" -> boolean, avoids re-querying the same popup
 
-async function checkMapillaryLinks(popupEl) {
+async function checkMapillaryLinks(popupEl, popup) {
   if (!MAPILLARY_ACCESS_TOKEN || MAPILLARY_ACCESS_TOKEN === 'YOUR_MAPILLARY_ACCESS_TOKEN') return;
   const links = popupEl.querySelectorAll('.mapillary-link');
   for (const link of links) {
@@ -2152,7 +2152,7 @@ async function checkMapillaryLinks(popupEl) {
     const cacheKey = `${lat.toFixed(5)},${lng.toFixed(5)}`;
     if (mapillaryCoverageCache.has(cacheKey)) {
       const cached = mapillaryCoverageCache.get(cacheKey);
-      if (cached) showMapillaryLink(link, cached.lat, cached.lng);
+      if (cached) { showMapillaryLink(link, cached.lat, cached.lng); if (popup) popup.update(); }
       continue;
     }
 
@@ -2176,6 +2176,7 @@ async function checkMapillaryLinks(popupEl) {
         const [photoLng, photoLat] = nearest.geometry.coordinates;
         mapillaryCoverageCache.set(cacheKey, { lat: photoLat, lng: photoLng });
         showMapillaryLink(link, photoLat, photoLng);
+        if (popup) popup.update();
       } else {
         mapillaryCoverageCache.set(cacheKey, false);
       }
