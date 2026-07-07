@@ -2160,6 +2160,7 @@ async function checkMapillaryLinks(popupEl) {
       const r = MAPILLARY_SEARCH_RADIUS_DEG;
       const bbox = `${lng - r},${lat - r},${lng + r},${lat + r}`;
       const url = `https://graph.mapillary.com/images?access_token=${MAPILLARY_ACCESS_TOKEN}&fields=id,geometry&bbox=${bbox}&limit=1`;
+      console.log('[Mapillary] request URL:', url);
       const res = await fetch(url);
       if (!res.ok) {
         console.warn('[Mapillary] request failed', res.status, await res.text().catch(() => ''));
