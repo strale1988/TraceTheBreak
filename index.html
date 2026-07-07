@@ -1038,14 +1038,28 @@ body.driving-active .leaflet-control-zoom{
 }
 .mapillary-link{
   margin:0 8px 6px 8px;
+  display:inline-flex;
   align-items:center;
-  gap:5px;
-  font-size:10.5px;
-  font-weight:600;
-  color:#0a7cff;
+  justify-content:center;
+  width:24px;
+  height:24px;
+  border-radius:50%;
+  background:rgba(0,0,0,.06);
   text-decoration:none;
+  opacity:.35;
+  filter:grayscale(1);
+  pointer-events:none;
+  cursor:default;
+  transition:opacity .15s ease, background .15s ease, filter .15s ease;
 }
-.mapillary-link:hover{ text-decoration:underline; }
+.mapillary-link.enabled{
+  opacity:1;
+  filter:none;
+  background:rgba(10,124,255,.12);
+  pointer-events:auto;
+  cursor:pointer;
+}
+.mapillary-link.enabled:hover{ background:rgba(10,124,255,.22); }
 .mapillary-link .icon-img-inline{ margin:0; }
 .popup-timeline{
   padding:5px 8px 2px 8px;
@@ -2190,7 +2204,7 @@ async function checkMapillaryLinks(popupEl, popup) {
 
 function showMapillaryLink(link, lat, lng) {
   link.href = `https://www.mapillary.com/app/?lat=${lat}&lng=${lng}&z=18&focus=photo`;
-  link.style.display = 'flex';
+  link.classList.add('enabled');
 }
 
 // Eases the map back to north-up (used when leaving driving mode or when
@@ -4099,9 +4113,9 @@ function buildPopupHtml(report) {
       ${buildTimelineItem(report.fixed_at, !!report.fixed_at, STATUS_COLORS.fixed)}
     </div>
     ${report.comment ? `<div class="popup-note">${escapeHtml(report.comment)}</div>` : ''}
-    <a class="mapillary-link" href="#" target="_blank" rel="noopener" style="display:none"
+    <a class="mapillary-link" href="#" target="_blank" rel="noopener" title="${t('viewOnMapillary')}"
        data-lat="${report.latitude}" data-lng="${report.longitude}">
-      <img class="icon-img icon-img-inline" src="icons/mapillary.png" alt="Mapillary">${t('viewOnMapillary')}
+      <img class="icon-img icon-img-inline" src="icons/mapillary.png" alt="Mapillary">
     </a>
     ${actionsHtml}
   </div>`;
