@@ -1041,26 +1041,27 @@ body.driving-active .leaflet-control-zoom{
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  width:24px;
-  height:24px;
+  width:26px;
+  height:26px;
   border-radius:50%;
-  background:rgba(0,0,0,.06);
+  background:#eef0f2;
+  border:1px solid #d7dbe0;
   text-decoration:none;
-  opacity:.35;
-  filter:grayscale(1);
+  opacity:.55;
   pointer-events:none;
   cursor:default;
-  transition:opacity .15s ease, background .15s ease, filter .15s ease;
+  box-sizing:border-box;
+  transition:opacity .15s ease, background .15s ease, border-color .15s ease;
 }
 .mapillary-link.enabled{
   opacity:1;
-  filter:none;
-  background:rgba(10,124,255,.12);
+  background:#e6f1ff;
+  border-color:#0a7cff;
   pointer-events:auto;
   cursor:pointer;
 }
-.mapillary-link.enabled:hover{ background:rgba(10,124,255,.22); }
-.mapillary-link .icon-img-inline{ margin:0; }
+.mapillary-link.enabled:hover{ background:#d6e8ff; }
+.mapillary-link .icon-img-inline{ margin:0; width:16px; height:16px; }
 .popup-timeline{
   padding:5px 8px 2px 8px;
   display:flex;
