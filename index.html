@@ -645,7 +645,7 @@ body.driving-active .driving-speed-widget{ display:flex; }
   padding:7px 10px;
   box-shadow:0 3px 12px rgba(0,0,0,.55);
 }
-.turn-by-turn-icon{ font-size:22px; line-height:1; flex-shrink:0; }
+.turn-by-turn-icon{ width:26px; height:26px; flex-shrink:0; object-fit:contain; }
 .turn-by-turn-info{ display:flex; flex-direction:column; gap:1px; min-width:0; }
 .turn-by-turn-dist{ font-size:14px; font-weight:800; color:#00d0ff; line-height:1.1; }
 .turn-by-turn-text{
@@ -1321,17 +1321,17 @@ span.flatpickr-weekday {
   </button>
 </div>
 
-<div id="followLocationBtn" class="pin-map-btn" style="display:none" title="Follow my location" onclick="toggleFollowMode()"><img class="icon-img" src="https://strale1988.github.io/TraceTheStuff/icons/target.png" alt="Recenter"></div>
-<div id="pinMapBtn" class="pin-map-btn" style="display:none" title="Set location manually" onclick="togglePinMode()"><img class="icon-img" src="https://strale1988.github.io/TraceTheStuff/icons/pin.png" alt="Pin"></div>
-<div id="drivingModeBtn" class="pin-map-btn" style="display:none" title="Driving mode" onclick="toggleDrivingMode()"><img class="icon-img" src="https://strale1988.github.io/TraceTheStuff/icons/car.png" alt="Driving mode"></div>
+<div id="followLocationBtn" class="pin-map-btn" style="display:none" title="Follow my location" onclick="toggleFollowMode()"><img class="icon-img" src="icons/target.png" alt="Recenter"></div>
+<div id="pinMapBtn" class="pin-map-btn" style="display:none" title="Set location manually" onclick="togglePinMode()"><img class="icon-img" src="icons/pin.png" alt="Pin"></div>
+<div id="drivingModeBtn" class="pin-map-btn" style="display:none" title="Driving mode" onclick="toggleDrivingMode()"><img class="icon-img" src="icons/car.png" alt="Driving mode"></div>
 <div id="drivingTopFade"></div>
 
 <div id="navigatePanel" class="navigate-panel">
   <div class="navigate-row">
     <input type="text" id="navigateSearchInput" placeholder="Search destination..."
            onkeydown="if(event.key==='Enter'){event.preventDefault();searchDestination();}">
-    <div class="navigate-search-btn" onclick="searchDestination()"><img class="icon-img" src="https://strale1988.github.io/TraceTheStuff/icons/search.png" alt="Search"></div>
-    <div class="navigate-search-btn" id="navigatePinBtn" onclick="toggleNavPinMode()" title="Place destination pin manually"><img class="icon-img" src="https://strale1988.github.io/TraceTheStuff/icons/pin.png" alt="Pin"></div>
+    <div class="navigate-search-btn" onclick="searchDestination()"><img class="icon-img" src="icons/search.png" alt="Search"></div>
+    <div class="navigate-search-btn" id="navigatePinBtn" onclick="toggleNavPinMode()" title="Place destination pin manually"><img class="icon-img" src="icons/pin.png" alt="Pin"></div>
     <div class="navigate-close-btn" onclick="closeNavigatePanel()">✕</div>
   </div>
   <div id="navigatePinHint" class="navigate-pin-hint" style="display:none">Tap the map to drop a destination pin</div>
@@ -1353,7 +1353,7 @@ span.flatpickr-weekday {
     <div class="driving-speed-limit no-data" id="drivingSpeedLimit">--</div>
   </div>
   <div id="turnByTurnCard" class="turn-by-turn-card" style="display:none">
-    <span class="turn-by-turn-icon" id="turnByTurnIcon">⬆️</span>
+    <img class="turn-by-turn-icon" id="turnByTurnIcon" src="icons/turn-straight.png" alt="Turn">
     <div class="turn-by-turn-info">
       <span class="turn-by-turn-dist" id="turnByTurnDist"></span>
       <span class="turn-by-turn-text" id="turnByTurnText"></span>
@@ -1397,8 +1397,8 @@ span.flatpickr-weekday {
       </svg>
     </button>
     <div class="driving-action-row-right">
-      <button class="driving-search-btn" id="drivingSearchBtn" onclick="toggleNavigatePanel()" title="Search destination"><img class="icon-img" src="https://strale1988.github.io/TraceTheStuff/icons/search.png" alt="Search"></button>
-      <button class="driving-search-btn" id="drivingCenterBtn" onclick="toggleFollowMode()" title="Center on me"><img class="icon-img" src="https://strale1988.github.io/TraceTheStuff/icons/target.png" alt="Center"></button>
+      <button class="driving-search-btn" id="drivingSearchBtn" onclick="toggleNavigatePanel()" title="Search destination"><img class="icon-img" src="icons/search.png" alt="Search"></button>
+      <button class="driving-search-btn" id="drivingCenterBtn" onclick="toggleFollowMode()" title="Center on me"><img class="icon-img" src="icons/target.png" alt="Center"></button>
     </div>
   </div>
   <div id="sectionAwaitingBar" class="section-awaiting-bar" style="display:none">
@@ -1409,11 +1409,11 @@ span.flatpickr-weekday {
     <span id="sectionRecordBtnLabel">Start Section Report</span>
   </button>
   <div class="driving-tile-row">
-    <div class="driving-tile" onclick="handleTileTap('pothole')"><img class="icon-img icon-img-tile" src="https://strale1988.github.io/TraceTheStuff/icons/pothole.png" alt="Pothole"><span id="dTilePothole">Pothole</span></div>
-    <div class="driving-tile" onclick="handleTileTap('cracked')"><img class="icon-img icon-img-tile" src="https://strale1988.github.io/TraceTheStuff/icons/road.png" alt="Damaged pavement"><span id="dTileCracked">Damaged pavement</span></div>
-    <div class="driving-tile" onclick="handleTileTap('signage')"><img class="icon-img icon-img-tile" src="https://strale1988.github.io/TraceTheStuff/icons/traffic-cone.png" alt="Bad signage"><span id="dTileSignage">Bad signage</span></div>
-    <div class="driving-tile" onclick="handleTileTap('flooding')"><img class="icon-img icon-img-tile" src="https://strale1988.github.io/TraceTheStuff/icons/flood-risk.png" alt="Flooding"><span id="dTileFlooding">Flooding</span></div>
-    <div class="driving-tile" onclick="handleTileTap(null)"><img class="icon-img icon-img-tile" src="https://strale1988.github.io/TraceTheStuff/icons/warning-symbol.png" alt="Other road issue"><span id="dTileOther">Other road issue</span></div>
+    <div class="driving-tile" onclick="handleTileTap('pothole')"><img class="icon-img icon-img-tile" src="icons/pothole.png" alt="Pothole"><span id="dTilePothole">Pothole</span></div>
+    <div class="driving-tile" onclick="handleTileTap('cracked')"><img class="icon-img icon-img-tile" src="icons/road.png" alt="Damaged pavement"><span id="dTileCracked">Damaged pavement</span></div>
+    <div class="driving-tile" onclick="handleTileTap('signage')"><img class="icon-img icon-img-tile" src="icons/traffic-cone.png" alt="Bad signage"><span id="dTileSignage">Bad signage</span></div>
+    <div class="driving-tile" onclick="handleTileTap('flooding')"><img class="icon-img icon-img-tile" src="icons/flood-risk.png" alt="Flooding"><span id="dTileFlooding">Flooding</span></div>
+    <div class="driving-tile" onclick="handleTileTap(null)"><img class="icon-img icon-img-tile" src="icons/warning-symbol.png" alt="Other road issue"><span id="dTileOther">Other road issue</span></div>
   </div>
 </div>
 
@@ -1473,10 +1473,10 @@ span.flatpickr-weekday {
 <!-- GPS/Error Alert Modal -->
 <div id="gpsModal" class="generic-modal-overlay" style="display:none">
   <div class="generic-modal">
-    <div class="generic-modal-icon"><img class="icon-img icon-img-modal" src="https://strale1988.github.io/TraceTheStuff/icons/pin.png" alt="Pin"></div>
+    <div class="generic-modal-icon"><img class="icon-img icon-img-modal" src="icons/pin.png" alt="Pin"></div>
     <h2 id="gpsModalTitle">GPS Not Enabled</h2>
     <p id="gpsModalBody">Location access is turned off. To report a break at your location, enable it in your settings.</p>
-    <p id="gpsModalAlt" style="font-size:12px;color:#999;margin-bottom:16px;">Or use the <img class="icon-img icon-img-inline" src="https://strale1988.github.io/TraceTheStuff/icons/pin.png" alt="pin"> button on the map to drop a pin manually.</p>
+    <p id="gpsModalAlt" style="font-size:12px;color:#999;margin-bottom:16px;">Or use the <img class="icon-img icon-img-inline" src="icons/pin.png" alt="pin"> button on the map to drop a pin manually.</p>
     <button class="generic-modal-close" onclick="hideGpsModal()" id="gpsModalBtn">Got it</button>
   </div>
 </div>
@@ -1778,7 +1778,7 @@ const T = {
   catPH:        { en:'Select break type…',               sr:'Izaberite vrstu kvara…' },
   gpsTitle:     { en:'GPS Not Enabled',                  sr:'GPS nije uključen' },
   gpsBody:      { en:'Location access is turned off. To report a break at your location, enable it in your settings.', sr:'Pristup lokaciji je isključen. Da biste prijavili kvar, omogućite ga u podešavanjima.' },
-  gpsAlt:       { en:'Or use the <img class="icon-img icon-img-inline" src="https://strale1988.github.io/TraceTheStuff/icons/pin.png" alt="pin"> button on the map to drop a pin manually.', sr:'Ili koristite dugme <img class="icon-img icon-img-inline" src="https://strale1988.github.io/TraceTheStuff/icons/pin.png" alt="pin"> na karti da ručno postavite pin.' },
+  gpsAlt:       { en:'Or use the <img class="icon-img icon-img-inline" src="icons/pin.png" alt="pin"> button on the map to drop a pin manually.', sr:'Ili koristite dugme <img class="icon-img icon-img-inline" src="icons/pin.png" alt="pin"> na karti da ručno postavite pin.' },
   gpsBtn:       { en:'Got it',                           sr:'Razumem' },
   noReports:    { en:'No reports in current map view.',  sr:'Nema prijava u vidljivoj oblasti.' },
   calendarPH:   { en:'Select date range...',             sr:'Izaberi vremenski opseg...' },
@@ -1787,7 +1787,7 @@ const T = {
   helpStep1:    { en:'1. Choose what broke:',            sr:'1. Izaberite šta se pokvarilo:' },
   helpStep1Body:{ en:'Select the type of break — water, electricity, sewage, gas, road, streetlight, or other.', sr:'Izaberite vrstu kvara — voda, struja, kanalizacija, gas, put, ulična rasveta ili ostalo.' },
   helpStep2:    { en:'2. Set your location:',            sr:'2. Odredite vašu lokaciju:' },
-  helpStep2Body:{ en:'Make sure your device GPS is on, or tap the manual pin button (<img class="icon-img icon-img-inline" src="https://strale1988.github.io/TraceTheStuff/icons/pin.png" alt="pin">) to drop a point on the map yourself.', sr:'Proverite da li je GPS uključen, ili pritisnite dugme za ručnu lokaciju (<img class="icon-img icon-img-inline" src="https://strale1988.github.io/TraceTheStuff/icons/pin.png" alt="pin">) da sami postavite tačku na mapi.' },
+  helpStep2Body:{ en:'Make sure your device GPS is on, or tap the manual pin button (<img class="icon-img icon-img-inline" src="icons/pin.png" alt="pin">) to drop a point on the map yourself.', sr:'Proverite da li je GPS uključen, ili pritisnite dugme za ručnu lokaciju (<img class="icon-img icon-img-inline" src="icons/pin.png" alt="pin">) da sami postavite tačku na mapi.' },
   helpStep3:    { en:'3. Submit:',                       sr:'3. Pošalji:' },
   helpStep3Body:{ en:'Add an optional note, then tap "REPORT BREAK".', sr:'Dodajte opcionu napomenu i pritisnite "PRIJAVI KVAR".' },
   popupStatus:  { en:'Status', sr:'Status' },
@@ -1942,7 +1942,7 @@ function buildHelpModalContent() {
       <p><strong>${t('helpStep2')}</strong> ${t('helpStep2Body')}</p>
       <p><strong>${t('helpStep3')}</strong> ${t('helpStep3Body')}</p>
       <p><strong>🧭</strong> ${lang === 'sr' ? 'Uključite praćenje da mapa uvek prati vašu lokaciju, kao navigacija.' : 'Turn on follow mode to keep the map centered on you, like a navigation app.'}</p>
-      <p><strong><img class="icon-img icon-img-inline" src="https://strale1988.github.io/TraceTheStuff/icons/car.png" alt="car"></strong> ${lang === 'sr'
+      <p><strong><img class="icon-img icon-img-inline" src="icons/car.png" alt="car"></strong> ${lang === 'sr'
         ? 'Režim vožnje prikazuje dugmad za prijavu problema na putu na dnu ekrana. Dodirnite jedno da odmah prijavite problem na trenutnoj lokaciji. Da obeležite ceo loš deo puta, pritisnite "Počni prijavu deonice", provozite se preko problematičnog dela, pa pritisnite dugme opet da zaustavite snimanje — zatim dodirnite jedno od istih dugmadi da izaberete vrstu problema i sačuvate deonicu.'
         : 'Driving mode shows road-report buttons along the bottom of the screen. Tap one to instantly log a problem at your current location. To mark a whole stretch of bad road, tap "Start Section Report", drive over it, then tap the button again to stop recording — tapping one of the same buttons then picks a type and saves the section.'}</p>
     </div>
@@ -2897,25 +2897,26 @@ function updateNavInfoText(meters, seconds, approximate) {
 // navRouteSteps) is currently closest ahead of the driver.
 const TURN_ARRIVE_RADIUS_M = 25; // close enough to a maneuver point to consider it "reached"
 
+// Values here are filenames inside the icons/ folder (e.g. icons/turn-left.png)
 const TURN_ICONS = {
-  'sharp left':  '↰', 'left':  '⬅️', 'slight left':  '↖️',
-  'sharp right': '↱', 'right': '➡️', 'slight right': '↗️',
-  straight: '⬆️', uturn: '↩️'
+  'sharp left':  'turn-sharp-left.png', 'left':  'turn-left.png', 'slight left':  'turn-slight-left.png',
+  'sharp right': 'turn-sharp-right.png', 'right': 'turn-right.png', 'slight right': 'turn-slight-right.png',
+  straight: 'turn-straight.png', uturn: 'turn-uturn.png'
 };
 
 function instructionForStep(step) {
   if (!step) return null;
   const { type, modifier, exit, name } = step;
 
-  if (type === 'arrive') return { icon: '🏁', text: t('turnArrive') };
+  if (type === 'arrive') return { icon: 'turn-arrive.png', text: t('turnArrive') };
   if (type === 'depart')  return null;
 
   if (type === 'roundabout' || type === 'rotary' || type === 'roundabout turn') {
     const label = exit ? `${t('turnRoundabout')} — ${t('turnExit')} ${exit}` : t('turnRoundabout');
-    return { icon: '🔄', text: name ? `${label} (${name})` : label };
+    return { icon: 'turn-roundabout.png', text: name ? `${label} (${name})` : label };
   }
 
-  let icon = '⬆️';
+  let icon = 'turn-straight.png';
   let text = t('turnContinue');
   if (modifier && TURN_ICONS[modifier]) {
     icon = TURN_ICONS[modifier];
@@ -2925,10 +2926,10 @@ function instructionForStep(step) {
       straight: 'turnStraight', uturn: 'turnUturn'
     }[modifier];
     text = t(key);
-  } else if (type === 'merge')      { icon = '⤴️'; text = t('turnMerge'); }
-  else if (type === 'fork')         { icon = '⑂';  text = t('turnFork'); }
-  else if (type === 'end of road')  { icon = '⏹️'; text = t('turnEndOfRoad'); }
-  else if (type === 'on ramp' || type === 'off ramp') { icon = '⤴️'; text = t('turnRamp'); }
+  } else if (type === 'merge')      { icon = 'turn-merge.png'; text = t('turnMerge'); }
+  else if (type === 'fork')         { icon = 'turn-fork.png';  text = t('turnFork'); }
+  else if (type === 'end of road')  { icon = 'turn-end-of-road.png'; text = t('turnEndOfRoad'); }
+  else if (type === 'on ramp' || type === 'off ramp') { icon = 'turn-ramp.png'; text = t('turnRamp'); }
 
   return { icon, text: name ? `${text} — ${name}` : text };
 }
@@ -2953,7 +2954,7 @@ function updateTurnByTurnDisplay(from) {
   if (!info) { hideTurnByTurnDisplay(); return; }
 
   const distToTurn = distMeters(from, step.location);
-  document.getElementById('turnByTurnIcon').textContent = info.icon;
+  document.getElementById('turnByTurnIcon').src = 'icons/' + info.icon;
   document.getElementById('turnByTurnText').textContent = info.text;
   document.getElementById('turnByTurnDist').textContent = formatDistance(distToTurn);
   card.style.display = 'flex';
