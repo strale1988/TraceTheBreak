@@ -1231,7 +1231,7 @@ span.flatpickr-weekday {
     </div>
     <div class="right-controls">
       <button class="help-icon-btn" id="fullscreenBtn" title="Fullscreen / Preko celog ekrana" onclick="toggleFullscreen()">⛶</button>
-      <button class="help-icon-btn" id="helpTopBtn" title="Help / Pomoć" onclick="showHelpModal()">❓</button>
+      <button class="help-icon-btn" id="helpTopBtn" title="Help / Pomoć" onclick="showHelpModal()"><img class="icon-img" src="icons/help.png" alt="Help"></button>
       <div class="lang-toggle">
         <button class="lang-btn"        onclick="setLang('en')">🇬🇧 EN</button>
         <button class="lang-btn active" onclick="setLang('sr')">🇷🇸 SR</button>
@@ -1941,7 +1941,7 @@ function buildHelpModalContent() {
       <p><strong>${t('helpStep1')}</strong> ${t('helpStep1Body')}</p>
       <p><strong>${t('helpStep2')}</strong> ${t('helpStep2Body')}</p>
       <p><strong>${t('helpStep3')}</strong> ${t('helpStep3Body')}</p>
-      <p><strong>🧭</strong> ${lang === 'sr' ? 'Uključite praćenje da mapa uvek prati vašu lokaciju, kao navigacija.' : 'Turn on follow mode to keep the map centered on you, like a navigation app.'}</p>
+      <p><strong><img class="icon-img icon-img-inline" src="icons/compass.png" alt="compass"></strong> ${lang === 'sr' ? 'Uključite praćenje da mapa uvek prati vašu lokaciju, kao navigacija.' : 'Turn on follow mode to keep the map centered on you, like a navigation app.'}</p>
       <p><strong><img class="icon-img icon-img-inline" src="icons/car.png" alt="car"></strong> ${lang === 'sr'
         ? 'Režim vožnje prikazuje dugmad za prijavu problema na putu na dnu ekrana. Dodirnite jedno da odmah prijavite problem na trenutnoj lokaciji. Da obeležite ceo loš deo puta, pritisnite "Počni prijavu deonice", provozite se preko problematičnog dela, pa pritisnite dugme opet da zaustavite snimanje — zatim dodirnite jedno od istih dugmadi da izaberete vrstu problema i sačuvate deonicu.'
         : 'Driving mode shows road-report buttons along the bottom of the screen. Tap one to instantly log a problem at your current location. To mark a whole stretch of bad road, tap "Start Section Report", drive over it, then tap the button again to stop recording — tapping one of the same buttons then picks a type and saves the section.'}</p>
