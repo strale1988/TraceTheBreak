@@ -2167,7 +2167,7 @@ async function checkMapillaryLinks(popupEl, popup) {
     const cacheKey = `${lat.toFixed(5)},${lng.toFixed(5)}`;
     if (mapillaryCoverageCache.has(cacheKey)) {
       const cached = mapillaryCoverageCache.get(cacheKey);
-      if (cached) { showMapillaryLink(link, cached.lat, cached.lng); }
+      if (cached) { showMapillaryLink(link, cached.lat, cached.lng, cached.id); }
       continue;
     }
 
@@ -2189,8 +2189,8 @@ async function checkMapillaryLinks(popupEl, popup) {
         // geometry.coordinates is GeoJSON [lng, lat] — use the photo's own
         // location so the link lands exactly on real imagery, not just near it.
         const [photoLng, photoLat] = nearest.geometry.coordinates;
-        mapillaryCoverageCache.set(cacheKey, { lat: photoLat, lng: photoLng });
-        showMapillaryLink(link, photoLat, photoLng);
+        mapillaryCoverageCache.set(cacheKey, { lat: photoLat, lng: photoLng, id: nearest.id });
+        showMapillaryLink(link, photoLat, photoLng, nearest.id);
       } else {
         mapillaryCoverageCache.set(cacheKey, false);
       }
@@ -2202,8 +2202,8 @@ async function checkMapillaryLinks(popupEl, popup) {
   }
 }
 
-function showMapillaryLink(link, lat, lng) {
-  link.href = `https://www.mapillary.com/app/?lat=${lat}&lng=${lng}&z=18&focus=photo`;
+function showMapillaryLink(link, lat, lng, photoId) {
+  link.href = `https://www.mapillary.com/app/?pKey=${encodeURIComponent(photoId)}&lat=${lat}&lng=${lng}&z=18&focus=photo`;
   link.classList.add('enabled');
 }
 
