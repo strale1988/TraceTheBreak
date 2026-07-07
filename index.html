@@ -75,7 +75,9 @@ header p{ font-size:11px; opacity:.7; margin-top:2px; }
   background:#262626;
   border:1px solid #444;
   font-size:14px;
-  padding:4px 8px;
+  width:32px;
+  height:32px;
+  padding:0;
   display:flex;
   align-items:center;
   justify-content:center;
@@ -1230,7 +1232,7 @@ span.flatpickr-weekday {
       <p id="subtitle">Community Infrastructure Reporting Network</p>
     </div>
     <div class="right-controls">
-      <button class="help-icon-btn" id="fullscreenBtn" title="Fullscreen / Preko celog ekrana" onclick="toggleFullscreen()">⛶</button>
+      <button class="help-icon-btn" id="fullscreenBtn" title="Fullscreen / Preko celog ekrana" onclick="toggleFullscreen()"><img class="icon-img" id="fullscreenBtnIcon" src="icons/fullscreen-enter.png" alt="Fullscreen"></button>
       <button class="help-icon-btn" id="helpTopBtn" title="Help / Pomoć" onclick="showHelpModal()"><img class="icon-img" src="icons/help.png" alt="Help"></button>
       <div class="lang-toggle">
         <button class="lang-btn"        onclick="setLang('en')">🇬🇧 EN</button>
@@ -4436,9 +4438,10 @@ function toggleFullscreen() {
 
 function updateFullscreenBtn() {
   const btn = document.getElementById('fullscreenBtn');
-  if (!btn) return;
+  const icon = document.getElementById('fullscreenBtnIcon');
+  if (!btn || !icon) return;
   const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement;
-  btn.textContent = isFullscreen ? '⤢' : '⛶';
+  icon.src = isFullscreen ? 'icons/fullscreen-exit.png' : 'icons/fullscreen-enter.png';
   btn.title = isFullscreen ? 'Exit fullscreen / Napusti celi ekran' : 'Fullscreen / Preko celog ekrana';
 }
 
