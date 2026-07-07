@@ -2135,8 +2135,9 @@ map.on('popupopen', e => {
 const MAPILLARY_ACCESS_TOKEN = 'MLY|27654351744203827|eb156565ee556fb6b5e78fc8b3e27bc3';
 
 // How far (in degrees, roughly) to search around a report for nearby
-// Mapillary imagery. ~0.0005 deg is about 50m at most latitudes.
-const MAPILLARY_SEARCH_RADIUS_DEG = 0.0005;
+// Mapillary imagery. ~0.002 deg is roughly 200m at most latitudes — wide
+// enough to usually find something nearby, not necessarily at the exact spot.
+const MAPILLARY_SEARCH_RADIUS_DEG = 0.002;
 
 const mapillaryCoverageCache = new Map(); // "lat,lng" -> boolean, avoids re-querying the same popup
 
@@ -2150,14 +2151,15 @@ async function checkMapillaryLinks(popupEl) {
 
     const cacheKey = `${lat.toFixed(5)},${lng.toFixed(5)}`;
     if (mapillaryCoverageCache.has(cacheKey)) {
-      if (mapillaryCoverageCache.get(cacheKey)) showMapillaryLink(link, lat, lng);
+      const cached = mapillaryCoverageCache.get(cacheKey);
+      if (cached) showMapillaryLink(link, cached.lat, cached.lng);
       continue;
     }
 
     try {
       const r = MAPILLARY_SEARCH_RADIUS_DEG;
       const bbox = `${lng - r},${lat - r},${lng + r},${lat + r}`;
-      const url = `https://graph.mapillary.com/images?access_token=${MAPILLARY_ACCESS_TOKEN}&fields=id&bbox=${bbox}&limit=1`;
+      const url = `https://graph.mapillary.com/images?access_token=${MAPILLARY_ACCESS_TOKEN}&fields=id,geometry&bbox=${bbox}&limit=1`;
       const res = await fetch(url);
       if (!res.ok) {
         console.warn('[Mapillary] request failed', res.status, await res.text().catch(() => ''));
@@ -2165,10 +2167,17 @@ async function checkMapillaryLinks(popupEl) {
         continue;
       }
       const data = await res.json();
-      const hasCoverage = !!(data && data.data && data.data.length > 0);
-      console.log('[Mapillary] checked', cacheKey, '-> coverage:', hasCoverage, data);
-      mapillaryCoverageCache.set(cacheKey, hasCoverage);
-      if (hasCoverage) showMapillaryLink(link, lat, lng);
+      const nearest = data && data.data && data.data[0];
+      console.log('[Mapillary] checked', cacheKey, '-> coverage:', !!nearest, data);
+      if (nearest) {
+        // geometry.coordinates is GeoJSON [lng, lat] — use the photo's own
+        // location so the link lands exactly on real imagery, not just near it.
+        const [photoLng, photoLat] = nearest.geometry.coordinates;
+        mapillaryCoverageCache.set(cacheKey, { lat: photoLat, lng: photoLng });
+        showMapillaryLink(link, photoLat, photoLng);
+      } else {
+        mapillaryCoverageCache.set(cacheKey, false);
+      }
     } catch (err) {
       // Network hiccup or API unavailable — just leave the link hidden.
       console.warn('[Mapillary] request error', err);
