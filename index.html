@@ -265,52 +265,56 @@ button{
    On a small screen a marker-anchored popup either has to stay tiny or
    risks being taller than the map itself — which is exactly what made it
    "open and disappear instantly": Leaflet's autoPan tried to fit an
-   oversized bubble into a short map viewport and fought itself. Instead,
-   below this width every open popup is re-staged as a centered dialog
-   that covers the whole screen with a dimmed backdrop, same visual
-   language as .generic-modal-overlay used elsewhere in the app. This is
-   pure CSS — it doesn't touch how popups are built/updated, so
-   setPopupContent()/edit mode keep working exactly as before. */
-@media (max-width: 640px){
-  body.popup-open .leaflet-popup-pane{
-    position:fixed !important;
-    inset:0 !important;
-    width:100vw !important;
-    height:100vh !important;
-    display:flex !important;
-    align-items:center !important;
-    justify-content:center !important;
-    background:rgba(0,0,0,.75);
-    z-index:9999;
-    padding:20px;
-    box-sizing:border-box;
-  }
-  body.popup-open .leaflet-popup{
-    position:static !important;
-    transform:none !important;
-    margin:0 auto !important;
-    width:100%;
-    max-width:340px;
-  }
-  body.popup-open .leaflet-popup-tip-container{ display:none !important; }
-  /* The map may be mid-rotation (heading-up driving mode); a fixed,
-     full-screen dialog should never tilt along with it. */
-  body.popup-open .popup-rotate-wrap{ transform:none !important; }
-  body.popup-open .leaflet-popup-content-wrapper{
-    width:100%;
-    max-height:80vh;
-    overflow-y:auto;
-    -webkit-overflow-scrolling:touch;
-    box-shadow:0 16px 48px rgba(0,0,0,.8);
-  }
-  body.popup-open .leaflet-popup-close-button{
-    width:32px !important;
-    height:32px !important;
-    font-size:22px !important;
-    line-height:32px !important;
-    top:8px !important;
-    right:8px !important;
-  }
+   oversized bubble into a short map viewport and fought itself.
+   Below this width, popupopen (see JS) physically moves the popup's DOM
+   node out of Leaflet's panes and into #mobilePopupOverlay, a plain
+   fixed, full-viewport backdrop that lives directly under <body>. It has
+   to be an actual reparent rather than just CSS position:fixed on the
+   popup in place, because the popup normally lives inside
+   .leaflet-rotate-wrapper — an ancestor that gets a CSS transform applied
+   during heading-up driving mode, and any transformed ancestor becomes
+   the containing block for fixed-position descendants, silently trapping
+   them inside the map instead of covering the real viewport. Moving the
+   node under <body> sidesteps that entirely. */
+#mobilePopupOverlay{
+  display:none;
+  position:fixed;
+  inset:0;
+  width:100vw;
+  height:100vh;
+  align-items:center;
+  justify-content:center;
+  background:rgba(0,0,0,.75);
+  z-index:9999;
+  padding:20px;
+  box-sizing:border-box;
+}
+#mobilePopupOverlay.showing{ display:flex; }
+#mobilePopupOverlay .leaflet-popup{
+  position:static !important;
+  transform:none !important;
+  margin:0 auto !important;
+  width:100%;
+  max-width:340px;
+}
+#mobilePopupOverlay .leaflet-popup-tip-container{ display:none !important; }
+/* The map may be mid-rotation (heading-up driving mode); a full-screen
+   dialog living under <body> should never tilt along with it. */
+#mobilePopupOverlay .popup-rotate-wrap{ transform:none !important; }
+#mobilePopupOverlay .leaflet-popup-content-wrapper{
+  width:100%;
+  max-height:80vh;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  box-shadow:0 16px 48px rgba(0,0,0,.8);
+}
+#mobilePopupOverlay .leaflet-popup-close-button{
+  width:32px !important;
+  height:32px !important;
+  font-size:22px !important;
+  line-height:32px !important;
+  top:8px !important;
+  right:8px !important;
 }
 
 /* --- Popup counter-rotation (see rotatePopupElement/updateAllPopupRotations) ---
@@ -2206,23 +2210,48 @@ function updateAllPopupRotations() {
 // Newly-opened popups also need the counter-rotation applied immediately —
 // otherwise a popup opened while already mid-turn would flash in sideways
 // for a moment before the next bearing update fixed it.
+const MOBILE_POPUP_MQ = window.matchMedia('(max-width: 640px)');
+const mobilePopupOverlay = document.getElementById('mobilePopupOverlay');
+// Where a popup's DOM node came from, so we can put it back when it closes
+// (Leaflet reuses/recreates its pane's children and gets confused if a
+// popup it thinks is still in popupPane has actually been moved elsewhere).
+let mobilePopupOriginalParent = null;
+
 map.on('popupopen', e => {
   const popupEl = e.popup && e.popup._container;
   if (popupEl) rotatePopupElement(popupEl);
-  document.body.classList.add('popup-open');
+  // On mobile, physically move the popup out of Leaflet's panes and into
+  // #mobilePopupOverlay — a plain fixed, full-viewport element living
+  // directly under <body>. This has to be a real reparent rather than
+  // CSS position:fixed applied in place, because the popup normally lives
+  // inside .leaflet-rotate-wrapper, and that wrapper gets a CSS transform
+  // during heading-up driving mode; any transformed ancestor becomes the
+  // containing block for fixed-position descendants, which silently traps
+  // "fixed" content inside the map instead of covering the real viewport.
+  if (popupEl && mobilePopupOverlay && MOBILE_POPUP_MQ.matches) {
+    mobilePopupOriginalParent = popupEl.parentNode;
+    mobilePopupOverlay.appendChild(popupEl);
+    mobilePopupOverlay.classList.add('showing');
+  }
 });
-map.on('popupclose', () => {
-  document.body.classList.remove('popup-open');
+map.on('popupclose', e => {
+  const popupEl = e.popup && e.popup._container;
+  // Put the node back where Leaflet expects it before it tears the popup
+  // down, so its own internal bookkeeping (and a possible future reopen)
+  // isn't left pointing at a detached/misplaced element.
+  if (popupEl && mobilePopupOriginalParent) {
+    mobilePopupOriginalParent.appendChild(popupEl);
+    mobilePopupOriginalParent = null;
+  }
+  if (mobilePopupOverlay) mobilePopupOverlay.classList.remove('showing');
 });
 
-// On mobile the popup pane becomes a full-screen dimmed backdrop (see the
-// @media block above) — tapping that backdrop, outside the dialog itself,
-// should close the popup like tapping outside any other modal in the app.
-const MOBILE_POPUP_MQ = window.matchMedia('(max-width: 640px)');
-const popupPaneEl = map.getPane('popupPane');
-if (popupPaneEl) {
-  popupPaneEl.addEventListener('click', e => {
-    if (MOBILE_POPUP_MQ.matches && e.target === popupPaneEl) map.closePopup();
+// On mobile the overlay is a full-screen dimmed backdrop — tapping it,
+// outside the dialog itself, should close the popup like tapping outside
+// any other modal in the app.
+if (mobilePopupOverlay) {
+  mobilePopupOverlay.addEventListener('click', e => {
+    if (e.target === mobilePopupOverlay) map.closePopup();
   });
 }
 
@@ -4224,12 +4253,13 @@ function enterEditMode(reportId) {
   // keep both in sync even though only one of them was actually clicked open.
   if (marker) marker.setPopupContent(buildEditPopupHtml(report));
   if (pin) pin.setPopupContent(buildEditPopupHtml(report));
-  // subcategory <select> starts empty in the template; populate it now that
-  // it's actually in the DOM, preselecting the report's current subcategory
-  setTimeout(() => {
-    const subSelect = document.getElementById(`edit-subcat-${reportId}`);
-    if (subSelect) populateSubcategoryOptions(subSelect, report.category, report.subcategory);
-  }, 0);
+  // setPopupContent() above writes the new markup into the DOM synchronously
+  // (it's a plain innerHTML assignment under the hood), so the subcategory
+  // <select> already exists — populate it immediately rather than waiting
+  // a tick, so the edit form appears fully filled-in on the very first frame
+  // instead of flashing an empty dropdown for a moment.
+  const subSelect = document.getElementById(`edit-subcat-${reportId}`);
+  if (subSelect) populateSubcategoryOptions(subSelect, report.category, report.subcategory);
 }
 
 function cancelEdit(reportId) {
@@ -4627,6 +4657,8 @@ initAuth().then(() => {
 });
 
 </script>
+
+<div id="mobilePopupOverlay"></div>
 
 </body>
 </html>
