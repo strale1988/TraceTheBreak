@@ -2556,6 +2556,28 @@ let lastRoadSnapAt          = 0;
 let snappedUserCoords       = null; // last accepted on-road position, or null if nothing's been snapped yet
 let roadSnapFallbackTimer   = null;
 
+// One-shot version of the same OSRM /nearest lookup, used to snap a
+// destination pin onto the road when it's placed (see selectDestination
+// below) rather than continuously for the live GPS puck. Not throttled
+// like the puck's version since it only ever runs once per pin drop.
+// DEST_SNAP_MAX_ACCEPT_M is looser than the puck's — a searched or
+// manually-dropped destination can reasonably be a bit further from the
+// road centerline (a building entrance, a spot back from the curb) than a
+// live GPS fix ever should be.
+const DEST_SNAP_MAX_ACCEPT_M = 60;
+async function snapToNearestRoad(lat, lon, maxAcceptM) {
+  try {
+    const res = await fetch(`${ROAD_SNAP_URL_BASE}${lon},${lat}?number=1`);
+    const data = await res.json();
+    const wp = data && data.code === 'Ok' && data.waypoints && data.waypoints[0];
+    if (!wp) return null;
+    const snapped = { lat: wp.location[1], lon: wp.location[0] };
+    return distMeters(snapped, { lat, lon }) <= maxAcceptM ? snapped : null;
+  } catch (err) {
+    return null; // offline/timeout — caller falls back to the raw point
+  }
+}
+
 // Actually moves the puck (and recentres the map if following). Guarded by
 // a fix token so a slow response can't clobber a newer position that has
 // already arrived and been shown.
@@ -2693,7 +2715,7 @@ async function searchDestination() {
   }
 }
 
-function selectDestination(lat, lon, label) {
+async function selectDestination(lat, lon, label) {
   if (!isValidLatLng(lat, lon)) {
     console.error('Rejected destination with invalid coordinates:', lat, lon);
     toast(t('invalidLocation'), 'error');
@@ -2702,7 +2724,16 @@ function selectDestination(lat, lon, label) {
   if (navState === NavState.IDLE) setNavState(NavState.SEARCHING);
   setNavState(NavState.CALCULATING);
 
-  destinationCoords = { lat, lon, label };
+  // Search results and manually-dropped pins routinely land a few meters
+  // off the actual road (a building footprint, a sidewalk, a parking
+  // area) — snap onto the nearest road here so the pin the driver sees
+  // matches the point the route will actually end at, instead of the
+  // route silently arriving somewhere slightly different from the marker.
+  const snapped = await snapToNearestRoad(lat, lon, DEST_SNAP_MAX_ACCEPT_M);
+  const destLat = snapped ? snapped.lat : lat;
+  const destLon = snapped ? snapped.lon : lon;
+
+  destinationCoords = { lat: destLat, lon: destLon, label };
   navLastRouteAt = 0;
   navLastRouteFrom = null;
   document.getElementById('navigateResults').innerHTML = '';
@@ -2717,14 +2748,14 @@ function selectDestination(lat, lon, label) {
   const iconHtml = '<div style="width:20px;height:20px;border-radius:50%;background:#00d0ff;' +
                     'border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,.5);"></div>';
   if (destinationMarker) map.removeLayer(destinationMarker);
-  destinationMarker = L.marker([lat, lon], {
+  destinationMarker = L.marker([destLat, destLon], {
     icon: L.divIcon({ className: '', html: iconHtml, iconAnchor: [10, 10] })
   }).addTo(map);
 
   const from = userCoords || manualCoords;
   if (!from) {
     toast(t('navigateNeedLocation'), 'error');
-    map.setView([lat, lon], 14);
+    map.setView([destLat, destLon], 14);
     return; // stays in CALCULATING; resolves to PREVIEW once a GPS fix lets us draw a route
   }
 
@@ -3535,7 +3566,23 @@ function startWatching() {
       // only report a heading here while actually moving, which is
       // exactly when we want it to win; see handleOrientationEvent for
       // the device-compass fallback used the rest of the time.
-      if (typeof pos.coords.heading === 'number' && !isNaN(pos.coords.heading)) {
+      // GPS course-over-ground is only meaningful once the vehicle is
+      // actually moving — below walking speed it's mostly just the
+      // direction of GPS position jitter (a few cm of noise between fixes
+      // can imply a "heading" pointing any which way), so applying it
+      // directly was what spun the map on its own while stopped. Worse,
+      // accepting it also refreshed lastGpsHeadingAt every fix, which kept
+      // handleOrientationEvent's "GPS is fresh, stand down" gate closed
+      // permanently — so the device compass never got a chance to take
+      // over while genuinely stationary, no matter how the fallback timer
+      // there was tuned. Gating acceptance on a minimum speed fixes both:
+      // below it we simply leave heading alone and let the compass drive.
+      const GPS_HEADING_MIN_SPEED_MPS = 1.0; // ~3.6 km/h — below this, course-over-ground is noise
+      if (
+        typeof pos.coords.heading === 'number' && !isNaN(pos.coords.heading) &&
+        typeof pos.coords.speed === 'number' && !isNaN(pos.coords.speed) &&
+        pos.coords.speed >= GPS_HEADING_MIN_SPEED_MPS
+      ) {
         lastGpsHeadingAt = Date.now(); // marks GPS course as fresh — tells the compass handler to stand down
         smoothedHeading = smoothHeading(smoothedHeading, pos.coords.heading, HEADING_SMOOTHING_FACTOR);
         currentHeading = smoothedHeading;
