@@ -3268,9 +3268,12 @@ function updateGpsModalText(){
   if (el('gpsModalAlt'))   el('gpsModalAlt').textContent   = t('gpsAlt');
   if (el('gpsModalBtn'))   el('gpsModalBtn').textContent   = t('gpsBtn');
 }
+let gpsModalShownOnce = false;
 function showGpsModal(){
+  if (gpsModalShownOnce) return; // only ever shown once per page load — see hideGpsModal() note
   const modal = document.getElementById('gpsModal');
   if (!modal) return;
+  gpsModalShownOnce = true;
   updateGpsModalText();
   modal.style.display = 'flex';
 }
@@ -3283,8 +3286,6 @@ function enableManualPinMode() {
   checkFormReady();
 }
 
-let gpsRequestPending = false;
-
 // --- GPS noise filtering / smoothing --------------------------------------
 let lastAcceptedFix   = null; // {lat, lon, t} of the last fix that passed the plausibility check
 let smoothedHeading   = null; // EMA-smoothed heading in degrees, used for map bearing + marker rotation
@@ -3293,7 +3294,6 @@ let smoothedFixCoords = null; // EMA-smoothed raw position, used to damp fix-to-
 const GPS_MAX_PLAUSIBLE_SPEED_MPS = 55;  // ~200 km/h; a bigger implied speed between fixes is treated as a GPS glitch
 const GPS_MAX_ACCEPTABLE_ACCURACY_M = 100; // fixes reported less precise than this are suspect
 const GPS_STALE_FIX_MS = 10000; // don't hold onto an old "good" fix forever if accuracy stays poor
-const GPS_POLL_INTERVAL_MS = 500; // how often we ask the browser for a fresh fix while watching
 const HEADING_SMOOTHING_FACTOR     = 0.35; // 0..1, higher = follows raw heading faster / smooths less
 // GPS course-over-ground (pos.coords.heading) is the authoritative heading
 // source while driving — see the big comment at the GPS fix handler below.
@@ -3408,147 +3408,152 @@ function updateSpeedLimitDisplay(value) {
   }
 }
 
+// Was previously a setInterval() loop calling getCurrentPosition() every
+// 500ms with maximumAge set to that same 500ms — i.e. explicitly refusing
+// any cached fix and forcing the GPS radio to produce a brand new fix
+// twice a second. Each of those calls is a discrete, independent request;
+// most phones respond to that cadence by power-cycling the GPS radio
+// between requests rather than keeping it warm, which is what showed up
+// as the GPS status dot (and sometimes the fix itself) flickering on and
+// off. watchPosition() instead opens a single, continuous location
+// session — the browser/OS keeps the radio engaged and simply calls back
+// whenever a new fix is ready, with no polling loop on our end at all.
+let gpsWatchId = null;
+
 function startWatching() {
-  const updatePosition = () => {
-    if (gpsRequestPending) return; // don't stack requests if one is still in flight
-    gpsRequestPending = true;
-    navigator.geolocation.getCurrentPosition(
-      pos => {
-        gpsRequestPending = false;
+  if (gpsWatchId !== null) return; // already watching — avoid opening a second session
+  gpsWatchId = navigator.geolocation.watchPosition(
+    pos => {
+      // Defensive: real devices essentially never hand back a bad fix, but
+      // a corrupt/mocked location provider could. Skip the update entirely
+      // rather than letting NaN/out-of-range coords propagate into the map,
+      // the section trace, or a report.
+      if (!isValidLatLng(pos.coords.latitude, pos.coords.longitude)) {
+        console.error('Ignored GPS fix with invalid coordinates:', pos.coords);
+        return;
+      }
 
-        // Defensive: real devices essentially never hand back a bad fix, but
-        // a corrupt/mocked location provider could. Skip the update entirely
-        // rather than letting NaN/out-of-range coords propagate into the map,
-        // the section trace, or a report.
-        if (!isValidLatLng(pos.coords.latitude, pos.coords.longitude)) {
-          console.error('Ignored GPS fix with invalid coordinates:', pos.coords);
+      const candidate = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+
+      // Accuracy filter: a fix reported with a very large accuracy radius
+      // (weak signal, indoors, urban canyon) can be tens or hundreds of
+      // meters off. Skip it in favor of the last good fix, but only while
+      // that last fix is still recent — a stale-but-precise position is
+      // worse than a rough current one once enough time has passed.
+      const accuracy = pos.coords.accuracy;
+      if (
+        typeof accuracy === 'number' && !isNaN(accuracy) &&
+        accuracy > GPS_MAX_ACCEPTABLE_ACCURACY_M &&
+        lastAcceptedFix && (pos.timestamp - lastAcceptedFix.t) < GPS_STALE_FIX_MS
+      ) {
+        console.warn(`Ignored low-accuracy GPS fix: ±${Math.round(accuracy)}m`);
+        return;
+      }
+
+      // Noise filter: if the implied speed between this fix and the last
+      // accepted one is wildly higher than anything plausible for a moving
+      // vehicle, treat it as a GPS glitch and keep the previous fix rather
+      // than letting the map/marker/route jump.
+      if (lastAcceptedFix) {
+        const dtSeconds = (pos.timestamp - (lastAcceptedFix.t || pos.timestamp)) / 1000;
+        const jumpMeters = distMeters(lastAcceptedFix, candidate);
+        if (dtSeconds > 0 && (jumpMeters / dtSeconds) > GPS_MAX_PLAUSIBLE_SPEED_MPS) {
+          console.warn(`Ignored implausible GPS jump: ${jumpMeters.toFixed(0)}m in ${dtSeconds.toFixed(1)}s`);
           return;
         }
+      }
+      lastAcceptedFix = { lat: candidate.lat, lon: candidate.lon, t: pos.timestamp };
 
-        const candidate = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+      userCoords = smoothPositionFix(candidate);
+      hideGpsModal();
+      updateDrivingGpsStatus();
+      if (!userMarker) {
+        userMarker = L.marker([userCoords.lat, userCoords.lon], {
+          icon: L.divIcon({
+            className: '',
+            html: buildUserMarkerHtml(userMarkerNavStyle),
+            iconSize: userMarkerNavStyle ? [40, 40] : [16, 16],
+            iconAnchor: userMarkerNavStyle ? [20, 20] : [8, 8]
+          }),
+          zIndexOffset: 1000
+        }).addTo(map);
+        map.setView(getFollowCenter(userCoords.lat, userCoords.lon, 13), 13);
+      } else if (drivingMode) {
+        // Don't show the raw fix right away — hold it back until it's
+        // been snapped to the road (or the fallback timeout fires), so
+        // the puck doesn't jump-then-correct on every update.
+        snapUserToRoadThenShow(userCoords.lat, userCoords.lon);
+      } else {
+        userMarker.setLatLng([userCoords.lat, userCoords.lon]);
+        if (followMode) followMapTo(userCoords.lat, userCoords.lon);
+      }
 
-        // Accuracy filter: a fix reported with a very large accuracy radius
-        // (weak signal, indoors, urban canyon) can be tens or hundreds of
-        // meters off. Skip it in favor of the last good fix, but only while
-        // that last fix is still recent — a stale-but-precise position is
-        // worse than a rough current one once enough time has passed.
-        const accuracy = pos.coords.accuracy;
-        if (
-          typeof accuracy === 'number' && !isNaN(accuracy) &&
-          accuracy > GPS_MAX_ACCEPTABLE_ACCURACY_M &&
-          lastAcceptedFix && (pos.timestamp - lastAcceptedFix.t) < GPS_STALE_FIX_MS
-        ) {
-          console.warn(`Ignored low-accuracy GPS fix: ±${Math.round(accuracy)}m`);
-          return;
-        }
+      // Primary heading source: GPS course-over-ground. This is the
+      // actual direction of travel, which is what heading-up rotation
+      // should follow — far steadier than a phone's magnetometer, which
+      // drifts and reacts to a car's metal body/electronics. Browsers
+      // only report a heading here while actually moving, which is
+      // exactly when we want it to win; see handleOrientationEvent for
+      // the device-compass fallback used the rest of the time.
+      if (typeof pos.coords.heading === 'number' && !isNaN(pos.coords.heading)) {
+        lastGpsHeadingAt = Date.now(); // marks GPS course as fresh — tells the compass handler to stand down
+        smoothedHeading = smoothHeading(smoothedHeading, pos.coords.heading, HEADING_SMOOTHING_FACTOR);
+        currentHeading = smoothedHeading;
+        if (drivingMode && headingUpMode) applyMapBearing(currentHeading);
+        updateUserMarkerRotation();
+      }
 
-        // Noise filter: if the implied speed between this fix and the last
-        // accepted one is wildly higher than anything plausible for a moving
-        // vehicle, treat it as a GPS glitch and keep the previous fix rather
-        // than letting the map/marker/route jump.
-        if (lastAcceptedFix) {
-          const dtSeconds = (pos.timestamp - (lastAcceptedFix.t || pos.timestamp)) / 1000;
-          const jumpMeters = distMeters(lastAcceptedFix, candidate);
-          if (dtSeconds > 0 && (jumpMeters / dtSeconds) > GPS_MAX_PLAUSIBLE_SPEED_MPS) {
-            console.warn(`Ignored implausible GPS jump: ${jumpMeters.toFixed(0)}m in ${dtSeconds.toFixed(1)}s`);
-            return;
+      // Live speed readout for the driving-mode status strip (Sygic-style
+      // heads-up display). GPS speed comes in m/s; convert to km/h. Below
+      // ~1.5 km/h is just GPS jitter while stationary, not real movement —
+      // displayed as 0 rather than a misleading "1 km/h" while parked.
+      const SPEED_DISPLAY_DEADZONE_KMH = 1.5;
+      if (drivingMode) {
+        const speedEl = document.getElementById('drivingSpeedValue');
+        if (speedEl) {
+          if (typeof pos.coords.speed === 'number' && !isNaN(pos.coords.speed) && pos.coords.speed >= 0) {
+            const kmh = pos.coords.speed * 3.6;
+            smoothedSpeedKmh = smoothedSpeedKmh === null ? kmh : smoothedSpeedKmh + (kmh - smoothedSpeedKmh) * SPEED_SMOOTHING_FACTOR;
+            speedEl.textContent = smoothedSpeedKmh < SPEED_DISPLAY_DEADZONE_KMH ? 0 : Math.round(smoothedSpeedKmh);
+          } else {
+            smoothedSpeedKmh = null;
+            speedEl.textContent = '--';
           }
         }
-        lastAcceptedFix = { lat: candidate.lat, lon: candidate.lon, t: pos.timestamp };
+        maybeFetchSpeedLimit(userCoords.lat, userCoords.lon);
+      }
 
-        userCoords = smoothPositionFix(candidate);
-        hideGpsModal();
-        updateDrivingGpsStatus();
-        if (!userMarker) {
-          userMarker = L.marker([userCoords.lat, userCoords.lon], {
-            icon: L.divIcon({
-              className: '',
-              html: buildUserMarkerHtml(userMarkerNavStyle),
-              iconSize: userMarkerNavStyle ? [40, 40] : [16, 16],
-              iconAnchor: userMarkerNavStyle ? [20, 20] : [8, 8]
-            }),
-            zIndexOffset: 1000
-          }).addTo(map);
-          map.setView(getFollowCenter(userCoords.lat, userCoords.lon, 13), 13);
-        } else if (drivingMode) {
-          // Don't show the raw fix right away — hold it back until it's
-          // been snapped to the road (or the fallback timeout fires), so
-          // the puck doesn't jump-then-correct on every update.
-          snapUserToRoadThenShow(userCoords.lat, userCoords.lon);
-        } else {
-          userMarker.setLatLng([userCoords.lat, userCoords.lon]);
-          if (followMode) followMapTo(userCoords.lat, userCoords.lon);
+      // While tracing a section, extend the live polyline with new points,
+      // filtering out GPS jitter that hasn't actually moved us anywhere.
+      if (sectionRecording) {
+        const last = sectionPoints[sectionPoints.length - 1];
+        if (distMeters(last, userCoords) >= SECTION_MIN_DISTANCE_M) {
+          sectionPoints.push({ lat: userCoords.lat, lon: userCoords.lon });
+          if (sectionPolyline) sectionPolyline.addLatLng([userCoords.lat, userCoords.lon]);
         }
+      }
 
-        // Primary heading source: GPS course-over-ground. This is the
-        // actual direction of travel, which is what heading-up rotation
-        // should follow — far steadier than a phone's magnetometer, which
-        // drifts and reacts to a car's metal body/electronics. Browsers
-        // only report a heading here while actually moving, which is
-        // exactly when we want it to win; see handleOrientationEvent for
-        // the device-compass fallback used the rest of the time.
-        if (typeof pos.coords.heading === 'number' && !isNaN(pos.coords.heading)) {
-          lastGpsHeadingAt = Date.now(); // marks GPS course as fresh — tells the compass handler to stand down
-          smoothedHeading = smoothHeading(smoothedHeading, pos.coords.heading, HEADING_SMOOTHING_FACTOR);
-          currentHeading = smoothedHeading;
-          if (drivingMode && headingUpMode) applyMapBearing(currentHeading);
-          updateUserMarkerRotation();
-        }
+      // Keep an active navigation line glued to the live GPS fix, and let
+      // the nav state machine check for arrival / drifting off-route.
+      if (destinationCoords) {
+        drawNavigationLine();
+        evaluateNavigationProgress();
+        updateTurnByTurnDisplay(userCoords);
+      }
 
-        // Live speed readout for the driving-mode status strip (Sygic-style
-        // heads-up display). GPS speed comes in m/s; convert to km/h. Below
-        // ~1.5 km/h is just GPS jitter while stationary, not real movement —
-        // displayed as 0 rather than a misleading "1 km/h" while parked.
-        const SPEED_DISPLAY_DEADZONE_KMH = 1.5;
-        if (drivingMode) {
-          const speedEl = document.getElementById('drivingSpeedValue');
-          if (speedEl) {
-            if (typeof pos.coords.speed === 'number' && !isNaN(pos.coords.speed) && pos.coords.speed >= 0) {
-              const kmh = pos.coords.speed * 3.6;
-              smoothedSpeedKmh = smoothedSpeedKmh === null ? kmh : smoothedSpeedKmh + (kmh - smoothedSpeedKmh) * SPEED_SMOOTHING_FACTOR;
-              speedEl.textContent = smoothedSpeedKmh < SPEED_DISPLAY_DEADZONE_KMH ? 0 : Math.round(smoothedSpeedKmh);
-            } else {
-              smoothedSpeedKmh = null;
-              speedEl.textContent = '--';
-            }
-          }
-          maybeFetchSpeedLimit(userCoords.lat, userCoords.lon);
-        }
-
-        // While tracing a section, extend the live polyline with new points,
-        // filtering out GPS jitter that hasn't actually moved us anywhere.
-        if (sectionRecording) {
-          const last = sectionPoints[sectionPoints.length - 1];
-          if (distMeters(last, userCoords) >= SECTION_MIN_DISTANCE_M) {
-            sectionPoints.push({ lat: userCoords.lat, lon: userCoords.lon });
-            if (sectionPolyline) sectionPolyline.addLatLng([userCoords.lat, userCoords.lon]);
-          }
-        }
-
-        // Keep an active navigation line glued to the live GPS fix, and let
-        // the nav state machine check for arrival / drifting off-route.
-        if (destinationCoords) {
-          drawNavigationLine();
-          evaluateNavigationProgress();
-          updateTurnByTurnDisplay(userCoords);
-        }
-
-        checkFormReady();
-      },
-      err => {
-        gpsRequestPending = false;
-        // Only a real permission denial means "GPS not enabled". A timeout or
-        // temporarily unavailable fix (weak signal, indoors) is transient —
-        // the next tick will just try again, no need to alarm the user.
-        if (err.code === err.PERMISSION_DENIED) {
-          showGpsModal();
-        }
-      },
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: GPS_POLL_INTERVAL_MS }
-    );
-  };
-  updatePosition();
-  setInterval(updatePosition, GPS_POLL_INTERVAL_MS);
+      checkFormReady();
+    },
+    err => {
+      // Only a real permission denial means "GPS not enabled". A timeout or
+      // temporarily unavailable fix (weak signal, indoors) is transient —
+      // watchPosition keeps the session open and will just call back again
+      // once a fix comes through, no need to alarm the user or restart it.
+      if (err.code === err.PERMISSION_DENIED) {
+        showGpsModal();
+      }
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 1000 }
+  );
 }
 
 function initGps() {
@@ -4355,9 +4360,13 @@ function updateFullscreenBtn() {
 // =============================================================================
 initCalendarFilter();
 applyLang();
-showHelpModal();
 loadPinsByWindow();
-initAuth();
+// Help modal should greet first-time/logged-out visitors, but not talk
+// over a returning, already-signed-in user every time they open the app.
+// initAuth() resolves the session check first, then we decide.
+initAuth().then(() => {
+  if (!currentSession) showHelpModal();
+});
 
 </script>
 
