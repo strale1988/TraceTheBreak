@@ -2159,13 +2159,19 @@ async function checkMapillaryLinks(popupEl) {
       const bbox = `${lng - r},${lat - r},${lng + r},${lat + r}`;
       const url = `https://graph.mapillary.com/images?access_token=${MAPILLARY_ACCESS_TOKEN}&fields=id&bbox=${bbox}&limit=1`;
       const res = await fetch(url);
-      if (!res.ok) { mapillaryCoverageCache.set(cacheKey, false); continue; }
+      if (!res.ok) {
+        console.warn('[Mapillary] request failed', res.status, await res.text().catch(() => ''));
+        mapillaryCoverageCache.set(cacheKey, false);
+        continue;
+      }
       const data = await res.json();
       const hasCoverage = !!(data && data.data && data.data.length > 0);
+      console.log('[Mapillary] checked', cacheKey, '-> coverage:', hasCoverage, data);
       mapillaryCoverageCache.set(cacheKey, hasCoverage);
       if (hasCoverage) showMapillaryLink(link, lat, lng);
     } catch (err) {
       // Network hiccup or API unavailable — just leave the link hidden.
+      console.warn('[Mapillary] request error', err);
       mapillaryCoverageCache.set(cacheKey, false);
     }
   }
