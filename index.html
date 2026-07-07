@@ -2167,7 +2167,7 @@ async function checkMapillaryLinks(popupEl, popup) {
     const cacheKey = `${lat.toFixed(5)},${lng.toFixed(5)}`;
     if (mapillaryCoverageCache.has(cacheKey)) {
       const cached = mapillaryCoverageCache.get(cacheKey);
-      if (cached) { showMapillaryLink(link, cached.lat, cached.lng); if (popup) popup.update(); }
+      if (cached) { showMapillaryLink(link, cached.lat, cached.lng); }
       continue;
     }
 
@@ -2191,7 +2191,6 @@ async function checkMapillaryLinks(popupEl, popup) {
         const [photoLng, photoLat] = nearest.geometry.coordinates;
         mapillaryCoverageCache.set(cacheKey, { lat: photoLat, lng: photoLng });
         showMapillaryLink(link, photoLat, photoLng);
-        if (popup) popup.update();
       } else {
         mapillaryCoverageCache.set(cacheKey, false);
       }
