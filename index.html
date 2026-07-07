@@ -272,7 +272,7 @@ button{
    pure CSS — it doesn't touch how popups are built/updated, so
    setPopupContent()/edit mode keep working exactly as before. */
 @media (max-width: 640px){
-  .leaflet-popup-pane{
+  body.popup-open .leaflet-popup-pane{
     position:fixed !important;
     inset:0 !important;
     width:100vw !important;
@@ -285,25 +285,25 @@ button{
     padding:20px;
     box-sizing:border-box;
   }
-  .leaflet-popup{
+  body.popup-open .leaflet-popup{
     position:static !important;
     transform:none !important;
     margin:0 auto !important;
     width:100%;
     max-width:340px;
   }
-  .leaflet-popup-tip-container{ display:none !important; }
+  body.popup-open .leaflet-popup-tip-container{ display:none !important; }
   /* The map may be mid-rotation (heading-up driving mode); a fixed,
      full-screen dialog should never tilt along with it. */
-  .popup-rotate-wrap{ transform:none !important; }
-  .leaflet-popup-content-wrapper{
+  body.popup-open .popup-rotate-wrap{ transform:none !important; }
+  body.popup-open .leaflet-popup-content-wrapper{
     width:100%;
     max-height:80vh;
     overflow-y:auto;
     -webkit-overflow-scrolling:touch;
     box-shadow:0 16px 48px rgba(0,0,0,.8);
   }
-  .leaflet-popup-close-button{
+  body.popup-open .leaflet-popup-close-button{
     width:32px !important;
     height:32px !important;
     font-size:22px !important;
@@ -2209,6 +2209,10 @@ function updateAllPopupRotations() {
 map.on('popupopen', e => {
   const popupEl = e.popup && e.popup._container;
   if (popupEl) rotatePopupElement(popupEl);
+  document.body.classList.add('popup-open');
+});
+map.on('popupclose', () => {
+  document.body.classList.remove('popup-open');
 });
 
 // On mobile the popup pane becomes a full-screen dimmed backdrop (see the
