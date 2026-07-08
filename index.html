@@ -19,6 +19,15 @@
 
 *{ margin:0; padding:0; box-sizing:border-box; }
 
+:root{
+  /* Kept in sync with the real header's rendered height via JS
+     (syncHeaderHeightVar()) — used to offset the driving-mode HUD
+     widgets below the header now that it stays visible while
+     navigating instead of being hidden. The fallback below only
+     matters for the brief instant before that JS runs. */
+  --header-h: 64px;
+}
+
 body{
   font-family:-apple-system,BlinkMacSystemFont,sans-serif;
   background:#111;
@@ -51,26 +60,42 @@ header p{ font-size:11px; opacity:.7; margin-top:2px; }
   flex-shrink:0;
 }
 
-.lang-toggle{
-  display:flex;
-  gap:4px;
-  align-items:center;
+.lang-dropdown{
+  position:relative;
 }
 
-.lang-btn, .help-icon-btn{
-  background:#303030;
-  color:#aaa;
+.lang-menu{
+  position:absolute;
+  top:calc(100% + 6px);
+  right:0;
+  background:#232323;
+  border:1px solid #3a3a3a;
+  border-radius:10px;
+  padding:4px;
+  display:none;
+  flex-direction:column;
+  gap:2px;
+  min-width:140px;
+  box-shadow:0 8px 24px rgba(0,0,0,.55);
+  z-index:50;
+}
+.lang-menu.open{ display:flex; }
+.lang-menu-item{
+  background:transparent;
   border:none;
-  border-radius:6px;
-  padding:5px 8px;
-  font-size:11px;
+  color:#ccc;
+  text-align:left;
+  padding:8px 10px;
+  border-radius:7px;
+  font-size:12.5px;
   font-weight:600;
   cursor:pointer;
-  transition:background .15s,color .15s;
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
 }
-.lang-btn.active{ background:#a67817; color:white; }
+.lang-menu-item:hover, .lang-menu-item:active{ background:#333; }
+.lang-menu-item.active{ background:#a67817; color:white; }
+
 .help-icon-btn{
   background:#262626;
   border:1px solid #444;
@@ -81,6 +106,12 @@ header p{ font-size:11px; opacity:.7; margin-top:2px; }
   display:flex;
   align-items:center;
   justify-content:center;
+  border-radius:6px;
+  color:#aaa;
+  cursor:pointer;
+  transition:background .15s,color .15s;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
 }
 .help-icon-btn:active{ background:#333; }
 
@@ -259,6 +290,14 @@ button{
 .leaflet-popup-tip{ background: rgba(255,255,255,0.82) !important; box-shadow:none !important; }
 .leaflet-popup-close-button{ color:#555 !important; }
 .leaflet-popup-close-button:hover{ color:#000 !important; }
+
+/* Lets the navigation route line fade in (see revealNavigationLine()) once
+   the camera has settled into the driving-follow view, instead of the
+   full route just popping in already-drawn mid-pan. */
+.leaflet-overlay-pane path.leaflet-interactive{
+  transition: opacity .4s ease;
+}
+
 
 /* --- Mobile pin popups: full-screen dialog instead of a map-anchored
    bubble --------------------------------------------------------------
@@ -494,7 +533,7 @@ body.nav-panel-open .driving-nav-card{
   justify-content:center;
   cursor:pointer;
   position:fixed;
-  top:calc(12px + env(safe-area-inset-top, 0px));
+  top:calc(var(--header-h, 64px) + 10px);
   right:12px;
   z-index:2600;
   user-select:none;
@@ -559,12 +598,13 @@ body.nav-panel-open .driving-nav-card{
 }
 
 /* --- Driving-mode HUD vignette ---
-   With the header hidden, a subtle top fade keeps the compass/status
-   readable and gives the full-screen map a proper heads-up-display feel
-   instead of an abrupt hard edge. */
+   The header now stays visible during driving mode, so this fade starts
+   right below it (rather than the true viewport top) — a soft transition
+   into the floating compass/status widgets instead of a hard edge. */
 #drivingTopFade{
   position:fixed;
-  top:0; left:0; right:0;
+  top:var(--header-h, 64px);
+  left:0; right:0;
   height:90px;
   background:linear-gradient(rgba(0,0,0,.5), rgba(0,0,0,0));
   z-index:2400;
@@ -630,7 +670,7 @@ body.driving-active #drivingTopFade{ display:block; }
    further below and the HTML in #drivingReportSheet). */
 .driving-left-stack{
   position:fixed;
-  top:calc(12px + env(safe-area-inset-top, 0px));
+  top:calc(var(--header-h, 64px) + 10px);
   left:12px;
   z-index:2600;
   display:none;
@@ -755,7 +795,7 @@ body.driving-active .driving-speed-widget{ display:flex; }
 .driving-nav-card{
   display:none;
   position:fixed;
-  top:0;
+  top:var(--header-h, 64px);
   left:0;
   right:0;
   z-index:2700;
@@ -764,16 +804,16 @@ body.driving-active .driving-speed-widget{ display:flex; }
   gap:10px;
   background:rgba(20,20,20,.96);
   border-bottom:1px solid #2c2c2c;
-  padding:calc(10px + env(safe-area-inset-top, 0px)) 16px 10px 16px;
+  padding:10px 16px;
   box-shadow:0 3px 12px rgba(0,0,0,.6);
 }
-/* The destination header takes the top strip, so the speed pill and
-   compass move down out of its way while it's showing. The action
-   cluster no longer needs this — it now lives at the bottom, embedded
-   in the report bar. */
+/* The destination header takes the strip right below the app header, so
+   the speed pill and compass move down further out of its way while it's
+   showing. The action cluster no longer needs this — it now lives at the
+   bottom, embedded in the report bar. */
 body.nav-card-open .driving-left-stack,
 body.nav-card-open .map-compass{
-  top: calc(64px + 12px + env(safe-area-inset-top, 0px)) !important;
+  top: calc(var(--header-h, 64px) + 64px + 12px) !important;
 }
 
 /* --- Always-visible road-report bar: sits pinned to the bottom of the
@@ -835,25 +875,34 @@ body.driving-active .driving-report-sheet{ display:flex; }
 .driving-tile{
   flex:1;
   min-width:0;
+  aspect-ratio:1/1;
   background:#232323;
   border:1px solid #3a3a3a;
-  border-radius:12px;
+  border-radius:14px;
   color:white;
-  padding:9px 2px;
-  font-size:9px;
-  font-weight:700;
-  line-height:1.15;
-  text-align:center;
   display:flex;
-  flex-direction:column;
   align-items:center;
-  gap:4px;
+  justify-content:center;
   cursor:pointer;
-  transition:background .15s, transform .1s;
+  transition:background .15s, transform .1s, border-color .15s;
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
 }
-.driving-tile:active{ background:#333; transform:scale(.96); }
+.driving-tile .icon-img-tile{ width:26px; height:26px; }
+.driving-tile:active{ transform:scale(.94); }
+/* Each report type gets its own tint so the five buttons stay easy to
+   tell apart at a glance without reading text — important since these
+   are meant to be tapped without taking your eyes off the road for long. */
+.driving-tile-pothole{ background:rgba(224,138,46,.18); border-color:#e08a2e; }
+.driving-tile-pothole:active{ background:rgba(224,138,46,.34); }
+.driving-tile-cracked{ background:rgba(214,69,69,.18); border-color:#d64545; }
+.driving-tile-cracked:active{ background:rgba(214,69,69,.34); }
+.driving-tile-signage{ background:rgba(136,89,201,.18); border-color:#8859c9; }
+.driving-tile-signage:active{ background:rgba(136,89,201,.34); }
+.driving-tile-flooding{ background:rgba(47,143,214,.18); border-color:#2f8fd6; }
+.driving-tile-flooding:active{ background:rgba(47,143,214,.34); }
+.driving-tile-other{ background:rgba(47,168,143,.18); border-color:#2fa88f; }
+.driving-tile-other:active{ background:rgba(47,168,143,.34); }
 .driving-section-btn{
   width:100%;
   padding:14px;
@@ -925,7 +974,10 @@ body.driving-active .driving-report-sheet{ display:flex; }
 /* --- Driving mode: decluttered, full-screen map like a dedicated
    navigation app. Legends, header chrome, and the filter/report panel
    are hidden so only the map, compass, and quick-report sheet remain. --- */
-body.driving-active header,
+/* header intentionally NOT hidden here anymore — kept visible during
+   driving mode so help/fullscreen/language stay reachable while
+   navigating (see --header-h wiring below for how the floating HUD
+   widgets shift down to clear it). */
 body.driving-active #mapLegend,
 body.driving-active #categoryLegend,
 body.driving-active .resize-handle,
@@ -1328,9 +1380,12 @@ span.flatpickr-weekday {
     <div class="right-controls">
       <button class="help-icon-btn" id="fullscreenBtn" title="Fullscreen / Preko celog ekrana" onclick="toggleFullscreen()"><img class="icon-img" id="fullscreenBtnIcon" src="icons/fullscreen-enter.png" alt="Fullscreen"></button>
       <button class="help-icon-btn" id="helpTopBtn" title="Help / Pomoć" onclick="showHelpModal()"><img class="icon-img" src="icons/help.png" alt="Help"></button>
-      <div class="lang-toggle">
-        <button class="lang-btn"        onclick="setLang('en')">🇬🇧 EN</button>
-        <button class="lang-btn active" onclick="setLang('sr')">🇷🇸 SR</button>
+      <div class="lang-dropdown" id="langDropdown">
+        <button class="help-icon-btn" id="langToggleBtn" title="Language / Jezik" onclick="toggleLangMenu()"><span id="langToggleFlag">🇷🇸</span></button>
+        <div class="lang-menu" id="langMenu">
+          <button class="lang-menu-item" data-lang="en" onclick="selectLangFromMenu('en')">🇬🇧 English</button>
+          <button class="lang-menu-item active" data-lang="sr" onclick="selectLangFromMenu('sr')">🇷🇸 Srpski</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1505,11 +1560,11 @@ span.flatpickr-weekday {
     <span id="sectionRecordBtnLabel">Start Section Report</span>
   </button>
   <div class="driving-tile-row">
-    <div class="driving-tile" onclick="handleTileTap('pothole')"><img class="icon-img icon-img-tile" src="icons/pothole.png" alt="Pothole"><span id="dTilePothole">Pothole</span></div>
-    <div class="driving-tile" onclick="handleTileTap('cracked')"><img class="icon-img icon-img-tile" src="icons/road.png" alt="Damaged pavement"><span id="dTileCracked">Damaged pavement</span></div>
-    <div class="driving-tile" onclick="handleTileTap('signage')"><img class="icon-img icon-img-tile" src="icons/traffic-cone.png" alt="Bad signage"><span id="dTileSignage">Bad signage</span></div>
-    <div class="driving-tile" onclick="handleTileTap('flooding')"><img class="icon-img icon-img-tile" src="icons/flood-risk.png" alt="Flooding"><span id="dTileFlooding">Flooding</span></div>
-    <div class="driving-tile" onclick="handleTileTap(null)"><img class="icon-img icon-img-tile" src="icons/warning-symbol.png" alt="Other road issue"><span id="dTileOther">Other road issue</span></div>
+    <div class="driving-tile driving-tile-pothole" id="dTilePothole" onclick="handleTileTap('pothole')" title="Pothole"><img class="icon-img icon-img-tile" src="icons/pothole.png" alt="Pothole"></div>
+    <div class="driving-tile driving-tile-cracked" id="dTileCracked" onclick="handleTileTap('cracked')" title="Damaged pavement"><img class="icon-img icon-img-tile" src="icons/road.png" alt="Damaged pavement"></div>
+    <div class="driving-tile driving-tile-signage" id="dTileSignage" onclick="handleTileTap('signage')" title="Bad signage"><img class="icon-img icon-img-tile" src="icons/traffic-cone.png" alt="Bad signage"></div>
+    <div class="driving-tile driving-tile-flooding" id="dTileFlooding" onclick="handleTileTap('flooding')" title="Flooding"><img class="icon-img icon-img-tile" src="icons/flood-risk.png" alt="Flooding"></div>
+    <div class="driving-tile driving-tile-other" id="dTileOther" onclick="handleTileTap(null)" title="Other road issue"><img class="icon-img icon-img-tile" src="icons/warning-symbol.png" alt="Other road issue"></div>
   </div>
 </div>
 
@@ -1954,9 +2009,11 @@ let fp = null;
 
 function setLang(l){
   lang = l;
-  document.querySelectorAll('.lang-btn').forEach(b=>{
-    b.classList.toggle('active', b.getAttribute('onclick').includes("'"+l+"'"));
+  document.querySelectorAll('.lang-menu-item').forEach(b=>{
+    b.classList.toggle('active', b.dataset.lang === l);
   });
+  const flag = document.getElementById('langToggleFlag');
+  if (flag) flag.textContent = l === 'sr' ? '🇷🇸' : '🇬🇧';
   applyLang();
 
   if (fp) {
@@ -1966,6 +2023,32 @@ function setLang(l){
     loadPinsByWindow();
   }
 }
+
+// Opens/closes the language dropdown (mirrors a plain native <select> but
+// styled to match the app rather than the browser's default menu).
+function toggleLangMenu(){
+  const menu = document.getElementById('langMenu');
+  if (menu) menu.classList.toggle('open');
+}
+
+function closeLangMenu(){
+  const menu = document.getElementById('langMenu');
+  if (menu) menu.classList.remove('open');
+}
+
+// Tapping a language in the dropdown both switches language and closes
+// the menu, same as picking an option from any other dropdown in the app.
+function selectLangFromMenu(l){
+  setLang(l);
+  closeLangMenu();
+}
+
+// Clicking anywhere outside the language dropdown closes it, same as any
+// other menu/popover in the app.
+document.addEventListener('click', e => {
+  const dropdown = document.getElementById('langDropdown');
+  if (dropdown && !dropdown.contains(e.target)) closeLangMenu();
+});
 
 function applyLang(){
   document.getElementById('subtitle').textContent         = t('subtitle');
@@ -2010,11 +2093,11 @@ function applyLang(){
   refreshRenderedPopups();
 
   updateDrivingGpsStatus();
-  document.getElementById('dTilePothole').textContent     = t('dTilePothole');
-  document.getElementById('dTileCracked').textContent     = t('dTileCracked');
-  document.getElementById('dTileSignage').textContent     = t('dTileSignage');
-  document.getElementById('dTileFlooding').textContent    = t('dTileFlooding');
-  document.getElementById('dTileOther').textContent       = t('dTileOther');
+  document.getElementById('dTilePothole').title     = t('dTilePothole');
+  document.getElementById('dTileCracked').title     = t('dTileCracked');
+  document.getElementById('dTileSignage').title     = t('dTileSignage');
+  document.getElementById('dTileFlooding').title    = t('dTileFlooding');
+  document.getElementById('dTileOther').title       = t('dTileOther');
   updateSectionButtonUI();
   document.getElementById('drivingCenterBtn').title = t('followTitle');
   document.getElementById('drivingModeBtn').title = t('drivingBtnTitle');
@@ -2024,7 +2107,24 @@ function applyLang(){
   document.getElementById('navigatePinBtn').title = t('navigatePinBtnTitle');
   document.getElementById('navigatePinHint').textContent = t('navigatePinHint');
   updateNavStatusText();
+  // Serbian text (e.g. the subtitle) can wrap to a different number of
+  // lines than English, changing the header's real height — resync so the
+  // driving-mode HUD widgets stay correctly offset below it either way.
+  syncHeaderHeightVar();
 }
+
+// Keeps --header-h in sync with the header's real rendered height. The
+// header stays visible during driving mode now, so the floating HUD
+// widgets (compass, speed stack, destination bar, top fade) need to know
+// exactly how tall it is to sit just below it instead of overlapping it
+// or guessing with a fixed pixel value.
+function syncHeaderHeightVar() {
+  const header = document.querySelector('header');
+  if (!header) return;
+  document.documentElement.style.setProperty('--header-h', header.offsetHeight + 'px');
+}
+window.addEventListener('resize', syncHeaderHeightVar);
+window.addEventListener('orientationchange', syncHeaderHeightVar);
 
 function showHelpModal() {
   buildHelpModalContent();
@@ -2908,9 +3008,23 @@ async function selectDestination(lat, lon, label) {
     return; // stays in CALCULATING; resolves to PREVIEW once a GPS fix lets us draw a route
   }
 
-  drawNavigationLine().then(() => {
-    if (navigationLine) map.fitBounds(navigationLine.getBounds(), { padding: [60, 60] });
+  drawNavigationLine(false, true).then(() => {
+    // No separate "whole route" preview step anymore — PREVIEW auto-cascades
+    // straight into NAVIGATING (see onNavStateChange), which is what
+    // actually moves the camera into the driving-follow framing via
+    // followMapTo(). Letting that be the only camera move (instead of also
+    // fitBounds()-ing to the full route first) avoids a jarring double-jump
+    // where the map zooms out to show the whole route for a split second
+    // and then immediately snaps to the zoomed-in driving view.
     if (navState === NavState.CALCULATING) setNavState(NavState.PREVIEW);
+    // The route line was drawn invisibly above so its geometry is ready
+    // the instant we need it. Reveal it only once that camera move has
+    // settled, so the tiles and the line appear together in one clean
+    // reveal rather than popping in mid-pan.
+    map.once('moveend', revealNavigationLine);
+    // Safety net in case moveend never fires (camera was already exactly
+    // there, or the browser coalesces it away) so the line isn't stuck hidden.
+    setTimeout(revealNavigationLine, 900);
   });
 }
 
@@ -2960,7 +3074,7 @@ function buildTurnSteps(leg) {
 // throttled so we only re-hit the API periodically or after real drift;
 // falls back to a straight dashed line if routing is unavailable (offline,
 // API hiccup, etc.) so navigation never just disappears.
-async function drawNavigationLine(force) {
+async function drawNavigationLine(force, hidden) {
   if (!destinationCoords) return;
   const from = userCoords || manualCoords;
   if (!from) return;
@@ -2982,8 +3096,9 @@ async function drawNavigationLine(force) {
       navLastRouteFrom = { lat: from.lat, lon: from.lon };
 
       if (navigationLine) map.removeLayer(navigationLine);
-      navigationLine = L.polyline(route.coords, { color: '#00d0ff', weight: 5, opacity: .9 }).addTo(map);
+      navigationLine = L.polyline(route.coords, { color: '#00d0ff', weight: 5, opacity: hidden ? 0 : .9 }).addTo(map);
       navigationLine._isFallback = false;
+      navigationLine._targetOpacity = .9;
 
       // A fresh route means fresh maneuvers — start the upcoming-turn
       // pointer over from the first real turn (index 0 is "depart",
@@ -3000,9 +3115,10 @@ async function drawNavigationLine(force) {
       const latlngs = [[from.lat, from.lon], [destinationCoords.lat, destinationCoords.lon]];
       if (navigationLine) map.removeLayer(navigationLine);
       navigationLine = L.polyline(latlngs, {
-        color: '#00d0ff', weight: 4, opacity: .85, dashArray: '8 8'
+        color: '#00d0ff', weight: 4, opacity: hidden ? 0 : .85, dashArray: '8 8'
       }).addTo(map);
       navigationLine._isFallback = true;
+      navigationLine._targetOpacity = .85;
       // No maneuver list without a real routed leg — hide the turn HUD
       // rather than show stale directions from a previous route.
       navRouteSteps = [];
@@ -3021,6 +3137,17 @@ async function drawNavigationLine(force) {
     navigationLine.setLatLngs([[from.lat, from.lon], [destinationCoords.lat, destinationCoords.lon]]);
     updateNavInfoText(distMeters(from, destinationCoords), null);
   }
+}
+
+// Fades the navigation line up to its normal opacity. Used together with
+// drawNavigationLine(force, hidden=true): the line is drawn invisibly the
+// moment the route is known (so its geometry is already settled), then
+// revealed only once the camera has finished moving into the driving-
+// follow framing — one clean reveal instead of the line popping in already
+// fully drawn mid-pan, or flashing through an intermediate "whole route"
+// view first.
+function revealNavigationLine() {
+  if (navigationLine) navigationLine.setStyle({ opacity: navigationLine._targetOpacity ?? .9 });
 }
 
 function updateNavInfoText(meters, seconds, approximate) {
