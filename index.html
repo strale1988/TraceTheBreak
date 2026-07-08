@@ -19,15 +19,6 @@
 
 *{ margin:0; padding:0; box-sizing:border-box; }
 
-:root{
-  /* Kept in sync with the real header's rendered height via JS
-     (syncHeaderHeightVar()) — used to offset the driving-mode HUD
-     widgets below the header now that it stays visible while
-     navigating instead of being hidden. The fallback below only
-     matters for the brief instant before that JS runs. */
-  --header-h: 64px;
-}
-
 body{
   font-family:-apple-system,BlinkMacSystemFont,sans-serif;
   background:#111;
@@ -41,6 +32,8 @@ header{
   padding:10px 12px;
   background:#181818;
   border-bottom:1px solid #333;
+  position:relative;
+  z-index:4000; /* always above #map / Leaflet panes so the language toggle stays clickable */
 }
 
 .header-top{
@@ -60,42 +53,26 @@ header p{ font-size:11px; opacity:.7; margin-top:2px; }
   flex-shrink:0;
 }
 
-.lang-dropdown{
-  position:relative;
+.lang-toggle{
+  display:flex;
+  gap:4px;
+  align-items:center;
 }
 
-.lang-menu{
-  position:absolute;
-  top:calc(100% + 6px);
-  right:0;
-  background:#232323;
-  border:1px solid #3a3a3a;
-  border-radius:10px;
-  padding:4px;
-  display:none;
-  flex-direction:column;
-  gap:2px;
-  min-width:140px;
-  box-shadow:0 8px 24px rgba(0,0,0,.55);
-  z-index:50;
-}
-.lang-menu.open{ display:flex; }
-.lang-menu-item{
-  background:transparent;
+.lang-btn, .help-icon-btn{
+  background:#303030;
+  color:#aaa;
   border:none;
-  color:#ccc;
-  text-align:left;
-  padding:8px 10px;
-  border-radius:7px;
-  font-size:12.5px;
+  border-radius:6px;
+  padding:5px 8px;
+  font-size:11px;
   font-weight:600;
   cursor:pointer;
+  transition:background .15s,color .15s;
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
 }
-.lang-menu-item:hover, .lang-menu-item:active{ background:#333; }
-.lang-menu-item.active{ background:#a67817; color:white; }
-
+.lang-btn.active{ background:#a67817; color:white; }
 .help-icon-btn{
   background:#262626;
   border:1px solid #444;
@@ -106,12 +83,6 @@ header p{ font-size:11px; opacity:.7; margin-top:2px; }
   display:flex;
   align-items:center;
   justify-content:center;
-  border-radius:6px;
-  color:#aaa;
-  cursor:pointer;
-  transition:background .15s,color .15s;
-  -webkit-tap-highlight-color:transparent;
-  touch-action:manipulation;
 }
 .help-icon-btn:active{ background:#333; }
 
@@ -121,6 +92,7 @@ header p{ font-size:11px; opacity:.7; margin-top:2px; }
   min-height: 0;
   position: relative;
   overflow: hidden;
+  z-index: 1; /* keep below header/.lang-toggle so Leaflet's own panes never sit on top of it */
 }
 
 .resize-handle {
@@ -290,14 +262,6 @@ button{
 .leaflet-popup-tip{ background: rgba(255,255,255,0.82) !important; box-shadow:none !important; }
 .leaflet-popup-close-button{ color:#555 !important; }
 .leaflet-popup-close-button:hover{ color:#000 !important; }
-
-/* Lets the navigation route line fade in (see revealNavigationLine()) once
-   the camera has settled into the driving-follow view, instead of the
-   full route just popping in already-drawn mid-pan. */
-.leaflet-overlay-pane path.leaflet-interactive{
-  transition: opacity .4s ease;
-}
-
 
 /* --- Mobile pin popups: full-screen dialog instead of a map-anchored
    bubble --------------------------------------------------------------
@@ -533,7 +497,7 @@ body.nav-panel-open .driving-nav-card{
   justify-content:center;
   cursor:pointer;
   position:fixed;
-  top:calc(var(--header-h, 64px) + 10px);
+  top:calc(12px + env(safe-area-inset-top, 0px));
   right:12px;
   z-index:2600;
   user-select:none;
@@ -598,13 +562,12 @@ body.nav-panel-open .driving-nav-card{
 }
 
 /* --- Driving-mode HUD vignette ---
-   The header now stays visible during driving mode, so this fade starts
-   right below it (rather than the true viewport top) — a soft transition
-   into the floating compass/status widgets instead of a hard edge. */
+   With the header hidden, a subtle top fade keeps the compass/status
+   readable and gives the full-screen map a proper heads-up-display feel
+   instead of an abrupt hard edge. */
 #drivingTopFade{
   position:fixed;
-  top:var(--header-h, 64px);
-  left:0; right:0;
+  top:0; left:0; right:0;
   height:90px;
   background:linear-gradient(rgba(0,0,0,.5), rgba(0,0,0,0));
   z-index:2400;
@@ -670,7 +633,7 @@ body.driving-active #drivingTopFade{ display:block; }
    further below and the HTML in #drivingReportSheet). */
 .driving-left-stack{
   position:fixed;
-  top:calc(var(--header-h, 64px) + 10px);
+  top:calc(12px + env(safe-area-inset-top, 0px));
   left:12px;
   z-index:2600;
   display:none;
@@ -736,19 +699,28 @@ body.driving-active .driving-speed-widget{ display:flex; }
   display:none;
   flex-direction:row;
   align-items:center;
-  gap:8px;
-  max-width:220px;
-  background:rgba(20,20,20,.88);
+  gap:10px;
+  max-width:260px;
+  /* Matches the compass widget's translucent-glass look instead of the
+     near-opaque card it used to be. */
+  background:rgba(20,20,20,.55);
+  backdrop-filter:blur(6px);
+  -webkit-backdrop-filter:blur(6px);
   border:1px solid #3a3a3a;
   border-radius:10px;
-  padding:7px 10px;
+  padding:8px 12px;
   box-shadow:0 3px 12px rgba(0,0,0,.55);
+  position:fixed;
+  left:12px;
+  z-index:2650; /* sits above the quick-report sheet (2550) */
+  bottom:calc(var(--driving-sheet-height, 220px) + 12px + env(safe-area-inset-bottom, 0px));
 }
-.turn-by-turn-icon{ width:26px; height:26px; flex-shrink:0; object-fit:contain; }
+body.driving-active .turn-by-turn-card{ display:flex; }
+.turn-by-turn-icon{ width:40px; height:40px; flex-shrink:0; object-fit:contain; }
 .turn-by-turn-info{ display:flex; flex-direction:column; gap:1px; min-width:0; }
-.turn-by-turn-dist{ font-size:14px; font-weight:800; color:#00d0ff; line-height:1.1; }
+.turn-by-turn-dist{ font-size:16px; font-weight:800; color:#00d0ff; line-height:1.1; }
 .turn-by-turn-text{
-  font-size:11.5px;
+  font-size:12.5px;
   color:#ddd;
   line-height:1.2;
   overflow:hidden;
@@ -795,7 +767,7 @@ body.driving-active .driving-speed-widget{ display:flex; }
 .driving-nav-card{
   display:none;
   position:fixed;
-  top:var(--header-h, 64px);
+  top:0;
   left:0;
   right:0;
   z-index:2700;
@@ -804,16 +776,16 @@ body.driving-active .driving-speed-widget{ display:flex; }
   gap:10px;
   background:rgba(20,20,20,.96);
   border-bottom:1px solid #2c2c2c;
-  padding:10px 16px;
+  padding:calc(10px + env(safe-area-inset-top, 0px)) 16px 10px 16px;
   box-shadow:0 3px 12px rgba(0,0,0,.6);
 }
-/* The destination header takes the strip right below the app header, so
-   the speed pill and compass move down further out of its way while it's
-   showing. The action cluster no longer needs this — it now lives at the
-   bottom, embedded in the report bar. */
+/* The destination header takes the top strip, so the speed pill and
+   compass move down out of its way while it's showing. The action
+   cluster no longer needs this — it now lives at the bottom, embedded
+   in the report bar. */
 body.nav-card-open .driving-left-stack,
 body.nav-card-open .map-compass{
-  top: calc(var(--header-h, 64px) + 64px + 12px) !important;
+  top: calc(64px + 12px + env(safe-area-inset-top, 0px)) !important;
 }
 
 /* --- Always-visible road-report bar: sits pinned to the bottom of the
@@ -875,34 +847,25 @@ body.driving-active .driving-report-sheet{ display:flex; }
 .driving-tile{
   flex:1;
   min-width:0;
-  aspect-ratio:1/1;
   background:#232323;
   border:1px solid #3a3a3a;
-  border-radius:14px;
+  border-radius:12px;
   color:white;
+  padding:9px 2px;
+  font-size:9px;
+  font-weight:700;
+  line-height:1.15;
+  text-align:center;
   display:flex;
+  flex-direction:column;
   align-items:center;
-  justify-content:center;
+  gap:4px;
   cursor:pointer;
-  transition:background .15s, transform .1s, border-color .15s;
+  transition:background .15s, transform .1s;
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
 }
-.driving-tile .icon-img-tile{ width:26px; height:26px; }
-.driving-tile:active{ transform:scale(.94); }
-/* Each report type gets its own tint so the five buttons stay easy to
-   tell apart at a glance without reading text — important since these
-   are meant to be tapped without taking your eyes off the road for long. */
-.driving-tile-pothole{ background:rgba(224,138,46,.18); border-color:#e08a2e; }
-.driving-tile-pothole:active{ background:rgba(224,138,46,.34); }
-.driving-tile-cracked{ background:rgba(214,69,69,.18); border-color:#d64545; }
-.driving-tile-cracked:active{ background:rgba(214,69,69,.34); }
-.driving-tile-signage{ background:rgba(136,89,201,.18); border-color:#8859c9; }
-.driving-tile-signage:active{ background:rgba(136,89,201,.34); }
-.driving-tile-flooding{ background:rgba(47,143,214,.18); border-color:#2f8fd6; }
-.driving-tile-flooding:active{ background:rgba(47,143,214,.34); }
-.driving-tile-other{ background:rgba(47,168,143,.18); border-color:#2fa88f; }
-.driving-tile-other:active{ background:rgba(47,168,143,.34); }
+.driving-tile:active{ background:#333; transform:scale(.96); }
 .driving-section-btn{
   width:100%;
   padding:14px;
@@ -974,10 +937,7 @@ body.driving-active .driving-report-sheet{ display:flex; }
 /* --- Driving mode: decluttered, full-screen map like a dedicated
    navigation app. Legends, header chrome, and the filter/report panel
    are hidden so only the map, compass, and quick-report sheet remain. --- */
-/* header intentionally NOT hidden here anymore — kept visible during
-   driving mode so help/fullscreen/language stay reachable while
-   navigating (see --header-h wiring below for how the floating HUD
-   widgets shift down to clear it). */
+body.driving-active header,
 body.driving-active #mapLegend,
 body.driving-active #categoryLegend,
 body.driving-active .resize-handle,
@@ -1050,6 +1010,27 @@ body.driving-active .leaflet-control-zoom{
   opacity:.7;
   font-size:13px;
   line-height:1;
+}
+.tier-pill{
+  flex-shrink:0;
+  background:#2a2a2a;
+  color:#aaa;
+  border-radius:4px;
+  padding:2px 5px;
+  font-size:9px;
+  font-weight:800;
+  letter-spacing:.3px;
+}
+.tier-pill.tier-trusted{ background:#123a26; color:#5ec98a; }
+.profile-tier-row{ display:flex; justify-content:center; margin-top:2px; }
+.profile-tier-row .tier-pill{ font-size:11px; padding:4px 10px; border-radius:20px; }
+.profile-progress-track{
+  width:100%; height:8px; border-radius:4px;
+  background:#2a2a2a; overflow:hidden;
+}
+.profile-progress-fill{
+  height:100%; background:#a67817; border-radius:4px;
+  transition:width .25s ease; width:0%;
 }
 
 .locked-panel{
@@ -1260,6 +1241,21 @@ body.driving-active .leaflet-control-zoom{
 .status-action-btn.fixed-btn{ background:#2ecc71; }
 .status-action-btn:disabled{ opacity:.4; cursor:not-allowed; }
 
+.vote-progress-row{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  padding:0 8px 8px 8px;
+}
+.vote-progress-badge{
+  font-size:10.5px;
+  font-weight:600;
+  color:#8a6d1a;
+  background:#fdf3dc;
+  border-radius:6px;
+  padding:4px 8px;
+}
+
 .owner-tag{
   font-size:9px;
   color:#00838f;
@@ -1380,12 +1376,9 @@ span.flatpickr-weekday {
     <div class="right-controls">
       <button class="help-icon-btn" id="fullscreenBtn" title="Fullscreen / Preko celog ekrana" onclick="toggleFullscreen()"><img class="icon-img" id="fullscreenBtnIcon" src="icons/fullscreen-enter.png" alt="Fullscreen"></button>
       <button class="help-icon-btn" id="helpTopBtn" title="Help / Pomoć" onclick="showHelpModal()"><img class="icon-img" src="icons/help.png" alt="Help"></button>
-      <div class="lang-dropdown" id="langDropdown">
-        <button class="help-icon-btn" id="langToggleBtn" title="Language / Jezik" onclick="toggleLangMenu()"><span id="langToggleFlag">🇷🇸</span></button>
-        <div class="lang-menu" id="langMenu">
-          <button class="lang-menu-item" data-lang="en" onclick="selectLangFromMenu('en')">🇬🇧 English</button>
-          <button class="lang-menu-item active" data-lang="sr" onclick="selectLangFromMenu('sr')">🇷🇸 Srpski</button>
-        </div>
+      <div class="lang-toggle">
+        <button class="lang-btn"        onclick="setLang('en')">🇬🇧 EN</button>
+        <button class="lang-btn active" onclick="setLang('sr')">🇷🇸 SR</button>
       </div>
     </div>
   </div>
@@ -1444,6 +1437,7 @@ span.flatpickr-weekday {
   <div class="user-badge" id="userBadge" style="display:none" onclick="handleUserBadgeClick()" title="Sign out">
     <span class="username-text" id="userBadgeName"></span>
     <span class="admin-pill" id="userBadgeAdmin" style="display:none">★ ADMIN</span>
+    <span class="tier-pill" id="userBadgeTier" style="display:none" onclick="event.stopPropagation(); showProfileModal();"></span>
     <span class="signout-x">✕</span>
   </div>
   <button id="panelToggleBtn" class="panel-toggle-btn" type="button"
@@ -1503,12 +1497,17 @@ span.flatpickr-weekday {
     </div>
     <div class="driving-speed-limit no-data" id="drivingSpeedLimit">--</div>
   </div>
-  <div id="turnByTurnCard" class="turn-by-turn-card" style="display:none">
-    <img class="turn-by-turn-icon" id="turnByTurnIcon" src="icons/turn-straight.png" alt="Turn">
-    <div class="turn-by-turn-info">
-      <span class="turn-by-turn-dist" id="turnByTurnDist"></span>
-      <span class="turn-by-turn-text" id="turnByTurnText"></span>
-    </div>
+</div>
+
+<!-- Directions panel: floats fixed just above the quick-report sheet (see
+     --driving-sheet-height, kept in sync via ResizeObserver) rather than in
+     the top-left widget stack, so it reads as directly tied to the
+     reporting controls beneath it. -->
+<div id="turnByTurnCard" class="turn-by-turn-card" style="display:none">
+  <img class="turn-by-turn-icon" id="turnByTurnIcon" src="icons/turn-straight.png" alt="Turn">
+  <div class="turn-by-turn-info">
+    <span class="turn-by-turn-dist" id="turnByTurnDist"></span>
+    <span class="turn-by-turn-text" id="turnByTurnText"></span>
   </div>
 </div>
 
@@ -1560,11 +1559,11 @@ span.flatpickr-weekday {
     <span id="sectionRecordBtnLabel">Start Section Report</span>
   </button>
   <div class="driving-tile-row">
-    <div class="driving-tile driving-tile-pothole" id="dTilePothole" onclick="handleTileTap('pothole')" title="Pothole"><img class="icon-img icon-img-tile" src="icons/pothole.png" alt="Pothole"></div>
-    <div class="driving-tile driving-tile-cracked" id="dTileCracked" onclick="handleTileTap('cracked')" title="Damaged pavement"><img class="icon-img icon-img-tile" src="icons/road.png" alt="Damaged pavement"></div>
-    <div class="driving-tile driving-tile-signage" id="dTileSignage" onclick="handleTileTap('signage')" title="Bad signage"><img class="icon-img icon-img-tile" src="icons/traffic-cone.png" alt="Bad signage"></div>
-    <div class="driving-tile driving-tile-flooding" id="dTileFlooding" onclick="handleTileTap('flooding')" title="Flooding"><img class="icon-img icon-img-tile" src="icons/flood-risk.png" alt="Flooding"></div>
-    <div class="driving-tile driving-tile-other" id="dTileOther" onclick="handleTileTap(null)" title="Other road issue"><img class="icon-img icon-img-tile" src="icons/warning-symbol.png" alt="Other road issue"></div>
+    <div class="driving-tile" onclick="handleTileTap('pothole')"><img class="icon-img icon-img-tile" src="icons/pothole.png" alt="Pothole"><span id="dTilePothole">Pothole</span></div>
+    <div class="driving-tile" onclick="handleTileTap('cracked')"><img class="icon-img icon-img-tile" src="icons/road.png" alt="Damaged pavement"><span id="dTileCracked">Damaged pavement</span></div>
+    <div class="driving-tile" onclick="handleTileTap('signage')"><img class="icon-img icon-img-tile" src="icons/traffic-cone.png" alt="Bad signage"><span id="dTileSignage">Bad signage</span></div>
+    <div class="driving-tile" onclick="handleTileTap('flooding')"><img class="icon-img icon-img-tile" src="icons/flood-risk.png" alt="Flooding"><span id="dTileFlooding">Flooding</span></div>
+    <div class="driving-tile" onclick="handleTileTap(null)"><img class="icon-img icon-img-tile" src="icons/warning-symbol.png" alt="Other road issue"><span id="dTileOther">Other road issue</span></div>
   </div>
 </div>
 
@@ -1641,6 +1640,20 @@ span.flatpickr-weekday {
   </div>
 </div>
 
+<!-- Reputation / progress tracker modal -->
+<div id="profileModal" class="generic-modal-overlay" style="display:none">
+  <div class="generic-modal" style="max-width: 340px;">
+    <h2 id="profileModalTitle" style="margin-top:6px;">Status</h2>
+    <div class="profile-tier-row">
+      <span class="tier-pill" id="profileModalTierPill">Novi komšija</span>
+    </div>
+    <p id="profileModalProgress" style="font-size:13px;color:#ccc;margin:10px 0 4px;"></p>
+    <div class="profile-progress-track"><div class="profile-progress-fill" id="profileModalProgressFill"></div></div>
+    <p id="profileModalStats" style="font-size:11.5px;color:#888;margin-top:8px;"></p>
+    <button class="generic-modal-close" onclick="hideProfileModal()" id="profileModalBtn" style="margin-top:14px;">Close</button>
+  </div>
+</div>
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
@@ -1698,6 +1711,10 @@ function sanitizePath(path) {
 let currentSession = null;   
 let currentProfile = null;   
 let isRegisterMode = false; // Toggles between Login and Registration UI
+
+// report_id -> { suggested_status: weighted_points } snapshot from the
+// report_status_vote_progress view, refreshed alongside every pin reload.
+let voteProgressByReport = new Map();
 
 function toggleAuthMode() {
   isRegisterMode = !isRegisterMode;
@@ -1862,6 +1879,7 @@ function updateAuthUI() {
     userBadge.style.display = 'flex';
     document.getElementById('userBadgeName').textContent = currentProfile.username;
     document.getElementById('userBadgeAdmin').style.display = currentProfile.is_admin ? 'inline-block' : 'none';
+    updateTierPill();
     reportFormPanel.style.display = 'flex';
     lockedFormPanel.style.display = 'none';
   } else {
@@ -1871,6 +1889,53 @@ function updateAuthUI() {
   }
   checkFormReady();
   refreshRenderedPopups();
+}
+
+// --- Reputation tier pill + profile progress modal --------------------------
+// Admins don't have a reputation tier of their own (their vote already
+// overrides everything), so the pill only shows for regular/trusted users.
+function updateTierPill() {
+  const pill = document.getElementById('userBadgeTier');
+  if (!pill || !currentProfile || currentProfile.is_admin) {
+    if (pill) pill.style.display = 'none';
+    return;
+  }
+  const isTrusted = currentProfile.reputation_tier === 'trusted';
+  pill.textContent = isTrusted ? t('tierTrusted') : t('tierNew');
+  pill.classList.toggle('tier-trusted', isTrusted);
+  pill.style.display = 'inline-block';
+}
+
+function showProfileModal() {
+  if (!currentProfile || currentProfile.is_admin) return;
+  const isTrusted = currentProfile.reputation_tier === 'trusted';
+  const successful = currentProfile.successful_contributions || 0;
+  const total = currentProfile.total_contributions || 0;
+
+  document.getElementById('profileModalTitle').textContent = isTrusted ? t('profileModalTitleTrusted') : t('profileModalTitleNew');
+  const pill = document.getElementById('profileModalTierPill');
+  pill.textContent = isTrusted ? t('tierTrusted') : t('tierNew');
+  pill.classList.toggle('tier-trusted', isTrusted);
+
+  const progressEl = document.getElementById('profileModalProgress');
+  const fillEl = document.getElementById('profileModalProgressFill');
+  if (isTrusted) {
+    progressEl.textContent = t('profileAlreadyTrusted');
+    fillEl.style.width = '100%';
+  } else {
+    const toward = Math.min(successful, 5);
+    progressEl.textContent = t('profileProgressToTrusted').replace('{x}', toward);
+    fillEl.style.width = (toward / 5 * 100) + '%';
+  }
+  document.getElementById('profileModalStats').textContent = total > 0
+    ? t('profileStats').replace('{s}', successful).replace('{t}', total)
+    : '';
+  document.getElementById('profileModalBtn').textContent = t('profileModalBtn');
+  document.getElementById('profileModal').style.display = 'flex';
+}
+
+function hideProfileModal() {
+  document.getElementById('profileModal').style.display = 'none';
 }
 
 async function initAuth() {
@@ -1952,6 +2017,20 @@ const T = {
   yourReport:    { en:'Your report',                               sr:'Vaša prijava' },
   updateFail:    { en:'Could not update status. Try again.',       sr:'Ažuriranje statusa nije uspelo. Pokušajte ponovo.' },
   adminBadge:    { en:'ADMIN',                                     sr:'ADMIN' },
+  tierNew:       { en:'New neighbor',                              sr:'Novi komšija' },
+  tierTrusted:   { en:'Trusted neighbor',                          sr:'Pouzdani komšija' },
+  profileModalTitleNew:     { en:'Status: New neighbor',           sr:'Status: Novi komšija' },
+  profileModalTitleTrusted: { en:'Status: Trusted neighbor',       sr:'Status: Pouzdani komšija' },
+  profileModalBtn:          { en:'Close',                          sr:'Zatvori' },
+  profileProgressToTrusted: { en:'To Trusted neighbor status: {x}/5 successful actions', sr:'Do statusa Pouzdanog komšije: {x}/5 uspešnih akcija' },
+  profileAlreadyTrusted:    { en:'You are a Trusted neighbor — your vote counts double.', sr:'Vi ste Pouzdani komšija — vaš glas vredi duplo.' },
+  profileStats:  { en:'{s} successful out of {t} total contributions', sr:'{s} uspešnih od ukupno {t} doprinosa' },
+  tooFarToVote:  { en:'You must be on-site (within 15m) to vote for a status change.', sr:'Morate biti na licu mesta (u krugu od 15m) da biste glasali za izmenu statusa.' },
+  voteRecorded:  { en:'Vote recorded.',                            sr:'Glas je zabeležen.' },
+  voteResolved:  { en:'Status updated by community vote!',         sr:'Status je promenjen glasanjem zajednice!' },
+  voteFail:      { en:'Could not record vote. Try again.',         sr:'Glas nije zabeležen. Pokušajte ponovo.' },
+  voteProgress:  { en:'{status}? ({p}/3 votes)',                   sr:'{status}? ({p}/3 glasa)' },
+  suggestStatus: { en:'Suggest status',                            sr:'Predloži status' },
   editBtn:       { en:'Edit',                                      sr:'Izmeni' },
   editTitle:     { en:'Edit report',                               sr:'Izmeni prijavu' },
   editCategoryLabel:    { en:'Type',      sr:'Vrsta' },
@@ -2009,11 +2088,9 @@ let fp = null;
 
 function setLang(l){
   lang = l;
-  document.querySelectorAll('.lang-menu-item').forEach(b=>{
-    b.classList.toggle('active', b.dataset.lang === l);
+  document.querySelectorAll('.lang-btn').forEach(b=>{
+    b.classList.toggle('active', b.getAttribute('onclick').includes("'"+l+"'"));
   });
-  const flag = document.getElementById('langToggleFlag');
-  if (flag) flag.textContent = l === 'sr' ? '🇷🇸' : '🇬🇧';
   applyLang();
 
   if (fp) {
@@ -2023,32 +2100,6 @@ function setLang(l){
     loadPinsByWindow();
   }
 }
-
-// Opens/closes the language dropdown (mirrors a plain native <select> but
-// styled to match the app rather than the browser's default menu).
-function toggleLangMenu(){
-  const menu = document.getElementById('langMenu');
-  if (menu) menu.classList.toggle('open');
-}
-
-function closeLangMenu(){
-  const menu = document.getElementById('langMenu');
-  if (menu) menu.classList.remove('open');
-}
-
-// Tapping a language in the dropdown both switches language and closes
-// the menu, same as picking an option from any other dropdown in the app.
-function selectLangFromMenu(l){
-  setLang(l);
-  closeLangMenu();
-}
-
-// Clicking anywhere outside the language dropdown closes it, same as any
-// other menu/popover in the app.
-document.addEventListener('click', e => {
-  const dropdown = document.getElementById('langDropdown');
-  if (dropdown && !dropdown.contains(e.target)) closeLangMenu();
-});
 
 function applyLang(){
   document.getElementById('subtitle').textContent         = t('subtitle');
@@ -2093,11 +2144,11 @@ function applyLang(){
   refreshRenderedPopups();
 
   updateDrivingGpsStatus();
-  document.getElementById('dTilePothole').title     = t('dTilePothole');
-  document.getElementById('dTileCracked').title     = t('dTileCracked');
-  document.getElementById('dTileSignage').title     = t('dTileSignage');
-  document.getElementById('dTileFlooding').title    = t('dTileFlooding');
-  document.getElementById('dTileOther').title       = t('dTileOther');
+  document.getElementById('dTilePothole').textContent     = t('dTilePothole');
+  document.getElementById('dTileCracked').textContent     = t('dTileCracked');
+  document.getElementById('dTileSignage').textContent     = t('dTileSignage');
+  document.getElementById('dTileFlooding').textContent    = t('dTileFlooding');
+  document.getElementById('dTileOther').textContent       = t('dTileOther');
   updateSectionButtonUI();
   document.getElementById('drivingCenterBtn').title = t('followTitle');
   document.getElementById('drivingModeBtn').title = t('drivingBtnTitle');
@@ -2107,24 +2158,7 @@ function applyLang(){
   document.getElementById('navigatePinBtn').title = t('navigatePinBtnTitle');
   document.getElementById('navigatePinHint').textContent = t('navigatePinHint');
   updateNavStatusText();
-  // Serbian text (e.g. the subtitle) can wrap to a different number of
-  // lines than English, changing the header's real height — resync so the
-  // driving-mode HUD widgets stay correctly offset below it either way.
-  syncHeaderHeightVar();
 }
-
-// Keeps --header-h in sync with the header's real rendered height. The
-// header stays visible during driving mode now, so the floating HUD
-// widgets (compass, speed stack, destination bar, top fade) need to know
-// exactly how tall it is to sit just below it instead of overlapping it
-// or guessing with a fixed pixel value.
-function syncHeaderHeightVar() {
-  const header = document.querySelector('header');
-  if (!header) return;
-  document.documentElement.style.setProperty('--header-h', header.offsetHeight + 'px');
-}
-window.addEventListener('resize', syncHeaderHeightVar);
-window.addEventListener('orientationchange', syncHeaderHeightVar);
 
 function showHelpModal() {
   buildHelpModalContent();
@@ -3008,23 +3042,9 @@ async function selectDestination(lat, lon, label) {
     return; // stays in CALCULATING; resolves to PREVIEW once a GPS fix lets us draw a route
   }
 
-  drawNavigationLine(false, true).then(() => {
-    // No separate "whole route" preview step anymore — PREVIEW auto-cascades
-    // straight into NAVIGATING (see onNavStateChange), which is what
-    // actually moves the camera into the driving-follow framing via
-    // followMapTo(). Letting that be the only camera move (instead of also
-    // fitBounds()-ing to the full route first) avoids a jarring double-jump
-    // where the map zooms out to show the whole route for a split second
-    // and then immediately snaps to the zoomed-in driving view.
+  drawNavigationLine().then(() => {
+    if (navigationLine) map.fitBounds(navigationLine.getBounds(), { padding: [60, 60] });
     if (navState === NavState.CALCULATING) setNavState(NavState.PREVIEW);
-    // The route line was drawn invisibly above so its geometry is ready
-    // the instant we need it. Reveal it only once that camera move has
-    // settled, so the tiles and the line appear together in one clean
-    // reveal rather than popping in mid-pan.
-    map.once('moveend', revealNavigationLine);
-    // Safety net in case moveend never fires (camera was already exactly
-    // there, or the browser coalesces it away) so the line isn't stuck hidden.
-    setTimeout(revealNavigationLine, 900);
   });
 }
 
@@ -3074,7 +3094,7 @@ function buildTurnSteps(leg) {
 // throttled so we only re-hit the API periodically or after real drift;
 // falls back to a straight dashed line if routing is unavailable (offline,
 // API hiccup, etc.) so navigation never just disappears.
-async function drawNavigationLine(force, hidden) {
+async function drawNavigationLine(force) {
   if (!destinationCoords) return;
   const from = userCoords || manualCoords;
   if (!from) return;
@@ -3096,9 +3116,8 @@ async function drawNavigationLine(force, hidden) {
       navLastRouteFrom = { lat: from.lat, lon: from.lon };
 
       if (navigationLine) map.removeLayer(navigationLine);
-      navigationLine = L.polyline(route.coords, { color: '#00d0ff', weight: 5, opacity: hidden ? 0 : .9 }).addTo(map);
+      navigationLine = L.polyline(route.coords, { color: '#00d0ff', weight: 5, opacity: .9 }).addTo(map);
       navigationLine._isFallback = false;
-      navigationLine._targetOpacity = .9;
 
       // A fresh route means fresh maneuvers — start the upcoming-turn
       // pointer over from the first real turn (index 0 is "depart",
@@ -3115,10 +3134,9 @@ async function drawNavigationLine(force, hidden) {
       const latlngs = [[from.lat, from.lon], [destinationCoords.lat, destinationCoords.lon]];
       if (navigationLine) map.removeLayer(navigationLine);
       navigationLine = L.polyline(latlngs, {
-        color: '#00d0ff', weight: 4, opacity: hidden ? 0 : .85, dashArray: '8 8'
+        color: '#00d0ff', weight: 4, opacity: .85, dashArray: '8 8'
       }).addTo(map);
       navigationLine._isFallback = true;
-      navigationLine._targetOpacity = .85;
       // No maneuver list without a real routed leg — hide the turn HUD
       // rather than show stale directions from a previous route.
       navRouteSteps = [];
@@ -3137,17 +3155,6 @@ async function drawNavigationLine(force, hidden) {
     navigationLine.setLatLngs([[from.lat, from.lon], [destinationCoords.lat, destinationCoords.lon]]);
     updateNavInfoText(distMeters(from, destinationCoords), null);
   }
-}
-
-// Fades the navigation line up to its normal opacity. Used together with
-// drawNavigationLine(force, hidden=true): the line is drawn invisibly the
-// moment the route is known (so its geometry is already settled), then
-// revealed only once the camera has finished moving into the driving-
-// follow framing — one clean reveal instead of the line popping in already
-// fully drawn mid-pan, or flashing through an intermediate "whole route"
-// view first.
-function revealNavigationLine() {
-  if (navigationLine) navigationLine.setStyle({ opacity: navigationLine._targetOpacity ?? .9 });
 }
 
 function updateNavInfoText(meters, seconds, approximate) {
@@ -3232,6 +3239,17 @@ function hideTurnByTurnDisplay() {
   const card = document.getElementById('turnByTurnCard');
   if (card) card.style.display = 'none';
 }
+
+// Keeps the turn-by-turn card's --driving-sheet-height CSS var in sync with
+// the actual (variable) height of the quick-report sheet below it, so the
+// card always sits flush just above the sheet instead of at a guessed offset.
+(function observeDrivingSheetHeight() {
+  const sheet = document.getElementById('drivingReportSheet');
+  if (!sheet || typeof ResizeObserver === 'undefined') return;
+  const sync = () => document.documentElement.style.setProperty('--driving-sheet-height', sheet.offsetHeight + 'px');
+  new ResizeObserver(sync).observe(sheet);
+  sync();
+})();
 
 // Checks the live GPS fix against the destination (arrival) and the drawn
 // route (off-route drift), and drives the nav state machine accordingly.
@@ -3945,6 +3963,15 @@ function startWatching() {
       // once a fix comes through, no need to alarm the user or restart it.
       if (err.code === err.PERMISSION_DENIED) {
         showGpsModal();
+        // watchPosition() already handed back a watch id even though it's
+        // now permanently failing on this permission state — clear it so a
+        // later startWatching() call (fired by the permissions.onchange
+        // listener in initGps once the user re-enables location) actually
+        // opens a fresh watch instead of being skipped as "already watching".
+        if (gpsWatchId !== null) {
+          navigator.geolocation.clearWatch(gpsWatchId);
+          gpsWatchId = null;
+        }
       }
     },
     { enableHighAccuracy: true, timeout: 10000, maximumAge: 1000 }
@@ -3956,6 +3983,19 @@ function initGps() {
   navigator.permissions.query({ name: 'geolocation' }).then(result => {
     if (result.state === 'denied') { showGpsModal(); enableManualPinMode(); }
     else { startWatching(); }
+
+    // Listen for the permission itself flipping (e.g. the user turns
+    // location services back on in their device settings, or grants the
+    // browser prompt) so the app transitions out of the "GPS Not Enabled"
+    // screen and starts watching immediately — no page reload needed.
+    result.onchange = () => {
+      if (result.state === 'denied') {
+        showGpsModal();
+      } else {
+        hideGpsModal();
+        startWatching();
+      }
+    };
   }).catch(() => { startWatching(); });
 }
 initGps();
@@ -4290,12 +4330,21 @@ function buildPopupHtml(report) {
       <button class="status-action-btn" style="background:#3a3a3a;" onclick="enterEditMode('${report.id}')">${t('editBtn')}</button>
       <button class="status-action-btn" style="background:#7a1f1f;" onclick="deleteReport('${report.id}')">${t('deleteBtn')}</button>
     </div>`;
-  } else if (isOwner && report.status !== 'fixed') {
-    const showProgress = report.status === 'reported';
+  } else if (currentSession && report.status !== 'fixed') {
+    // Everyone else (including the reporter) suggests a status by voting —
+    // no more direct overwrites. A vote only takes effect once it, and
+    // others agreeing with it, reach the 3-point threshold (see
+    // cast_status_vote() in Supabase), and only while standing within 15m
+    // of the pin (checked server-side at cast time).
+    const statuses = [
+      { key: 'reported',    label: t('markReported'),   bg: STATUS_COLORS.reported },
+      { key: 'in_progress', label: t('markInProgress'), bg: STATUS_COLORS.in_progress },
+      { key: 'fixed',       label: t('markFixed'),      bg: STATUS_COLORS.fixed }
+    ].filter(s => s.key !== report.status);
     actionsHtml = `<div class="status-action-row">
-      ${showProgress ? `<button class="status-action-btn progress-btn" onclick="updateReportStatus('${report.id}','in_progress')">${t('markInProgress')}</button>` : ''}
-      <button class="status-action-btn fixed-btn" onclick="updateReportStatus('${report.id}','fixed')">${t('markFixed')}</button>
-    </div>`;
+      ${statuses.map(s => `<button class="status-action-btn" style="background:${s.bg};" onclick="castStatusVote('${report.id}','${s.key}')">${s.label}</button>`).join('')}
+    </div>
+    ${buildVoteProgressHtml(report)}`;
   }
 
   return `<div class="popup-inner popup-card">
@@ -4321,6 +4370,18 @@ function buildPopupHtml(report) {
     ${report.comment ? `<div class="popup-note">${escapeHtml(report.comment)}</div>` : ''}
     ${actionsHtml}
   </div>`;
+}
+
+// Small "⏳ Popravljeno? (2/3 glasa)"-style badges for any suggested status
+// on this report that already has votes but hasn't hit the 3-point
+// threshold yet — nudges nearby neighbors to go confirm it in person.
+function buildVoteProgressHtml(report) {
+  const progress = voteProgressByReport.get(report.id);
+  if (!progress) return '';
+  const rows = Object.keys(progress)
+    .filter(status => status !== report.status && progress[status] > 0 && progress[status] < 3)
+    .map(status => `<div class="vote-progress-badge">⏳ ${t('voteProgress').replace('{status}', statusLabel(status)).replace('{p}', progress[status])}</div>`);
+  return rows.length ? `<div class="vote-progress-row">${rows.join('')}</div>` : '';
 }
 
 function buildEditPopupHtml(report) {
@@ -4451,6 +4512,48 @@ async function updateReportStatus(reportId, newStatus) {
   } catch (err) {
     console.error('Status update error (full):', err);
     alert(t('updateFail'));
+  }
+}
+
+// Community-verification vote for a non-admin user. The 15m proximity gate
+// and the weighted-points tally both happen server-side in cast_status_vote()
+// (see the Supabase SQL) so a client can't fake either — this only does a
+// quick client-side distance check first purely so a user standing nowhere
+// near the pin gets the friendly Serbian message instantly, before even
+// making the round trip.
+async function castStatusVote(reportId, suggestedStatus) {
+  if (!currentSession || !currentProfile) { toast(t('signInFirst'), 'error'); return; }
+  if (!userCoords) { toast(t('waitGps'), 'error'); return; }
+
+  const report = globalActiveData.find(r => r.id === reportId);
+  if (report && isValidLatLng(report.latitude, report.longitude)) {
+    const dist = distMeters(userCoords, { lat: report.latitude, lon: report.longitude });
+    if (dist > 15) { toast(t('tooFarToVote'), 'error'); return; }
+  }
+
+  try {
+    const { data, error } = await sb.rpc('cast_status_vote', {
+      p_report_id: reportId,
+      p_suggested_status: suggestedStatus,
+      p_lat: userCoords.lat,
+      p_lon: userCoords.lon
+    });
+    if (error) throw error;
+
+    if (data && data.ok === false && data.reason === 'too_far') {
+      toast(t('tooFarToVote'), 'error');
+      return;
+    }
+    if (data && data.resolved) {
+      toast('✓ ' + t('voteResolved'), 'success');
+    } else {
+      toast(t('voteRecorded'), 'success');
+    }
+    await loadProfile(); // pick up any tier/counter change from this vote
+    await loadPinsByWindow();
+  } catch (err) {
+    console.error('Vote error (full):', err);
+    toast(t('voteFail'), 'error');
   }
 }
 
@@ -4614,11 +4717,36 @@ async function loadPinsByWindow() {
     (alwaysOnRes.data || []).forEach(r => merged.set(r.id, r));
     globalActiveData = Array.from(merged.values());
 
+    await loadVoteProgress(globalActiveData.map(r => r.id));
+
     syncMarkers(true);
     updateReportCount();
   } catch (err) {
     console.error('Failed to load reports:', err.message);
     toast(t('loadFailed'), 'error');
+  }
+}
+
+// Pulls the current weighted-points tally per (report, suggested status)
+// from the report_status_vote_progress view so popups can show "⏳ 2/3
+// votes" badges without a separate round trip per pin. Skipped while
+// signed out — the view is only granted to authenticated, and a logged-out
+// visitor can't vote anyway.
+async function loadVoteProgress(reportIds) {
+  if (!currentSession || !reportIds.length) { voteProgressByReport = new Map(); return; }
+  try {
+    const { data, error } = await sb.from('report_status_vote_progress')
+      .select('*')
+      .in('report_id', reportIds);
+    if (error) throw error;
+    const next = new Map();
+    (data || []).forEach(row => {
+      if (!next.has(row.report_id)) next.set(row.report_id, {});
+      next.get(row.report_id)[row.suggested_status] = row.points;
+    });
+    voteProgressByReport = next;
+  } catch (err) {
+    console.error('Failed to load vote progress:', err.message);
   }
 }
 
