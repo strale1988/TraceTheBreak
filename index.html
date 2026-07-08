@@ -1010,8 +1010,9 @@ body.driving-active .leaflet-control-zoom{
   font-size:11px;
   font-weight:600;
   cursor:pointer;
-  max-width:min(38vw, 140px);
-  flex-shrink:1;
+  max-width:min(70vw, 220px);
+  width:fit-content;
+  margin-top:6px;
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
 }
@@ -1398,14 +1399,14 @@ span.flatpickr-weekday {
     <div>
       <h1>TraceTheBreak</h1>
       <p id="subtitle">Community Infrastructure Reporting Network</p>
-    </div>
-    <div class="right-controls">
       <div class="user-badge" id="userBadge" style="display:none" onclick="handleUserBadgeClick()" title="Sign out">
         <span class="username-text" id="userBadgeName"></span>
         <span class="admin-pill" id="userBadgeAdmin" style="display:none">★ ADMIN</span>
         <span class="tier-pill" id="userBadgeTier" style="display:none" onclick="event.stopPropagation(); showProfileModal();"></span>
         <span class="signout-x">✕</span>
       </div>
+    </div>
+    <div class="right-controls">
       <button class="help-icon-btn" id="fullscreenBtn" title="Fullscreen / Preko celog ekrana" onclick="toggleFullscreen()"><img class="icon-img" id="fullscreenBtnIcon" src="icons/fullscreen-enter.png" alt="Fullscreen"></button>
       <button class="help-icon-btn" id="helpTopBtn" title="Help / Pomoć" onclick="showHelpModal()"><img class="icon-img" src="icons/help.png" alt="Help"></button>
       <div class="lang-dropdown" id="langDropdown">
