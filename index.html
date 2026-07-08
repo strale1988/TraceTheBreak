@@ -53,10 +53,31 @@ header p{ font-size:11px; opacity:.7; margin-top:2px; }
   flex-shrink:0;
 }
 
-.lang-toggle{
-  display:flex;
-  gap:4px;
-  align-items:center;
+.lang-dropdown{
+  position:relative;
+}
+
+.lang-dd-menu{
+  display:none;
+  position:absolute;
+  top:calc(100% + 6px);
+  right:0;
+  flex-direction:column;
+  gap:2px;
+  background:#232323;
+  border:1px solid #444;
+  border-radius:8px;
+  padding:4px;
+  min-width:110px;
+  box-shadow:0 6px 20px rgba(0,0,0,.5);
+  z-index:10000; /* stay above every other widget (driving HUD tops out at 2700, modals at 9999) */
+}
+.lang-dd-menu.open{ display:flex; }
+
+.lang-dd-item{
+  width:100%;
+  justify-content:flex-start;
+  text-align:left;
 }
 
 .lang-btn, .help-icon-btn{
@@ -92,7 +113,7 @@ header p{ font-size:11px; opacity:.7; margin-top:2px; }
   min-height: 0;
   position: relative;
   overflow: hidden;
-  z-index: 1; /* keep below header/.lang-toggle so Leaflet's own panes never sit on top of it */
+  z-index: 1; /* keep below header/.lang-dropdown so Leaflet's own panes never sit on top of it */
 }
 
 .resize-handle {
@@ -487,7 +508,7 @@ body.nav-panel-open .driving-nav-card{
    reachable regardless of panel state, floating over the map like a
    real navigation app's heading indicator. */
 .map-compass{
-  width:44px; height:44px;
+  width:40px; height:40px;
   border-radius:50%;
   background:rgba(20,20,20,.92);
   border:1px solid #3a3a3a;
@@ -496,10 +517,7 @@ body.nav-panel-open .driving-nav-card{
   align-items:center;
   justify-content:center;
   cursor:pointer;
-  position:fixed;
-  top:calc(12px + env(safe-area-inset-top, 0px));
-  right:12px;
-  z-index:2600;
+  flex-shrink:0;
   user-select:none;
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
@@ -623,14 +641,12 @@ body.driving-active #drivingTopFade{ display:block; }
 /* --- Floating widgets (driving mode only) ---
    The speed readout is grouped in a left-side stack (nothing else lives
    in it currently, but it keeps room for more later without needing a
-   layout rework). The compass is a Leaflet control (see CompassControl
-   further down) that Leaflet physically reparents into its own control
-   container at runtime, so it's positioned independently via its own
-   fixed top/right — wrapping it in a sibling stack div would leave that
-   div empty once Leaflet moves the compass out of it. The back, search
-   and recenter buttons live lower down, as a row sitting right above
-   the report buttons in the bottom sheet (see .driving-action-row
-   further below and the HTML in #drivingReportSheet). */
+   layout rework). The compass sits inline in the action row between the
+   search and recenter buttons (see .driving-action-row-right further
+   below and the HTML in #drivingReportSheet), so it no longer needs its
+   own fixed position. The back, search and recenter buttons live lower
+   down, as a row sitting right above the report buttons in the bottom
+   sheet. */
 .driving-left-stack{
   position:fixed;
   top:calc(12px + env(safe-area-inset-top, 0px));
@@ -643,7 +659,6 @@ body.driving-active #drivingTopFade{ display:block; }
 }
 body.driving-active .driving-left-stack{ display:flex; }
 body.nav-panel-open .driving-left-stack,
-body.nav-panel-open .map-compass,
 body.nav-panel-open .driving-nav-card{
   display:none !important;
 }
@@ -700,18 +715,19 @@ body.driving-active .driving-speed-widget{ display:flex; }
   flex-direction:row;
   align-items:center;
   gap:10px;
-  max-width:260px;
-  /* Matches the compass widget's translucent-glass look instead of the
-     near-opaque card it used to be. */
-  background:rgba(20,20,20,.55);
-  backdrop-filter:blur(6px);
-  -webkit-backdrop-filter:blur(6px);
+  /* Plain, non-blurred translucency — the backdrop-filter blur was
+     expensive to keep repainting every frame while it sat over a moving
+     map and was the source of the lag, so this is just a flat
+     semi-transparent fill now. */
+  background:rgba(20,20,20,.82);
   border:1px solid #3a3a3a;
   border-radius:10px;
   padding:8px 12px;
   box-shadow:0 3px 12px rgba(0,0,0,.55);
   position:fixed;
   left:12px;
+  right:12px; /* stretch full-width, mirroring the left margin on the right */
+  width:auto;
   z-index:2650; /* sits above the quick-report sheet (2550) */
   bottom:calc(var(--driving-sheet-height, 220px) + 12px + env(safe-area-inset-bottom, 0px));
 }
@@ -779,12 +795,11 @@ body.driving-active .turn-by-turn-card{ display:flex; }
   padding:calc(10px + env(safe-area-inset-top, 0px)) 16px 10px 16px;
   box-shadow:0 3px 12px rgba(0,0,0,.6);
 }
-/* The destination header takes the top strip, so the speed pill and
-   compass move down out of its way while it's showing. The action
-   cluster no longer needs this — it now lives at the bottom, embedded
-   in the report bar. */
-body.nav-card-open .driving-left-stack,
-body.nav-card-open .map-compass{
+/* The destination header takes the top strip, so the speed pill
+   moves down out of its way while it's showing. The action cluster
+   (including the compass) no longer needs this — it now lives at the
+   bottom, embedded in the report bar. */
+body.nav-card-open .driving-left-stack{
   top: calc(64px + 12px + env(safe-area-inset-top, 0px)) !important;
 }
 
@@ -851,21 +866,35 @@ body.driving-active .driving-report-sheet{ display:flex; }
   border:1px solid #3a3a3a;
   border-radius:12px;
   color:white;
-  padding:9px 2px;
-  font-size:9px;
-  font-weight:700;
-  line-height:1.15;
-  text-align:center;
+  padding:13px 2px;
   display:flex;
   flex-direction:column;
   align-items:center;
-  gap:4px;
+  justify-content:center;
   cursor:pointer;
   transition:background .15s, transform .1s;
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
 }
-.driving-tile:active{ background:#333; transform:scale(.96); }
+/* Labels removed to keep the row compact — the icon plus the tint below
+   is enough to identify each type at a glance, and the title attribute
+   still gives the full name on long-press/hover. */
+.driving-tile span{ display:none; }
+.driving-tile .icon-img-tile{ width:26px; height:26px; }
+.driving-tile:active{ transform:scale(.96); }
+
+/* Distinct tint per report type — with the text labels gone, color is
+   what tells the five tiles apart quickly while driving. */
+.driving-tile.tile-pothole{  background:rgba(231,76,60,.22);  border-color:rgba(231,76,60,.6); }
+.driving-tile.tile-cracked{  background:rgba(230,126,34,.22); border-color:rgba(230,126,34,.6); }
+.driving-tile.tile-signage{  background:rgba(241,196,15,.22); border-color:rgba(241,196,15,.6); }
+.driving-tile.tile-flooding{ background:rgba(52,152,219,.22); border-color:rgba(52,152,219,.6); }
+.driving-tile.tile-other{    background:rgba(155,89,182,.22); border-color:rgba(155,89,182,.6); }
+.driving-tile.tile-pothole:active{  background:rgba(231,76,60,.38); }
+.driving-tile.tile-cracked:active{  background:rgba(230,126,34,.38); }
+.driving-tile.tile-signage:active{  background:rgba(241,196,15,.38); }
+.driving-tile.tile-flooding:active{ background:rgba(52,152,219,.38); }
+.driving-tile.tile-other:active{    background:rgba(155,89,182,.38); }
 .driving-section-btn{
   width:100%;
   padding:14px;
@@ -981,13 +1010,10 @@ body.driving-active .leaflet-control-zoom{
   font-size:11px;
   font-weight:600;
   cursor:pointer;
-  max-width:min(50vw, 180px);
+  max-width:min(38vw, 140px);
+  flex-shrink:1;
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
-  position:absolute;
-  left:12px;
-  top:50%;
-  transform:translateY(-50%);
 }
 .user-badge .username-text{
   overflow:hidden;
@@ -1374,11 +1400,22 @@ span.flatpickr-weekday {
       <p id="subtitle">Community Infrastructure Reporting Network</p>
     </div>
     <div class="right-controls">
+      <div class="user-badge" id="userBadge" style="display:none" onclick="handleUserBadgeClick()" title="Sign out">
+        <span class="username-text" id="userBadgeName"></span>
+        <span class="admin-pill" id="userBadgeAdmin" style="display:none">★ ADMIN</span>
+        <span class="tier-pill" id="userBadgeTier" style="display:none" onclick="event.stopPropagation(); showProfileModal();"></span>
+        <span class="signout-x">✕</span>
+      </div>
       <button class="help-icon-btn" id="fullscreenBtn" title="Fullscreen / Preko celog ekrana" onclick="toggleFullscreen()"><img class="icon-img" id="fullscreenBtnIcon" src="icons/fullscreen-enter.png" alt="Fullscreen"></button>
       <button class="help-icon-btn" id="helpTopBtn" title="Help / Pomoć" onclick="showHelpModal()"><img class="icon-img" src="icons/help.png" alt="Help"></button>
-      <div class="lang-toggle">
-        <button class="lang-btn"        onclick="setLang('en')">🇬🇧 EN</button>
-        <button class="lang-btn active" onclick="setLang('sr')">🇷🇸 SR</button>
+      <div class="lang-dropdown" id="langDropdown">
+        <button class="help-icon-btn" id="langDdBtn" title="Language / Jezik" onclick="toggleLangDropdown()">
+          <span id="langDdFlag" style="font-size:15px;line-height:1;">🇷🇸</span>
+        </button>
+        <div class="lang-dd-menu" id="langDdMenu">
+          <button class="lang-btn lang-dd-item"        onclick="setLang('en')">🇬🇧 EN</button>
+          <button class="lang-btn lang-dd-item active" onclick="setLang('sr')">🇷🇸 SR</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1434,12 +1471,6 @@ span.flatpickr-weekday {
 </div>
 
 <div class="resize-handle">
-  <div class="user-badge" id="userBadge" style="display:none" onclick="handleUserBadgeClick()" title="Sign out">
-    <span class="username-text" id="userBadgeName"></span>
-    <span class="admin-pill" id="userBadgeAdmin" style="display:none">★ ADMIN</span>
-    <span class="tier-pill" id="userBadgeTier" style="display:none" onclick="event.stopPropagation(); showProfileModal();"></span>
-    <span class="signout-x">✕</span>
-  </div>
   <button id="panelToggleBtn" class="panel-toggle-btn" type="button"
           aria-expanded="true" aria-controls="appPanel" title="Hide panel">
     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
@@ -1511,15 +1542,6 @@ span.flatpickr-weekday {
   </div>
 </div>
 
-<div id="mapCompass" class="map-compass" title="Heading — tap to toggle map rotation" onclick="toggleHeadingUpMode()">
-  <div class="compass-face">
-    <span class="compass-n">N</span>
-    <div class="compass-needle" id="compassNeedle">
-      <svg viewBox="0 0 24 24"><path d="M12 2 L16 13 L12 11 L8 13 Z" fill="#ff4b4b"/><path d="M12 22 L16 13 L12 15 L8 13 Z" fill="#ccc"/></svg>
-    </div>
-  </div>
-</div>
-
 <div id="drivingNavCard" class="driving-nav-card">
   <div class="driving-nav-card-info">
     <span id="navigateDestText" class="driving-nav-dest"></span>
@@ -1548,6 +1570,14 @@ span.flatpickr-weekday {
     </button>
     <div class="driving-action-row-right">
       <button class="driving-search-btn" id="drivingSearchBtn" onclick="toggleNavigatePanel()" title="Search destination"><img class="icon-img" src="icons/search.png" alt="Search"></button>
+      <div id="mapCompass" class="map-compass" title="Heading — tap to toggle map rotation" onclick="toggleHeadingUpMode()">
+        <div class="compass-face">
+          <span class="compass-n">N</span>
+          <div class="compass-needle" id="compassNeedle">
+            <svg viewBox="0 0 24 24"><path d="M12 2 L16 13 L12 11 L8 13 Z" fill="#ff4b4b"/><path d="M12 22 L16 13 L12 15 L8 13 Z" fill="#ccc"/></svg>
+          </div>
+        </div>
+      </div>
       <button class="driving-search-btn" id="drivingCenterBtn" onclick="toggleFollowMode()" title="Center on me"><img class="icon-img" src="icons/target.png" alt="Center"></button>
     </div>
   </div>
@@ -1559,11 +1589,11 @@ span.flatpickr-weekday {
     <span id="sectionRecordBtnLabel">Start Section Report</span>
   </button>
   <div class="driving-tile-row">
-    <div class="driving-tile" onclick="handleTileTap('pothole')"><img class="icon-img icon-img-tile" src="icons/pothole.png" alt="Pothole"><span id="dTilePothole">Pothole</span></div>
-    <div class="driving-tile" onclick="handleTileTap('cracked')"><img class="icon-img icon-img-tile" src="icons/road.png" alt="Damaged pavement"><span id="dTileCracked">Damaged pavement</span></div>
-    <div class="driving-tile" onclick="handleTileTap('signage')"><img class="icon-img icon-img-tile" src="icons/traffic-cone.png" alt="Bad signage"><span id="dTileSignage">Bad signage</span></div>
-    <div class="driving-tile" onclick="handleTileTap('flooding')"><img class="icon-img icon-img-tile" src="icons/flood-risk.png" alt="Flooding"><span id="dTileFlooding">Flooding</span></div>
-    <div class="driving-tile" onclick="handleTileTap(null)"><img class="icon-img icon-img-tile" src="icons/warning-symbol.png" alt="Other road issue"><span id="dTileOther">Other road issue</span></div>
+    <div class="driving-tile tile-pothole" onclick="handleTileTap('pothole')" title="Pothole"><img class="icon-img icon-img-tile" src="icons/pothole.png" alt="Pothole"><span id="dTilePothole">Pothole</span></div>
+    <div class="driving-tile tile-cracked" onclick="handleTileTap('cracked')" title="Damaged pavement"><img class="icon-img icon-img-tile" src="icons/road.png" alt="Damaged pavement"><span id="dTileCracked">Damaged pavement</span></div>
+    <div class="driving-tile tile-signage" onclick="handleTileTap('signage')" title="Bad signage"><img class="icon-img icon-img-tile" src="icons/traffic-cone.png" alt="Bad signage"><span id="dTileSignage">Bad signage</span></div>
+    <div class="driving-tile tile-flooding" onclick="handleTileTap('flooding')" title="Flooding"><img class="icon-img icon-img-tile" src="icons/flood-risk.png" alt="Flooding"><span id="dTileFlooding">Flooding</span></div>
+    <div class="driving-tile tile-other" onclick="handleTileTap(null)" title="Other road issue"><img class="icon-img icon-img-tile" src="icons/warning-symbol.png" alt="Other road issue"><span id="dTileOther">Other road issue</span></div>
   </div>
 </div>
 
@@ -2086,11 +2116,25 @@ let lang = 'sr';
 let globalActiveData = [];
 let fp = null;
 
+function toggleLangDropdown(){
+  document.getElementById('langDdMenu').classList.toggle('open');
+}
+function closeLangDropdown(){
+  document.getElementById('langDdMenu').classList.remove('open');
+}
+document.addEventListener('click', (e) => {
+  const dd = document.getElementById('langDropdown');
+  if (dd && !dd.contains(e.target)) closeLangDropdown();
+});
+
 function setLang(l){
   lang = l;
   document.querySelectorAll('.lang-btn').forEach(b=>{
     b.classList.toggle('active', b.getAttribute('onclick').includes("'"+l+"'"));
   });
+  const flagEl = document.getElementById('langDdFlag');
+  if (flagEl) flagEl.textContent = l === 'sr' ? '🇷🇸' : '🇬🇧';
+  closeLangDropdown();
   applyLang();
 
   if (fp) {
@@ -2149,6 +2193,11 @@ function applyLang(){
   document.getElementById('dTileSignage').textContent     = t('dTileSignage');
   document.getElementById('dTileFlooding').textContent    = t('dTileFlooding');
   document.getElementById('dTileOther').textContent       = t('dTileOther');
+  document.getElementById('dTilePothole').closest('.driving-tile').title  = t('dTilePothole');
+  document.getElementById('dTileCracked').closest('.driving-tile').title  = t('dTileCracked');
+  document.getElementById('dTileSignage').closest('.driving-tile').title = t('dTileSignage');
+  document.getElementById('dTileFlooding').closest('.driving-tile').title = t('dTileFlooding');
+  document.getElementById('dTileOther').closest('.driving-tile').title   = t('dTileOther');
   updateSectionButtonUI();
   document.getElementById('drivingCenterBtn').title = t('followTitle');
   document.getElementById('drivingModeBtn').title = t('drivingBtnTitle');
@@ -3816,6 +3865,32 @@ function updateSpeedLimitDisplay(value) {
 // session — the browser/OS keeps the radio engaged and simply calls back
 // whenever a new fix is ready, with no polling loop on our end at all.
 let gpsWatchId = null;
+let gpsRetryIntervalId = null;
+
+// While the OS-level location toggle is off, watchPosition's own error
+// callback below just gets POSITION_UNAVAILABLE over and over (browsers
+// treat that as a dead session, not something they keep silently
+// re-checking) — and permissions.query()'s onchange in initGps() never
+// fires here either, because the *site* permission is still "granted";
+// only the phone's Location Services switch changed, which isn't part of
+// that permission object. So without this loop, the only way the app
+// notices GPS came back on is a manual page refresh. Instead, once we
+// detect the dead watch we clear it and retry startWatching() every few
+// seconds; the moment a fix succeeds, the success handler below calls
+// hideGpsModal() and stopGpsRetryLoop() and everything recovers on its
+// own — no refresh needed.
+function stopGpsRetryLoop() {
+  if (gpsRetryIntervalId !== null) {
+    clearInterval(gpsRetryIntervalId);
+    gpsRetryIntervalId = null;
+  }
+}
+function startGpsRetryLoop() {
+  if (gpsRetryIntervalId !== null) return; // already retrying
+  gpsRetryIntervalId = setInterval(() => {
+    if (gpsWatchId === null) startWatching();
+  }, 4000);
+}
 
 function startWatching() {
   if (gpsWatchId !== null) return; // already watching — avoid opening a second session
@@ -3863,6 +3938,7 @@ function startWatching() {
 
       userCoords = smoothPositionFix(candidate);
       hideGpsModal();
+      stopGpsRetryLoop();
       updateDrivingGpsStatus();
       if (!userMarker) {
         userMarker = L.marker([userCoords.lat, userCoords.lon], {
@@ -3972,7 +4048,26 @@ function startWatching() {
           navigator.geolocation.clearWatch(gpsWatchId);
           gpsWatchId = null;
         }
+        // Also cover the case below where the site permission was already
+        // granted but the phone's Location Services were off, then got
+        // denied outright — keep polling so a later re-grant is picked
+        // up even if permissions.onchange doesn't fire on this device.
+        startGpsRetryLoop();
+      } else if (err.code === err.POSITION_UNAVAILABLE) {
+        // The browser permission is still granted, but the device's own
+        // GPS/Location Services toggle is off — permissions.query() has
+        // no visibility into that switch, so its onchange listener will
+        // never fire to tell us it flipped back on. Clear the dead watch
+        // and start polling so we notice automatically once it does.
+        showGpsModal();
+        if (gpsWatchId !== null) {
+          navigator.geolocation.clearWatch(gpsWatchId);
+          gpsWatchId = null;
+        }
+        startGpsRetryLoop();
       }
+      // TIMEOUT (err.code === 3) is left alone — transient, and
+      // watchPosition will just call back again on its own.
     },
     { enableHighAccuracy: true, timeout: 10000, maximumAge: 1000 }
   );
@@ -3993,6 +4088,7 @@ function initGps() {
         showGpsModal();
       } else {
         hideGpsModal();
+        stopGpsRetryLoop();
         startWatching();
       }
     };
@@ -4032,16 +4128,6 @@ const DrivingControl = L.Control.extend({
 });
 new DrivingControl().addTo(map);
 document.getElementById('drivingModeBtn').style.display = 'flex';
-
-const CompassControl = L.Control.extend({
-  options:{ position:'topright' },
-  onAdd(){
-    const btn = document.getElementById('mapCompass');
-    L.DomEvent.disableClickPropagation(btn);
-    return btn;
-  }
-});
-new CompassControl().addTo(map);
 
 const NavigatePanelControl = L.Control.extend({
   options:{ position:'topleft' },
