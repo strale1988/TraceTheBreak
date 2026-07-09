@@ -9,7 +9,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
 
-  <link rel="icon" type="image/png" href="TraceTheBreak.png">
+  <link rel="icon" type="image/png" href="./icons/TraceTheBreak.png">
   <meta property="og:image" content="https://github.io"/>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
@@ -2016,7 +2016,7 @@ const T = {
   profileProgressToTrusted: { en:'To Trusted neighbor status: {x}/5 successful actions', sr:'Do statusa Pouzdanog komšije: {x}/5 uspešnih akcija' },
   profileAlreadyTrusted:    { en:'You are a Trusted neighbor — your vote counts double.', sr:'Vi ste Pouzdani komšija — vaš glas vredi duplo.' },
   profileStats:  { en:'{s} successful out of {t} total contributions', sr:'{s} uspešnih od ukupno {t} doprinosa' },
-  tooFarToVote:  { en:'You must be on-site (within 15m) to vote for a status change.', sr:'Morate biti na licu mesta (u krugu od 15m) da biste glasali za izmenu statusa.' },
+  tooFarToVote:  { en:'You must be on-site (within 50m) to vote for a status change.', sr:'Morate biti na licu mesta (u krugu od 50m) da biste glasali za izmenu statusa.' },
   voteRecorded:  { en:'Vote recorded.',                            sr:'Glas je zabeležen.' },
   voteResolved:  { en:'Status updated by community vote!',         sr:'Status je promenjen glasanjem zajednice!' },
   voteFail:      { en:'Could not record vote. Try again.',         sr:'Glas nije zabeležen. Pokušajte ponovo.' },
@@ -4392,7 +4392,7 @@ function buildPopupHtml(report) {
     // Everyone else (including the reporter) suggests a status by voting —
     // no more direct overwrites. A vote only takes effect once it, and
     // others agreeing with it, reach the 3-point threshold (see
-    // cast_status_vote() in Supabase), and only while standing within 15m
+    // cast_status_vote() in Supabase), and only while standing within 50m
     // of the pin (checked server-side at cast time).
     const statuses = [
       { key: 'reported',    label: t('markReported'),   bg: STATUS_COLORS.reported },
@@ -4573,7 +4573,7 @@ async function updateReportStatus(reportId, newStatus) {
   }
 }
 
-// Community-verification vote for a non-admin user. The 15m proximity gate
+// Community-verification vote for a non-admin user. The 50m proximity gate
 // and the weighted-points tally both happen server-side in cast_status_vote()
 // (see the Supabase SQL) so a client can't fake either — this only does a
 // quick client-side distance check first purely so a user standing nowhere
@@ -4586,7 +4586,7 @@ async function castStatusVote(reportId, suggestedStatus) {
   const report = globalActiveData.find(r => r.id === reportId);
   if (report && isValidLatLng(report.latitude, report.longitude)) {
     const dist = distMeters(userCoords, { lat: report.latitude, lon: report.longitude });
-    if (dist > 15) { toast(t('tooFarToVote'), 'error'); return; }
+    if (dist > 50) { toast(t('tooFarToVote'), 'error'); return; }
   }
 
   try {
