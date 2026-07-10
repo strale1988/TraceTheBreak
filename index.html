@@ -2194,10 +2194,7 @@ function applyLang(){
   document.getElementById('category').options[0].text     = t('catPH');
 
   const catEl = document.getElementById('category');
-  const catLabels = lang === 'sr'
-    ? ['Voda','Struja','Kanalizacija','Gas','Grejanje','Put','Ulična rasveta','Otpad','Ostalo']
-    : ['Water','Electricity','Sewage','Gas','Heating','Road','Streetlight','Waste','Other'];
-  Array.from(catEl.options).slice(1).forEach((opt, i) => { opt.textContent = catLabels[i]; });
+  Array.from(catEl.options).slice(1).forEach(opt => { opt.textContent = translateCategory(opt.value); });
 
   const subEl = document.getElementById('subcategory');
   if (subEl && catEl.value) {
@@ -4862,6 +4859,14 @@ function escapeHtml(str) {
 // A report is a "section" report (drawn as a spline/polyline instead of a
 // single pin) when it carries a `path` array with more than one point,
 // e.g. produced by the driving-mode section recorder.
+// Section-report lines are drawn thin (see upsertSectionLine) so they read
+// as a road overlay rather than a fat highlighter stroke, but a 6px-wide
+// line is a genuinely hard target to tap on a phone. This renderer adds an
+// invisible padding around every path it draws for hit-testing purposes
+// only — the visual stroke width is untouched, just what counts as "on
+// the line" for taps/clicks.
+const sectionLineRenderer = L.svg({ tolerance: 18 });
+
 function isSectionReport(report) {
   return sanitizePath(report.path).length > 1;
 }
@@ -4881,7 +4886,7 @@ function upsertSectionLine(report) {
     return line;
   }
 
-  line = L.polyline(path, { color: sCol, weight: 6, opacity, lineCap: 'round' }).addTo(map);
+  line = L.polyline(path, { color: sCol, weight: 6, opacity, lineCap: 'round', renderer: sectionLineRenderer }).addTo(map);
   line._reportId = report.id;
   line.bindPopup(buildPopupHtml(report), { autoPan: false }); // popup is always reparented to #mobilePopupOverlay, so Leaflet never needs to pan the map for it
   markerById.set(report.id, line);
