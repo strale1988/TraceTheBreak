@@ -2024,6 +2024,8 @@ const T = {
   suggestStatus: { en:'Suggest status',                            sr:'Predloži status' },
   editBtn:       { en:'Edit',                                      sr:'Izmeni' },
   editTitle:     { en:'Edit report',                               sr:'Izmeni prijavu' },
+  editNoteBtn:   { en:'Edit note',                                  sr:'Izmeni napomenu' },
+  editNoteTitle: { en:'Edit note',                                  sr:'Izmeni napomenu' },
   editCategoryLabel:    { en:'Type',      sr:'Vrsta' },
   editSubcategoryLabel: { en:'Subtype',   sr:'Podvrsta' },
   editStatusLabel:      { en:'Status',    sr:'Status' },
@@ -4405,6 +4407,16 @@ function buildPopupHtml(report) {
     ${buildVoteProgressHtml(report)}`;
   }
 
+  // The reporter can edit just their own optional note, regardless of status
+  // or the voting flow above — admins skip this since their full edit form
+  // (enterEditMode) already covers the comment field.
+  let noteActionHtml = '';
+  if (isOwner && !isAdmin) {
+    noteActionHtml = `<div class="status-action-row" style="border-top:none;padding-top:0;">
+      <button class="status-action-btn" style="background:#3a3a3a;" onclick="enterNoteEditMode('${report.id}')">${t('editNoteBtn')}</button>
+    </div>`;
+  }
+
   return `<div class="popup-inner popup-card">
     <div class="popup-header" style="background:${catCol};">
       <span class="popup-header-title">${headerTitle}</span>
@@ -4427,6 +4439,7 @@ function buildPopupHtml(report) {
     </div>
     ${report.comment ? `<div class="popup-note">${escapeHtml(report.comment)}</div>` : ''}
     ${actionsHtml}
+    ${noteActionHtml}
   </div>`;
 }
 
@@ -4481,6 +4494,54 @@ function buildEditPopupHtml(report) {
       </div>
     </div>
   </div>`;
+}
+
+// Lightweight popup for the reporter to edit just their own optional note —
+// unlike buildEditPopupHtml (admin-only), this never touches category,
+// subcategory, or status.
+function buildNoteEditPopupHtml(report) {
+  const uid = report.id;
+  const catCol = categoryColor(report.category);
+  return `<div class="popup-inner popup-card popup-edit-form">
+    <div class="popup-header" style="background:${catCol};">
+      <span class="popup-header-title">${t('editNoteTitle')}</span>
+    </div>
+    <div class="popup-edit-body">
+      <div class="popup-edit-field">
+        <span class="popup-edit-field-label">${t('editCommentLabel')}</span>
+        <input type="text" id="edit-note-${uid}" value="${escapeHtml(report.comment || '')}" placeholder="${t('commentPH')}">
+      </div>
+      <div class="status-action-row" style="padding:2px 0 0 0;border-top:none;">
+        <button class="status-action-btn" style="background:#a67817;" onclick="saveOwnerNote('${uid}')">${t('saveBtn')}</button>
+        <button class="status-action-btn" style="background:#3a3a3a;" onclick="cancelEdit('${uid}')">${t('cancelBtn')}</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function enterNoteEditMode(reportId) {
+  const marker = markerById.get(reportId);
+  const pin = sectionPinById.get(reportId);
+  const report = globalActiveData.find(r => r.id === reportId);
+  if ((!marker && !pin) || !report) return;
+  if (marker) marker.setPopupContent(buildNoteEditPopupHtml(report));
+  if (pin) pin.setPopupContent(buildNoteEditPopupHtml(report));
+}
+
+async function saveOwnerNote(reportId) {
+  const input = document.getElementById(`edit-note-${reportId}`);
+  if (!input) return;
+  const comment = input.value;
+  try {
+    const { error } = await sb.from(TABLE)
+      .update({ comment, updated_at: new Date().toISOString() })
+      .eq('id', reportId);
+    if (error) throw error;
+    await loadPinsByWindow();
+  } catch (err) {
+    console.error('Note save error (full):', err);
+    alert(describeAuthError(err));
+  }
 }
 
 function onEditCategoryChange(reportId) {
