@@ -245,6 +245,20 @@ select{
   background-repeat:no-repeat;
   background-position:right 10px center;
   padding-right:28px;
+  /* Without this, some mobile browsers render the native options popup
+     using the OS's light color scheme while still inheriting our white
+     text color from this rule — white-on-white, so options are present
+     and functional but invisible. This tells the browser the control (and
+     its dropdown list) is dark, so it picks a readable native background. */
+  color-scheme:dark;
+}
+/* Belt-and-suspenders for browsers that do style <option> directly: force
+   the same dark background/light text so every entry — including ones
+   added after the list originally shipped — stays visible regardless of
+   OS theme. */
+select option{
+  background:#262626;
+  color:white;
 }
 
 input[type="text"], input[type="password"]{
@@ -1252,6 +1266,15 @@ body.driving-active .leaflet-control-zoom{
   width:100%;
   box-sizing:border-box;
   -webkit-tap-highlight-color:transparent;
+  /* This form is light-themed, unlike the dark base `select` rule, so its
+     native options list needs to opt back into a light color scheme too —
+     otherwise it would inherit the dark option styling meant for the
+     report-category select and end up dark-text-on-dark-background. */
+  color-scheme:light;
+}
+.popup-edit-form select option{
+  background:#f7f7f7;
+  color:#111;
 }
 .popup-edit-form select:focus,
 .popup-edit-form input[type="text"]:focus{
@@ -1667,7 +1690,7 @@ span.flatpickr-weekday {
   </button>
   <div class="driving-tile-row">
     <div class="driving-tile tile-pothole" onclick="handleTileTap('pothole')" title="Pothole"><img class="icon-img icon-img-tile" src="icons/pothole.png" alt="Pothole"><span id="dTilePothole">Pothole</span></div>
-    <div class="driving-tile tile-cracked" onclick="handleTileTap('cracked')" title="Damaged pavement"><img class="icon-img icon-img-tile" src="icons/road.png" alt="Damaged pavement"><span id="dTileCracked">Damaged pavement</span></div>
+    <div class="driving-tile tile-cracked" onclick="handleTileTap('cracked')" title="Damaged pavement"><img class="icon-img icon-img-tile" src="icons/road-damaged.png" alt="Damaged pavement"><span id="dTileCracked">Damaged pavement</span></div>
     <div class="driving-tile tile-signage" onclick="handleTileTap('signage')" title="Bad signage"><img class="icon-img icon-img-tile" src="icons/traffic-cone.png" alt="Bad signage"><span id="dTileSignage">Bad signage</span></div>
     <div class="driving-tile tile-flooding" onclick="handleTileTap('flooding')" title="Flooding"><img class="icon-img icon-img-tile" src="icons/flood-risk.png" alt="Flooding"><span id="dTileFlooding">Flooding</span></div>
     <div class="driving-tile tile-other" onclick="handleTileTap(null)" title="Other road issue"><img class="icon-img icon-img-tile" src="icons/warning-symbol.png" alt="Other road issue"><span id="dTileOther">Other road issue</span></div>
@@ -2467,9 +2490,24 @@ map.on('popupclose', e => {
 // On mobile the overlay is a full-screen dimmed backdrop — tapping it,
 // outside the dialog itself, should close the popup like tapping outside
 // any other modal in the app.
+//
+// This only counts as "tapping the backdrop" if the gesture both STARTS
+// and ENDS on the backdrop itself, not just ends there. Without that check,
+// switching the popup into edit mode (enterEditMode() swaps in a taller
+// form, shifting where its buttons land) could turn an ordinary tap on the
+// "Edit" button into a stray backdrop click once the layout resettles a
+// moment later — closing the dialog right after it opened, so it looked
+// like the edit popup flashed and vanished until tapping the pin again.
+let mobilePopupOverlayPointerDownOnBackdrop = false;
 if (mobilePopupOverlay) {
+  mobilePopupOverlay.addEventListener('pointerdown', e => {
+    mobilePopupOverlayPointerDownOnBackdrop = (e.target === mobilePopupOverlay);
+  });
   mobilePopupOverlay.addEventListener('click', e => {
-    if (e.target === mobilePopupOverlay) map.closePopup();
+    if (e.target === mobilePopupOverlay && mobilePopupOverlayPointerDownOnBackdrop) {
+      map.closePopup();
+    }
+    mobilePopupOverlayPointerDownOnBackdrop = false;
   });
 }
 
@@ -4814,6 +4852,8 @@ function upsertSectionLine(report) {
     line.setStyle({ color: sCol, opacity });
     line.setLatLngs(path);
     line.setPopupContent(buildPopupHtml(report));
+    // Fixed sections sink to the bottom so open/in-progress ones stay on top.
+    if (report.status === 'fixed') line.bringToBack(); else line.bringToFront();
     return line;
   }
 
@@ -4821,6 +4861,7 @@ function upsertSectionLine(report) {
   line._reportId = report.id;
   line.bindPopup(buildPopupHtml(report), { autoPan: false }); // popup is always reparented to #mobilePopupOverlay, so Leaflet never needs to pan the map for it
   markerById.set(report.id, line);
+  if (report.status === 'fixed') line.bringToBack();
   return line;
 }
 
@@ -4836,9 +4877,9 @@ function buildPinIconHtml(category, status) {
   const iconSrc = `icons/${categoryIcon(category)}`;
   const opacity = status === 'fixed' ? 0.55 : 1;
   return `<div style="width:26px;height:26px;border-radius:50%;background:${sCol};` +
-    `border:2px solid rgba(0,0,0,.35);opacity:${opacity};box-shadow:0 2px 6px rgba(0,0,0,.5);` +
+    `border:2px solid ${catCol};opacity:${opacity};box-shadow:0 2px 6px rgba(0,0,0,.5);` +
     `display:flex;align-items:center;justify-content:center;">` +
-    `<span style="width:15px;height:15px;display:inline-block;background-color:${catCol};` +
+    `<span style="width:15px;height:15px;display:inline-block;background-color:#ffffff;` +
     `-webkit-mask:url('${iconSrc}') center / contain no-repeat;mask:url('${iconSrc}') center / contain no-repeat;"></span>` +
     `</div>`;
 }
@@ -4852,17 +4893,22 @@ function upsertMarker(report) {
   }
 
   const iconHtml = buildPinIconHtml(report.category, report.status);
+  // Fixed reports sink to the bottom of the stack so open/in-progress pins
+  // are never hidden underneath ones that no longer need attention.
+  const zOffset = report.status === 'fixed' ? -1000 : 0;
 
   let marker = markerById.get(report.id);
   if (marker) {
     marker.setIcon(L.divIcon({ className: '', html: iconHtml, iconAnchor: [13,13] }));
     marker.setLatLng([report.latitude, report.longitude]);
     marker.setPopupContent(buildPopupHtml(report));
+    marker.setZIndexOffset(zOffset);
     return marker;
   }
 
   marker = L.marker([report.latitude, report.longitude], {
-    icon: L.divIcon({ className: '', html: iconHtml, iconAnchor: [13,13] })
+    icon: L.divIcon({ className: '', html: iconHtml, iconAnchor: [13,13] }),
+    zIndexOffset: zOffset
   }).addTo(map);
 
   marker._reportId = report.id;
