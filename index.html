@@ -19,6 +19,51 @@
 
 *{ margin:0; padding:0; box-sizing:border-box; }
 
+/* ============================================================
+   Z-INDEX SCALE — single source of truth. Every fixed/floating
+   layer in the app uses one of these numbers so "does X sit
+   above Y" is always answerable by comparing two numbers here,
+   instead of guessing from whatever value was typed nearby.
+   ------------------------------------------------------------
+     1      #map                    Leaflet base layer
+     100    header                  site chrome — only needs to
+                                     clear the map (1); hidden
+                                     entirely in driving mode so
+                                     it never competes with the
+                                     driving HUD below
+     2400   #drivingTopFade
+     2550   .driving-report-sheet   bottom sheet
+     2600   .navigate-panel /
+            .driving-left-stack
+     2650   .turn-by-turn-card
+     2700   .driving-nav-card       destination header bar
+     4000   #toastContainer         above every chrome/HUD layer
+                                     so "Waiting for GPS…" etc.
+                                     can never render underneath
+                                     something else
+     9999   modal overlays          gpsModal / helpModal /
+                                     profileModal / edit dialogs /
+                                     #mobilePopupOverlay (ALL pin
+                                     popups now live here — see
+                                     the popupopen handler, which
+                                     used to only do this under a
+                                     640px media query, leaving
+                                     wider screens with popups
+                                     trapped inside #map's own
+                                     stacking context at rank 1)
+     10000  .lang-dd-menu           topmost — kept reachable even
+                                     over the driving HUD. (It is
+                                     a descendant of header, so if
+                                     a full-screen modal happened
+                                     to be open at the same instant
+                                     as the menu, the modal — 9999
+                                     — would win; the two are never
+                                     opened together in this UI, so
+                                     that edge case is accepted
+                                     rather than solved with a
+                                     portal.)
+   ============================================================ */
+
 body{
   font-family:-apple-system,BlinkMacSystemFont,sans-serif;
   background:#111;
@@ -33,7 +78,7 @@ header{
   background:#181818;
   border-bottom:1px solid #333;
   position:relative;
-  z-index:4000; /* always above #map / Leaflet panes so the language toggle stays clickable */
+  z-index:100; /* see Z-INDEX SCALE above — just needs to clear #map (1) */
 }
 
 .header-top{
@@ -70,7 +115,7 @@ header p{ font-size:11px; opacity:.7; margin-top:2px; }
   padding:4px;
   min-width:110px;
   box-shadow:0 6px 20px rgba(0,0,0,.5);
-  z-index:10000; /* stay above every other widget (driving HUD tops out at 2700, modals at 9999) */
+  z-index:10000; /* see Z-INDEX SCALE above — stays above the driving HUD (tops out at 2700) */
 }
 .lang-dd-menu.open{ display:flex; }
 
@@ -252,17 +297,21 @@ button{
 .leaflet-popup-close-button{ color:#555 !important; }
 .leaflet-popup-close-button:hover{ color:#000 !important; }
 
-/* --- Mobile pin popups: full-screen dialog instead of a map-anchored
-   bubble --------------------------------------------------------------
+/* --- Pin popups: full-screen dialog instead of a map-anchored bubble --
    On a small screen a marker-anchored popup either has to stay tiny or
    risks being taller than the map itself — which is exactly what made it
    "open and disappear instantly": Leaflet's autoPan tried to fit an
-   oversized bubble into a short map viewport and fought itself.
-   Below this width, popupopen (see JS) physically moves the popup's DOM
-   node out of Leaflet's panes and into #mobilePopupOverlay, a plain
-   fixed, full-viewport backdrop that lives directly under <body>. It has
-   to be an actual reparent rather than just CSS position:fixed on the
-   popup in place, because the popup normally lives inside
+   oversized bubble into a short map viewport and fought itself. It also
+   used to be trapped inside #map's own stacking context on wider screens
+   (z-index:1 relative to the rest of the page — see the Z-INDEX SCALE at
+   the top of this stylesheet), so it could render behind the toast layer
+   or the driving HUD no matter what z-index it declared internally.
+   On every popupopen (see JS), the popup's DOM node is physically moved
+   out of Leaflet's panes and into #mobilePopupOverlay, a plain fixed,
+   full-viewport backdrop that lives directly under <body> — unconditionally,
+   not just below some viewport-width breakpoint. It has to be an actual
+   reparent rather than just CSS position:fixed on the popup in place,
+   because the popup normally lives inside
    .leaflet-rotate-wrapper — an ancestor that gets a CSS transform applied
    during heading-up driving mode, and any transformed ancestor becomes
    the containing block for fixed-position descendants, silently trapping
@@ -568,7 +617,7 @@ body.driving-active #drivingTopFade{ display:block; }
   top:calc(10px + env(safe-area-inset-top, 0px));
   left:50%;
   transform:translateX(-50%);
-  z-index:3000;
+  z-index:4000; /* see Z-INDEX SCALE above — above header + driving HUD */
   display:flex;
   flex-direction:column;
   gap:6px;
@@ -949,15 +998,16 @@ body.driving-active #drivingModeBtn{
   display:none !important;
 }
 body.driving-active #appPanel{
+  /* #appPanel only wraps the filter row + report/auth forms now (the
+     driving HUD, report sheet, and nav widgets moved out to be direct
+     body children — see the HTML comment above them), so a leftover
+     inline opacity:0 from the collapse button no longer has anything
+     driving-mode-relevant left to take down with it. Still force the
+     panel itself back open, since its own children are hidden via
+     display:none above rather than by height, and a stale collapsed
+     height/opacity shouldn't linger once driving mode is entered. */
   height:auto !important;
   overflow:visible !important;
-  /* If the panel-collapse button was tapped before driving mode was turned
-     on, its JS leaves an inline opacity:0 on #appPanel. That opacity applies
-     to the whole element as a group, so without this override every driving-
-     mode widget living inside #appPanel (report sheet, nav buttons, etc.)
-     would inherit it and render invisible even though height/overflow above
-     are already being forced back open. Force it visible too so the
-     collapsed panel state never leaks into driving mode. */
   opacity:1 !important;
 }
 /* Manual zoom buttons crowd the speed widget and add nothing turn-by-turn
@@ -1437,6 +1487,9 @@ span.flatpickr-weekday {
   <span class="legend-item"><span class="legend-dot" style="background:#6b6b6b"></span><span class="leg" data-en="Road" data-sr="Put" style="color:#ddd;font-size:10px;">Put</span></span>
   <span class="legend-item"><span class="legend-dot" style="background:#c9a227"></span><span class="leg" data-en="Streetlight" data-sr="Ulična rasveta" style="color:#ddd;font-size:10px;">Ulična rasveta</span></span>
   <span class="legend-item"><span class="legend-dot" style="background:#6d8b3a"></span><span class="leg" data-en="Waste" data-sr="Otpad" style="color:#ddd;font-size:10px;">Otpad</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#9c8570"></span><span class="leg" data-en="Walkways" data-sr="Pešačke staze" style="color:#ddd;font-size:10px;">Pešačke staze</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#14b8a6"></span><span class="leg" data-en="Bike Lanes" data-sr="Biciklističke staze" style="color:#ddd;font-size:10px;">Biciklističke staze</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#3fa34d"></span><span class="leg" data-en="Green Spaces" data-sr="Zelene površine" style="color:#ddd;font-size:10px;">Zelene površine</span></span>
   <span class="legend-item"><span class="legend-dot" style="background:#8342a1"></span><span class="leg" data-en="Other" data-sr="Ostalo" style="color:#ddd;font-size:10px;">Ostalo</span></span>
 </div>
 
@@ -1457,6 +1510,69 @@ span.flatpickr-weekday {
   </button>
 </div>
 
+<div class="panel" id="reportFormPanel" style="display:none">
+  <div class="row">
+    <select id="category" onchange="onCategoryChange()">
+      <option value="" disabled selected>Izaberite vrstu kvara…</option>
+      <option value="Water" data-sr="Voda">Voda</option>
+      <option value="Electricity" data-sr="Struja">Struja</option>
+      <option value="Sewage" data-sr="Kanalizacija">Kanalizacija</option>
+      <option value="Gas" data-sr="Gas">Gas</option>
+      <option value="Heating" data-sr="Grejanje">Grejanje</option>
+      <option value="Road" data-sr="Put">Put</option>
+      <option value="Streetlight" data-sr="Ulična rasveta">Ulična rasveta</option>
+      <option value="Waste" data-sr="Otpad">Otpad</option>
+      <option value="Walkways" data-sr="Pešačke staze">Pešačke staze</option>
+      <option value="BikeLanes" data-sr="Biciklističke staze">Biciklističke staze</option>
+      <option value="GreenSpaces" data-sr="Zelene površine">Zelene površine</option>
+      <option value="Other" data-sr="Ostalo">Ostalo</option>
+    </select>
+  </div>
+
+  <div class="row" id="subcategoryRow" style="display:none">
+    <select id="subcategory" onchange="checkFormReady()"></select>
+  </div>
+
+  <input id="comment" type="text" placeholder="Optional notes...">
+
+  <div class="row" style="align-items:stretch;">
+    <button class="report-btn" id="reportBtn" onclick="reportBreak()"
+            style="width:100%;font-size:14px;" disabled>
+         <span id="reportBtnLabel">REPORT BREAK</span>
+    </button>
+  </div>
+</div>
+
+<!-- Simple inline form switcher for login vs registration -->
+<div class="panel locked-panel" id="lockedFormPanel" style="display:flex">
+  <p id="lockedMsgText">Sign in to secure your profile and reports.</p>
+  
+  <div class="row" style="width:100%; gap:6px;">
+    <input type="text" id="authUsernameInput" placeholder="Username" autocomplete="off" style="flex:1; height:40px;">
+    <div class="pw-wrap" style="flex:1; position:relative;">
+      <input type="password" id="authPasswordInput" placeholder="Password" autocomplete="off" style="width:100%; height:40px;">
+      <button type="button" class="pw-toggle-btn" id="pwToggleBtn" onclick="togglePasswordVisibility()" title="Show/hide password">👁</button>
+    </div>
+  </div>
+
+  <button class="export-btn" id="submitAuthBtn" style="width:100%; background:#a67817; font-size:13px; font-weight:bold; height:40px;" onclick="handleAuthSubmit()">
+    <span id="authBtnLabel">Sign In</span>
+  </button>
+  
+  <span class="auth-toggle-text" id="authToggleBtn" onclick="toggleAuthMode()">Don't have an account? Register</span>
+</div>
+
+</div>
+
+<!-- Everything below is intentionally OUTSIDE #appPanel: these are all
+     position:fixed widgets anchored to the viewport, not part of the
+     collapsible panel. Nesting them inside #appPanel used to mean they
+     silently inherited its collapse-animation opacity/height (and, more
+     subtly, could get trapped inside a stacking context #appPanel gained
+     the instant that opacity dipped below 1), which is why toasts like
+     "Waiting for GPS…" and the driving HUD could end up rendered behind
+     other UI instead of on top of it. See the Z-INDEX SCALE at the top
+     of <style> for how these layers are meant to stack. -->
 <div id="followLocationBtn" class="pin-map-btn" style="display:none" title="Follow my location" onclick="toggleFollowMode()"><img class="icon-img" src="icons/target.png" alt="Recenter"></div>
 <div id="pinMapBtn" class="pin-map-btn" style="display:none" title="Set location manually" onclick="togglePinMode()"><img class="icon-img" src="icons/pin.png" alt="Pin"></div>
 <div id="drivingModeBtn" class="pin-map-btn" style="display:none" title="Driving mode" onclick="toggleDrivingMode()"><img class="icon-img" src="icons/car.png" alt="Driving mode"></div>
@@ -1559,57 +1675,6 @@ span.flatpickr-weekday {
 </div>
 
 <div id="toastContainer"></div>
-
-<div class="panel" id="reportFormPanel" style="display:none">
-  <div class="row">
-    <select id="category" onchange="onCategoryChange()">
-      <option value="" disabled selected>Izaberite vrstu kvara…</option>
-      <option value="Water" data-sr="Voda">Voda</option>
-      <option value="Electricity" data-sr="Struja">Struja</option>
-      <option value="Sewage" data-sr="Kanalizacija">Kanalizacija</option>
-      <option value="Gas" data-sr="Gas">Gas</option>
-      <option value="Heating" data-sr="Grejanje">Grejanje</option>
-      <option value="Road" data-sr="Put">Put</option>
-      <option value="Streetlight" data-sr="Ulična rasveta">Ulična rasveta</option>
-      <option value="Waste" data-sr="Otpad">Otpad</option>
-      <option value="Other" data-sr="Ostalo">Ostalo</option>
-    </select>
-  </div>
-
-  <div class="row" id="subcategoryRow" style="display:none">
-    <select id="subcategory" onchange="checkFormReady()"></select>
-  </div>
-
-  <input id="comment" type="text" placeholder="Optional notes...">
-
-  <div class="row" style="align-items:stretch;">
-    <button class="report-btn" id="reportBtn" onclick="reportBreak()"
-            style="width:100%;font-size:14px;" disabled>
-         <span id="reportBtnLabel">REPORT BREAK</span>
-    </button>
-  </div>
-</div>
-
-<!-- Simple inline form switcher for login vs registration -->
-<div class="panel locked-panel" id="lockedFormPanel" style="display:flex">
-  <p id="lockedMsgText">Sign in to secure your profile and reports.</p>
-  
-  <div class="row" style="width:100%; gap:6px;">
-    <input type="text" id="authUsernameInput" placeholder="Username" autocomplete="off" style="flex:1; height:40px;">
-    <div class="pw-wrap" style="flex:1; position:relative;">
-      <input type="password" id="authPasswordInput" placeholder="Password" autocomplete="off" style="width:100%; height:40px;">
-      <button type="button" class="pw-toggle-btn" id="pwToggleBtn" onclick="togglePasswordVisibility()" title="Show/hide password">👁</button>
-    </div>
-  </div>
-
-  <button class="export-btn" id="submitAuthBtn" style="width:100%; background:#a67817; font-size:13px; font-weight:bold; height:40px;" onclick="handleAuthSubmit()">
-    <span id="authBtnLabel">Sign In</span>
-  </button>
-  
-  <span class="auth-toggle-text" id="authToggleBtn" onclick="toggleAuthMode()">Don't have an account? Register</span>
-</div>
-
-</div>
 
 <!-- GPS/Error Alert Modal -->
 <div id="gpsModal" class="generic-modal-overlay" style="display:none">
@@ -2356,7 +2421,6 @@ function updateAllPopupRotations() {
 // Newly-opened popups also need the counter-rotation applied immediately —
 // otherwise a popup opened while already mid-turn would flash in sideways
 // for a moment before the next bearing update fixed it.
-const MOBILE_POPUP_MQ = window.matchMedia('(max-width: 640px)');
 const mobilePopupOverlay = document.getElementById('mobilePopupOverlay');
 // Where a popup's DOM node came from, so we can put it back when it closes
 // (Leaflet reuses/recreates its pane's children and gets confused if a
@@ -2366,7 +2430,7 @@ let mobilePopupOriginalParent = null;
 map.on('popupopen', e => {
   const popupEl = e.popup && e.popup._container;
   if (popupEl) rotatePopupElement(popupEl);
-  // On mobile, physically move the popup out of Leaflet's panes and into
+  // Always physically move the popup out of Leaflet's panes and into
   // #mobilePopupOverlay — a plain fixed, full-viewport element living
   // directly under <body>. This has to be a real reparent rather than
   // CSS position:fixed applied in place, because the popup normally lives
@@ -2374,7 +2438,15 @@ map.on('popupopen', e => {
   // during heading-up driving mode; any transformed ancestor becomes the
   // containing block for fixed-position descendants, which silently traps
   // "fixed" content inside the map instead of covering the real viewport.
-  if (popupEl && mobilePopupOverlay && MOBILE_POPUP_MQ.matches) {
+  // This used to only run under MOBILE_POPUP_MQ (<=640px): above that width
+  // the popup stayed inside Leaflet's own popupPane, which lives inside
+  // #map — and #map is its own stacking context capped at z-index:1 (see
+  // the Z-INDEX SCALE at the top of <style>), so no z-index set on the
+  // popup itself could ever lift it above the toast layer, the driving
+  // HUD, or anything else outside the map. Reparenting unconditionally
+  // means every popup now lives at the #mobilePopupOverlay layer (9999)
+  // regardless of viewport width, so it's always genuinely on top.
+  if (popupEl && mobilePopupOverlay) {
     mobilePopupOriginalParent = popupEl.parentNode;
     mobilePopupOverlay.appendChild(popupEl);
     mobilePopupOverlay.classList.add('showing');
@@ -4183,7 +4255,28 @@ const CATEGORY_COLORS = {
   'Road':         '#6b6b6b',
   'Streetlight':  '#c9a227',
   'Waste':        '#6d8b3a',
+  'Walkways':     '#9c8570',
+  'BikeLanes':    '#14b8a6',
+  'GreenSpaces':  '#3fa34d',
   'Other':        '#8342a1',
+};
+// Filenames inside icons/ (see the icon-set screenshot). Used to render the
+// small tinted glyph on each map pin — see upsertMarker(). 'Other' has no
+// dedicated icon in the set, so it falls back to the generic warning glyph
+// already used elsewhere in the app (driving-mode "other road issue" tile).
+const CATEGORY_ICONS = {
+  'Water':        'water.png',
+  'Electricity':  'electricity.png',
+  'Sewage':       'sewage.png',
+  'Gas':          'gas.png',
+  'Heating':      'heating.png',
+  'Road':         'road.png',
+  'Streetlight':  'streetlight.png',
+  'Waste':        'waste.png',
+  'Walkways':     'walkways.png',
+  'BikeLanes':    'bicycle.png',
+  'GreenSpaces':  'green.png',
+  'Other':        'warning-symbol.png',
 };
 const SUBCATEGORIES = {
   Water: [
@@ -4228,6 +4321,24 @@ const SUBCATEGORIES = {
     { key:'missed',   en:'Missed collection',  sr:'Propušteno odnošenje' },
     { key:'dumping',  en:'Illegal dumping',    sr:'Nelegalno odlaganje' }
   ],
+  Walkways: [
+    { key:'cracked_concrete', en:'Cracked concrete',              sr:'Napukao beton' },
+    { key:'blocked_path',     en:'Blocked path',                  sr:'Blokirana staza' },
+    { key:'missing_ramp',     en:'Missing ramp',                  sr:'Nedostatak rampe' },
+    { key:'trip_hazard',      en:'Trip hazard / uneven surface',  sr:'Neravna površina / opasnost od spoticanja' }
+  ],
+  BikeLanes: [
+    { key:'surface_damage',    en:'Surface damage',              sr:'Oštećenje površine staze' },
+    { key:'missing_separation',en:'Missing separation',          sr:'Nedostatak fizičke barijere' },
+    { key:'faded_markings',    en:'Faded markings',              sr:'Izbledela signalizacija' },
+    { key:'blocked_lane',      en:'Blocked by parked vehicles',  sr:'Blokirana parkiranim vozilima' }
+  ],
+  GreenSpaces: [
+    { key:'broken_equipment', en:'Broken equipment',       sr:'Polomljen parkovski inventar' },
+    { key:'fallen_trees',     en:'Fallen trees',           sr:'Palo drveće' },
+    { key:'overgrown_grass',  en:'Overgrown grass',        sr:'Nepokošena trava' },
+    { key:'illegal_dumping',  en:'Illegal dumping / litter',sr:'Nelegalno odlaganje otpada / smeće' }
+  ],
   Other: []
 };
 const STATUS_COLORS = {
@@ -4236,6 +4347,7 @@ const STATUS_COLORS = {
   'fixed':       '#2ecc71',
 };
 function categoryColor(cat) { return CATEGORY_COLORS[cat] || '#aaaaaa'; }
+function categoryIcon(cat)  { return CATEGORY_ICONS[cat] || CATEGORY_ICONS.Other; }
 function subcategoryLabel(cat, subKey) {
   if (!subKey) return '';
   const list = SUBCATEGORIES[cat] || [];
@@ -4268,8 +4380,8 @@ function statusLabel(s) {
   return t('statusReported');
 }
 function translateCategory(cat) {
-  const labelsEn = { Water:'Water', Electricity:'Electricity', Sewage:'Sewage', Gas:'Gas', Heating:'Heating', Road:'Road', Streetlight:'Streetlight', Waste:'Waste', Other:'Other' };
-  const labelsSr = { Water:'Voda', Electricity:'Struja', Sewage:'Kanalizacija', Gas:'Gas', Heating:'Grejanje', Road:'Put', Streetlight:'Ulična rasveta', Waste:'Otpad', Other:'Ostalo' };
+  const labelsEn = { Water:'Water', Electricity:'Electricity', Sewage:'Sewage', Gas:'Gas', Heating:'Heating', Road:'Road', Streetlight:'Streetlight', Waste:'Waste', Walkways:'Walkways', BikeLanes:'Bike Lanes', GreenSpaces:'Green Spaces', Other:'Other' };
+  const labelsSr = { Water:'Voda', Electricity:'Struja', Sewage:'Kanalizacija', Gas:'Gas', Heating:'Grejanje', Road:'Put', Streetlight:'Ulična rasveta', Waste:'Otpad', Walkways:'Pešačke staze', BikeLanes:'Biciklističke staze', GreenSpaces:'Zelene površine', Other:'Ostalo' };
   return (lang === 'sr' ? labelsSr[cat] : labelsEn[cat]) || cat;
 }
 
@@ -4458,7 +4570,7 @@ function buildVoteProgressHtml(report) {
 function buildEditPopupHtml(report) {
   const uid = report.id;
   const catCol = categoryColor(report.category);
-  const cats = ['Water','Electricity','Sewage','Gas','Heating','Road','Streetlight','Waste','Other'];
+  const cats = ['Water','Electricity','Sewage','Gas','Heating','Road','Streetlight','Waste','Walkways','BikeLanes','GreenSpaces','Other'];
   const catOptions = cats.map(c => `<option value="${c}" ${c === report.category ? 'selected' : ''}>${translateCategory(c)}</option>`).join('');
   const statuses = [
     { key:'reported', label: statusLabel('reported') },
@@ -4707,9 +4819,28 @@ function upsertSectionLine(report) {
 
   line = L.polyline(path, { color: sCol, weight: 6, opacity, lineCap: 'round' }).addTo(map);
   line._reportId = report.id;
-  line.bindPopup(buildPopupHtml(report), { autoPan: !MOBILE_POPUP_MQ.matches });
+  line.bindPopup(buildPopupHtml(report), { autoPan: false }); // popup is always reparented to #mobilePopupOverlay, so Leaflet never needs to pan the map for it
   markerById.set(report.id, line);
   return line;
+}
+
+// Builds the HTML for a report pin: a circle in the status color (so the
+// ring/fill you see at a glance is "what state is this in") with the
+// category's icon centered on top, tinted to the category color via a CSS
+// mask (works with any single-color glyph PNG that has a transparent
+// background, which is what's in icons/ for each category — see the
+// CATEGORY_ICONS map above).
+function buildPinIconHtml(category, status) {
+  const catCol  = categoryColor(category);
+  const sCol    = statusColor(status);
+  const iconSrc = `icons/${categoryIcon(category)}`;
+  const opacity = status === 'fixed' ? 0.55 : 1;
+  return `<div style="width:26px;height:26px;border-radius:50%;background:${sCol};` +
+    `border:2px solid rgba(0,0,0,.35);opacity:${opacity};box-shadow:0 2px 6px rgba(0,0,0,.5);` +
+    `display:flex;align-items:center;justify-content:center;">` +
+    `<span style="width:15px;height:15px;display:inline-block;background-color:${catCol};` +
+    `-webkit-mask:url('${iconSrc}') center / contain no-repeat;mask:url('${iconSrc}') center / contain no-repeat;"></span>` +
+    `</div>`;
 }
 
 function upsertMarker(report) {
@@ -4720,25 +4851,22 @@ function upsertMarker(report) {
     return null;
   }
 
-  const catCol = categoryColor(report.category);
-  const sCol   = statusColor(report.status);
-  const opacity = report.status === 'fixed' ? 0.55 : 1;
-  const iconHtml = `<div style="width:22px;height:22px;border-radius:50%;background:${catCol};border:3px solid ${sCol};opacity:${opacity};box-shadow:0 2px 6px rgba(0,0,0,.5);"></div>`;
+  const iconHtml = buildPinIconHtml(report.category, report.status);
 
   let marker = markerById.get(report.id);
   if (marker) {
-    marker.setIcon(L.divIcon({ className: '', html: iconHtml, iconAnchor: [11,11] }));
+    marker.setIcon(L.divIcon({ className: '', html: iconHtml, iconAnchor: [13,13] }));
     marker.setLatLng([report.latitude, report.longitude]);
     marker.setPopupContent(buildPopupHtml(report));
     return marker;
   }
 
   marker = L.marker([report.latitude, report.longitude], {
-    icon: L.divIcon({ className: '', html: iconHtml, iconAnchor: [11,11] })
+    icon: L.divIcon({ className: '', html: iconHtml, iconAnchor: [13,13] })
   }).addTo(map);
 
   marker._reportId = report.id;
-  marker.bindPopup(buildPopupHtml(report), { autoPan: !MOBILE_POPUP_MQ.matches });
+  marker.bindPopup(buildPopupHtml(report), { autoPan: false }); // popup is always reparented to #mobilePopupOverlay, so Leaflet never needs to pan the map for it
   markerById.set(report.id, marker);
   return marker;
 }
