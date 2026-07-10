@@ -558,15 +558,6 @@ body.nav-panel-open .driving-nav-card{
   position:relative;
   width:30px; height:30px;
 }
-.map-compass .compass-n{
-  position:absolute;
-  top:-2px; left:50%;
-  transform:translateX(-50%);
-  font-size:8px;
-  font-weight:800;
-  color:#888;
-  letter-spacing:.5px;
-}
 .map-compass .compass-needle{
   position:absolute;
   inset:0;
@@ -1024,11 +1015,9 @@ body.driving-active #appPanel{
   overflow:visible !important;
   opacity:1 !important;
 }
-/* Manual zoom buttons crowd the speed widget and add nothing turn-by-turn
-   apps don't already give you via pinch-to-zoom, so they're hidden here. */
-body.driving-active .leaflet-control-zoom{
-  display:none !important;
-}
+/* Zoom buttons are disabled entirely at map init (zoomControl:false) —
+   pinch-to-zoom covers it, and they used to crowd the speed widget in
+   driving mode anyway. */
 
 /* --- Auth UI --- */
 .user-badge{
@@ -1672,7 +1661,6 @@ span.flatpickr-weekday {
       <button class="driving-search-btn" id="drivingSearchBtn" onclick="toggleNavigatePanel()" title="Search destination"><img class="icon-img" src="icons/search.png" alt="Search"></button>
       <div id="mapCompass" class="map-compass" title="Heading — tap to toggle map rotation" onclick="toggleHeadingUpMode()">
         <div class="compass-face">
-          <span class="compass-n">N</span>
           <div class="compass-needle" id="compassNeedle">
             <svg viewBox="0 0 24 24"><path d="M12 2 L16 13 L12 11 L8 13 Z" fill="#ff4b4b"/><path d="M12 22 L16 13 L12 15 L8 13 Z" fill="#ccc"/></svg>
           </div>
@@ -2080,7 +2068,7 @@ const T = {
   helpTitle:    { en:'How to use TraceTheBreak',         sr:'Kako se koristi TraceTheBreak' },
   helpClose:    { en:'Close',                            sr:'Zatvori' },
   helpStep1:    { en:'1. Choose what broke:',            sr:'1. Izaberite šta se pokvarilo:' },
-  helpStep1Body:{ en:'Select the type of break — water, electricity, sewage, gas, road, streetlight, or other.', sr:'Izaberite vrstu kvara — voda, struja, kanalizacija, gas, put, ulična rasveta ili ostalo.' },
+  helpStep1Body:{ en:'Select the type of break — water, electricity, sewage, gas, heating, road, streetlight, waste, walkways, bike lanes, green spaces, or other.', sr:'Izaberite vrstu kvara — voda, struja, kanalizacija, gas, grejanje, put, ulična rasveta, otpad, pešačke staze, biciklističke staze, zelene površine ili ostalo.' },
   helpStep2:    { en:'2. Set your location:',            sr:'2. Odredite vašu lokaciju:' },
   helpStep2Body:{ en:'Make sure your device GPS is on, or tap the manual pin button (<img class="icon-img icon-img-inline" src="icons/pin.png" alt="pin">) to drop a point on the map yourself.', sr:'Proverite da li je GPS uključen, ili pritisnite dugme za ručnu lokaciju (<img class="icon-img icon-img-inline" src="icons/pin.png" alt="pin">) da sami postavite tačku na mapi.' },
   helpStep3:    { en:'3. Submit:',                       sr:'3. Pošalji:' },
@@ -2307,7 +2295,7 @@ function initCalendarFilter(optionalDefaultDates) {
 // =============================================================================
 // MAP
 // =============================================================================
-const map = L.map('map').setView([45.25,19.85],11);
+const map = L.map('map', { zoomControl: false }).setView([45.25,19.85],11);
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
   attribution:'© OpenStreetMap'
@@ -4876,10 +4864,10 @@ function buildPinIconHtml(category, status) {
   const sCol    = statusColor(status);
   const iconSrc = `icons/${categoryIcon(category)}`;
   const opacity = status === 'fixed' ? 0.55 : 1;
-  return `<div style="width:26px;height:26px;border-radius:50%;background:${sCol};` +
-    `border:2px solid ${catCol};opacity:${opacity};box-shadow:0 2px 6px rgba(0,0,0,.5);` +
+  return `<div style="width:26px;height:26px;box-sizing:border-box;border-radius:50%;background:${sCol};` +
+    `border:6px solid ${catCol};opacity:${opacity};box-shadow:0 2px 6px rgba(0,0,0,.5);` +
     `display:flex;align-items:center;justify-content:center;">` +
-    `<span style="width:15px;height:15px;display:inline-block;background-color:#ffffff;` +
+    `<span style="width:12px;height:12px;display:inline-block;background-color:#ffffff;` +
     `-webkit-mask:url('${iconSrc}') center / contain no-repeat;mask:url('${iconSrc}') center / contain no-repeat;"></span>` +
     `</div>`;
 }
@@ -4899,7 +4887,7 @@ function upsertMarker(report) {
 
   let marker = markerById.get(report.id);
   if (marker) {
-    marker.setIcon(L.divIcon({ className: '', html: iconHtml, iconAnchor: [13,13] }));
+    marker.setIcon(L.divIcon({ className: '', html: iconHtml, iconSize: [26,26], iconAnchor: [13,13] }));
     marker.setLatLng([report.latitude, report.longitude]);
     marker.setPopupContent(buildPopupHtml(report));
     marker.setZIndexOffset(zOffset);
@@ -4907,7 +4895,7 @@ function upsertMarker(report) {
   }
 
   marker = L.marker([report.latitude, report.longitude], {
-    icon: L.divIcon({ className: '', html: iconHtml, iconAnchor: [13,13] }),
+    icon: L.divIcon({ className: '', html: iconHtml, iconSize: [26,26], iconAnchor: [13,13] }),
     zIndexOffset: zOffset
   }).addTo(map);
 
