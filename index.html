@@ -2295,7 +2295,43 @@ function initCalendarFilter(optionalDefaultDates) {
 // =============================================================================
 // MAP
 // =============================================================================
-const map = L.map('map', { zoomControl: false }).setView([45.25,19.85],11);
+// Where the map's last position/zoom is remembered between visits, so
+// reopening the app doesn't always restart from the same default view.
+// Falls back to a wide Europe overview for a first-ever visit (or if
+// nothing usable was saved) — GPS then takes over and zooms in on the
+// user's actual position once a fix comes in (see startWatching()).
+const MAP_VIEW_STORAGE_KEY = 'tracethebreak_last_map_view';
+const EUROPE_DEFAULT_CENTER = [50, 15];
+const EUROPE_DEFAULT_ZOOM = 4;
+
+function loadSavedMapView() {
+  try {
+    const raw = localStorage.getItem(MAP_VIEW_STORAGE_KEY);
+    if (!raw) return null;
+    const v = JSON.parse(raw);
+    if (isValidLatLng(v.lat, v.lng) && typeof v.zoom === 'number') return v;
+  } catch (err) {
+    console.warn('Could not read saved map view:', err);
+  }
+  return null;
+}
+
+function saveMapView() {
+  try {
+    const c = map.getCenter();
+    localStorage.setItem(MAP_VIEW_STORAGE_KEY, JSON.stringify({ lat: c.lat, lng: c.lng, zoom: map.getZoom() }));
+  } catch (err) {
+    console.warn('Could not save map view:', err);
+  }
+}
+
+const savedMapView = loadSavedMapView();
+const map = L.map('map', { zoomControl: false }).setView(
+  savedMapView ? [savedMapView.lat, savedMapView.lng] : EUROPE_DEFAULT_CENTER,
+  savedMapView ? savedMapView.zoom : EUROPE_DEFAULT_ZOOM
+);
+
+map.on('moveend', saveMapView);
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
   attribution:'© OpenStreetMap'
@@ -4864,10 +4900,10 @@ function buildPinIconHtml(category, status) {
   const sCol    = statusColor(status);
   const iconSrc = `icons/${categoryIcon(category)}`;
   const opacity = status === 'fixed' ? 0.55 : 1;
-  return `<div style="width:26px;height:26px;box-sizing:border-box;border-radius:50%;background:${sCol};` +
-    `border:6px solid ${catCol};opacity:${opacity};box-shadow:0 2px 6px rgba(0,0,0,.5);` +
+  return `<div style="width:26px;height:26px;box-sizing:border-box;border-radius:50%;background:${catCol};` +
+    `border:3px solid ${sCol};opacity:${opacity};box-shadow:0 2px 6px rgba(0,0,0,.5);` +
     `display:flex;align-items:center;justify-content:center;">` +
-    `<span style="width:12px;height:12px;display:inline-block;background-color:#ffffff;` +
+    `<span style="width:14px;height:14px;display:inline-block;background-color:${sCol};` +
     `-webkit-mask:url('${iconSrc}') center / contain no-repeat;mask:url('${iconSrc}') center / contain no-repeat;"></span>` +
     `</div>`;
 }
