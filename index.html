@@ -4803,16 +4803,27 @@ async function reportBreak(){
 }
 
 // =============================================================================
-// MUNICIPALITIES — worldwide administrative boundary lookup via Overpass API,
-// cached in Supabase so the same opština/municipality is only ever fetched
-// from Overpass once. Used to (a) draw the current boundary on the map,
-// (b) tag each report with which municipality it falls in, and (c) look up
-// the right utility company contact for a report's category + municipality.
+// MUNICIPALITIES — administrative boundaries, resolved entirely from a local
+// Supabase-backed cache at runtime (point-in-polygon against boundaries
+// loaded once at startup). Used to (a) draw the current boundary on the
+// map, (b) tag each report with which municipality it falls in, and (c)
+// look up the right utility company contact for a report's category +
+// municipality.
 //
-// Deliberately simplified: we only assemble OUTER rings of a boundary
-// relation (inner rings / holes / exclaves are ignored). For point-in-
-// polygon checks and drawing a rough boundary on a community map, holes
-// almost never matter — the one edge case (a fully donut-shaped
+// Overpass is NOT queried during normal app usage. It is only ever called
+// from the admin "Add municipality from map center" tool (see
+// addMunicipalityFromMapCenter / fetchMunicipalityFromOverpass below),
+// which imports a municipality's boundary once and saves it to Supabase.
+// Every other lookup — report creation, opening a report, boundary
+// highlighting — reads only from the in-memory cache and never touches
+// the network. If a point isn't covered by any cached boundary yet, the
+// lookup simply returns null; an admin needs to import that municipality
+// first via the map-center tool.
+//
+// Deliberately simplified: imported boundaries only assemble OUTER rings
+// of a boundary relation (inner rings / holes / exclaves are ignored). For
+// point-in-polygon checks and drawing a rough boundary on a community map,
+// holes almost never matter — the one edge case (a fully donut-shaped
 // municipality) just ends up including its hole, which is an acceptable
 // trade-off against the complexity of full multipolygon reconstruction.
 // =============================================================================
@@ -4878,6 +4889,15 @@ function findMunicipalityInCache(lat, lon) {
   return best;
 }
 
+// Direct lookup by id — used once a report already has a municipality_id
+// stored, since that id is the source of truth and re-running the
+// point-in-polygon test every time it's opened would be redundant work
+// (and could disagree with the original assignment if boundaries changed).
+function getMunicipalityById(id) {
+  if (id == null) return null;
+  return municipalityCache.find(m => String(m.id) === String(id)) || null;
+}
+
 async function overpassQuery(ql) {
   const res = await fetch('https://overpass-api.de/api/interpreter', {
     method: 'POST',
@@ -4892,40 +4912,6 @@ async function overpassQuery(ql) {
     throw new Error('Overpass request failed: ' + res.status + (bodyText ? ' — ' + bodyText.slice(0, 300) : ''));
   }
   return res.json();
-}
-
-// Fallback name lookup via Nominatim reverse geocoding, used only when
-// Overpass can't produce a municipality (down, rate-limited, or the point
-// falls in an area with no usable administrative relation). This gets us
-// a NAME for display purposes only — it has no boundary polygon, so it is
-// never written into the municipalities table and never cached alongside
-// the real Overpass-backed rows (see resolveMunicipality).
-async function fetchMunicipalityFromNominatim(lat, lon) {
-  try {
-    const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=10&addressdetails=1`;
-    const res = await fetch(url, { headers: { 'Accept-Language': lang === 'sr' ? 'sr' : 'en' } });
-    if (!res.ok) throw new Error('Nominatim request failed: ' + res.status);
-    const data = await res.json();
-    const addr = data.address || {};
-    const name = addr.municipality || addr.county || addr.city || addr.town || addr.city_district || addr.state_district || addr.village || null;
-    if (!name) return null;
-    return {
-      id: null, // no real DB row — callers must not try to persist/query by this
-      osm_type: 'nominatim',
-      osm_id: null,
-      admin_level: null,
-      name,
-      name_en: name,
-      country_code: (addr.country_code || '').toUpperCase() || null,
-      centroid_lat: lat,
-      centroid_lon: lon,
-      boundary: null,
-      bbox: null
-    };
-  } catch (err) {
-    console.error('Nominatim fallback lookup failed:', err.message);
-    return null;
-  }
 }
 
 // Stitches loose way segments (each an array of [lon,lat]) end-to-end into
@@ -4994,6 +4980,10 @@ function pickBestAdminArea(elements) {
   return pool[0];
 }
 
+// ADMIN IMPORT TOOL ONLY — do not call this from any runtime report/viewing
+// flow. Fetches one municipality's boundary from Overpass and upserts it
+// into Supabase so every future lookup for that area is a local cache hit.
+// Called from addMunicipalityFromMapCenter, gated behind the admin panel.
 async function fetchMunicipalityFromOverpass(lat, lon) {
   const isInQl = `[out:json][timeout:25];\nis_in(${lat},${lon})->.a;\narea.a[boundary=administrative][admin_level];\nout tags;`;
   const isInRes = await overpassQuery(isInQl);
@@ -5060,31 +5050,42 @@ async function fetchMunicipalityFromOverpass(lat, lon) {
   }
 }
 
-// Best-effort resolver: cache first, then Overpass (full boundary polygon,
-// gets persisted to Supabase). If that fails or can't find anything, and
-// the caller allows it, falls back to a name-only Nominatim lookup so the
-// UI can still show *something* instead of "unknown" — pass
-// { allowNameOnlyFallback: false } for flows that need a real, persistable
-// municipality row (e.g. the admin "add municipality" picker).
-// Never throws — callers just get null back on total failure.
-async function resolveMunicipality(lat, lon, { allowNameOnlyFallback = true } = {}) {
+// Runtime resolver: local cache ONLY (loaded once from Supabase, then a
+// point-in-polygon test in memory — see loadMunicipalityCache /
+// findMunicipalityInCache above). Never touches Overpass or Nominatim.
+// Returns null if no imported boundary covers this point yet; an admin
+// needs to import it first via "Add municipality from map center".
+async function resolveMunicipality(lat, lon) {
   if (!isValidLatLng(lat, lon)) return null;
   await loadMunicipalityCache();
-  const cached = findMunicipalityInCache(lat, lon);
-  if (cached) return cached;
-  try {
-    const fromOverpass = await fetchMunicipalityFromOverpass(lat, lon);
-    if (fromOverpass) return fromOverpass;
-    console.warn('Overpass returned no municipality for', lat, lon, '— falling back to Nominatim if allowed.');
-  } catch (err) {
-    console.error('Overpass municipality lookup failed:', err.message);
+  return findMunicipalityInCache(lat, lon);
+}
+
+// Report-specific resolver: municipality_id, once stored on a report, is
+// the source of truth (see design note at top of file) — so this looks it
+// up directly by id instead of re-running point-in-polygon every time the
+// report is opened. Only falls back to the point-in-polygon lookup for
+// reports that don't have a municipality_id yet (older reports created
+// before this field existed, or a point not covered by any import at
+// submission time), and backfills the id onto the report once found so
+// this only ever happens the one time per report.
+async function resolveReportMunicipality(report) {
+  await loadMunicipalityCache();
+  if (report.municipality_id != null) {
+    return getMunicipalityById(report.municipality_id);
   }
-  if (!allowNameOnlyFallback) return null;
-  return await fetchMunicipalityFromNominatim(lat, lon);
+  const muni = findMunicipalityInCache(report.latitude, report.longitude);
+  if (muni && muni.id != null) {
+    sb.from(TABLE).update({ municipality_id: muni.id }).eq('id', report.id)
+      .then(({ error }) => { if (!error) report.municipality_id = muni.id; });
+  }
+  return muni;
 }
 
 // Fire-and-forget: called right after a report is inserted so submission
-// itself never has to wait on Overpass. Silently does nothing if it fails.
+// itself never has to wait on this lookup (it's local/instant in practice,
+// but kept async-and-detached for safety). Silently does nothing if a
+// municipality can't be resolved for this point yet.
 function resolveAndAttachMunicipality(reportId, lat, lon) {
   resolveMunicipality(lat, lon).then(muni => {
     if (!muni || muni.id == null || !reportId) return;
@@ -5093,19 +5094,20 @@ function resolveAndAttachMunicipality(reportId, lat, lon) {
   }).catch(err => console.error('resolveAndAttachMunicipality error:', err.message));
 }
 
-// Draws (or redraws) the municipality boundary containing a given point,
-// and updates the small floating name pill. Called once GPS gets its
-// first fix, and again whenever a report's detail view is opened.
-async function showMunicipalityBoundaryForPoint(lat, lon) {
-  const muni = await resolveMunicipality(lat, lon);
+// Shared renderer: draws (or clears) the boundary + floating name pill for
+// a given resolved municipality (or null). Used by both the live-location
+// point lookup below and the report-detail flow (resolveReportMunicipality).
+function renderMunicipalityBoundary(muni) {
   const label = document.getElementById('municipalityLabel');
   if (!muni) {
+    if (municipalityBoundaryLayer) { map.removeLayer(municipalityBoundaryLayer); municipalityBoundaryLayer = null; }
+    municipalityBoundaryForId = null;
     if (label) label.style.display = 'none';
-    return null;
+    return;
   }
   if (!muni.boundary) {
-    // Name-only fallback result (no geometry to draw) — clear any stale
-    // boundary from a previously-viewed report rather than leaving it up.
+    // Defensive only — every row the app itself writes always has a
+    // boundary; this just guards against a hand-edited Supabase row.
     if (municipalityBoundaryLayer) { map.removeLayer(municipalityBoundaryLayer); municipalityBoundaryLayer = null; }
     municipalityBoundaryForId = null;
   } else if (municipalityBoundaryForId !== muni.id) {
@@ -5119,6 +5121,16 @@ async function showMunicipalityBoundaryForPoint(lat, lon) {
     label.textContent = (lang === 'sr' ? muni.name : (muni.name_en || muni.name));
     label.style.display = 'block';
   }
+}
+
+// Draws (or redraws) the municipality boundary containing a given point,
+// and updates the small floating name pill. Called once GPS gets its
+// first fix, and whenever the map is otherwise tracking a live point
+// rather than an already-saved report (see resolveReportMunicipality for
+// the report-detail case, which resolves by stored municipality_id).
+async function showMunicipalityBoundaryForPoint(lat, lon) {
+  const muni = await resolveMunicipality(lat, lon);
+  renderMunicipalityBoundary(muni);
   return muni;
 }
 
@@ -5334,6 +5346,10 @@ async function deleteUtilityCompany(id) {
   }
 }
 
+// ADMIN IMPORT TOOL — the one place in the app allowed to call Overpass.
+// Checks the local cache first (an earlier admin may have already
+// imported this municipality); only fetches from Overpass for a point not
+// yet covered by any cached boundary.
 async function addMunicipalityFromMapCenter() {
   const btn = document.getElementById('ucAddMuniBtn');
   // innerHTML (not textContent) so the pin icon survives the round trip —
@@ -5342,9 +5358,9 @@ async function addMunicipalityFromMapCenter() {
   if (btn) { btn.disabled = true; btn.innerHTML = t('ucAddMuniLoading'); }
   try {
     const center = map.getCenter();
-    // Requires a full boundary polygon to store, so unlike the report-detail
-    // lookup this one does NOT fall back to a name-only Nominatim result.
-    const muni = await resolveMunicipality(center.lat, center.lng, { allowNameOnlyFallback: false });
+    await loadMunicipalityCache();
+    let muni = findMunicipalityInCache(center.lat, center.lng);
+    if (!muni) muni = await fetchMunicipalityFromOverpass(center.lat, center.lng);
     if (!muni) {
       alert(t('ucAddMuniFail'));
       return;
@@ -5526,22 +5542,19 @@ async function showReportDetailModal(reportId) {
 
   modal.style.display = 'flex';
 
-  // Resolving also draws this report's municipality boundary on the map as
-  // a side effect (see showMunicipalityBoundaryForPoint) — a nice bonus so
-  // closing the modal leaves you looking at the right opština outline.
-  const muni = await showMunicipalityBoundaryForPoint(report.latitude, report.longitude);
+  // Resolves by stored municipality_id when present (source of truth);
+  // only falls back to a point-in-polygon lookup — and backfills the id —
+  // for older reports that don't have one yet. Also draws this report's
+  // municipality boundary on the map as a side effect, so closing the
+  // modal leaves you looking at the right opština outline.
+  const muni = await resolveReportMunicipality(report);
+  renderMunicipalityBoundary(muni);
   const muniEl = document.getElementById('detailMunicipalityValue');
   if (muniEl) {
     muniEl.textContent = muni ? (lang === 'sr' ? muni.name : (muni.name_en || muni.name)) : t('detailUnknown');
   }
-  if (muni && muni.id != null && report.municipality_id == null) {
-    sb.from(TABLE).update({ municipality_id: muni.id }).eq('id', report.id)
-      .then(({ error }) => { if (!error) report.municipality_id = muni.id; });
-  }
 
   const contactsEl = document.getElementById('detailContactsContainer');
-  // muni.id is null for a name-only Nominatim fallback (no real municipality
-  // row) — we can show the name, but there's nothing to look contacts up by.
   if (!muni || muni.id == null) {
     if (contactsEl) contactsEl.innerHTML = `<div class="detail-empty">${t('detailNoMunicipality')}</div>`;
     return;
