@@ -1336,7 +1336,7 @@ body.driving-active #appPanel{
 /* --- OAuth sign-in buttons ---------------------------------------------
    One row per provider, each a full-width button with a small icon glyph.
    Google/OSM use the app's own surface variables so they flip naturally
-   with light/dark mode. Apple/GitHub are conventionally near-black
+   with light/dark mode. GitHub is conventionally a near-black
    buttons in both themes (that's each provider's own brand guideline,
    not our surface color) — in dark mode they're nudged to the app's
    slightly-lighter surface-alt tone instead of pure black so they read
@@ -1360,14 +1360,11 @@ body.driving-active #appPanel{
   touch-action:manipulation;
 }
 .oauth-btn img{ width:18px; height:18px; flex-shrink:0; }
-.oauth-btn.oauth-apple{ background:#000; color:#fff; border-color:#000; }
 .oauth-btn.oauth-github{ background:#171515; color:#fff; border-color:#171515; }
 .oauth-btn.oauth-osm{ background:var(--bg-surface); color:var(--text-primary); }
-html[data-theme="dark"] .oauth-btn.oauth-apple{ background:var(--bg-surface-alt); border-color:var(--border-color-strong); }
 html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt); border-color:var(--border-color-strong); }
-/* Apple/GitHub glyphs ship as black artwork; invert them to white so they
-   stay visible against these dark buttons in both themes. */
-.oauth-btn.oauth-apple img,
+/* GitHub's glyph ships as black artwork; invert it to white so it stays
+   visible against this dark button in both themes. */
 .oauth-btn.oauth-github img{ filter:brightness(0) invert(1); }
 
 #chooseUsernamePanel{
@@ -2011,9 +2008,6 @@ span.flatpickr-weekday {
   <button type="button" class="oauth-btn oauth-google" onclick="signInWithProvider('google')">
     <img class="icon-img" src="icons/google.png" alt=""><span>Continue with Google</span>
   </button>
-  <button type="button" class="oauth-btn oauth-apple" onclick="signInWithProvider('apple')">
-    <img class="icon-img" src="icons/apple.png" alt=""><span>Continue with Apple</span>
-  </button>
   <button type="button" class="oauth-btn oauth-github" onclick="signInWithProvider('github')">
     <img class="icon-img" src="icons/github.png" alt=""><span>Continue with GitHub</span>
   </button>
@@ -2024,7 +2018,7 @@ span.flatpickr-weekday {
 
 <!-- Shown once, right after a person's FIRST OAuth sign-in: their profile
      row already exists (created by the DB trigger — see the SQL) but has
-     no username yet, since none of Google/Apple/GitHub/OSM guarantee a
+     no username yet, since none of Google/GitHub/OSM guarantee a
      name that's unique or appropriate to show publicly on reports. -->
 <div class="panel" id="chooseUsernamePanel">
   <p id="chooseUsernameMsgText">Choose a public username to finish setting up your account.</p>
@@ -2351,8 +2345,8 @@ function describeAuthError(err) {
   return 'Unknown error (check Supabase Dashboard \u2192 Logs \u2192 Auth Logs for details)';
 }
 
-// Native Supabase OAuth providers. 'google', 'apple', and 'github' must each
-// be enabled in Supabase Dashboard -> Authentication -> Providers, with their
+// Native Supabase OAuth providers. 'google' and 'github' must each be
+// enabled in Supabase Dashboard -> Authentication -> Providers, with their
 // client id/secret configured there — nothing else changes on our end.
 async function signInWithProvider(provider) {
   try {
@@ -2466,7 +2460,7 @@ function updateAuthUI() {
   } else if (currentSession && currentProfile && !currentProfile.username) {
     // Signed in via an OAuth provider, but the auto-created profile row
     // (see the on_auth_user_created trigger) has no username yet — none of
-    // Google/Apple/GitHub/OSM is guaranteed to give us a unique, public-
+    // Google/GitHub/OSM is guaranteed to give us a unique, public-
     // appropriate display name, so the person picks one here once.
     userBadge.style.display = 'none';
     reportFormPanel.style.display = 'none';
