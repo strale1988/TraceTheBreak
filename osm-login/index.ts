@@ -1,23 +1,3 @@
-// supabase/functions/osm-login/index.ts
-//
-// OpenStreetMap isn't a Supabase-native OAuth provider (Supabase's built-in
-// list is Google/Apple/GitHub/GitLab/Discord/etc. — OSM's plain OAuth2 API
-// isn't one of them). This Edge Function stands in for that: it does the
-// OSM OAuth2 handshake itself, looks up (or creates) a matching Supabase
-// user + profile row, then redirects the browser through a Supabase
-// magic-link so the client picks up a normal session — no different, from
-// the app's point of view, than finishing a Google/Apple redirect.
-//
-// Deploy with:  supabase functions deploy osm-login
-// Required secrets (supabase secrets set ...):
-//   OSM_CLIENT_ID, OSM_CLIENT_SECRET   — from your OSM OAuth2 application
-//   OSM_REDIRECT_URI                    — https://<project>.functions.supabase.co/osm-login
-//   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY  (SUPABASE_URL is auto-injected;
-//     the service role key is NOT — set it explicitly, and never send it to
-//     the client)
-//
-// Register OSM_REDIRECT_URI as the callback URL in your OSM OAuth2 app too.
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const OSM_AUTH_URL = 'https://www.openstreetmap.org/oauth2/authorize';
@@ -104,11 +84,6 @@ Deno.serve(async (req) => {
         .update({ osm_id: osmId, provider: 'osm' })
         .eq('id', userId);
     }
-
-    // Step 3: mint a magic link for that user and send the browser there.
-    // Visiting action_link verifies the one-time token and redirects to
-    // redirectTo with a session in the URL — the client already has
-    // detectSessionInUrl:true, so it picks the session up automatically.
     const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
       type: 'magiclink',
       email,
