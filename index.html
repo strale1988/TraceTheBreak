@@ -999,7 +999,8 @@ body.driving-active #lockedFormPanel,
 body.driving-active #followLocationBtn,
 body.driving-active #panelToggleBtn,
 body.driving-active #pinMapBtn,
-body.driving-active #drivingModeBtn{
+body.driving-active #drivingModeBtn,
+body.driving-active #settingsBtn{
   display:none !important;
 }
 body.driving-active #appPanel{
@@ -1352,6 +1353,125 @@ body.driving-active #appPanel{
 }
 .generic-modal-close:active{ background:#444; }
 
+/* --- Fullscreen report detail modal ------------------------------------
+   Opened from the "Detalji" row inside a pin popup. Unlike .generic-modal
+   (a centered card, capped at 340-380px), this genuinely covers the whole
+   viewport so location/municipality/contact info has room to breathe on
+   mobile instead of being crammed into a popup bubble. Reuses the same
+   9999 z-index tier as the other modal overlays (see Z-INDEX SCALE). */
+.fullscreen-modal-overlay{
+  position:fixed; inset:0;
+  z-index:9999;
+  background:#141414;
+  display:flex; flex-direction:column;
+}
+.fullscreen-modal-header{
+  display:flex; align-items:center; justify-content:space-between;
+  gap:10px;
+  padding:calc(14px + env(safe-area-inset-top, 0px)) 16px 14px 16px;
+  border-bottom:1px solid #292929;
+  flex-shrink:0;
+}
+.fullscreen-modal-header h2{ font-size:16px; font-weight:700; margin:0; }
+.fullscreen-modal-close{
+  background:#262626; color:#eee; border:1px solid #3a3a3a; border-radius:8px;
+  width:36px; height:36px; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+  font-size:18px; cursor:pointer;
+}
+.fullscreen-modal-body{
+  flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch;
+  padding:16px 16px calc(24px + env(safe-area-inset-bottom, 0px)) 16px;
+  display:flex; flex-direction:column; gap:16px;
+}
+.detail-section{
+  background:#1e1e1e; border-radius:12px; padding:14px;
+}
+.detail-section-title{
+  font-size:10px; font-weight:700; letter-spacing:.4px; text-transform:uppercase;
+  color:#888; margin-bottom:10px;
+}
+.detail-row{ display:flex; justify-content:space-between; gap:10px; padding:5px 0; font-size:13px; }
+.detail-row-label{ color:#999; flex-shrink:0; }
+.detail-row-value{ color:#eee; text-align:right; }
+.detail-row-value a{ color:#4ea1ff; text-decoration:none; }
+.contact-card{
+  background:#262626; border-radius:10px; padding:10px 12px; margin-bottom:8px;
+}
+.contact-card:last-child{ margin-bottom:0; }
+.contact-card-name{ font-weight:700; font-size:13.5px; margin-bottom:4px; }
+.contact-card-row{ font-size:12.5px; color:#ccc; margin-top:3px; }
+.contact-card-row a{ color:#4ea1ff; text-decoration:none; }
+.detail-empty{ font-size:12.5px; color:#777; font-style:italic; }
+.detail-loading{ font-size:12.5px; color:#888; }
+
+/* Small floating pill showing which municipality the map is currently
+   centered/GPS-fixed in — appears once boundary auto-detection resolves. */
+.municipality-label{
+  position:fixed;
+  top:calc(8px + env(safe-area-inset-top, 0px));
+  left:50%; transform:translateX(-50%);
+  z-index:640;
+  background:rgba(18,18,18,.88);
+  border:1px solid rgba(255,255,255,.09);
+  color:#ddd;
+  font-size:11px; font-weight:600;
+  padding:5px 12px;
+  border-radius:20px;
+  box-shadow:0 2px 8px rgba(0,0,0,.45);
+  pointer-events:none;
+  display:none;
+  white-space:nowrap;
+  max-width:80vw; overflow:hidden; text-overflow:ellipsis;
+}
+
+/* --- Admin: utility company contacts (inside the settings modal) --- */
+.admin-section{
+  border-top:1px solid #292929;
+  padding:16px 20px calc(16px + env(safe-area-inset-bottom, 0px)) 20px;
+  display:flex; flex-direction:column; gap:10px;
+}
+.admin-section-title{
+  font-size:10px; font-weight:700; letter-spacing:.4px; text-transform:uppercase;
+  color:#888;
+}
+.uc-list{ display:flex; flex-direction:column; gap:8px; }
+.uc-item{
+  background:#1e1e1e; border-radius:10px; padding:10px 12px;
+  display:flex; flex-direction:column; gap:4px;
+}
+.uc-item-top{ display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }
+.uc-item-name{ font-weight:700; font-size:13px; }
+.uc-item-muni{ font-size:11px; color:#999; }
+.uc-item-cats{ display:flex; flex-wrap:wrap; gap:4px; margin-top:2px; }
+.uc-cat-chip{
+  font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.2px;
+  padding:2px 6px; border-radius:10px; color:white;
+}
+.uc-item-actions{ display:flex; gap:6px; flex-shrink:0; }
+.uc-item-actions button{
+  padding:5px 9px; font-size:11px; border-radius:6px;
+}
+.uc-form{
+  display:flex; flex-direction:column; gap:8px;
+  background:#1e1e1e; border-radius:10px; padding:12px;
+}
+.uc-cat-checks{
+  display:flex; flex-wrap:wrap; gap:6px;
+}
+.uc-cat-check{
+  display:flex; align-items:center; gap:4px;
+  background:#262626; border-radius:8px; padding:5px 8px;
+  font-size:11.5px; cursor:pointer; user-select:none;
+}
+.uc-cat-check input{ margin:0; }
+.uc-form-row{ display:flex; gap:8px; }
+.uc-form-row textarea{
+  width:100%; padding:11px 10px; border:none; border-radius:8px;
+  background:#262626; color:white; font-size:13px; font-family:inherit;
+  resize:vertical; min-height:44px;
+}
+
 #dateRangePicker {
   cursor: pointer;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2' ry='2'%3E%3C/rect%3E%3Cline x1='16' y1='2' x2='16' y2='6'%3E%3C/line%3E%3Cline x1='8' y1='2' x2='8' y2='6'%3E%3C/line%3E%3Cline x1='3' y1='10' x2='21' y2='10'%3E%3C/line%3E%3C/svg%3E");
@@ -1454,6 +1574,7 @@ span.flatpickr-weekday {
 </header>
 
 <div id="map"></div>
+<div id="municipalityLabel" class="municipality-label"></div>
 
 <div id="mapLegend" style="
   background:rgba(18,18,18,.88);
@@ -1507,21 +1628,6 @@ span.flatpickr-weekday {
 
 <div id="appPanel" class="app-panel">
 
-<div class="filter-label-row">
-  <span class="filter-title" id="filterTitleLabel">Time Window Filter</span>
-  <span id="reportCount">0 Reports</span>
-</div>
-
-<div class="filter-select-row">
-  <div class="select-wrap">
-    <input type="text" id="dateRangePicker" placeholder="Select date range..." readonly>
-  </div>
-  <button class="export-btn" onclick="downloadCSV()"
-          style="flex:0 0 auto;width:auto;min-width:0;font-size:12px;padding:0 12px;align-self:stretch;white-space:nowrap;">
-    <span id="csvLabel">CSV</span>
-  </button>
-</div>
-
 <div class="panel" id="reportFormPanel" style="display:none">
   <div class="row">
     <select id="category" onchange="onCategoryChange()">
@@ -1555,7 +1661,7 @@ span.flatpickr-weekday {
   </div>
 </div>
 
-<!-- Simple inline form switcher for login vs registration -->
+
 <div class="panel locked-panel" id="lockedFormPanel" style="display:flex">
   <p id="lockedMsgText">Sign in to secure your profile and reports.</p>
   
@@ -1588,6 +1694,7 @@ span.flatpickr-weekday {
 <div id="followLocationBtn" class="pin-map-btn" style="display:none" title="Follow my location" onclick="toggleFollowMode()"><img class="icon-img" src="icons/target.png" alt="Recenter"></div>
 <div id="pinMapBtn" class="pin-map-btn" style="display:none" title="Set location manually" onclick="togglePinMode()"><img class="icon-img" src="icons/pin.png" alt="Pin"></div>
 <div id="drivingModeBtn" class="pin-map-btn" style="display:none" title="Driving mode" onclick="toggleDrivingMode()"><img class="icon-img" src="icons/car.png" alt="Driving mode"></div>
+<div id="settingsBtn" class="pin-map-btn" style="display:none" title="Settings" onclick="showSettingsModal()"><img class="icon-img" src="icons/settings.png" alt="Settings"></div>
 <button id="panelToggleBtn" class="pin-map-btn panel-toggle-btn" type="button" style="display:none"
         aria-expanded="true" aria-controls="appPanel" title="Hide panel">
   <img class="icon-img" id="panelToggleIcon" src="icons/arrow.png" alt="Toggle panel">
@@ -1687,7 +1794,7 @@ span.flatpickr-weekday {
 
 <div id="toastContainer"></div>
 
-<!-- GPS/Error Alert Modal -->
+
 <div id="gpsModal" class="generic-modal-overlay" style="display:none">
   <div class="generic-modal">
     <div class="generic-modal-icon"><img class="icon-img icon-img-modal" src="icons/pin.png" alt="Pin"></div>
@@ -1698,7 +1805,7 @@ span.flatpickr-weekday {
   </div>
 </div>
 
-<!-- Dynamic Instruction Help Modal -->
+
 <div id="helpModal" class="generic-modal-overlay" style="display:none">
   <div class="generic-modal" style="max-width: 380px;">
     <h2 id="helpModalTitle" style="margin-top: 6px;">How to Use</h2>
@@ -1707,7 +1814,7 @@ span.flatpickr-weekday {
   </div>
 </div>
 
-<!-- Reputation / progress tracker modal -->
+
 <div id="profileModal" class="generic-modal-overlay" style="display:none">
   <div class="generic-modal" style="max-width: 340px;">
     <h2 id="profileModalTitle" style="margin-top:6px;">Status</h2>
@@ -1719,6 +1826,76 @@ span.flatpickr-weekday {
     <p id="profileModalStats" style="font-size:11.5px;color:#888;margin-top:8px;"></p>
     <button class="generic-modal-close" onclick="hideProfileModal()" id="profileModalBtn" style="margin-top:14px;">Close</button>
   </div>
+</div>
+
+<!-- Settings modal: holds secondary controls that don't need to live on the
+     main map/report panel. Starts with the time-window filter + CSV export
+     (moved out of #appPanel); more settings sections get appended here
+     going forward instead of crowding the primary UI. -->
+<div id="settingsModal" class="generic-modal-overlay" style="display:none">
+  <div class="generic-modal" style="max-width: 360px; padding:0; text-align:left;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 20px 4px 20px;">
+      <h2 id="settingsModalTitle" style="margin:0;">Settings</h2>
+      <button onclick="hideSettingsModal()" aria-label="Close"
+              style="background:none;border:none;color:#999;font-size:20px;line-height:1;cursor:pointer;padding:4px;">✕</button>
+    </div>
+
+    <div class="filter-label-row" style="border-radius:0;">
+      <span class="filter-title" id="filterTitleLabel">Time Window Filter</span>
+      <span id="reportCount">0 Reports</span>
+    </div>
+
+    <div class="filter-select-row" style="border-bottom:none;padding-bottom:18px;">
+      <div class="select-wrap">
+        <input type="text" id="dateRangePicker" placeholder="Select date range..." readonly>
+      </div>
+      <button class="export-btn" onclick="downloadCSV()"
+              style="flex:0 0 auto;width:auto;min-width:0;font-size:12px;padding:0 12px;align-self:stretch;white-space:nowrap;">
+        <span id="csvLabel">CSV</span>
+      </button>
+    </div>
+
+    <!-- Admin-only: manage per-municipality utility company contacts.
+         Visibility toggled in updateAuthUI() alongside the ADMIN badge. -->
+    <div class="admin-section" id="settingsAdminSection" style="display:none">
+      <div class="admin-section-title" id="ucSectionTitle">Utility company contacts</div>
+      <div class="uc-list" id="ucList"></div>
+      <button type="button" style="background:#3a3a3a;color:#eee;" onclick="toggleUcForm()" id="ucAddToggleBtn">+ Add contact</button>
+
+      <div class="uc-form" id="ucForm" style="display:none">
+        <input type="hidden" id="ucEditId">
+        <div class="uc-form-row">
+          <select id="ucMunicipalitySelect" style="flex:1;"></select>
+        </div>
+        <button type="button" style="background:#3a3a3a;color:#eee;" onclick="addMunicipalityFromMapCenter()" id="ucAddMuniBtn">📍 Add municipality from map center</button>
+        <div id="ucNoMunicipalitiesHint" class="detail-empty" style="display:none;"></div>
+        <div class="uc-cat-checks" id="ucCatChecks"></div>
+        <input type="text" id="ucName" placeholder="Company name">
+        <div class="uc-form-row">
+          <input type="text" id="ucPhone" placeholder="Phone">
+          <input type="text" id="ucEmail" placeholder="Email">
+        </div>
+        <input type="text" id="ucWebsite" placeholder="Website">
+        <input type="text" id="ucAddress" placeholder="Address">
+        <textarea id="ucNotes" placeholder="Notes (optional)"></textarea>
+        <div class="uc-form-row">
+          <button type="button" style="background:#3a3a3a;color:#eee;flex:1;" onclick="cancelUcForm()" id="ucCancelBtn">Cancel</button>
+          <button type="button" style="background:#a67817;color:white;flex:1;" onclick="saveUtilityCompany()" id="ucSaveBtn">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Fullscreen report detail view — opened from the "Detalji" row in a pin
+     popup. Content is built dynamically by showReportDetailModal(); this is
+     just the shell so it can slot into the same 9999 modal tier as the rest. -->
+<div id="reportDetailModal" class="fullscreen-modal-overlay" style="display:none">
+  <div class="fullscreen-modal-header">
+    <h2 id="reportDetailTitle"></h2>
+    <button class="fullscreen-modal-close" onclick="hideReportDetailModal()" aria-label="Close">✕</button>
+  </div>
+  <div class="fullscreen-modal-body" id="reportDetailBody"></div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -1735,6 +1912,8 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const TABLE = 'brake_reports';
 const PROFILES_TABLE = 'profiles';
+const MUNICIPALITIES_TABLE = 'municipalities';
+const UTILITY_COMPANIES_TABLE = 'utility_companies';
 
 // =============================================================================
 // UTILITIES — coordinate validation
@@ -1946,6 +2125,7 @@ function updateAuthUI() {
     userBadge.style.display = 'flex';
     document.getElementById('userBadgeName').textContent = currentProfile.username;
     document.getElementById('userBadgeAdmin').style.display = currentProfile.is_admin ? 'inline-block' : 'none';
+    document.getElementById('settingsAdminSection').style.display = currentProfile.is_admin ? 'flex' : 'none';
     updateTierPill();
     reportFormPanel.style.display = 'flex';
     lockedFormPanel.style.display = 'none';
@@ -1953,6 +2133,7 @@ function updateAuthUI() {
     userBadge.style.display = 'none';
     reportFormPanel.style.display = 'none';
     lockedFormPanel.style.display = 'flex';
+    document.getElementById('settingsAdminSection').style.display = 'none';
   }
   checkFormReady();
   refreshRenderedPopups();
@@ -2058,6 +2239,8 @@ const T = {
   waitGps:      { en:'Waiting for GPS...',               sr:'Čekanje GPS-a...' },
   submitted:    { en:'Report submitted.',                sr:'Prijava uspešna.' },
   timeFilter:   { en:'Time Window Filter',               sr:'Filter vremenskog prozora' },
+  settingsBtnTitle: { en:'Settings',                     sr:'Podešavanja' },
+  settingsModalTitle: { en:'Settings',                   sr:'Podešavanja' },
   catPH:        { en:'Select break type…',               sr:'Izaberite vrstu kvara…' },
   gpsTitle:     { en:'GPS Not Enabled',                  sr:'GPS nije uključen' },
   gpsBody:      { en:'Location access is turned off. To report a break at your location, enable it in your settings.', sr:'Pristup lokaciji je isključen. Da biste prijavili kvar, omogućite ga u podešavanjima.' },
@@ -2143,7 +2326,40 @@ const T = {
   turnRamp:          { en:'Take the ramp',                             sr:'Uzmite rampu' },
   turnRoundabout:    { en:'Enter the roundabout',                      sr:'Uđite u kružni tok' },
   turnExit:          { en:'exit',                                      sr:'izlaz' },
-  turnArrive:        { en:'Arrive at destination',                     sr:'Stigli ste na odredište' }
+  turnArrive:        { en:'Arrive at destination',                     sr:'Stigli ste na odredište' },
+
+  // --- Report detail modal (fullscreen "Detalji" view) ---
+  detailsBtn:            { en:'Details',                                    sr:'Detalji' },
+  detailLocationTitle:   { en:'Location',                                   sr:'Lokacija' },
+  detailCoordsLabel:     { en:'Coordinates',                                sr:'Koordinate' },
+  detailMapLabel:        { en:'Map',                                       sr:'Mapa' },
+  detailOpenMaps:        { en:'Open in Google Maps',                       sr:'Otvori u Google mapama' },
+  detailMunicipalityLabel:{ en:'Municipality',                             sr:'Opština' },
+  detailLoading:         { en:'Loading…',                                  sr:'Učitavanje…' },
+  detailUnknown:         { en:'Unknown',                                   sr:'Nepoznato' },
+  detailNoMunicipality:  { en:'Could not determine the municipality for this location.', sr:'Nije moguće odrediti opštinu za ovu lokaciju.' },
+  detailContactsTitle:   { en:'Responsible utility contacts',              sr:'Kontakti nadležnih javnih preduzeća' },
+  detailNoContacts:      { en:'No contacts registered yet for this type of break in this municipality.', sr:'Za ovu vrstu kvara u ovoj opštini još uvek nema unetih kontakata.' },
+  detailContactsError:   { en:'Could not load contacts.',                  sr:'Kontakti nisu učitani.' },
+
+  // --- Admin: utility company contacts panel (Settings) ---
+  ucSectionTitle:    { en:'Utility company contacts',            sr:'Kontakti javnih preduzeća' },
+  ucAddContactBtn:   { en:'+ Add contact',                       sr:'+ Dodaj kontakt' },
+  ucNoContacts:      { en:'No utility companies added yet.',     sr:'Još uvek nema unetih javnih preduzeća.' },
+  ucSelectMunicipality: { en:'— Select municipality —',          sr:'— Izaberi opštinu —' },
+  ucNoMunicipalitiesHint: { en:'No municipalities cached yet. Move the map to the desired area and tap "Add municipality from map center".', sr:'Još nema keširanih opština. Pomerite mapu na željeno mesto i pritisnite "Dodaj opštinu sa centra mape".' },
+  ucAddMuniBtn:      { en:'📍 Add municipality from map center',  sr:'📍 Dodaj opštinu sa centra mape' },
+  ucAddMuniLoading:  { en:'Looking up municipality…',            sr:'Tražim opštinu…' },
+  ucAddMuniFail:     { en:'Could not find a municipality at the current map center.', sr:'Nije pronađena opština na trenutnom centru mape.' },
+  ucNamePH:          { en:'Company name',                        sr:'Naziv preduzeća' },
+  ucPhonePH:         { en:'Phone',                                sr:'Telefon' },
+  ucEmailPH:         { en:'Email',                                sr:'E-mail' },
+  ucWebsitePH:       { en:'Website',                              sr:'Sajt' },
+  ucAddressPH:       { en:'Address',                              sr:'Adresa' },
+  ucNotesPH:         { en:'Notes (optional)',                     sr:'Napomena (opciono)' },
+  ucValidationError: { en:'Choose a municipality, at least one category, and enter a company name.', sr:'Izaberite opštinu, bar jednu kategoriju i unesite naziv preduzeća.' },
+  ucSaveError:       { en:'Could not save. Try again.',           sr:'Čuvanje nije uspelo. Pokušajte ponovo.' },
+  ucDeleteConfirm:   { en:'Delete this contact permanently?',     sr:'Trajno obrisati ovaj kontakt?' }
 };
 
 function t(k){ return T[k]?.[lang] ?? k; }
@@ -2189,6 +2405,8 @@ function applyLang(){
   document.getElementById('reportBtnLabel').textContent   = t('reportBtn');
   document.getElementById('csvLabel').textContent         = t('csvLabel');
   document.getElementById('filterTitleLabel').textContent = t('timeFilter');
+  document.getElementById('settingsBtn').title = t('settingsBtnTitle');
+  document.getElementById('settingsModalTitle').textContent = t('settingsModalTitle');
   document.getElementById('comment').placeholder          = t('commentPH');
   document.getElementById('dateRangePicker').placeholder  = t('calendarPH');
   document.getElementById('category').options[0].text     = t('catPH');
@@ -2223,6 +2441,17 @@ function applyLang(){
   buildHelpModalContent();
   refreshRenderedPopups();
 
+  if (currentProfile && currentProfile.is_admin && document.getElementById('settingsModal').style.display !== 'none') {
+    const titleEl = document.getElementById('ucSectionTitle');
+    if (titleEl) titleEl.textContent = t('ucSectionTitle');
+    const addBtn = document.getElementById('ucAddToggleBtn');
+    if (addBtn) addBtn.textContent = t('ucAddContactBtn');
+    populateUcMunicipalitySelect();
+    populateUcCatChecks();
+    applyUcFormTranslations();
+    renderUcList();
+  }
+
   updateDrivingGpsStatus();
   document.getElementById('dTilePothole').textContent     = t('dTilePothole');
   document.getElementById('dTileCracked').textContent     = t('dTileCracked');
@@ -2251,6 +2480,17 @@ function showHelpModal() {
 }
 function hideHelpModal() {
   document.getElementById('helpModal').style.display = 'none';
+}
+function showSettingsModal() {
+  document.getElementById('settingsModalTitle').textContent = t('settingsModalTitle');
+  document.getElementById('settingsModal').style.display = 'flex';
+  if (currentProfile && currentProfile.is_admin) {
+    cancelUcForm();
+    loadUtilityCompaniesAdmin();
+  }
+}
+function hideSettingsModal() {
+  document.getElementById('settingsModal').style.display = 'none';
 }
 function buildHelpModalContent() {
   document.getElementById('helpModalTitle').textContent = t('helpTitle');
@@ -3672,7 +3912,7 @@ async function quickReportRoad(subcategoryKey) {
   if (!isValidCoordObj(userCoords)) { toast(t('invalidLocation'), 'error'); return; }
 
   try {
-    const { error } = await sb.from(TABLE).insert([{
+    const { data, error } = await sb.from(TABLE).insert([{
       latitude: userCoords.lat,
       longitude: userCoords.lon,
       category: 'Road',
@@ -3682,8 +3922,9 @@ async function quickReportRoad(subcategoryKey) {
       created_at: new Date().toISOString(),
       owner_id: currentSession.user.id,
       owner_username: currentProfile.username
-    }]);
+    }]).select('id').single();
     if (error) throw error;
+    resolveAndAttachMunicipality(data && data.id, userCoords.lat, userCoords.lon);
     toast('✓ ' + t('submitted'), 'success');
     await loadPinsByWindow();
   } catch (err) {
@@ -3751,7 +3992,7 @@ async function finalizeSectionReport(subcategoryKey) {
   const mid = pathJson[Math.floor(pathJson.length / 2)];
 
   try {
-    const { error } = await sb.from(TABLE).insert([{
+    const { data, error } = await sb.from(TABLE).insert([{
       latitude: mid[0],
       longitude: mid[1],
       category: 'Road',
@@ -3762,8 +4003,9 @@ async function finalizeSectionReport(subcategoryKey) {
       created_at: new Date().toISOString(),
       owner_id: currentSession.user.id,
       owner_username: currentProfile.username
-    }]);
+    }]).select('id').single();
     if (error) throw error;
+    resolveAndAttachMunicipality(data && data.id, mid[0], mid[1]);
     sectionAwaitingCategory = false;
     updateSectionButtonUI();
     discardSectionDraft();
@@ -4045,6 +4287,7 @@ function startWatching() {
           zIndexOffset: 1000
         }).addTo(map);
         map.setView(getFollowCenter(userCoords.lat, userCoords.lon, 13), 13);
+        showMunicipalityBoundaryForPoint(userCoords.lat, userCoords.lon);
       } else if (drivingMode) {
         // Don't show the raw fix right away — hold it back until it's
         // been snapped to the road (or the fallback timeout fires), so
@@ -4222,6 +4465,17 @@ const DrivingControl = L.Control.extend({
 });
 new DrivingControl().addTo(map);
 document.getElementById('drivingModeBtn').style.display = 'flex';
+
+const SettingsControl = L.Control.extend({
+  options:{ position:'bottomright' },
+  onAdd(){
+    const btn = document.getElementById('settingsBtn');
+    L.DomEvent.disableClickPropagation(btn);
+    return btn;
+  }
+});
+new SettingsControl().addTo(map);
+document.getElementById('settingsBtn').style.display = 'flex';
 
 const PanelToggleControl = L.Control.extend({
   options:{ position:'bottomleft' },
@@ -4487,7 +4741,7 @@ async function reportBreak(){
   const comment      = document.getElementById('comment').value;
 
   try {
-    const { error } = await sb.from(TABLE).insert([{
+    const { data, error } = await sb.from(TABLE).insert([{
       latitude:  lat,
       longitude: lon,
       category,
@@ -4497,8 +4751,9 @@ async function reportBreak(){
       created_at: new Date().toISOString(),
       owner_id: currentSession.user.id,
       owner_username: currentProfile.username
-    }]);
+    }]).select('id').single();
     if (error) throw error;
+    resolveAndAttachMunicipality(data && data.id, lat, lon);
 
     alert(t('submitted'));
     resetReportingForm();
@@ -4506,6 +4761,507 @@ async function reportBreak(){
   } catch (err) {
     console.error('Report submit error (full):', err);
     alert(describeAuthError(err));
+  }
+}
+
+// =============================================================================
+// MUNICIPALITIES — worldwide administrative boundary lookup via Overpass API,
+// cached in Supabase so the same opština/municipality is only ever fetched
+// from Overpass once. Used to (a) draw the current boundary on the map,
+// (b) tag each report with which municipality it falls in, and (c) look up
+// the right utility company contact for a report's category + municipality.
+//
+// Deliberately simplified: we only assemble OUTER rings of a boundary
+// relation (inner rings / holes / exclaves are ignored). For point-in-
+// polygon checks and drawing a rough boundary on a community map, holes
+// almost never matter — the one edge case (a fully donut-shaped
+// municipality) just ends up including its hole, which is an acceptable
+// trade-off against the complexity of full multipolygon reconstruction.
+// =============================================================================
+let municipalityCache = [];        // rows already loaded from Supabase this session
+let municipalityCacheLoaded = false;
+let municipalityBoundaryLayer = null;
+let municipalityBoundaryForId = null;
+
+async function loadMunicipalityCache() {
+  if (municipalityCacheLoaded) return;
+  try {
+    const { data, error } = await sb.from(MUNICIPALITIES_TABLE)
+      .select('id,osm_type,osm_id,admin_level,name,name_en,country_code,centroid_lat,centroid_lon,boundary,bbox');
+    if (error) throw error;
+    municipalityCache = data || [];
+    municipalityCacheLoaded = true;
+  } catch (err) {
+    console.error('Failed to load municipality cache:', err.message);
+  }
+}
+
+// Ray-casting point-in-polygon against a single [ [lon,lat], ... ] ring.
+function pointInRing(lat, lon, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0], yi = ring[i][1];
+    const xj = ring[j][0], yj = ring[j][1];
+    const intersect = ((yi > lat) !== (yj > lat)) &&
+      (lon < (xj - xi) * (lat - yi) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+// Accepts our stored boundary (GeoJSON-ish Polygon or MultiPolygon, outer
+// rings only — see module comment above).
+function pointInBoundary(lat, lon, boundary) {
+  if (!boundary || !boundary.coordinates) return false;
+  const polys = boundary.type === 'MultiPolygon' ? boundary.coordinates : [boundary.coordinates];
+  for (const poly of polys) {
+    const outer = poly[0];
+    if (outer && pointInRing(lat, lon, outer)) return true;
+  }
+  return false;
+}
+
+function bboxContains(bbox, lat, lon) {
+  if (!bbox || bbox.length !== 4) return true; // no bbox stored — don't prefilter it out
+  const [minLon, minLat, maxLon, maxLat] = bbox;
+  return lon >= minLon && lon <= maxLon && lat >= minLat && lat <= maxLat;
+}
+
+function findMunicipalityInCache(lat, lon) {
+  let best = null;
+  for (const m of municipalityCache) {
+    if (!bboxContains(m.bbox, lat, lon)) continue;
+    if (pointInBoundary(lat, lon, m.boundary)) {
+      // Prefer the most specific (highest admin_level) match if several
+      // cached boundaries happen to overlap at this point.
+      if (!best || (m.admin_level || 0) > (best.admin_level || 0)) best = m;
+    }
+  }
+  return best;
+}
+
+async function overpassQuery(ql) {
+  const res = await fetch('https://overpass-api.de/api/interpreter', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'data=' + encodeURIComponent(ql)
+  });
+  if (!res.ok) throw new Error('Overpass request failed: ' + res.status);
+  return res.json();
+}
+
+// Stitches loose way segments (each an array of [lon,lat]) end-to-end into
+// closed rings. OSM boundary ways share exact coordinate nodes at their
+// junctions, so matching endpoints is reliable without any tolerance/snap.
+function assembleRings(segments) {
+  const pool = segments.map(s => s.slice());
+  const rings = [];
+  const keyOf = (pt) => pt[0] + ',' + pt[1];
+  while (pool.length) {
+    let ring = pool.shift();
+    let guard = 0;
+    while (keyOf(ring[0]) !== keyOf(ring[ring.length - 1]) && guard < pool.length + 1) {
+      guard++;
+      const tail = ring[ring.length - 1];
+      let matched = false;
+      for (let i = 0; i < pool.length; i++) {
+        const seg = pool[i];
+        if (keyOf(seg[0]) === keyOf(tail)) {
+          ring = ring.concat(seg.slice(1));
+          pool.splice(i, 1);
+          matched = true;
+          break;
+        }
+        if (keyOf(seg[seg.length - 1]) === keyOf(tail)) {
+          ring = ring.concat(seg.slice(0, -1).reverse());
+          pool.splice(i, 1);
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) break; // best effort — push what we have, even if unclosed
+    }
+    rings.push(ring);
+  }
+  return rings;
+}
+
+function ringArea(ring) {
+  // Shoelace formula (signed) — used to pick the largest ring as the
+  // "main" outer boundary when a relation yields several closed rings.
+  let sum = 0;
+  for (let i = 0; i < ring.length - 1; i++) {
+    sum += ring[i][0] * ring[i + 1][1] - ring[i + 1][0] * ring[i][1];
+  }
+  return Math.abs(sum / 2);
+}
+
+// Picks the best "municipality-level" candidate from the tagged areas
+// Overpass' is_in() returns for a point. admin_level meaning varies by
+// country (opština in Serbia = 7, county in the US = 6, Gemeinde in
+// Germany = 8, etc.), so rather than hardcode one level we prefer
+// whichever tagged administrative area has the HIGHEST admin_level in the
+// "locality" range (6-8), and fall back to the next-best thing available.
+function pickBestAdminArea(elements) {
+  const candidates = (elements || [])
+    .filter(el => el.tags && el.tags.boundary === 'administrative' && el.tags.admin_level && el.tags.name)
+    .map(el => ({ ...el, admin_level_num: parseInt(el.tags.admin_level, 10) }))
+    .filter(el => !isNaN(el.admin_level_num) && el.admin_level_num >= 4);
+
+  if (!candidates.length) return null;
+
+  const preferred = candidates.filter(c => c.admin_level_num >= 6 && c.admin_level_num <= 8);
+  const pool = preferred.length ? preferred : candidates;
+  pool.sort((a, b) => b.admin_level_num - a.admin_level_num);
+  return pool[0];
+}
+
+async function fetchMunicipalityFromOverpass(lat, lon) {
+  const isInQl = `[out:json][timeout:25];\nis_in(${lat},${lon})->.a;\narea.a[boundary=administrative][admin_level];\nout tags;`;
+  const isInRes = await overpassQuery(isInQl);
+  const best = pickBestAdminArea(isInRes.elements);
+  if (!best) return null;
+
+  // Overpass area ids for relations are offset by 3,600,000,000. Ways
+  // (rare for this size of boundary) aren't handled — we bail rather than
+  // build a wrong relation id.
+  if (best.id < 3600000000) return null;
+  const relId = best.id - 3600000000;
+
+  const geomQl = `[out:json][timeout:25];\nrelation(${relId});\nout geom;`;
+  const geomRes = await overpassQuery(geomQl);
+  const rel = (geomRes.elements || []).find(el => el.type === 'relation' && el.id === relId);
+  if (!rel || !rel.members) return null;
+
+  const outerSegments = rel.members
+    .filter(m => m.type === 'way' && m.role !== 'inner' && Array.isArray(m.geometry) && m.geometry.length > 1)
+    .map(m => m.geometry.map(pt => [pt.lon, pt.lat]));
+  if (!outerSegments.length) return null;
+
+  let rings = assembleRings(outerSegments).filter(r => r.length >= 4);
+  if (!rings.length) return null;
+  // Keep every closed ring (handles multi-part municipalities/exclaves),
+  // but if any are left unclosed from a best-effort stitch, drop them.
+  rings = rings.filter(r => r[0][0] === r[r.length - 1][0] && r[0][1] === r[r.length - 1][1]);
+  if (!rings.length) return null;
+
+  const boundary = { type: 'MultiPolygon', coordinates: rings.map(r => [r]) };
+
+  let minLon = Infinity, minLat = Infinity, maxLon = -Infinity, maxLat = -Infinity;
+  let sumLon = 0, sumLat = 0, n = 0;
+  rings.forEach(r => r.forEach(([plon, plat]) => {
+    minLon = Math.min(minLon, plon); maxLon = Math.max(maxLon, plon);
+    minLat = Math.min(minLat, plat); maxLat = Math.max(maxLat, plat);
+    sumLon += plon; sumLat += plat; n++;
+  }));
+
+  const row = {
+    osm_type: 'relation',
+    osm_id: relId,
+    admin_level: best.admin_level_num,
+    name: best.tags.name,
+    name_en: best.tags['name:en'] || null,
+    country_code: (best.tags['ISO3166-1'] || best.tags['ISO3166-2'] || '').split('-')[0] || null,
+    centroid_lat: n ? sumLat / n : lat,
+    centroid_lon: n ? sumLon / n : lon,
+    boundary,
+    bbox: [minLon, minLat, maxLon, maxLat]
+  };
+
+  try {
+    const { data, error } = await sb.from(MUNICIPALITIES_TABLE)
+      .upsert(row, { onConflict: 'osm_type,osm_id' })
+      .select()
+      .single();
+    if (error) throw error;
+    municipalityCache.push(data);
+    return data;
+  } catch (err) {
+    console.error('Failed to cache municipality:', err.message);
+    return row; // still usable for this session even if the DB write failed
+  }
+}
+
+// Best-effort resolver: cache first, Overpass only as a fallback. Never
+// throws — callers just get null back on any failure and carry on.
+async function resolveMunicipality(lat, lon) {
+  if (!isValidLatLng(lat, lon)) return null;
+  await loadMunicipalityCache();
+  const cached = findMunicipalityInCache(lat, lon);
+  if (cached) return cached;
+  try {
+    return await fetchMunicipalityFromOverpass(lat, lon);
+  } catch (err) {
+    console.error('Overpass municipality lookup failed:', err.message);
+    return null;
+  }
+}
+
+// Fire-and-forget: called right after a report is inserted so submission
+// itself never has to wait on Overpass. Silently does nothing if it fails.
+function resolveAndAttachMunicipality(reportId, lat, lon) {
+  resolveMunicipality(lat, lon).then(muni => {
+    if (!muni || !reportId) return;
+    sb.from(TABLE).update({ municipality_id: muni.id }).eq('id', reportId)
+      .then(({ error }) => { if (error) console.error('Failed to attach municipality to report:', error.message); });
+  }).catch(err => console.error('resolveAndAttachMunicipality error:', err.message));
+}
+
+// Draws (or redraws) the municipality boundary containing a given point,
+// and updates the small floating name pill. Called once GPS gets its
+// first fix, and again whenever a report's detail view is opened.
+async function showMunicipalityBoundaryForPoint(lat, lon) {
+  const muni = await resolveMunicipality(lat, lon);
+  const label = document.getElementById('municipalityLabel');
+  if (!muni) {
+    if (label) label.style.display = 'none';
+    return null;
+  }
+  if (municipalityBoundaryForId !== muni.id) {
+    if (municipalityBoundaryLayer) { map.removeLayer(municipalityBoundaryLayer); municipalityBoundaryLayer = null; }
+    municipalityBoundaryLayer = L.geoJSON(muni.boundary, {
+      style: { color: '#f5a623', weight: 2, dashArray: '6,4', fill: false, interactive: false }
+    }).addTo(map);
+    municipalityBoundaryForId = muni.id;
+  }
+  if (label) {
+    label.textContent = (lang === 'sr' ? muni.name : (muni.name_en || muni.name));
+    label.style.display = 'block';
+  }
+  return muni;
+}
+
+// =============================================================================
+// ADMIN: UTILITY COMPANY CONTACTS PANEL (Settings modal, admins only)
+// =============================================================================
+const UC_CATEGORIES = ['Water','Electricity','Sewage','Gas','Heating','Road','Streetlight','Waste','Walkways','BikeLanes','GreenSpaces','Other'];
+let ucCompaniesCache = [];
+let ucEditingId = null;
+
+function municipalityDisplayName(m) {
+  if (!m) return '';
+  return (lang === 'sr' ? m.name : (m.name_en || m.name)) || m.name;
+}
+
+async function loadUtilityCompaniesAdmin() {
+  const titleEl = document.getElementById('ucSectionTitle');
+  if (titleEl) titleEl.textContent = t('ucSectionTitle');
+  const addBtn = document.getElementById('ucAddToggleBtn');
+  if (addBtn) addBtn.textContent = t('ucAddContactBtn');
+
+  await loadMunicipalityCache();
+  populateUcMunicipalitySelect();
+  populateUcCatChecks();
+  applyUcFormTranslations();
+
+  try {
+    const { data, error } = await sb.from(UTILITY_COMPANIES_TABLE).select('*').order('name');
+    if (error) throw error;
+    ucCompaniesCache = data || [];
+  } catch (err) {
+    console.error('Failed to load utility companies:', err.message);
+    ucCompaniesCache = [];
+  }
+  renderUcList();
+}
+
+function applyUcFormTranslations() {
+  const fieldMap = {
+    ucName: 'ucNamePH', ucPhone: 'ucPhonePH', ucEmail: 'ucEmailPH',
+    ucWebsite: 'ucWebsitePH', ucAddress: 'ucAddressPH', ucNotes: 'ucNotesPH'
+  };
+  Object.entries(fieldMap).forEach(([id, key]) => {
+    const el = document.getElementById(id);
+    if (el) el.placeholder = t(key);
+  });
+  const cancelBtn = document.getElementById('ucCancelBtn');
+  if (cancelBtn) cancelBtn.textContent = t('cancelBtn');
+  const saveBtn = document.getElementById('ucSaveBtn');
+  if (saveBtn) saveBtn.textContent = t('saveBtn');
+  const addMuniBtn = document.getElementById('ucAddMuniBtn');
+  if (addMuniBtn) addMuniBtn.textContent = t('ucAddMuniBtn');
+  const hint = document.getElementById('ucNoMunicipalitiesHint');
+  if (hint) hint.textContent = t('ucNoMunicipalitiesHint');
+}
+
+function populateUcMunicipalitySelect() {
+  const sel = document.getElementById('ucMunicipalitySelect');
+  if (!sel) return;
+  const prevValue = sel.value;
+  const sorted = [...municipalityCache].sort((a, b) =>
+    municipalityDisplayName(a).localeCompare(municipalityDisplayName(b)));
+  const placeholder = '<option value="" disabled>' + t('ucSelectMunicipality') + '</option>';
+  sel.innerHTML = placeholder + sorted.map(m =>
+    '<option value="' + m.id + '">' + escapeHtml(municipalityDisplayName(m)) + (m.country_code ? ' (' + escapeHtml(m.country_code) + ')' : '') + '</option>'
+  ).join('');
+  if (sorted.some(m => String(m.id) === prevValue)) {
+    sel.value = prevValue;
+  } else {
+    sel.selectedIndex = 0;
+  }
+  const hint = document.getElementById('ucNoMunicipalitiesHint');
+  if (hint) hint.style.display = sorted.length ? 'none' : 'block';
+}
+
+function populateUcCatChecks() {
+  const wrap = document.getElementById('ucCatChecks');
+  if (!wrap) return;
+  const checkedBefore = new Set(Array.from(wrap.querySelectorAll('input:checked')).map(cb => cb.value));
+  wrap.innerHTML = UC_CATEGORIES.map(c =>
+    '<label class="uc-cat-check"><input type="checkbox" value="' + c + '" ' + (checkedBefore.has(c) ? 'checked' : '') + '> ' + translateCategory(c) + '</label>'
+  ).join('');
+}
+
+function renderUcList() {
+  const listEl = document.getElementById('ucList');
+  if (!listEl) return;
+  if (!ucCompaniesCache.length) {
+    listEl.innerHTML = '<div class="detail-empty">' + t('ucNoContacts') + '</div>';
+    return;
+  }
+  listEl.innerHTML = ucCompaniesCache.map(c => {
+    const muni = municipalityCache.find(m => String(m.id) === String(c.municipality_id));
+    const catsHtml = (c.categories || []).map(cat =>
+      '<span class="uc-cat-chip" style="background:' + categoryColor(cat) + ';">' + translateCategory(cat) + '</span>'
+    ).join('');
+    return '<div class="uc-item">' +
+      '<div class="uc-item-top">' +
+        '<div>' +
+          '<div class="uc-item-name">' + escapeHtml(c.name) + '</div>' +
+          '<div class="uc-item-muni">' + (muni ? escapeHtml(municipalityDisplayName(muni)) : t('detailUnknown')) + '</div>' +
+        '</div>' +
+        '<div class="uc-item-actions">' +
+          '<button type="button" style="background:#3a3a3a;color:#eee;" onclick="editUtilityCompany(\'' + c.id + '\')">' + t('editBtn') + '</button>' +
+          '<button type="button" style="background:#7a1f1f;color:#fff;" onclick="deleteUtilityCompany(\'' + c.id + '\')">' + t('deleteBtn') + '</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="uc-item-cats">' + catsHtml + '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function toggleUcForm() {
+  const form = document.getElementById('ucForm');
+  if (!form) return;
+  if (form.style.display !== 'none') { cancelUcForm(); return; }
+  resetUcForm();
+  form.style.display = 'flex';
+}
+
+function resetUcForm() {
+  ucEditingId = null;
+  const editIdEl = document.getElementById('ucEditId');
+  if (editIdEl) editIdEl.value = '';
+  ['ucName', 'ucPhone', 'ucEmail', 'ucWebsite', 'ucAddress', 'ucNotes'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  document.querySelectorAll('#ucCatChecks input').forEach(cb => cb.checked = false);
+  const sel = document.getElementById('ucMunicipalitySelect');
+  if (sel) sel.selectedIndex = 0;
+  applyUcFormTranslations();
+}
+
+function cancelUcForm() {
+  const form = document.getElementById('ucForm');
+  if (form) form.style.display = 'none';
+  resetUcForm();
+}
+
+function editUtilityCompany(id) {
+  const c = ucCompaniesCache.find(x => String(x.id) === String(id));
+  if (!c) return;
+  resetUcForm();
+  ucEditingId = c.id;
+  document.getElementById('ucEditId').value = c.id;
+  const sel = document.getElementById('ucMunicipalitySelect');
+  if (sel) sel.value = c.municipality_id;
+  document.getElementById('ucName').value = c.name || '';
+  document.getElementById('ucPhone').value = c.phone || '';
+  document.getElementById('ucEmail').value = c.email || '';
+  document.getElementById('ucWebsite').value = c.website || '';
+  document.getElementById('ucAddress').value = c.address || '';
+  document.getElementById('ucNotes').value = c.notes || '';
+  (c.categories || []).forEach(cat => {
+    const cb = document.querySelector('#ucCatChecks input[value="' + cat + '"]');
+    if (cb) cb.checked = true;
+  });
+  const form = document.getElementById('ucForm');
+  form.style.display = 'flex';
+  form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+async function saveUtilityCompany() {
+  const municipalityId = document.getElementById('ucMunicipalitySelect').value;
+  const name = document.getElementById('ucName').value.trim();
+  const categories = Array.from(document.querySelectorAll('#ucCatChecks input:checked')).map(cb => cb.value);
+  if (!municipalityId || !name || !categories.length) {
+    alert(t('ucValidationError'));
+    return;
+  }
+  const row = {
+    municipality_id: municipalityId,
+    name,
+    categories,
+    phone:   document.getElementById('ucPhone').value.trim()   || null,
+    email:   document.getElementById('ucEmail').value.trim()   || null,
+    website: document.getElementById('ucWebsite').value.trim() || null,
+    address: document.getElementById('ucAddress').value.trim() || null,
+    notes:   document.getElementById('ucNotes').value.trim()   || null,
+    updated_at: new Date().toISOString()
+  };
+  const saveBtn = document.getElementById('ucSaveBtn');
+  if (saveBtn) saveBtn.disabled = true;
+  try {
+    let error;
+    if (ucEditingId) {
+      ({ error } = await sb.from(UTILITY_COMPANIES_TABLE).update(row).eq('id', ucEditingId));
+    } else {
+      row.created_by = currentSession ? currentSession.user.id : null;
+      ({ error } = await sb.from(UTILITY_COMPANIES_TABLE).insert(row));
+    }
+    if (error) throw error;
+    cancelUcForm();
+    await loadUtilityCompaniesAdmin();
+  } catch (err) {
+    console.error('Failed to save utility company:', err.message);
+    alert(t('ucSaveError'));
+  } finally {
+    if (saveBtn) saveBtn.disabled = false;
+  }
+}
+
+async function deleteUtilityCompany(id) {
+  if (!confirm(t('ucDeleteConfirm'))) return;
+  try {
+    const { error } = await sb.from(UTILITY_COMPANIES_TABLE).delete().eq('id', id);
+    if (error) throw error;
+    await loadUtilityCompaniesAdmin();
+  } catch (err) {
+    console.error('Failed to delete utility company:', err.message);
+    alert(t('ucSaveError'));
+  }
+}
+
+async function addMunicipalityFromMapCenter() {
+  const btn = document.getElementById('ucAddMuniBtn');
+  const original = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = t('ucAddMuniLoading'); }
+  try {
+    const center = map.getCenter();
+    const muni = await resolveMunicipality(center.lat, center.lng);
+    if (!muni) {
+      alert(t('ucAddMuniFail'));
+      return;
+    }
+    populateUcMunicipalitySelect();
+    const sel = document.getElementById('ucMunicipalitySelect');
+    if (sel) sel.value = muni.id;
+  } catch (err) {
+    console.error('Failed to add municipality from map center:', err.message);
+    alert(t('ucAddMuniFail'));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = original || t('ucAddMuniBtn'); }
   }
 }
 
@@ -4609,6 +5365,9 @@ function buildPopupHtml(report) {
       ${buildTimelineItem(report.fixed_at, !!report.fixed_at, STATUS_COLORS.fixed)}
     </div>
     ${report.comment ? `<div class="popup-note">${escapeHtml(report.comment)}</div>` : ''}
+    ${isSectionReport(report) ? '' : `<div class="status-action-row" style="border-top:none;padding-top:0;">
+      <button class="status-action-btn" style="background:#2a2a2a;" onclick="showReportDetailModal('${report.id}')">📍 ${t('detailsBtn')}</button>
+    </div>`}
     ${actionsHtml}
     ${noteActionHtml}
   </div>`;
@@ -4624,6 +5383,103 @@ function buildVoteProgressHtml(report) {
     .filter(status => status !== report.status && progress[status] > 0 && progress[status] < 3)
     .map(status => `<div class="vote-progress-badge">⏳ ${t('voteProgress').replace('{status}', statusLabel(status)).replace('{p}', progress[status])}</div>`);
   return rows.length ? `<div class="vote-progress-row">${rows.join('')}</div>` : '';
+}
+
+// =============================================================================
+// REPORT DETAIL MODAL — fullscreen view opened from a popup's "Detalji" row.
+// Shows exact coordinates, the municipality the pin falls in (resolved via
+// the Overpass module above, drawing its boundary on the map as a side
+// effect), and any utility company contacts responsible for that report's
+// category in that municipality.
+// =============================================================================
+async function showReportDetailModal(reportId) {
+  const report = globalActiveData.find(r => r.id === reportId);
+  if (!report || !isValidLatLng(report.latitude, report.longitude)) return;
+
+  const modal = document.getElementById('reportDetailModal');
+  const body = document.getElementById('reportDetailBody');
+  const titleEl = document.getElementById('reportDetailTitle');
+  const headerTitle = report.subcategory
+    ? `${translateCategory(report.category)} / ${subcategoryLabel(report.category, report.subcategory)}`
+    : translateCategory(report.category);
+  titleEl.textContent = headerTitle;
+
+  const mapsUrl = `https://www.google.com/maps?q=${report.latitude},${report.longitude}`;
+  const reporterName = report.owner_username || (lang === 'sr' ? 'Nepoznato' : 'Unknown');
+
+  body.innerHTML = `
+    <div class="detail-section">
+      <div class="detail-section-title">${t('detailLocationTitle')}</div>
+      <div class="detail-row"><span class="detail-row-label">${t('detailCoordsLabel')}</span><span class="detail-row-value">${report.latitude.toFixed(6)}, ${report.longitude.toFixed(6)}</span></div>
+      <div class="detail-row"><span class="detail-row-label">${t('detailMapLabel')}</span><span class="detail-row-value"><a href="${mapsUrl}" target="_blank" rel="noopener">${t('detailOpenMaps')}</a></span></div>
+      <div class="detail-row"><span class="detail-row-label">${t('detailMunicipalityLabel')}</span><span class="detail-row-value" id="detailMunicipalityValue">${t('detailLoading')}</span></div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-title">${t('popupStatus')}</div>
+      <div class="detail-row"><span class="detail-row-label">${t('popupStatus')}</span><span class="status-pill" style="background:${statusColor(report.status)};">${statusLabel(report.status)}</span></div>
+      <div class="detail-row"><span class="detail-row-label">${t('reportedByLabel')}</span><span class="detail-row-value">${escapeHtml(reporterName)}</span></div>
+      <div class="popup-timeline" style="margin-top:8px;">
+        ${buildTimelineItem(report.created_at, true, STATUS_COLORS.reported)}
+        ${buildTimelineItem(report.in_progress_at, !!report.in_progress_at, STATUS_COLORS.in_progress)}
+        ${buildTimelineItem(report.fixed_at, !!report.fixed_at, STATUS_COLORS.fixed)}
+      </div>
+      ${report.comment ? `<div class="popup-note" style="margin-top:10px;">${escapeHtml(report.comment)}</div>` : ''}
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-title">${t('detailContactsTitle')}</div>
+      <div id="detailContactsContainer"><div class="detail-loading">${t('detailLoading')}</div></div>
+    </div>
+  `;
+
+  modal.style.display = 'flex';
+
+  // Resolving also draws this report's municipality boundary on the map as
+  // a side effect (see showMunicipalityBoundaryForPoint) — a nice bonus so
+  // closing the modal leaves you looking at the right opština outline.
+  const muni = await showMunicipalityBoundaryForPoint(report.latitude, report.longitude);
+  const muniEl = document.getElementById('detailMunicipalityValue');
+  if (muniEl) {
+    muniEl.textContent = muni ? (lang === 'sr' ? muni.name : (muni.name_en || muni.name)) : t('detailUnknown');
+  }
+  if (muni && report.municipality_id == null) {
+    sb.from(TABLE).update({ municipality_id: muni.id }).eq('id', report.id)
+      .then(({ error }) => { if (!error) report.municipality_id = muni.id; });
+  }
+
+  const contactsEl = document.getElementById('detailContactsContainer');
+  if (!muni) {
+    if (contactsEl) contactsEl.innerHTML = `<div class="detail-empty">${t('detailNoMunicipality')}</div>`;
+    return;
+  }
+  try {
+    const { data, error } = await sb.from(UTILITY_COMPANIES_TABLE)
+      .select('*')
+      .eq('municipality_id', muni.id)
+      .contains('categories', [report.category]);
+    if (error) throw error;
+    if (contactsEl) contactsEl.innerHTML = renderContactCards(data || []);
+  } catch (err) {
+    console.error('Failed to load utility contacts:', err.message);
+    if (contactsEl) contactsEl.innerHTML = `<div class="detail-empty">${t('detailContactsError')}</div>`;
+  }
+}
+
+function renderContactCards(companies) {
+  if (!companies.length) return `<div class="detail-empty">${t('detailNoContacts')}</div>`;
+  return companies.map(c => `
+    <div class="contact-card">
+      <div class="contact-card-name">${escapeHtml(c.name)}</div>
+      ${c.phone ? `<div class="contact-card-row">☎ <a href="tel:${escapeHtml(c.phone)}">${escapeHtml(c.phone)}</a></div>` : ''}
+      ${c.email ? `<div class="contact-card-row">✉ <a href="mailto:${escapeHtml(c.email)}">${escapeHtml(c.email)}</a></div>` : ''}
+      ${c.website ? `<div class="contact-card-row">🔗 <a href="${escapeHtml(c.website)}" target="_blank" rel="noopener">${escapeHtml(c.website)}</a></div>` : ''}
+      ${c.address ? `<div class="contact-card-row">📍 ${escapeHtml(c.address)}</div>` : ''}
+      ${c.notes ? `<div class="contact-card-row" style="color:#999;">${escapeHtml(c.notes)}</div>` : ''}
+    </div>
+  `).join('');
+}
+
+function hideReportDetailModal() {
+  document.getElementById('reportDetailModal').style.display = 'none';
 }
 
 function buildEditPopupHtml(report) {
