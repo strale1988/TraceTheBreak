@@ -1688,6 +1688,38 @@ body.driving-active #appPanel{
 .uc-item-actions button{
   padding:5px 9px; font-size:11px; border-radius:6px;
 }
+/* Collapsible Country -> Municipality grouping for the admin contacts list.
+   Two nested <details> levels; native disclosure triangle is suppressed in
+   favor of a rotating chevron span so both levels look consistent. */
+.uc-group-list{ display:flex; flex-direction:column; gap:8px; }
+.uc-country-group{
+  border:1px solid var(--border-color); border-radius:10px; overflow:hidden;
+  background:var(--bg-surface);
+}
+.uc-country-group > summary{
+  list-style:none; cursor:pointer; padding:10px 12px;
+  display:flex; align-items:center; gap:8px;
+  font-weight:700; font-size:13px; background:var(--bg-surface-alt);
+}
+.uc-country-group > summary::-webkit-details-marker{ display:none; }
+.uc-muni-group{
+  border-top:1px solid var(--border-color);
+}
+.uc-muni-group:first-of-type{ border-top:none; }
+.uc-muni-group > summary{
+  list-style:none; cursor:pointer; padding:9px 12px 9px 22px;
+  display:flex; align-items:center; gap:8px;
+  font-weight:600; font-size:12px; color:var(--text-secondary);
+}
+.uc-muni-group > summary::-webkit-details-marker{ display:none; }
+.uc-group-chevron{
+  display:inline-block; transition:transform .15s ease; font-size:10px; color:var(--text-muted);
+}
+details[open] > summary .uc-group-chevron{ transform:rotate(90deg); }
+.uc-muni-items{
+  display:flex; flex-direction:column; gap:8px; padding:0 10px 10px;
+}
+.uc-country-count{ font-weight:400; font-size:11px; color:var(--text-muted); margin-left:auto; }
 .uc-form{
   display:flex; flex-direction:column; gap:8px;
   background:var(--bg-surface-alt); border:1px solid var(--border-color); border-radius:10px; padding:12px;
@@ -5509,6 +5541,25 @@ function populateUcCatChecks() {
   ).join('');
 }
 
+// Full country name for a municipality's stored ISO country_code, in the
+// current UI language. Intl.DisplayNames (built into every modern browser)
+// covers this without us having to ship/maintain our own code->name table;
+// falls back to the raw code if the runtime doesn't support it or the code
+// is missing/unrecognized.
+let _countryNameDisplay = null;
+function countryDisplayName(code) {
+  if (!code) return t('detailUnknown');
+  try {
+    if (!_countryNameDisplay || _countryNameDisplay._lang !== lang) {
+      _countryNameDisplay = new Intl.DisplayNames([lang === 'sr' ? 'sr' : 'en'], { type: 'region' });
+      _countryNameDisplay._lang = lang;
+    }
+    return _countryNameDisplay.of(code) || code;
+  } catch (e) {
+    return code;
+  }
+}
+
 function renderUcList() {
   const listEl = document.getElementById('ucList');
   if (!listEl) return;
@@ -5516,25 +5567,66 @@ function renderUcList() {
     listEl.innerHTML = '<div class="detail-empty">' + t('ucNoContacts') + '</div>';
     return;
   }
-  listEl.innerHTML = ucCompaniesCache.map(c => {
-    const muni = municipalityCache.find(m => String(m.id) === String(c.municipality_id));
-    const catsHtml = (c.categories || []).map(cat =>
-      '<span class="uc-cat-chip" style="background:' + categoryColor(cat) + ';">' + translateCategory(cat) + '</span>'
-    ).join('');
-    return '<div class="uc-item">' +
-      '<div class="uc-item-top">' +
-        '<div>' +
-          '<div class="uc-item-name">' + escapeHtml(c.name) + '</div>' +
-          '<div class="uc-item-muni">' + (muni ? escapeHtml(municipalityDisplayName(muni)) : t('detailUnknown')) + '</div>' +
-        '</div>' +
-        '<div class="uc-item-actions">' +
-          '<button type="button" style="background:#ececeb;color:#1a1a1a;" onclick="editUtilityCompany(\'' + c.id + '\')">' + t('editBtn') + '</button>' +
-          '<button type="button" style="background:#7a1f1f;color:#fff;" onclick="deleteUtilityCompany(\'' + c.id + '\')">' + t('deleteBtn') + '</button>' +
-        '</div>' +
-      '</div>' +
-      '<div class="uc-item-cats">' + catsHtml + '</div>' +
-    '</div>';
-  }).join('');
+
+  // Group: country_code -> municipality_id -> [companies]. Companies whose
+  // municipality isn't in the cache (or has no municipality_id at all) fall
+  // under an "Unknown" country/municipality bucket rather than disappearing.
+  const countryGroups = new Map();
+  ucCompaniesCache.forEach(c => {
+    const muni = municipalityCache.find(m => String(m.id) === String(c.municipality_id)) || null;
+    const countryCode = (muni && muni.country_code) || '';
+    if (!countryGroups.has(countryCode)) countryGroups.set(countryCode, new Map());
+    const muniGroups = countryGroups.get(countryCode);
+    const muniKey = muni ? String(muni.id) : '';
+    if (!muniGroups.has(muniKey)) muniGroups.set(muniKey, { muni, companies: [] });
+    muniGroups.get(muniKey).companies.push(c);
+  });
+
+  const sortedCountryCodes = Array.from(countryGroups.keys()).sort((a, b) =>
+    countryDisplayName(a).localeCompare(countryDisplayName(b)));
+
+  listEl.innerHTML = '<div class="uc-group-list">' + sortedCountryCodes.map(countryCode => {
+    const muniGroups = countryGroups.get(countryCode);
+    const countryTotal = Array.from(muniGroups.values()).reduce((n, g) => n + g.companies.length, 0);
+    const sortedMuniKeys = Array.from(muniGroups.keys()).sort((a, b) =>
+      municipalityDisplayName(muniGroups.get(a).muni).localeCompare(municipalityDisplayName(muniGroups.get(b).muni)));
+
+    const muniHtml = sortedMuniKeys.map(muniKey => {
+      const { muni, companies } = muniGroups.get(muniKey);
+      const muniLabel = muni
+        ? escapeHtml(municipalityDisplayName(muni)) + (muni.country_code ? ' (' + escapeHtml(muni.country_code) + ')' : '')
+        : t('detailUnknown');
+      const itemsHtml = companies.map(c => {
+        const catsHtml = (c.categories || []).map(cat =>
+          '<span class="uc-cat-chip" style="background:' + categoryColor(cat) + ';">' + translateCategory(cat) + '</span>'
+        ).join('');
+        return '<div class="uc-item">' +
+          '<div class="uc-item-top">' +
+            '<div>' +
+              '<div class="uc-item-name">' + escapeHtml(c.name) + '</div>' +
+            '</div>' +
+            '<div class="uc-item-actions">' +
+              '<button type="button" style="background:#ececeb;color:#1a1a1a;" onclick="editUtilityCompany(\'' + c.id + '\')">' + t('editBtn') + '</button>' +
+              '<button type="button" style="background:#7a1f1f;color:#fff;" onclick="deleteUtilityCompany(\'' + c.id + '\')">' + t('deleteBtn') + '</button>' +
+            '</div>' +
+          '</div>' +
+          '<div class="uc-item-cats">' + catsHtml + '</div>' +
+        '</div>';
+      }).join('');
+      return '<details class="uc-muni-group">' +
+        '<summary><span class="uc-group-chevron">▶</span> ' + muniLabel +
+          ' <span class="uc-country-count">(' + companies.length + ')</span></summary>' +
+        '<div class="uc-muni-items">' + itemsHtml + '</div>' +
+      '</details>';
+    }).join('');
+
+    return '<details class="uc-country-group">' +
+      '<summary><span class="uc-group-chevron">▶</span> ' + escapeHtml(countryDisplayName(countryCode)) +
+        (countryCode ? ' (' + escapeHtml(countryCode) + ')' : '') +
+        ' <span class="uc-country-count">(' + countryTotal + ')</span></summary>' +
+      muniHtml +
+    '</details>';
+  }).join('') + '</div>';
 }
 
 function toggleUcForm() {
@@ -5786,6 +5878,32 @@ function buildVoteProgressHtml(report) {
 }
 
 // =============================================================================
+// STREET / AREA LOOKUP — lightweight reverse-geocode for the report-detail
+// modal's Location section. Deliberately separate from, and much cheaper
+// than, the municipality resolution above (no polygon_geojson, no caching,
+// no DB write) — this is purely descriptive text, thrown away once shown.
+// =============================================================================
+async function fetchAddressForPoint(lat, lon) {
+  if (!isValidLatLng(lat, lon)) return null;
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`;
+    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (!json || json.error) return null;
+    const addr = json.address || {};
+    const street = addr.road
+      ? (addr.house_number ? `${addr.road} ${addr.house_number}` : addr.road)
+      : null;
+    const area = addr.suburb || addr.neighbourhood || addr.quarter || addr.city_district || addr.village || null;
+    return { street, area };
+  } catch (err) {
+    console.error('fetchAddressForPoint error:', err.message);
+    return null;
+  }
+}
+
+// =============================================================================
 // REPORT DETAIL MODAL — fullscreen view opened from a popup's "Detalji" row.
 // Shows exact coordinates, street/area, the municipality the pin falls in
 // (resolved via the municipality cache above, drawing its boundary on the
@@ -5814,8 +5932,6 @@ async function showReportDetailModal(reportId) {
   }
 
   const reporterName = report.owner_username || (lang === 'sr' ? 'Nepoznato' : 'Unknown');
-  const mapsUrl = `https://www.google.com/maps?q=${report.latitude},${report.longitude}`;
-
   body.innerHTML = `
     <div class="detail-section">
       <div class="detail-section-title">${t('detailLocationTitle')}</div>
@@ -5823,7 +5939,6 @@ async function showReportDetailModal(reportId) {
       <div class="detail-row"><span class="detail-row-label">${t('detailAreaLabel')}</span><span class="detail-row-value" id="detailAreaValue">${t('detailLoading')}</span></div>
       <div class="detail-row"><span class="detail-row-label">${t('detailMunicipalityLabel')}</span><span class="detail-row-value" id="detailMunicipalityValue">${t('detailLoading')}</span></div>
       <div class="detail-row"><span class="detail-row-label">${t('detailCoordsLabel')}</span><span class="detail-row-value">${report.latitude.toFixed(6)}, ${report.longitude.toFixed(6)}</span></div>
-      <div class="detail-row"><span class="detail-row-label">${t('detailMapLabel')}</span><span class="detail-row-value"><a href="${mapsUrl}" target="_blank" rel="noopener">${t('detailOpenMaps')}</a></span></div>
     </div>
     <div class="detail-section">
       <div class="detail-section-title">${t('popupStatus')}</div>
