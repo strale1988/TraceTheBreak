@@ -2343,7 +2343,12 @@ async function signInWithProvider(provider) {
   try {
     const { error } = await sb.auth.signInWithOAuth({
       provider,
-      options: { redirectTo: window.location.href }
+      // Deliberately origin+pathname, NOT window.location.href: Supabase
+      // appends its own "#access_token=..." onto whatever redirectTo we
+      // pass, so if the address bar still had a leftover hash from a
+      // previous sign-in, we'd end up with a broken "##access_token=...
+      // #access_token=..." URL. A clean base every time avoids that.
+      options: { redirectTo: window.location.origin + window.location.pathname }
     });
     if (error) throw error;
     // Successful call redirects the whole page away to the provider; there's
@@ -2523,16 +2528,31 @@ async function initAuth() {
     currentProfile = null;
   }
   updateAuthUI();
+  stripAuthHashFromUrl();
 
   sb.auth.onAuthStateChange(async (event, session) => {
     currentSession = session;
     if (session) {
       await loadProfile();
+      stripAuthHashFromUrl();
     } else {
       currentProfile = null;
       updateAuthUI();
     }
   });
+}
+
+// After an OAuth redirect, the access/refresh tokens sit in the URL hash
+// (#access_token=...). Supabase-js has already read them by this point, so
+// leaving them in the address bar only invites two problems: they're
+// visible/copyable (see: the support conversation that led here), and any
+// *later* signInWithProvider() call that captures the current URL as its
+// redirectTo would carry this stale hash forward, producing a broken
+// "##access_token=...#access_token=..." URL on the next sign-in. Strip it.
+function stripAuthHashFromUrl() {
+  if (!window.location.hash) return;
+  if (!/access_token=|refresh_token=/.test(window.location.hash)) return;
+  history.replaceState(null, '', window.location.pathname + window.location.search);
 }
 
 // =============================================================================
