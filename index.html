@@ -14,7 +14,27 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
+  <!-- Dark flatpickr theme is toggled on/off (via .disabled) to match the
+       app's own Light/Dark/Auto setting instead of always forcing dark —
+       see applyTheme() near the bottom of the script. -->
+  <link rel="stylesheet" id="flatpickrDarkTheme" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
+  <!-- Applies the saved theme (or the OS preference, in Auto mode) to
+       <html> before the stylesheet below paints anything, so there's no
+       flash of the wrong theme on load. The full theme system (Settings UI,
+       system-change listener, flatpickr toggle) is initialized later, near
+       the bottom of the main script — this is just the early, synchronous
+       part that has to run before first paint. -->
+  <script>
+    (function(){
+      try {
+        var mode = localStorage.getItem('ttb_theme_mode') || 'auto';
+        var resolved = mode === 'auto'
+          ? (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+          : mode;
+        document.documentElement.dataset.theme = resolved;
+      } catch (e) {}
+    })();
+  </script>
   <style>
 
 *{ margin:0; padding:0; box-sizing:border-box; }
@@ -64,10 +84,77 @@
                                      portal.)
    ============================================================ */
 
+/* ============================================================
+   THEME — Light / Dark / Auto (see Settings). Surface colors are
+   CSS variables here; [data-theme="dark"] on <html> overrides
+   them. Semantic/status colors (report status dots, category
+   colors, the route line, etc.) are intentionally left as fixed
+   hex values throughout the file below — they're not part of the
+   light/dark surface, they mean the same thing in both themes.
+   JS side: see applyTheme()/initTheme() near the bottom of the
+   script for how the attribute gets set and kept in sync with
+   the OS in "Auto" mode.
+   ------------------------------------------------------------ */
+:root{
+  --bg-app:#f4f4f2;
+  --bg-surface:#ffffff;
+  --bg-surface-alt:#ececeb;
+  --border-color:#e2e2e0;
+  --border-color-strong:#ddd;
+  --text-primary:#1a1a1a;
+  --text-secondary:#555;
+  --text-muted:#999;
+  --accent:#a67817;
+  --accent-contrast:#ffffff;
+  /* Icons ship as light/white glyphs — this filter tints them to
+     read correctly against the current theme's surfaces. */
+  --icon-tint-filter: brightness(0) invert(32%);
+  /* Floating widgets over the map: legend pills, the compass, and
+     (now theme-aware rather than hardcoded-dark) the driving HUD. */
+  --floating-bg: rgba(255,255,255,.92);
+  --floating-border: #e2e2e0;
+  --floating-shadow: rgba(0,0,0,.18);
+  --map-tile-filter: none;
+  --native-color-scheme: light;
+  --nav-accent: #0090ab;
+  /* Amber "awaiting category" alert (section-recording flow) — same accent
+     hue as the rest of the brand, just tinted per theme like the other
+     surfaces above instead of the fixed dark card it used to be. */
+  --warn-bg: #fdf1da;
+  --warn-border: #a67817;
+  --warn-text: #8a6212;
+}
+html[data-theme="dark"]{
+  --bg-app:#121212;
+  --bg-surface:#1c1c1c;
+  --bg-surface-alt:#2a2a2a;
+  --border-color:#333331;
+  --border-color-strong:#3a3a3a;
+  --text-primary:#f0f0ee;
+  --text-secondary:#b7b7b2;
+  --text-muted:#8a8a86;
+  --accent:#c99a3a;
+  --accent-contrast:#1a1a1a;
+  --icon-tint-filter: brightness(0) invert(88%);
+  --floating-bg: rgba(28,28,28,.92);
+  --floating-border: rgba(255,255,255,.12);
+  --floating-shadow: rgba(0,0,0,.55);
+  /* Cheap but effective "dark map" trick: invert the OSM tiles' lightness
+     then flip the hue back so colors (roads, water, green space) land
+     close to their original hue instead of looking like a photo negative. */
+  --map-tile-filter: invert(1) hue-rotate(180deg) brightness(.92) contrast(.92);
+  --native-color-scheme: dark;
+  --nav-accent: #00d0ff;
+  --warn-bg: #2a2308;
+  --warn-border: #a67817;
+  --warn-text: #f5c518;
+}
+.leaflet-tile-pane{ filter:var(--map-tile-filter); }
+
 body{
   font-family:-apple-system,BlinkMacSystemFont,sans-serif;
-  background:#f4f4f2;
-  color:#1a1a1a;
+  background:var(--bg-app);
+  color:var(--text-primary);
   height: 100svh;
   display:flex;
   flex-direction:column;
@@ -75,8 +162,8 @@ body{
 
 header{
   padding:10px 12px;
-  background:#ffffff;
-  border-bottom:1px solid #e2e2e0;
+  background:var(--bg-surface);
+  border-bottom:1px solid var(--border-color);
   position:relative;
   z-index:100; /* see Z-INDEX SCALE above — just needs to clear #map (1) */
 }
@@ -126,8 +213,8 @@ header p{ font-size:11px; opacity:.7; margin-top:2px; }
 }
 
 .lang-btn, .help-icon-btn{
-  background:#ececeb;
-  color:#555;
+  background:var(--bg-surface-alt);
+  color:var(--text-secondary);
   border:none;
   border-radius:6px;
   padding:5px 8px;
@@ -138,10 +225,10 @@ header p{ font-size:11px; opacity:.7; margin-top:2px; }
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
 }
-.lang-btn.active{ background:#a67817; color:white; }
+.lang-btn.active{ background:var(--accent); color:var(--accent-contrast); }
 .help-icon-btn{
-  background:#ececeb;
-  border:1px solid #ddd;
+  background:var(--bg-surface-alt);
+  border:1px solid var(--border-color-strong);
   font-size:14px;
   width:32px;
   height:32px;
@@ -150,7 +237,7 @@ header p{ font-size:11px; opacity:.7; margin-top:2px; }
   align-items:center;
   justify-content:center;
 }
-.help-icon-btn:active{ background:#ddd; }
+.help-icon-btn:active{ background:var(--border-color-strong); }
 
 #map {
   flex: 1;
@@ -184,29 +271,29 @@ header p{ font-size:11px; opacity:.7; margin-top:2px; }
   justify-content: space-between;
   align-items: center;
   padding: 10px 14px 4px 14px;
-  background: #ffffff;
+  background: var(--bg-surface);
   font-size: 11px;
   font-weight: bold;
 }
 
 .filter-title {
-  color: #888;
+  color: var(--text-muted);
   letter-spacing: .3px;
   text-transform: uppercase;
   font-size: 10px;
 }
 
 #reportCount {
-  color: #aaa;
+  color: var(--text-muted);
   font-size: 12px;
   text-align: right;
   width: 90px;
 }
 
 .filter-select-row {
-  background: #ffffff;
+  background: var(--bg-surface);
   padding: 0 12px 14px 12px;
-  border-bottom: 1px solid #e2e2e0;
+  border-bottom: 1px solid var(--border-color);
   display: flex;
   gap: 8px;
   align-items: center;
@@ -220,7 +307,7 @@ header p{ font-size:11px; opacity:.7; margin-top:2px; }
 }
 
 .panel{
-  background:#ffffff;
+  background:var(--bg-surface);
   padding:12px 12px;
   padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
   display:flex;
@@ -236,8 +323,8 @@ select{
   padding:11px 10px;
   border:none;
   border-radius:8px;
-  background:#f0f0ee;
-  color:#1a1a1a;
+  background:var(--bg-surface-alt);
+  color:var(--text-primary);
   font-size:13px;
   -webkit-appearance:none;
   appearance:none;
@@ -246,19 +333,19 @@ select{
   background-position:right 10px center;
   padding-right:28px;
   /* Without this, some mobile browsers render the native options popup
-     using the OS's light color scheme while still inheriting our white
-     text color from this rule — white-on-white, so options are present
-     and functional but invisible. This tells the browser the control (and
-     its dropdown list) is dark, so it picks a readable native background. */
-  color-scheme:light;
+     using the OS's light color scheme while still inheriting our theme
+     text color from this rule — mismatched, so options can end up
+     present but hard to read. This tells the browser which native
+     scheme this control (and its dropdown list) actually matches. */
+  color-scheme:var(--native-color-scheme);
 }
 /* Belt-and-suspenders for browsers that do style <option> directly: force
-   the same dark background/light text so every entry — including ones
+   the same theme background/text so every entry — including ones
    added after the list originally shipped — stays visible regardless of
    OS theme. */
 select option{
-  background:#ffffff;
-  color:#1a1a1a;
+  background:var(--bg-surface);
+  color:var(--text-primary);
 }
 
 input[type="text"], input[type="password"]{
@@ -266,8 +353,8 @@ input[type="text"], input[type="password"]{
   padding:11px 10px;
   border:none;
   border-radius:8px;
-  background:#f0f0ee;
-  color:#1a1a1a;
+  background:var(--bg-surface-alt);
+  color:var(--text-primary);
   font-size:13px;
 }
 
@@ -284,7 +371,7 @@ button{
 
 .report-btn{ background:#ff4b4b; color:white; width:100%; transition:opacity .2s; }
 .report-btn:disabled{ opacity:.35; cursor:not-allowed; }
-.export-btn{ background:#a67817; color:white; width:100%; }
+.export-btn{ background:var(--accent); color:var(--accent-contrast); width:100%; }
 
 .legend{
   display:flex;
@@ -296,6 +383,25 @@ button{
 }
 .legend-item{ display:flex; align-items:center; gap:3px; }
 .legend-dot{ width:9px; height:9px; border-radius:50%; display:inline-block; flex-shrink:0; }
+.leg{ color:var(--text-primary); font-size:10px; }
+
+/* Shared floating pill look for both status/category legends — background,
+   border, and shadow all pull from the theme's floating-widget tokens so
+   they read correctly in light or dark. */
+.map-legend-pill{
+  background:var(--floating-bg);
+  backdrop-filter:blur(4px);
+  -webkit-backdrop-filter:blur(4px);
+  border-radius:10px;
+  padding:5px 10px;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  pointer-events:none;
+  border:1px solid var(--floating-border);
+  box-shadow:0 2px 10px var(--floating-shadow);
+  margin-bottom:4px;
+}
 
 .leaflet-popup-content-wrapper{
   border-radius:10px !important;
@@ -405,26 +511,54 @@ button{
 }
 
 .pin-map-btn{
-  background:rgba(255,255,255,.92);
-  border:1px solid #ddd;
+  background:var(--floating-bg);
+  border:1px solid var(--floating-border);
   border-radius:8px;
   width:44px; height:44px;
   display:flex; align-items:center; justify-content:center;
   cursor:pointer; font-size:22px;
-  box-shadow:0 2px 8px rgba(0,0,0,.25);
+  box-shadow:0 2px 8px var(--floating-shadow);
   transition:background .15s;
   user-select:none;
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
 }
-.pin-map-btn .icon-img{ filter:brightness(0) invert(32%); }
-.pin-map-btn:active{ background:#eee; }
+.pin-map-btn .icon-img{ filter:var(--icon-tint-filter); }
+.pin-map-btn:active{ background:var(--bg-surface-alt); }
 .pin-map-btn.active{ background:#f5a623; border-color:#f5a623; }
 .pin-map-btn.recording-active{ background:#ff4b4b; border-color:#ff4b4b; animation:pulseRec 1.2s infinite; }
 /* On the colored accent backgrounds above, the icon's native white reads
-   better than the dark-gray tint meant for the light default state. */
+   better than the theme tint meant for the default state. */
 .pin-map-btn.active .icon-img,
 .pin-map-btn.recording-active .icon-img{ filter:none; }
+
+/* --- Theme picker (Settings > Theme): Light/Dark/Auto segmented control --- */
+.theme-segment{
+  display:flex;
+  background:var(--bg-surface-alt);
+  border-radius:8px;
+  padding:3px;
+  gap:3px;
+}
+.theme-segment-btn{
+  flex:1;
+  border:none;
+  background:transparent;
+  color:var(--text-secondary);
+  font-size:12.5px;
+  font-weight:700;
+  padding:8px 6px;
+  border-radius:6px;
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+  transition:background .15s,color .15s;
+}
+.theme-segment-btn.active{
+  background:var(--bg-surface);
+  color:var(--text-primary);
+  box-shadow:0 1px 4px var(--floating-shadow);
+}
 
 /* Custom PNG icons (https://strale1988.github.io/TraceTheStuff/) replacing
    the previous emoji glyphs. Sized to match the emoji footprint they
@@ -436,26 +570,25 @@ button{
 .icon-img.icon-img-modal{ width:28px; height:28px; }
 
 /* Icons ship as light/white glyphs (a leftover of the old dark floating
-   map buttons). Now that the whole app is light-themed, they need this
-   tint everywhere they sit on a light/white surface — header buttons,
-   modals, settings, and the floating map buttons (.pin-map-btn, tinted
-   separately just below since its colored active/recording states want
-   to keep the native white icon instead) — so they read as a uniform
-   dark gray rather than washing out. */
+   map buttons). Everywhere they sit on one of the app's surfaces — header
+   buttons, modals, settings, and the floating map buttons (.pin-map-btn,
+   tinted separately above since its colored active/recording states want
+   to keep the native white icon instead) — this tints them to read
+   correctly against whichever theme (light or dark) is active. */
 .icon-tint-dark,
 .help-icon-btn .icon-img,
 .generic-modal .icon-img,
-.fullscreen-modal-body .icon-img{ filter:brightness(0) invert(32%); }
+.fullscreen-modal-body .icon-img{ filter:var(--icon-tint-filter); }
 
-/* Shared light-theme button used across Settings/admin controls: light
-   gray background, dark gray text/icon — keeps every secondary button in
-   these panels visually consistent instead of one-off inline styles. */
+/* Shared theme-aware button used across Settings/admin controls — keeps
+   every secondary button in these panels visually consistent instead of
+   one-off inline styles. */
 .settings-btn{
-  background:#ececeb; color:#3a3a3a; border:1px solid #ddd; border-radius:8px;
+  background:var(--bg-surface-alt); color:var(--text-primary); border:1px solid var(--border-color-strong); border-radius:8px;
   display:flex; align-items:center; justify-content:center; gap:6px;
   padding:11px 12px; font-size:13px; font-weight:600;
 }
-.settings-btn:active{ background:#ddd; }
+.settings-btn:active{ background:var(--border-color-strong); }
 
 /* --- Destination search panel (simple point-to-point navigation) ---
    Was a Leaflet topleft control, which put it in exactly the same corner
@@ -473,10 +606,10 @@ button{
   z-index:2600;
   flex-direction:column;
   width:auto;
-  background:rgba(20,20,20,.96);
-  border:1px solid #3a3a3a;
+  background:var(--bg-surface);
+  border:1px solid var(--border-color-strong);
   border-radius:12px;
-  box-shadow:0 3px 12px rgba(0,0,0,.6);
+  box-shadow:0 3px 12px var(--floating-shadow);
   padding:10px;
   gap:8px;
 }
@@ -497,8 +630,8 @@ body.nav-panel-open .driving-nav-card{
   padding:8px 9px;
   border:none;
   border-radius:6px;
-  background:#262626;
-  color:white;
+  background:var(--bg-surface-alt);
+  color:var(--text-primary);
   font-size:12px;
   min-width:0;
 }
@@ -506,8 +639,8 @@ body.nav-panel-open .driving-nav-card{
   flex-shrink:0;
   width:30px; height:30px;
   border-radius:6px;
-  background:#303030;
-  color:#ddd;
+  background:var(--bg-surface-alt);
+  color:var(--text-secondary);
   font-size:13px;
   display:flex; align-items:center; justify-content:center;
   cursor:pointer;
@@ -531,17 +664,17 @@ body.nav-panel-open .driving-nav-card{
 .navigate-result-item{
   padding:7px 8px;
   border-radius:6px;
-  background:#232323;
+  background:var(--bg-surface-alt);
   font-size:11.5px;
   line-height:1.35;
-  color:#ccc;
+  color:var(--text-primary);
   cursor:pointer;
 }
-.navigate-result-item:active{ background:#2d2d2d; }
+.navigate-result-item:active{ background:var(--border-color-strong); }
 .navigate-result-empty{
   padding:6px 4px;
   font-size:11.5px;
-  color:#888;
+  color:var(--text-muted);
   text-align:center;
 }
 @keyframes pulseRec{
@@ -562,16 +695,22 @@ body.nav-panel-open .driving-nav-card{
   transform-origin:center center;
 }
 
-/* --- Compass widget (driving mode only) ---
-   Fixed to the viewport (not the collapsible app-panel) so it stays
-   reachable regardless of panel state, floating over the map like a
-   real navigation app's heading indicator. */
+/* --- Compass widget ---
+   Used both inside the driving HUD (#mapCompass) and as its own floating
+   button on the main map screen (#mainMapCompass) — same widget, same
+   markup, same behavior (tap to toggle heading-up map rotation), just two
+   separate elements (one per screen, only one ever visible at a time) so
+   each can live in its own layout without being reparented. Both needles
+   are kept in sync by applyMapBearing() rotating every .compass-needle it
+   finds. Fixed to the viewport (not the collapsible app-panel) so it stays
+   reachable regardless of panel state, floating over the map like a real
+   navigation app's heading indicator. */
 .map-compass{
   width:40px; height:40px;
   border-radius:50%;
-  background:rgba(20,20,20,.92);
-  border:1px solid #3a3a3a;
-  box-shadow:0 3px 12px rgba(0,0,0,.6);
+  background:var(--floating-bg);
+  border:1px solid var(--floating-border);
+  box-shadow:0 3px 12px var(--floating-shadow);
   display:none;
   align-items:center;
   justify-content:center;
@@ -581,7 +720,7 @@ body.nav-panel-open .driving-nav-card{
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
 }
-.map-compass.heading-up-disabled{ background:rgba(60,60,60,.7); }
+.map-compass.heading-up-disabled{ opacity:.55; }
 .map-compass .compass-face{
   position:relative;
   width:30px; height:30px;
@@ -769,11 +908,11 @@ body.driving-active .driving-speed-widget{ display:flex; }
      expensive to keep repainting every frame while it sat over a moving
      map and was the source of the lag, so this is just a flat
      semi-transparent fill now. */
-  background:rgba(20,20,20,.82);
-  border:1px solid #3a3a3a;
+  background:var(--floating-bg);
+  border:1px solid var(--floating-border);
   border-radius:10px;
   padding:8px 12px;
-  box-shadow:0 3px 12px rgba(0,0,0,.55);
+  box-shadow:0 3px 12px var(--floating-shadow);
   position:fixed;
   left:12px;
   right:12px; /* stretch full-width, mirroring the left margin on the right */
@@ -784,10 +923,10 @@ body.driving-active .driving-speed-widget{ display:flex; }
 body.driving-active .turn-by-turn-card{ display:flex; }
 .turn-by-turn-icon{ width:40px; height:40px; flex-shrink:0; object-fit:contain; }
 .turn-by-turn-info{ display:flex; flex-direction:column; gap:1px; min-width:0; }
-.turn-by-turn-dist{ font-size:16px; font-weight:800; color:#00d0ff; line-height:1.1; }
+.turn-by-turn-dist{ font-size:16px; font-weight:800; color:var(--nav-accent); line-height:1.1; }
 .turn-by-turn-text{
   font-size:12.5px;
-  color:#ddd;
+  color:var(--text-primary);
   line-height:1.2;
   overflow:hidden;
   text-overflow:ellipsis;
@@ -807,24 +946,24 @@ body.driving-active .turn-by-turn-card{ display:flex; }
 }
 .driving-action-row-right{ display:flex; gap:8px; }
 .driving-back-btn, .driving-search-btn{
-  background:#1e2b2c;
-  border:1px solid #00d0ff;
-  color:#9be8ee;
+  background:var(--bg-surface-alt);
+  border:1px solid var(--nav-accent);
+  color:var(--nav-accent);
   border-radius:50%;
   width:40px; height:40px;
   font-size:16px;
   display:flex; align-items:center; justify-content:center;
   cursor:pointer;
-  box-shadow:0 3px 10px rgba(0,0,0,.55);
+  box-shadow:0 3px 10px var(--floating-shadow);
   transition:background .15s;
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
 }
 .driving-back-btn img{ transform: rotate(-90deg); } /* arrow.png points up natively; rotate to point left */
-.driving-search-btn.active{ background:#00d0ff; border-color:#00d0ff; color:#111; }
-.driving-search-btn:active{ background:#254042; }
-.driving-back-btn{ background:#262626; border-color:#444; color:#ddd; }
-.driving-back-btn:active{ background:#3a3a3a; }
+.driving-search-btn.active{ background:var(--nav-accent); border-color:var(--nav-accent); color:var(--bg-surface); }
+.driving-search-btn:active{ background:var(--border-color-strong); }
+.driving-back-btn{ background:var(--bg-surface-alt); border-color:var(--border-color-strong); color:var(--text-primary); }
+.driving-back-btn:active{ background:var(--border-color-strong); }
 
 /* --- Destination header bar: a full-width strip pinned above every other
    floating widget (speed pill, compass) so it never overlaps them — those
@@ -841,10 +980,10 @@ body.driving-active .turn-by-turn-card{ display:flex; }
   flex-direction:row;
   align-items:center;
   gap:10px;
-  background:rgba(20,20,20,.96);
-  border-bottom:1px solid #2c2c2c;
+  background:var(--floating-bg);
+  border-bottom:1px solid var(--floating-border);
   padding:calc(10px + env(safe-area-inset-top, 0px)) 16px 10px 16px;
-  box-shadow:0 3px 12px rgba(0,0,0,.6);
+  box-shadow:0 3px 12px var(--floating-shadow);
 }
 /* The destination header takes the top strip, so the speed pill
    moves down out of its way while it's showing. The action cluster
@@ -862,12 +1001,12 @@ body.nav-card-open .driving-left-stack{
   position:fixed;
   left:0; right:0; bottom:0;
   z-index:2550;
-  background:rgba(16,16,16,.97);
+  background:var(--floating-bg);
   backdrop-filter:blur(8px);
   -webkit-backdrop-filter:blur(8px);
-  border-top:1px solid #333;
+  border-top:1px solid var(--floating-border);
   border-radius:20px 20px 0 0;
-  box-shadow:0 -6px 24px rgba(0,0,0,.5);
+  box-shadow:0 -6px 24px var(--floating-shadow);
   padding:12px 14px calc(14px + env(safe-area-inset-bottom, 0px)) 14px;
   display:none;
   flex-direction:column;
@@ -883,26 +1022,26 @@ body.driving-active .driving-report-sheet{ display:flex; }
   align-items:center;
   justify-content:space-between;
   gap:10px;
-  background:#2a2308;
-  border:1px solid #a67817;
+  background:var(--warn-bg);
+  border:1px solid var(--warn-border);
   border-radius:14px;
   padding:11px 14px;
 }
-#sectionAwaitingText{ font-size:12px; font-weight:700; color:#f5c518; line-height:1.3; }
+#sectionAwaitingText{ font-size:12px; font-weight:700; color:var(--warn-text); line-height:1.3; }
 .section-awaiting-cancel{
   flex-shrink:0;
   width:30px; height:30px;
   border-radius:50%;
-  background:#333;
-  border:1px solid #4a4a4a;
-  color:#ddd;
+  background:var(--bg-surface-alt);
+  border:1px solid var(--border-color-strong);
+  color:var(--text-primary);
   font-size:13px;
   display:flex; align-items:center; justify-content:center;
   cursor:pointer;
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
 }
-.section-awaiting-cancel:active{ background:#444; }
+.section-awaiting-cancel:active{ background:var(--border-color-strong); }
 /* One-row of quick-report tiles, always visible (no grid/expand step).
    flex:1 on each tile keeps exactly five equal-width buttons on one line
    even on narrow phones. */
@@ -964,7 +1103,7 @@ body.driving-active .driving-report-sheet{ display:flex; }
   display:block;
   font-size:14px;
   font-weight:800;
-  color:#f2f2f2;
+  color:var(--text-primary);
   white-space:nowrap;
   overflow:hidden;
   text-overflow:ellipsis;
@@ -985,7 +1124,7 @@ body.driving-active .driving-report-sheet{ display:flex; }
 .driving-nav-status-text{
   font-size:11px;
   font-weight:700;
-  color:#00d0ff;
+  color:var(--nav-accent);
 }
 .driving-nav-active-info{
   display:none;
@@ -995,7 +1134,7 @@ body.driving-active .driving-report-sheet{ display:flex; }
 .driving-nav-active-info #navigateDistanceText{
   font-size:12px;
   font-weight:700;
-  color:#9be8ee;
+  color:var(--nav-accent);
   white-space:nowrap;
   flex-shrink:0;
 }
@@ -1003,16 +1142,16 @@ body.driving-active .driving-report-sheet{ display:flex; }
   flex-shrink:0;
   width:34px; height:34px;
   border-radius:50%;
-  background:#262626;
-  border:1px solid #444;
-  color:#ddd;
+  background:var(--bg-surface-alt);
+  border:1px solid var(--border-color-strong);
+  color:var(--text-secondary);
   font-size:15px;
   display:flex; align-items:center; justify-content:center;
   cursor:pointer;
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
 }
-.driving-nav-close-btn:active{ background:#3a3a3a; }
+.driving-nav-close-btn:active{ background:var(--border-color-strong); }
 
 /* --- Driving mode: decluttered, full-screen map like a dedicated
    navigation app. Legends, header chrome, and the filter/report panel
@@ -1028,6 +1167,7 @@ body.driving-active #followLocationBtn,
 body.driving-active #panelToggleBtn,
 body.driving-active #pinMapBtn,
 body.driving-active #drivingModeBtn,
+body.driving-active #mainMapCompass,
 body.driving-active #settingsBtn{
   display:none !important;
 }
@@ -1358,7 +1498,7 @@ body.driving-active #appPanel{
   -webkit-overflow-scrolling:touch;
 }
 .generic-modal{
-  background:#ffffff; color:#1a1a1a;
+  background:var(--bg-surface); color:var(--text-primary);
   border-radius:18px;
   padding:24px 20px;
   max-width:340px; width:100%;
@@ -1368,10 +1508,10 @@ body.driving-active #appPanel{
   pointer-events:all;
 }
 .generic-modal h2{ font-size:18px; font-weight:700; margin-bottom:12px; }
-.generic-modal p{ font-size:13px; line-height:1.6; color:#555; margin-bottom:12px; text-align:left; }
+.generic-modal p{ font-size:13px; line-height:1.6; color:var(--text-secondary); margin-bottom:12px; text-align:left; }
 .generic-modal-close{
-  background:#ececeb; color:#1a1a1a;
-  border:1px solid #ddd; border-radius:10px;
+  background:var(--bg-surface-alt); color:var(--text-primary);
+  border:1px solid var(--border-color-strong); border-radius:10px;
   padding:12px 20px;
   font-size:14px; font-weight:600;
   cursor:pointer; width:100%;
@@ -1379,7 +1519,7 @@ body.driving-active #appPanel{
   touch-action:manipulation;
   min-height:44px;
 }
-.generic-modal-close:active{ background:#ddd; }
+.generic-modal-close:active{ background:var(--border-color-strong); }
 
 /* --- Fullscreen report detail modal ------------------------------------
    Opened from the "Detalji" row inside a pin popup. Unlike .generic-modal
@@ -1390,19 +1530,19 @@ body.driving-active #appPanel{
 .fullscreen-modal-overlay{
   position:fixed; inset:0;
   z-index:9999;
-  background:#f7f7f5;
+  background:var(--bg-app);
   display:flex; flex-direction:column;
 }
 .fullscreen-modal-header{
   display:flex; align-items:center; justify-content:space-between;
   gap:10px;
   padding:calc(14px + env(safe-area-inset-top, 0px)) 16px 14px 16px;
-  border-bottom:1px solid #e2e2e0;
+  border-bottom:1px solid var(--border-color);
   flex-shrink:0;
 }
 .fullscreen-modal-header h2{ font-size:16px; font-weight:700; margin:0; }
 .fullscreen-modal-close{
-  background:#f0f0ee; color:#1a1a1a; border:1px solid #ddd; border-radius:8px;
+  background:var(--bg-surface-alt); color:var(--text-primary); border:1px solid var(--border-color-strong); border-radius:8px;
   width:36px; height:36px; flex-shrink:0;
   display:flex; align-items:center; justify-content:center;
   font-size:18px; cursor:pointer;
@@ -1413,25 +1553,25 @@ body.driving-active #appPanel{
   display:flex; flex-direction:column; gap:16px;
 }
 .detail-section{
-  background:#ffffff; border:1px solid #eee; border-radius:12px; padding:14px;
+  background:var(--bg-surface); border:1px solid var(--border-color); border-radius:12px; padding:14px;
 }
 .detail-section-title{
   font-size:10px; font-weight:700; letter-spacing:.4px; text-transform:uppercase;
-  color:#888; margin-bottom:10px;
+  color:var(--text-muted); margin-bottom:10px;
 }
 .detail-row{ display:flex; justify-content:space-between; gap:10px; padding:5px 0; font-size:13px; }
-.detail-row-label{ color:#999; flex-shrink:0; }
-.detail-row-value{ color:#1a1a1a; text-align:right; }
+.detail-row-label{ color:var(--text-muted); flex-shrink:0; }
+.detail-row-value{ color:var(--text-primary); text-align:right; }
 .detail-row-value a{ color:#4ea1ff; text-decoration:none; }
 .contact-card{
-  background:#f5f5f3; border:1px solid #eee; border-radius:10px; padding:10px 12px; margin-bottom:8px;
+  background:var(--bg-surface-alt); border:1px solid var(--border-color); border-radius:10px; padding:10px 12px; margin-bottom:8px;
 }
 .contact-card:last-child{ margin-bottom:0; }
 .contact-card-name{ font-weight:700; font-size:13.5px; margin-bottom:4px; }
-.contact-card-row{ font-size:12.5px; color:#555; margin-top:3px; }
+.contact-card-row{ font-size:12.5px; color:var(--text-secondary); margin-top:3px; }
 .contact-card-row a{ color:#4ea1ff; text-decoration:none; }
-.detail-empty{ font-size:12.5px; color:#777; font-style:italic; }
-.detail-loading{ font-size:12.5px; color:#888; }
+.detail-empty{ font-size:12.5px; color:var(--text-secondary); font-style:italic; }
+.detail-loading{ font-size:12.5px; color:var(--text-muted); }
 
 /* Small floating pill showing which municipality the map is currently
    centered/GPS-fixed in — appears once boundary auto-detection resolves. */
@@ -1440,13 +1580,13 @@ body.driving-active #appPanel{
   top:calc(8px + env(safe-area-inset-top, 0px));
   left:50%; transform:translateX(-50%);
   z-index:640;
-  background:rgba(255,255,255,.92);
-  border:1px solid rgba(0,0,0,.08);
-  color:#333;
+  background:var(--floating-bg);
+  border:1px solid var(--floating-border);
+  color:var(--text-primary);
   font-size:11px; font-weight:600;
   padding:5px 12px;
   border-radius:20px;
-  box-shadow:0 2px 8px rgba(0,0,0,.45);
+  box-shadow:0 2px 8px var(--floating-shadow);
   pointer-events:none;
   display:none;
   white-space:nowrap;
@@ -1455,13 +1595,13 @@ body.driving-active #appPanel{
 
 /* --- Admin: utility company contacts (inside the settings modal) --- */
 .admin-section{
-  border-top:1px solid #e2e2e0;
+  border-top:1px solid var(--border-color);
   padding:16px 20px calc(16px + env(safe-area-inset-bottom, 0px)) 20px;
   display:flex; flex-direction:column; gap:10px;
 }
 .admin-section-title{
   font-size:10px; font-weight:700; letter-spacing:.4px; text-transform:uppercase;
-  color:#888;
+  color:var(--text-muted);
 }
 .uc-list{ display:flex; flex-direction:column; gap:8px; }
 .uc-item{
@@ -1604,54 +1744,26 @@ span.flatpickr-weekday {
 <div id="map"></div>
 <div id="municipalityLabel" class="municipality-label"></div>
 
-<div id="mapLegend" style="
-  background:rgba(255,255,255,.92);
-  backdrop-filter:blur(4px);
-  -webkit-backdrop-filter:blur(4px);
-  border-radius:10px;
-  padding:5px 10px;
-  display:flex;
-  align-items:center;
-  gap:6px;
-  flex-wrap:nowrap;
-  pointer-events:none;
-  border:1px solid #e2e2e0;
-  box-shadow:0 2px 10px rgba(0,0,0,.18);
-  margin-bottom:4px;
-">
+<div id="mapLegend" class="map-legend-pill" style="flex-wrap:nowrap;">
   <span class="legend-item"><span class="legend-dot" style="background:#ff4b4b"></span>
-  <span class="leg" data-en="Reported" data-sr="Prijavljeno" style="color:#333;font-size:10px;">Prijavljeno</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#f5a623"></span><span class="leg" data-en="In progress" data-sr="U toku" style="color:#333;font-size:10px;">U toku</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#2ecc71"></span><span class="leg" data-en="Fixed" data-sr="Popravljeno" style="color:#333;font-size:10px;">Popravljeno</span></span>
+  <span class="leg" data-en="Reported" data-sr="Prijavljeno">Prijavljeno</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#f5a623"></span><span class="leg" data-en="In progress" data-sr="U toku">U toku</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#2ecc71"></span><span class="leg" data-en="Fixed" data-sr="Popravljeno">Popravljeno</span></span>
 </div>
 
-<div class="legend" id="categoryLegend" style="
-  background:rgba(255,255,255,.92);
-  backdrop-filter:blur(4px);
-  -webkit-backdrop-filter:blur(4px);
-  border-radius:10px;
-  padding:5px 10px;
-  display:flex;
-  align-items:center;
-  gap:6px;
-  flex-wrap:wrap;
-  pointer-events:none;
-  border:1px solid #e2e2e0;
-  box-shadow:0 2px 10px rgba(0,0,0,.18);
-  margin-bottom:4px;
-">
-  <span class="legend-item"><span class="legend-dot" style="background:#1e90ff"></span><span class="leg" data-en="Water" data-sr="Voda" style="color:#333;font-size:10px;">Voda</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#f5c518"></span><span class="leg" data-en="Electricity" data-sr="Struja" style="color:#333;font-size:10px;">Struja</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#8b4513"></span><span class="leg" data-en="Sewage" data-sr="Kanalizacija" style="color:#333;font-size:10px;">Kanalizacija</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#ff6b35"></span><span class="leg" data-en="Gas" data-sr="Gas" style="color:#333;font-size:10px;">Gas</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#b71c1c"></span><span class="leg" data-en="Heating" data-sr="Grejanje" style="color:#333;font-size:10px;">Grejanje</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#6b6b6b"></span><span class="leg" data-en="Road" data-sr="Put" style="color:#333;font-size:10px;">Put</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#c9a227"></span><span class="leg" data-en="Streetlight" data-sr="Ulična rasveta" style="color:#333;font-size:10px;">Ulična rasveta</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#6d8b3a"></span><span class="leg" data-en="Waste" data-sr="Otpad" style="color:#333;font-size:10px;">Otpad</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#9c8570"></span><span class="leg" data-en="Walkways" data-sr="Pešačke staze" style="color:#333;font-size:10px;">Pešačke staze</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#14b8a6"></span><span class="leg" data-en="Bike Lanes" data-sr="Biciklističke staze" style="color:#333;font-size:10px;">Biciklističke staze</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#3fa34d"></span><span class="leg" data-en="Green Spaces" data-sr="Zelene površine" style="color:#333;font-size:10px;">Zelene površine</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#8342a1"></span><span class="leg" data-en="Other" data-sr="Ostalo" style="color:#333;font-size:10px;">Ostalo</span></span>
+<div class="legend map-legend-pill" id="categoryLegend" style="flex-wrap:wrap;">
+  <span class="legend-item"><span class="legend-dot" style="background:#1e90ff"></span><span class="leg" data-en="Water" data-sr="Voda">Voda</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#f5c518"></span><span class="leg" data-en="Electricity" data-sr="Struja">Struja</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#8b4513"></span><span class="leg" data-en="Sewage" data-sr="Kanalizacija">Kanalizacija</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#ff6b35"></span><span class="leg" data-en="Gas" data-sr="Gas">Gas</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#b71c1c"></span><span class="leg" data-en="Heating" data-sr="Grejanje">Grejanje</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#6b6b6b"></span><span class="leg" data-en="Road" data-sr="Put">Put</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#c9a227"></span><span class="leg" data-en="Streetlight" data-sr="Ulična rasveta">Ulična rasveta</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#6d8b3a"></span><span class="leg" data-en="Waste" data-sr="Otpad">Otpad</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#9c8570"></span><span class="leg" data-en="Walkways" data-sr="Pešačke staze">Pešačke staze</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#14b8a6"></span><span class="leg" data-en="Bike Lanes" data-sr="Biciklističke staze">Biciklističke staze</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#3fa34d"></span><span class="leg" data-en="Green Spaces" data-sr="Zelene površine">Zelene površine</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#8342a1"></span><span class="leg" data-en="Other" data-sr="Ostalo">Ostalo</span></span>
 </div>
 
 <div id="appPanel" class="app-panel">
@@ -1722,6 +1834,19 @@ span.flatpickr-weekday {
 <div id="followLocationBtn" class="pin-map-btn" style="display:none" title="Follow my location" onclick="toggleFollowMode()"><img class="icon-img" src="icons/target.png" alt="Recenter"></div>
 <div id="pinMapBtn" class="pin-map-btn" style="display:none" title="Set location manually" onclick="togglePinMode()"><img class="icon-img" src="icons/pin.png" alt="Pin"></div>
 <div id="drivingModeBtn" class="pin-map-btn" style="display:none" title="Driving mode" onclick="toggleDrivingMode()"><img class="icon-img" src="icons/car.png" alt="Driving mode"></div>
+<!-- Main-screen counterpart of the driving-mode compass (#mapCompass below):
+     same widget, same tap-to-toggle heading-up behavior, just for walking/
+     browsing instead of driving. Lives in its own Leaflet control (see
+     MainCompassControl further down) rather than inside the driving report
+     sheet, and is hidden the moment driving mode takes over (see
+     body.driving-active rules above). -->
+<div id="mainMapCompass" class="map-compass heading-up-disabled" style="display:none" title="Heading — tap to rotate the map with your direction of travel" onclick="toggleWalkingCompassMode()">
+  <div class="compass-face">
+    <div class="compass-needle" id="mainCompassNeedle">
+      <svg viewBox="0 0 24 24"><path d="M12 2 L16 13 L12 11 L8 13 Z" fill="#ff4b4b"/><path d="M12 22 L16 13 L12 15 L8 13 Z" fill="#ccc"/></svg>
+    </div>
+  </div>
+</div>
 <div id="settingsBtn" class="pin-map-btn" style="display:none" title="Settings" onclick="showSettingsModal()"><img class="icon-img" src="icons/settings.png" alt="Settings"></div>
 <button id="panelToggleBtn" class="pin-map-btn panel-toggle-btn" type="button" style="display:none"
         aria-expanded="true" aria-controls="appPanel" title="Hide panel">
@@ -1866,6 +1991,15 @@ span.flatpickr-weekday {
     <button class="fullscreen-modal-close" onclick="hideSettingsModal()" aria-label="Close">✕</button>
   </div>
   <div class="fullscreen-modal-body">
+
+    <div class="detail-section" id="themeSettingsSection">
+      <div class="detail-section-title" id="themeSectionTitle">Theme</div>
+      <div class="theme-segment" id="themeSegment">
+        <button type="button" class="theme-segment-btn" onclick="setThemeMode('light')" id="themeBtnLight">Light</button>
+        <button type="button" class="theme-segment-btn" onclick="setThemeMode('dark')" id="themeBtnDark">Dark</button>
+        <button type="button" class="theme-segment-btn" onclick="setThemeMode('auto')" id="themeBtnAuto">Auto</button>
+      </div>
+    </div>
 
     <div class="detail-section" style="padding:0;overflow:hidden;">
       <div class="filter-label-row" style="border-radius:0;">
@@ -2270,6 +2404,11 @@ const T = {
   timeFilter:   { en:'Time Window Filter',               sr:'Filter vremenskog prozora' },
   settingsBtnTitle: { en:'Settings',                     sr:'Podešavanja' },
   settingsModalTitle: { en:'Settings',                   sr:'Podešavanja' },
+  themeSectionTitle: { en:'Theme',                       sr:'Tema' },
+  themeLight:        { en:'Light',                       sr:'Svetla' },
+  themeDark:         { en:'Dark',                        sr:'Tamna' },
+  themeAuto:         { en:'Auto',                        sr:'Automatski' },
+  mainCompassTitle:  { en:'Heading — tap to rotate the map with your direction of travel', sr:'Pravac — dodirnite da rotirate mapu prema pravcu kretanja' },
   catPH:        { en:'Select break type…',               sr:'Izaberite vrstu kvara…' },
   gpsTitle:     { en:'GPS Not Enabled',                  sr:'GPS nije uključen' },
   gpsBody:      { en:'Location access is turned off. To report a break at your location, enable it in your settings.', sr:'Pristup lokaciji je isključen. Da biste prijavili kvar, omogućite ga u podešavanjima.' },
@@ -2436,6 +2575,11 @@ function applyLang(){
   document.getElementById('filterTitleLabel').textContent = t('timeFilter');
   document.getElementById('settingsBtn').title = t('settingsBtnTitle');
   document.getElementById('settingsModalTitle').textContent = t('settingsModalTitle');
+  document.getElementById('themeSectionTitle').textContent = t('themeSectionTitle');
+  document.getElementById('themeBtnLight').textContent = t('themeLight');
+  document.getElementById('themeBtnDark').textContent = t('themeDark');
+  document.getElementById('themeBtnAuto').textContent = t('themeAuto');
+  document.getElementById('mainMapCompass').title = t('mainCompassTitle');
   document.getElementById('comment').placeholder          = t('commentPH');
   document.getElementById('dateRangePicker').placeholder  = t('calendarPH');
   document.getElementById('category').options[0].text     = t('catPH');
@@ -2643,6 +2787,22 @@ let currentHeading            = null;  // last known compass heading, 0-360°, c
 let compassActive             = false; // true once we've received at least one real device-orientation reading
 let mapBearing                 = 0;     // continuous (unbounded, can exceed 360) bearing currently applied to the map
 let headingUpMode             = true;  // when true (and driving mode is on), the map rotates so travel direction faces up
+// Main-screen counterpart of headingUpMode: whether the person has tapped
+// #mainMapCompass to rotate the map to their walking/browsing direction
+// outside driving mode. Kept as a separate flag (rather than reusing
+// headingUpMode, which is driving-only and defaults on) so opting into
+// rotation on the main screen is always an explicit tap, never automatic.
+let walkingHeadingMode        = false;
+
+// Whether *some* heading-up rotation should currently be in effect —
+// driving mode's own toggle while driving, or the main-screen compass
+// toggle otherwise. Every place that used to gate on "drivingMode &&
+// headingUpMode" now goes through this instead, so the exact same
+// rotation/tilt machinery (applyMapBearing, the puck arrow, the
+// rotation-aware drag handler) works for walking too, not just driving.
+function isHeadingUpActive() {
+  return drivingMode ? headingUpMode : walkingHeadingMode;
+}
 let orientationListenersBound = false;
 let orientationPermissionAsked = false;
 let lastAbsoluteHeadingAt      = 0; // timestamp of the last true-north (absolute) orientation reading
@@ -2670,15 +2830,18 @@ function updateRotationOrigin() {
 }
 window.addEventListener('resize', updateRotationOrigin);
 
-// Rotates the map (tiles/markers/lines/popups together) and the compass
-// needle to match `targetHeadingDeg`, always turning the shorter way round.
+// Rotates the map (tiles/markers/lines/popups together) and every compass
+// needle currently in the DOM (#compassNeedle in the driving HUD,
+// #mainCompassNeedle on the main screen — only one is ever visible at a
+// time, but keeping both in sync means whichever one reappears next is
+// already pointing the right way, no flash of a stale angle) to match
+// `targetHeadingDeg`, always turning the shorter way round.
 function applyMapBearing(targetHeadingDeg) {
   const delta = shortestAngleDelta(mapBearing % 360, targetHeadingDeg);
   mapBearing += delta;
   const cssRotation = `rotate(${-mapBearing}deg)`;
   if (rotWrapper) rotWrapper.style.transform = cssRotation;
-  const needle = document.getElementById('compassNeedle');
-  if (needle) needle.style.transform = cssRotation;
+  document.querySelectorAll('.compass-needle').forEach(needle => { needle.style.transform = cssRotation; });
   // Hand dragging over to the rotation-aware custom handler while the map
   // is visibly rotated, and back to Leaflet's native handler once it's
   // north-up again (see initRotationAwareDragging further below).
@@ -2886,7 +3049,7 @@ function updateUserMarkerRotation() {
   if (!el) return;
   const arrow = el.querySelector('.user-nav-arrow');
   if (!arrow) return;
-  const angle = (drivingMode && headingUpMode) ? mapBearing : (currentHeading || 0);
+  const angle = isHeadingUpActive() ? mapBearing : (currentHeading || 0);
   arrow.style.transform = `rotate(${angle}deg)`;
 }
 
@@ -2897,6 +3060,26 @@ function toggleHeadingUpMode() {
   if (!headingUpMode) {
     resetMapBearing();
   } else if (drivingMode && currentHeading !== null) {
+    applyMapBearing(currentHeading);
+  }
+  updateUserMarkerRotation();
+}
+
+// Main-screen counterpart of toggleHeadingUpMode() above, for #mainMapCompass.
+// Tapping it turns heading-up rotation on/off for normal browsing/walking,
+// completely independent of driving mode's own toggle — see
+// isHeadingUpActive(). Also asks for device-orientation permission here
+// (iOS needs a user gesture, which this tap provides), the same way
+// entering driving mode does, so the compass works the first time it's
+// tapped even if driving mode has never been opened this session.
+function toggleWalkingCompassMode() {
+  walkingHeadingMode = !walkingHeadingMode;
+  const btn = document.getElementById('mainMapCompass');
+  if (btn) btn.classList.toggle('heading-up-disabled', !walkingHeadingMode);
+  requestOrientationPermission();
+  if (!walkingHeadingMode) {
+    resetMapBearing();
+  } else if (currentHeading !== null) {
     applyMapBearing(currentHeading);
   }
   updateUserMarkerRotation();
@@ -2961,14 +3144,16 @@ const ORIENTATION_MAX_JUMP_DEG = 120;
 
 function handleOrientationEvent(event) {
   // GPS course-over-ground is the authoritative heading source while
-  // driving (see the fix handler in startWatching for why). The device
-  // compass fires far more often than GPS fixes arrive, so without this
-  // gate it would constantly stomp the correct GPS-derived bearing with a
-  // noisy magnetometer reading — which is exactly what was making the map
-  // rotate the wrong way while actually driving. Only let the compass
+  // driving (see the fix handler in startWatching for why) — and it's
+  // fresh often enough while walking too, since the same speed threshold
+  // there (~3.6 km/h) sits below normal walking pace. The device compass
+  // fires far more often than GPS fixes arrive, so without this gate it
+  // would constantly stomp the correct GPS-derived bearing with a noisy
+  // magnetometer reading — which is exactly what was making the map
+  // rotate the wrong way while actually moving. Only let the compass
   // through once the last GPS course has gone stale (stopped at a light,
-  // just starting to move, etc.).
-  if (drivingMode && headingUpMode && (Date.now() - lastGpsHeadingAt) < GPS_HEADING_FRESH_MS) {
+  // standing still, etc.).
+  if (isHeadingUpActive() && (Date.now() - lastGpsHeadingAt) < GPS_HEADING_FRESH_MS) {
     return;
   }
 
@@ -3021,7 +3206,7 @@ function handleOrientationEvent(event) {
   compassActive = true;
   smoothedHeading = smoothHeading(smoothedHeading, (heading + 360) % 360, HEADING_SMOOTHING_FACTOR);
   currentHeading = smoothedHeading;
-  if (drivingMode && headingUpMode) applyMapBearing(currentHeading);
+  if (isHeadingUpActive()) applyMapBearing(currentHeading);
   updateUserMarkerRotation();
 }
 
@@ -3632,9 +3817,19 @@ function instructionForStep(step) {
 // Called on every accepted GPS fix while a route is active. Advances past
 // any maneuver point already reached, then renders the next one with a
 // live "in Xm" distance so it counts down as the driver approaches it.
+// The turn-by-turn HUD itself is driving-mode-only by design (see the
+// destination header bar / distance readout for the main-screen
+// equivalent), so this bails out to hideTurnByTurnDisplay() whenever
+// driving mode isn't active — otherwise the next GPS fix after leaving
+// driving mode would flip the card straight back to visible, fighting the
+// hideTurnByTurnDisplay() call in toggleDrivingMode()'s exit branch. The
+// underlying navStepIndex/navRouteSteps progress keeps advancing
+// regardless, so the HUD picks up exactly where it left off the moment
+// driving mode reopens.
 function updateTurnByTurnDisplay(from) {
   const card = document.getElementById('turnByTurnCard');
   if (!card) return;
+  if (!drivingMode) { hideTurnByTurnDisplay(); return; }
   if (!from || !navRouteSteps.length || navState === NavState.PREVIEW) { hideTurnByTurnDisplay(); return; }
 
   while (
@@ -3780,7 +3975,7 @@ let customDragActive = false;
 let customDragLast   = null;
 
 function rotationActive() {
-  return drivingMode && headingUpMode && Math.abs(((mapBearing % 360) + 360) % 360) > 0.5;
+  return isHeadingUpActive() && Math.abs(((mapBearing % 360) + 360) % 360) > 0.5;
 }
 
 function setNativeDraggingEnabled(enabled) {
@@ -3887,6 +4082,11 @@ function toggleDrivingMode() {
     if (compassBtn) compassBtn.style.display = 'flex';
     requestOrientationPermission();
     if (headingUpMode && currentHeading !== null) applyMapBearing(currentHeading);
+    // If a navigation session was already active from the main screen (or
+    // left running from an earlier stint in driving mode — see the exit
+    // branch below), show the turn-by-turn HUD right away instead of
+    // waiting for the next GPS fix to trigger it.
+    if (destinationCoords && userCoords) updateTurnByTurnDisplay(userCoords);
     // See popstate listener above — this is the entry the hardware/gesture
     // back button will consume to close driving mode instead of the page.
     history.pushState({ drivingMode: true }, '');
@@ -3910,15 +4110,28 @@ function toggleDrivingMode() {
       // Stopped but never categorized — discard rather than leave it stranded.
       cancelPendingSection();
     }
-    // Navigation only exists inside driving mode now, so leaving it wipes
-    // any active search/route entirely rather than leaving stale state
-    // (or a lingering route line) behind on the map.
+    // Navigation itself isn't driving-mode-specific — the GPS handler keeps
+    // the route line, distance/time, and turn-by-turn steps updating in the
+    // background regardless (see the `if (destinationCoords)` block in the
+    // geolocation watch callback). So exiting driving mode only needs to
+    // hide the driving-only turn-by-turn HUD; the underlying session (and
+    // the route/pin already on the map) is left alone, and reappears
+    // automatically — already caught up — the moment driving mode reopens.
     if (navPanelOpen) closeNavigatePanel();
-    clearNavigation();
+    hideTurnByTurnDisplay();
     // Back to the plain dot now that we're not navigating.
     setUserMarkerStyle(false);
-    // Ease back to north-up and hide the compass until driving mode resumes.
-    resetMapBearing();
+    // Ease back to north-up UNLESS the person separately has the
+    // main-screen walking compass turned on — in that case keep rotating
+    // to match their heading instead of snapping north-up just because
+    // driving mode happened to be the thing that was active a moment ago.
+    if (!walkingHeadingMode) {
+      resetMapBearing();
+    } else if (currentHeading !== null) {
+      applyMapBearing(currentHeading);
+    }
+    // Hide driving's own compass; #mainMapCompass (governed by
+    // walkingHeadingMode, unaffected by any of this) takes over instead.
     if (compassBtn) compassBtn.style.display = 'none';
   }
 
@@ -4362,7 +4575,7 @@ function startWatching() {
         lastGpsHeadingAt = Date.now(); // marks GPS course as fresh — tells the compass handler to stand down
         smoothedHeading = smoothHeading(smoothedHeading, pos.coords.heading, HEADING_SMOOTHING_FACTOR);
         currentHeading = smoothedHeading;
-        if (drivingMode && headingUpMode) applyMapBearing(currentHeading);
+        if (isHeadingUpActive()) applyMapBearing(currentHeading);
         updateUserMarkerRotation();
       }
 
@@ -4502,6 +4715,17 @@ const DrivingControl = L.Control.extend({
 });
 new DrivingControl().addTo(map);
 document.getElementById('drivingModeBtn').style.display = 'flex';
+
+const MainCompassControl = L.Control.extend({
+  options:{ position:'bottomleft' },
+  onAdd(){
+    const btn = document.getElementById('mainMapCompass');
+    L.DomEvent.disableClickPropagation(btn);
+    return btn;
+  }
+});
+new MainCompassControl().addTo(map);
+document.getElementById('mainMapCompass').style.display = 'flex';
 
 const SettingsControl = L.Control.extend({
   options:{ position:'bottomright' },
@@ -6185,8 +6409,69 @@ function updateFullscreenBtn() {
 );
 
 // =============================================================================
+// THEME — Light / Dark / Auto (Settings)
+// =============================================================================
+// See the THEME comment block near the top of <style> for the CSS-variable
+// side of this. A tiny inline script in <head> already applied the saved
+// (or system) theme before first paint to avoid a flash; everything here is
+// the ongoing part — the Settings UI, persisting a change, and staying in
+// sync with the OS while in Auto mode.
+const THEME_STORAGE_KEY = 'ttb_theme_mode'; // localStorage value: 'light' | 'dark' | 'auto'
+let themeMode = (function () {
+  try { return localStorage.getItem(THEME_STORAGE_KEY) || 'auto'; } catch (e) { return 'auto'; }
+})();
+const systemDarkModeMQ = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+
+// 'auto' resolves against the OS preference at the moment it's called;
+// 'light'/'dark' are already resolved.
+function resolveThemeMode(mode) {
+  if (mode === 'auto') return (systemDarkModeMQ && systemDarkModeMQ.matches) ? 'dark' : 'light';
+  return mode;
+}
+
+function updateThemeSegmentUI() {
+  ['Light', 'Dark', 'Auto'].forEach(label => {
+    const btn = document.getElementById('themeBtn' + label);
+    if (btn) btn.classList.toggle('active', themeMode === label.toLowerCase());
+  });
+}
+
+// Applies `mode` (without persisting it — see setThemeMode for the
+// persisted, user-facing entry point) to <html data-theme>, and keeps the
+// flatpickr calendar's theme and the Settings segmented control in sync.
+function applyTheme(mode) {
+  themeMode = mode;
+  const resolved = resolveThemeMode(mode);
+  document.documentElement.dataset.theme = resolved;
+  // flatpickr's own dark theme is a separate stylesheet, not CSS variables
+  // — just enable/disable that <link> instead of it always being dark.
+  const fpDark = document.getElementById('flatpickrDarkTheme');
+  if (fpDark) fpDark.disabled = (resolved !== 'dark');
+  updateThemeSegmentUI();
+}
+
+// Settings > Theme button handler — persists the choice and applies it.
+function setThemeMode(mode) {
+  try { localStorage.setItem(THEME_STORAGE_KEY, mode); } catch (e) {}
+  applyTheme(mode);
+}
+
+function initTheme() {
+  applyTheme(themeMode);
+  // Only matters in Auto mode, but cheap to always listen — applyTheme()
+  // re-resolves against themeMode every time anyway, so a change firing
+  // while in Light/Dark mode is just a harmless no-op re-apply.
+  if (systemDarkModeMQ) {
+    const onSystemThemeChange = () => applyTheme(themeMode);
+    if (systemDarkModeMQ.addEventListener) systemDarkModeMQ.addEventListener('change', onSystemThemeChange);
+    else if (systemDarkModeMQ.addListener) systemDarkModeMQ.addListener(onSystemThemeChange); // Safari <14
+  }
+}
+
+// =============================================================================
 // STARTUP
 // =============================================================================
+initTheme();
 initCalendarFilter();
 applyLang();
 loadPinsByWindow();
