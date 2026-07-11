@@ -5860,10 +5860,17 @@ async function showReportDetailModal(reportId) {
   // municipality boundary on the map as a side effect, so closing the
   // modal leaves you looking at the right opština outline.
   const muni = await resolveReportMunicipality(report);
-  renderMunicipalityBoundary(muni);
   const muniEl = document.getElementById('detailMunicipalityValue');
   if (muniEl) {
     muniEl.textContent = muni ? municipalityDisplayName(muni) : t('detailUnknown');
+  }
+  // Drawing the boundary outline is a map side-effect, not part of the
+  // detail data itself — a malformed/legacy boundary geometry must never
+  // be able to throw here and abort the contacts lookup below it.
+  try {
+    renderMunicipalityBoundary(muni);
+  } catch (err) {
+    console.error('Failed to render municipality boundary:', err.message);
   }
 
   const contactsEl = document.getElementById('detailContactsContainer');
