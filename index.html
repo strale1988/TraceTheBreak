@@ -1640,6 +1640,36 @@ body.driving-active #appPanel{
 .contact-card-row a{ color:#4ea1ff; text-decoration:none; }
 .detail-empty{ font-size:12.5px; color:var(--text-secondary); font-style:italic; }
 .detail-loading{ font-size:12.5px; color:var(--text-muted); }
+.detail-section-title-row{
+  display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;
+}
+.detail-section-title-row .detail-section-title{ margin-bottom:0; }
+.detail-edit-actions{ display:flex; gap:6px; }
+.detail-edit-btn, .detail-delete-btn{
+  border:none; border-radius:7px; padding:5px 9px; font-size:11px; font-weight:700; cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+.detail-edit-btn{ background:var(--bg-surface-alt); color:var(--text-primary); border:1px solid var(--border-color-strong); }
+.detail-delete-btn{ background:#7a1f1f; color:#fff; }
+.detail-edit-field{ display:flex; flex-direction:column; gap:3px; margin-bottom:8px; }
+.detail-edit-field:last-of-type{ margin-bottom:0; }
+.detail-edit-field-label{
+  font-size:9px; font-weight:700; letter-spacing:.3px; text-transform:uppercase; color:var(--text-muted);
+}
+.detail-edit-field select,
+.detail-edit-field input[type="text"]{
+  background:var(--bg-surface-alt); color:var(--text-primary); border:1px solid var(--border-color-strong);
+  border-radius:7px; padding:8px 9px; font-size:13px; width:100%; box-sizing:border-box;
+  -webkit-tap-highlight-color:transparent;
+}
+.detail-edit-field select:focus,
+.detail-edit-field input[type="text"]:focus{
+  outline:none; border-color:var(--accent);
+}
+.detail-edit-actions-row{ display:flex; gap:8px; margin-top:12px; }
+.detail-edit-actions-row button{
+  flex:1; border:none; border-radius:8px; padding:9px 10px; font-size:13px; font-weight:700; cursor:pointer;
+}
 
 /* Small floating pill showing which municipality the map is currently
    centered/GPS-fixed in — appears once boundary auto-detection resolves. */
@@ -3138,10 +3168,10 @@ map.on('popupclose', e => {
 //
 // This only counts as "tapping the backdrop" if the gesture both STARTS
 // and ENDS on the backdrop itself, not just ends there. Without that check,
-// switching the popup into edit mode (enterEditMode() swaps in a taller
-// form, shifting where its buttons land) could turn an ordinary tap on the
-// "Edit" button into a stray backdrop click once the layout resettles a
-// moment later — closing the dialog right after it opened, so it looked
+// switching the popup into note-edit mode (enterNoteEditMode() swaps in a
+// taller form, shifting where its buttons land) could turn an ordinary tap
+// on the "Edit" button into a stray backdrop click once the layout resettles
+// a moment later — closing the dialog right after it opened, so it looked
 // like the edit popup flashed and vanished until tapping the pin again.
 let mobilePopupOverlayPointerDownOnBackdrop = false;
 if (mobilePopupOverlay) {
@@ -5844,7 +5874,10 @@ function buildPopupHtml(report) {
 
   let actionsHtml = '';
   if (isAdmin) {
-    // Admins get full control: jump to any status, plus edit/delete
+    // Admins get a quick status jump right in the popup for fast triage;
+    // full editing (category/subcategory/priority/comment) and delete now
+    // live in the report detail modal (see showReportDetailModal) instead
+    // of a separate cramped popup edit form.
     const statuses = [
       { key: 'reported',    label: t('markReported'),   bg: STATUS_COLORS.reported },
       { key: 'in_progress', label: t('markInProgress'), bg: STATUS_COLORS.in_progress },
@@ -5852,10 +5885,6 @@ function buildPopupHtml(report) {
     ].filter(s => s.key !== report.status);
     actionsHtml = `<div class="status-action-row">
       ${statuses.map(s => `<button class="status-action-btn" style="background:${s.bg};" onclick="updateReportStatus('${report.id}','${s.key}')">${s.label}</button>`).join('')}
-    </div>
-    <div class="status-action-row" style="border-top:none;padding-top:0;">
-      <button class="status-action-btn" style="background:#3a3a3a;" onclick="enterEditMode('${report.id}')">${t('editBtn')}</button>
-      <button class="status-action-btn" style="background:#7a1f1f;" onclick="deleteReport('${report.id}')">${t('deleteBtn')}</button>
     </div>`;
   } else if (currentSession && report.status !== 'fixed') {
     // Everyone else (including the reporter) suggests a status by voting —
@@ -5875,8 +5904,9 @@ function buildPopupHtml(report) {
   }
 
   // The reporter can edit just their own optional note, regardless of status
-  // or the voting flow above — admins skip this since their full edit form
-  // (enterEditMode) already covers the comment field.
+  // or the voting flow above — admins skip this since their in-place edit
+  // form in the detail modal (see enterReportDetailEditMode) already covers
+  // the comment field.
   let noteActionHtml = '';
   if (isOwner && !isAdmin) {
     noteActionHtml = `<div class="status-action-row" style="border-top:none;padding-top:0;">
@@ -5987,17 +6017,8 @@ async function showReportDetailModal(reportId) {
       <div class="detail-row"><span class="detail-row-label">${t('detailMunicipalityLabel')}</span><span class="detail-row-value" id="detailMunicipalityValue">${t('detailLoading')}</span></div>
       <div class="detail-row"><span class="detail-row-label">${t('detailCoordsLabel')}</span><span class="detail-row-value">${report.latitude.toFixed(6)}, ${report.longitude.toFixed(6)}</span></div>
     </div>
-    <div class="detail-section">
-      <div class="detail-section-title">${t('popupStatus')}</div>
-      <div class="detail-row"><span class="detail-row-label">${t('popupStatus')}</span><span class="status-pill" style="background:${statusColor(report.status)};">${statusLabel(report.status)}</span></div>
-      <div class="detail-row"><span class="detail-row-label">${t('priorityLabel')}</span><span class="status-pill" style="background:${priorityColor(report.priority)};">${priorityLabelText(report.priority)}</span></div>
-      <div class="detail-row"><span class="detail-row-label">${t('reportedByLabel')}</span><span class="detail-row-value">${escapeHtml(reporterName)}</span></div>
-      <div class="popup-timeline" style="margin-top:8px;">
-        ${buildTimelineItem(report.created_at, true, STATUS_COLORS.reported)}
-        ${buildTimelineItem(report.in_progress_at, !!report.in_progress_at, STATUS_COLORS.in_progress)}
-        ${buildTimelineItem(report.fixed_at, !!report.fixed_at, STATUS_COLORS.fixed)}
-      </div>
-      ${report.comment ? `<div class="popup-note" style="margin-top:10px;">${escapeHtml(report.comment)}</div>` : ''}
+    <div class="detail-section" id="reportDetailStatusSection">
+      ${buildDetailStatusReadonlyHtml(report, reporterName)}
     </div>
     <div class="detail-section">
       <div class="detail-section-title">${t('detailContactsTitle')}</div>
@@ -6072,9 +6093,45 @@ function hideReportDetailModal() {
   document.getElementById('reportDetailModal').style.display = 'none';
 }
 
-function buildEditPopupHtml(report) {
-  const uid = report.id;
-  const catCol = categoryColor(report.category);
+// =============================================================================
+// REPORT DETAIL MODAL — ADMIN IN-PLACE EDIT
+// Admins used to get a separate, cramped popup edit form on the map pin
+// itself. That's gone now — editing (and deleting) a report happens right
+// inside the full-screen detail modal's Status section instead, which has
+// room to show every field at once. Toggled by swapping the innerHTML of
+// #reportDetailStatusSection between the read-only and editable templates
+// below, rather than re-running the whole modal (which would re-trigger the
+// address/municipality/contacts network calls for no reason).
+// =============================================================================
+
+// Read-only Status section: status/priority pills, reporter, timeline,
+// comment, and — for admins only — the Edit/Delete controls that swap this
+// same section into buildDetailEditFieldsHtml below.
+function buildDetailStatusReadonlyHtml(report, reporterName) {
+  const isAdmin = !!(currentProfile && currentProfile.is_admin);
+  return `
+    <div class="detail-section-title-row">
+      <div class="detail-section-title">${t('popupStatus')}</div>
+      ${isAdmin ? `<div class="detail-edit-actions">
+        <button type="button" class="detail-edit-btn" onclick="enterReportDetailEditMode('${report.id}')">✏️ ${t('editBtn')}</button>
+        <button type="button" class="detail-delete-btn" onclick="deleteReport('${report.id}')">🗑 ${t('deleteBtn')}</button>
+      </div>` : ''}
+    </div>
+    <div class="detail-row"><span class="detail-row-label">${t('popupStatus')}</span><span class="status-pill" style="background:${statusColor(report.status)};">${statusLabel(report.status)}</span></div>
+    <div class="detail-row"><span class="detail-row-label">${t('priorityLabel')}</span><span class="status-pill" style="background:${priorityColor(report.priority)};">${priorityLabelText(report.priority)}</span></div>
+    <div class="detail-row"><span class="detail-row-label">${t('reportedByLabel')}</span><span class="detail-row-value">${escapeHtml(reporterName)}</span></div>
+    <div class="popup-timeline" style="margin-top:8px;">
+      ${buildTimelineItem(report.created_at, true, STATUS_COLORS.reported)}
+      ${buildTimelineItem(report.in_progress_at, !!report.in_progress_at, STATUS_COLORS.in_progress)}
+      ${buildTimelineItem(report.fixed_at, !!report.fixed_at, STATUS_COLORS.fixed)}
+    </div>
+    ${report.comment ? `<div class="popup-note" style="margin-top:10px;">${escapeHtml(report.comment)}</div>` : ''}
+  `;
+}
+
+// Editable Status section: category/subcategory/status/priority/comment,
+// all at once, with Save/Cancel at the bottom.
+function buildDetailEditFieldsHtml(report) {
   const cats = ['Water','Electricity','Sewage','Gas','Heating','Road','Streetlight','Waste','Walkways','BikeLanes','GreenSpaces','Other'];
   const catOptions = cats.map(c => `<option value="${c}" ${c === report.category ? 'selected' : ''}>${translateCategory(c)}</option>`).join('');
   const statuses = [
@@ -6091,42 +6148,89 @@ function buildEditPopupHtml(report) {
   ];
   const priorityOptions = priorities.map(p => `<option value="${p.key}" ${p.key === currentPriority ? 'selected' : ''}>${p.label}</option>`).join('');
 
-  return `<div class="popup-inner popup-card popup-edit-form">
-    <div class="popup-header" style="background:${catCol};">
-      <span class="popup-header-title">${t('editTitle')}</span>
+  return `
+    <div class="detail-section-title">${t('editTitle')}</div>
+    <div class="detail-edit-field">
+      <span class="detail-edit-field-label">${t('editCategoryLabel')}</span>
+      <select id="detailEditCat-${report.id}" onchange="onDetailEditCategoryChange('${report.id}')">${catOptions}</select>
     </div>
-    <div class="popup-edit-body">
-      <div class="popup-edit-field">
-        <span class="popup-edit-field-label">${t('editCategoryLabel')}</span>
-        <select id="edit-cat-${uid}" onchange="onEditCategoryChange('${uid}')">${catOptions}</select>
-      </div>
-      <div class="popup-edit-field">
-        <span class="popup-edit-field-label">${t('editSubcategoryLabel')}</span>
-        <select id="edit-subcat-${uid}"></select>
-      </div>
-      <div class="popup-edit-field">
-        <span class="popup-edit-field-label">${t('editStatusLabel')}</span>
-        <select id="edit-status-${uid}">${statusOptions}</select>
-      </div>
-      <div class="popup-edit-field">
-        <span class="popup-edit-field-label">${t('editPriorityLabel')}</span>
-        <select id="edit-priority-${uid}">${priorityOptions}</select>
-      </div>
-      <div class="popup-edit-field">
-        <span class="popup-edit-field-label">${t('editCommentLabel')}</span>
-        <input type="text" id="edit-comment-${uid}" value="${escapeHtml(report.comment || '')}" placeholder="${t('commentPH')}">
-      </div>
-      <div class="status-action-row" style="padding:2px 0 0 0;border-top:none;">
-        <button class="status-action-btn" style="background:#a67817;" onclick="saveReportEdits('${uid}')">${t('saveBtn')}</button>
-        <button class="status-action-btn" style="background:#3a3a3a;" onclick="cancelEdit('${uid}')">${t('cancelBtn')}</button>
-      </div>
+    <div class="detail-edit-field">
+      <span class="detail-edit-field-label">${t('editSubcategoryLabel')}</span>
+      <select id="detailEditSubcat-${report.id}"></select>
     </div>
-  </div>`;
+    <div class="detail-edit-field">
+      <span class="detail-edit-field-label">${t('editStatusLabel')}</span>
+      <select id="detailEditStatus-${report.id}">${statusOptions}</select>
+    </div>
+    <div class="detail-edit-field">
+      <span class="detail-edit-field-label">${t('editPriorityLabel')}</span>
+      <select id="detailEditPriority-${report.id}">${priorityOptions}</select>
+    </div>
+    <div class="detail-edit-field">
+      <span class="detail-edit-field-label">${t('editCommentLabel')}</span>
+      <input type="text" id="detailEditComment-${report.id}" value="${escapeHtml(report.comment || '')}" placeholder="${t('commentPH')}">
+    </div>
+    <div class="detail-edit-actions-row">
+      <button type="button" style="background:var(--accent);color:var(--accent-contrast);" onclick="saveReportDetailEdits('${report.id}')">${t('saveBtn')}</button>
+      <button type="button" style="background:var(--bg-surface-alt);color:var(--text-primary);border:1px solid var(--border-color-strong);" onclick="cancelReportDetailEdit('${report.id}')">${t('cancelBtn')}</button>
+    </div>
+  `;
+}
+
+function onDetailEditCategoryChange(reportId) {
+  const catSelect = document.getElementById(`detailEditCat-${reportId}`);
+  const subSelect = document.getElementById(`detailEditSubcat-${reportId}`);
+  if (!catSelect || !subSelect) return;
+  populateSubcategoryOptions(subSelect, catSelect.value, null);
+}
+
+function enterReportDetailEditMode(reportId) {
+  const report = globalActiveData.find(r => r.id === reportId);
+  const section = document.getElementById('reportDetailStatusSection');
+  if (!report || !section) return;
+  section.innerHTML = buildDetailEditFieldsHtml(report);
+  // Populate the subcategory select immediately (same reasoning as the old
+  // enterEditMode: the field already exists synchronously after the
+  // innerHTML write above, so there's no need to wait a tick).
+  const subSelect = document.getElementById(`detailEditSubcat-${reportId}`);
+  if (subSelect) populateSubcategoryOptions(subSelect, report.category, report.subcategory);
+}
+
+function cancelReportDetailEdit(reportId) {
+  const report = globalActiveData.find(r => r.id === reportId);
+  const section = document.getElementById('reportDetailStatusSection');
+  if (!report || !section) return;
+  const reporterName = report.owner_username || (lang === 'sr' ? 'Nepoznato' : 'Unknown');
+  section.innerHTML = buildDetailStatusReadonlyHtml(report, reporterName);
+}
+
+async function saveReportDetailEdits(reportId) {
+  const category    = document.getElementById(`detailEditCat-${reportId}`).value;
+  const subcatEl     = document.getElementById(`detailEditSubcat-${reportId}`);
+  const subcategory  = (subcatEl && subcatEl.value) ? subcatEl.value : null;
+  const status       = document.getElementById(`detailEditStatus-${reportId}`).value;
+  const priorityEl   = document.getElementById(`detailEditPriority-${reportId}`);
+  const priority      = (priorityEl && priorityEl.value) ? priorityEl.value : 'normal';
+  const comment       = document.getElementById(`detailEditComment-${reportId}`).value;
+  try {
+    const { error } = await sb.from(TABLE)
+      .update({ category, subcategory, priority, comment, updated_at: new Date().toISOString(), ...buildStatusPatch(status) })
+      .eq('id', reportId);
+    if (error) throw error;
+    await loadPinsByWindow();
+    // Re-render the whole modal from the freshly-reloaded report data so
+    // the header title/color, status pill, priority pill, and timeline all
+    // reflect the save — not just the section that was being edited.
+    await showReportDetailModal(reportId);
+  } catch (err) {
+    console.error('Detail edit save error (full):', err);
+    alert(describeAuthError(err));
+  }
 }
 
 // Lightweight popup for the reporter to edit just their own optional note —
-// unlike buildEditPopupHtml (admin-only), this never touches category,
-// subcategory, or status.
+// full editing (category/subcategory/status/priority) for admins now lives
+// in the report detail modal's Status section instead of a popup form.
 function buildNoteEditPopupHtml(report) {
   const uid = report.id;
   const catCol = categoryColor(report.category);
@@ -6172,31 +6276,6 @@ async function saveOwnerNote(reportId) {
   }
 }
 
-function onEditCategoryChange(reportId) {
-  const catSelect = document.getElementById(`edit-cat-${reportId}`);
-  const subSelect = document.getElementById(`edit-subcat-${reportId}`);
-  if (!catSelect || !subSelect) return;
-  populateSubcategoryOptions(subSelect, catSelect.value, null);
-}
-
-function enterEditMode(reportId) {
-  const marker = markerById.get(reportId);
-  const pin = sectionPinById.get(reportId);
-  const report = globalActiveData.find(r => r.id === reportId);
-  if ((!marker && !pin) || !report) return;
-  // A section report has both a line and a pin sharing the same popup markup;
-  // keep both in sync even though only one of them was actually clicked open.
-  if (marker) marker.setPopupContent(buildEditPopupHtml(report));
-  if (pin) pin.setPopupContent(buildEditPopupHtml(report));
-  // setPopupContent() above writes the new markup into the DOM synchronously
-  // (it's a plain innerHTML assignment under the hood), so the subcategory
-  // <select> already exists — populate it immediately rather than waiting
-  // a tick, so the edit form appears fully filled-in on the very first frame
-  // instead of flashing an empty dropdown for a moment.
-  const subSelect = document.getElementById(`edit-subcat-${reportId}`);
-  if (subSelect) populateSubcategoryOptions(subSelect, report.category, report.subcategory);
-}
-
 function cancelEdit(reportId) {
   const marker = markerById.get(reportId);
   const pin = sectionPinById.get(reportId);
@@ -6218,32 +6297,17 @@ function buildStatusPatch(newStatus) {
   return { status: newStatus };
 }
 
-async function saveReportEdits(reportId) {
-  const category    = document.getElementById(`edit-cat-${reportId}`).value;
-  const subcatEl     = document.getElementById(`edit-subcat-${reportId}`);
-  const subcategory  = (subcatEl && subcatEl.value) ? subcatEl.value : null;
-  const status       = document.getElementById(`edit-status-${reportId}`).value;
-  const priorityEl   = document.getElementById(`edit-priority-${reportId}`);
-  const priority      = (priorityEl && priorityEl.value) ? priorityEl.value : 'normal';
-  const comment       = document.getElementById(`edit-comment-${reportId}`).value;
-  try {
-    const { error } = await sb.from(TABLE)
-      .update({ category, subcategory, priority, comment, updated_at: new Date().toISOString(), ...buildStatusPatch(status) })
-      .eq('id', reportId);
-    if (error) throw error;
-    await loadPinsByWindow();
-  } catch (err) {
-    console.error('Edit save error (full):', err);
-    alert(describeAuthError(err));
-  }
-}
-
+// Called from the detail modal's Status section (admin only). Closing the
+// modal on success matters here in a way it didn't for the old popup-based
+// delete button: the modal would otherwise be left open showing a report
+// that no longer exists in globalActiveData.
 async function deleteReport(reportId) {
   if (!confirm(t('deleteConfirm'))) return;
   try {
     const { error } = await sb.from(TABLE).delete().eq('id', reportId);
     if (error) throw error;
     await loadPinsByWindow();
+    hideReportDetailModal();
   } catch (err) {
     console.error('Delete error (full):', err);
     alert(describeAuthError(err));
