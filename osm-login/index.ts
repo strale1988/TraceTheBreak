@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const OSM_AUTH_URL = 'https://www.openstreetmap.org/oauth2/authorize';
 const OSM_TOKEN_URL = 'https://www.openstreetmap.org/oauth2/token';
