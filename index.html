@@ -1328,6 +1328,47 @@ body.driving-active #appPanel{
   margin-top: 4px;
 }
 
+/* --- OAuth sign-in buttons ---------------------------------------------
+   One row per provider, each a full-width button with a small icon glyph.
+   Colors are fixed brand-ish neutrals rather than theme surface vars —
+   these are provider identity buttons, not app chrome, so they should
+   look the same in light/dark mode (standard OAuth-button practice). */
+.oauth-btn{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  width:100%;
+  height:40px;
+  border-radius:6px;
+  border:1px solid #d5d5d3;
+  background:#fff;
+  color:#1a1a1a;
+  font-size:13px;
+  font-weight:600;
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+.oauth-btn img{ width:18px; height:18px; flex-shrink:0; }
+.oauth-btn.oauth-apple{ background:#000; color:#fff; border-color:#000; }
+.oauth-btn.oauth-github{ background:#171515; color:#fff; border-color:#171515; }
+.oauth-btn.oauth-osm{ background:#fff; color:#1a1a1a; }
+
+#chooseUsernamePanel{
+  display:none;
+  flex-direction:column;
+  gap:8px;
+  padding:12px 10px;
+}
+#chooseUsernamePanel p{
+  font-size:12px;
+  color:var(--text-muted);
+  line-height:1.4;
+  text-align:center;
+  margin-bottom:2px;
+}
+
 .pw-wrap input{ padding-right:34px !important; }
 .pw-toggle-btn{
   position:absolute;
@@ -1951,20 +1992,31 @@ span.flatpickr-weekday {
 
 <div class="panel locked-panel" id="lockedFormPanel" style="display:flex">
   <p id="lockedMsgText">Sign in to secure your profile and reports.</p>
-  
-  <div class="row" style="width:100%; gap:6px;">
-    <input type="text" id="authUsernameInput" placeholder="Username" autocomplete="off" style="flex:1; height:40px;">
-    <div class="pw-wrap" style="flex:1; position:relative;">
-      <input type="password" id="authPasswordInput" placeholder="Password" autocomplete="off" style="width:100%; height:40px;">
-      <button type="button" class="pw-toggle-btn" id="pwToggleBtn" onclick="togglePasswordVisibility()" title="Show/hide password">👁</button>
-    </div>
-  </div>
 
-  <button class="export-btn" id="submitAuthBtn" style="width:100%; background:#a67817; font-size:13px; font-weight:bold; height:40px;" onclick="handleAuthSubmit()">
-    <span id="authBtnLabel">Sign In</span>
+  <button type="button" class="oauth-btn oauth-google" onclick="signInWithProvider('google')">
+    <img class="icon-img" src="icons/google.png" alt=""><span>Continue with Google</span>
   </button>
-  
-  <span class="auth-toggle-text" id="authToggleBtn" onclick="toggleAuthMode()">Don't have an account? Register</span>
+  <button type="button" class="oauth-btn oauth-apple" onclick="signInWithProvider('apple')">
+    <img class="icon-img" src="icons/apple.png" alt=""><span>Continue with Apple</span>
+  </button>
+  <button type="button" class="oauth-btn oauth-github" onclick="signInWithProvider('github')">
+    <img class="icon-img" src="icons/github.png" alt=""><span>Continue with GitHub</span>
+  </button>
+  <button type="button" class="oauth-btn oauth-osm" onclick="signInWithOsm()">
+    <img class="icon-img" src="icons/osm.png" alt=""><span>Continue with OpenStreetMap</span>
+  </button>
+</div>
+
+<!-- Shown once, right after a person's FIRST OAuth sign-in: their profile
+     row already exists (created by the DB trigger — see the SQL) but has
+     no username yet, since none of Google/Apple/GitHub/OSM guarantee a
+     name that's unique or appropriate to show publicly on reports. -->
+<div class="panel" id="chooseUsernamePanel">
+  <p id="chooseUsernameMsgText">Choose a public username to finish setting up your account.</p>
+  <input type="text" id="chosenUsernameInput" placeholder="Username" autocomplete="off" style="width:100%; height:40px;">
+  <button class="export-btn" id="submitUsernameBtn" style="width:100%; background:#a67817; font-size:13px; font-weight:bold; height:40px;" onclick="submitUsername()">
+    <span id="submitUsernameBtnLabel">Save username</span>
+  </button>
 </div>
 
 </div>
@@ -2265,41 +2317,10 @@ function sanitizePath(path) {
 // =============================================================================
 let currentSession = null;   
 let currentProfile = null;   
-let isRegisterMode = false; // Toggles between Login and Registration UI
 
 // report_id -> { suggested_status: weighted_points } snapshot from the
 // report_status_vote_progress view, refreshed alongside every pin reload.
 let voteProgressByReport = new Map();
-
-function toggleAuthMode() {
-  isRegisterMode = !isRegisterMode;
-  const labelBtn = document.getElementById('authBtnLabel');
-  const labelToggle = document.getElementById('authToggleBtn');
-  const msgText = document.getElementById('lockedMsgText');
-
-  if (isRegisterMode) {
-    labelBtn.textContent = lang === 'sr' ? 'Registruj se' : 'Register';
-    labelToggle.textContent = lang === 'sr' ? 'Već imaš nalog? Prijavi se' : 'Already have an account? Sign In';
-    msgText.textContent = lang === 'sr' ? 'Kreirajte novo korisničko ime i lozinku.' : 'Create a new unique username and password.';
-  } else {
-    labelBtn.textContent = lang === 'sr' ? 'Prijavi se' : 'Sign In';
-    labelToggle.textContent = lang === 'sr' ? 'Nemaš nalog? Registruj se' : "Don't have an account? Register";
-    msgText.textContent = lang === 'sr' ? 'Prijavite se da osigurate vaše prijave i profil.' : 'Sign in to secure your profile and reports.';
-  }
-}
-
-function makeFakeEmail(username) {
-  return `${username.toLowerCase().trim()}@tracethebreak.local`;
-}
-
-function togglePasswordVisibility() {
-  const input = document.getElementById('authPasswordInput');
-  const btn = document.getElementById('pwToggleBtn');
-  const showing = input.type === 'text';
-  input.type = showing ? 'password' : 'text';
-  btn.textContent = showing ? '👁' : '🙈';
-  btn.classList.toggle('revealed', !showing);
-}
 
 // Error objects (esp. Supabase AuthError/PostgrestError) often stringify to "{}"
 // because `message` can be non-enumerable. This pulls the real text out reliably.
@@ -2315,75 +2336,60 @@ function describeAuthError(err) {
   return 'Unknown error (check Supabase Dashboard \u2192 Logs \u2192 Auth Logs for details)';
 }
 
-async function handleAuthSubmit() {
-  const username = document.getElementById('authUsernameInput').value.trim();
-  const password = document.getElementById('authPasswordInput').value;
+// Native Supabase OAuth providers. 'google', 'apple', and 'github' must each
+// be enabled in Supabase Dashboard -> Authentication -> Providers, with their
+// client id/secret configured there — nothing else changes on our end.
+async function signInWithProvider(provider) {
+  try {
+    const { error } = await sb.auth.signInWithOAuth({
+      provider,
+      options: { redirectTo: window.location.href }
+    });
+    if (error) throw error;
+    // Successful call redirects the whole page away to the provider; there's
+    // nothing further to do here. Supabase picks the session back up
+    // automatically on return (detectSessionInUrl defaults to true) and
+    // fires onAuthStateChange, handled in initAuth() below.
+  } catch (err) {
+    console.error('OAuth sign-in error:', err);
+    alert((lang === 'sr' ? 'Prijava nije uspela: ' : 'Sign-in failed: ') + describeAuthError(err));
+  }
+}
 
-  if (!username || password.length < 6) {
-    alert(lang === 'sr' ? 'Korisničko ime je obavezno. Lozinka mora imati bar 6 karaktera.' : 'Username is required. Password must be at least 6 characters.');
+// OpenStreetMap is NOT one of Supabase's built-in OAuth providers, so this
+// goes through a small Edge Function (supabase/functions/osm-login) that
+// performs the OSM OAuth2 handshake server-side, then hands the browser a
+// real Supabase session via a magic-link redirect. See the SQL/deployment
+// notes for that function; this button just kicks off the redirect.
+function signInWithOsm() {
+  const redirectTo = encodeURIComponent(window.location.href);
+  window.location.href = `${SUPABASE_URL}/functions/v1/osm-login?redirect_to=${redirectTo}`;
+}
+
+async function submitUsername() {
+  const input = document.getElementById('chosenUsernameInput');
+  const username = input.value.trim();
+  if (!username || username.length < 3) {
+    alert(lang === 'sr' ? 'Korisničko ime mora imati bar 3 karaktera.' : 'Username must be at least 3 characters.');
     return;
   }
-
-  const fakeEmail = makeFakeEmail(username);
-
-  if (isRegisterMode) {
-    // 1. Registration Flow
-    try {
-      // First verify if the username exists in the profiles table to prevent profile conflicts
-      const { data: existingProf, error: checkError } = await sb.from(PROFILES_TABLE).select('username').ilike('username', username).maybeSingle();
-      if (checkError) {
-        console.error('Username check error (full):', checkError);
-        throw checkError;
-      }
-      if (existingProf) {
-        alert(lang === 'sr' ? 'Korisničko ime je već zauzeto.' : 'Username already taken.');
-        return;
-      }
-
-      const { data: signUpData, error: signUpError } = await sb.auth.signUp({
-        email: fakeEmail,
-        password: password
-      });
-      if (signUpError) throw signUpError;
-
-      if (signUpData?.user) {
-        // Create matching public profile assignment row
-        const { error: profError } = await sb.from(PROFILES_TABLE).insert([
-          { id: signUpData.user.id, username: username }
-        ]);
-        if (profError) throw profError;
-      }
-
-      document.getElementById('authPasswordInput').value = '';
-
-      alert(lang === 'sr' ? 'Nalog uspešno kreiran! Sada se možete prijaviti.' : 'Account created successfully! You can now sign in.');
-      isRegisterMode = true;
-      toggleAuthMode(); // Flip back to sign-in view automatically
-    } catch (err) {
-      console.error('Registration error (full):', err);
-      alert((lang === 'sr' ? 'Greška pri registraciji: ' : 'Registration failed: ') + describeAuthError(err));
-    }
-  } else {
-    // 2. Sign In Flow
-    try {
-      const { data, error } = await sb.auth.signInWithPassword({
-        email: fakeEmail,
-        password: password
-      });
-      if (error) throw error;
-
-      // Clear the password value BEFORE the field gets hidden by updateAuthUI().
-      // Browsers offer to "save this password" when a password field disappears
-      // right after a successful request while still holding a value — wiping it
-      // first makes that disappearance look like a reset instead of a submit.
-      document.getElementById('authPasswordInput').value = '';
-
-      currentSession = data.session;
-      await loadProfile();
-    } catch (err) {
-      console.error('Sign in error (full):', err);
-      alert((lang === 'sr' ? 'Neuspešna prijava: ' : 'Sign in failed: ') + describeAuthError(err));
-    }
+  if (!currentSession) return;
+  try {
+    // No pre-check + separate insert here (that was a TOCTOU race in the old
+    // password flow). The DB now enforces uniqueness with a case-insensitive
+    // unique index, so a collision surfaces as a 23505 error below instead.
+    const { error } = await sb.from(PROFILES_TABLE)
+      .update({ username })
+      .eq('id', currentSession.user.id);
+    if (error) throw error;
+    input.value = '';
+    await loadProfile();
+  } catch (err) {
+    console.error('Username save error (full):', err);
+    const taken = err && err.code === '23505';
+    alert(taken
+      ? (lang === 'sr' ? 'To korisničko ime je već zauzeto.' : 'That username is already taken.')
+      : (lang === 'sr' ? 'Greška: ' : 'Error: ') + describeAuthError(err));
   }
 }
 
@@ -2399,9 +2405,6 @@ async function handleUserBadgeClick() {
   }
   currentSession = null;
   currentProfile = null;
-
-  document.getElementById('authUsernameInput').value = '';
-  document.getElementById('authPasswordInput').value = '';
 
   updateAuthUI();
   refreshRenderedPopups();
@@ -2429,8 +2432,9 @@ function updateAuthUI() {
   const userBadge = document.getElementById('userBadge');
   const reportFormPanel = document.getElementById('reportFormPanel');
   const lockedFormPanel = document.getElementById('lockedFormPanel');
+  const chooseUsernamePanel = document.getElementById('chooseUsernamePanel');
 
-  if (currentSession && currentProfile) {
+  if (currentSession && currentProfile && currentProfile.username) {
     userBadge.style.display = 'flex';
     document.getElementById('userBadgeName').textContent = currentProfile.username;
     document.getElementById('userBadgeAdmin').style.display = currentProfile.is_admin ? 'inline-block' : 'none';
@@ -2438,10 +2442,22 @@ function updateAuthUI() {
     updateTierPill();
     reportFormPanel.style.display = 'flex';
     lockedFormPanel.style.display = 'none';
+    chooseUsernamePanel.style.display = 'none';
+  } else if (currentSession && currentProfile && !currentProfile.username) {
+    // Signed in via an OAuth provider, but the auto-created profile row
+    // (see the on_auth_user_created trigger) has no username yet — none of
+    // Google/Apple/GitHub/OSM is guaranteed to give us a unique, public-
+    // appropriate display name, so the person picks one here once.
+    userBadge.style.display = 'none';
+    reportFormPanel.style.display = 'none';
+    lockedFormPanel.style.display = 'none';
+    chooseUsernamePanel.style.display = 'flex';
+    document.getElementById('settingsAdminSection').style.display = 'none';
   } else {
     userBadge.style.display = 'none';
     reportFormPanel.style.display = 'none';
     lockedFormPanel.style.display = 'flex';
+    chooseUsernamePanel.style.display = 'none';
     document.getElementById('settingsAdminSection').style.display = 'none';
   }
   checkFormReady();
@@ -2764,15 +2780,15 @@ function applyLang(){
 
   document.getElementById('userBadgeAdmin').textContent   = '\u2605 ' + t('adminBadge');
   
-  const userIn = document.getElementById('authUsernameInput');
-  const passIn = document.getElementById('authPasswordInput');
-  if (userIn) userIn.placeholder = lang === 'sr' ? 'Korisničko ime' : 'Username';
-  if (passIn) passIn.placeholder = lang === 'sr' ? 'Lozinka' : 'Password';
+  const lockedMsgEl = document.getElementById('lockedMsgText');
+  if (lockedMsgEl) lockedMsgEl.textContent = lang === 'sr' ? 'Prijavite se da osigurate vaše prijave i profil.' : 'Sign in to secure your profile and reports.';
 
-  // Force language sync into the auth text variables
-  const currentModeState = isRegisterMode;
-  isRegisterMode = !currentModeState;
-  toggleAuthMode();
+  const chosenUsernameInput = document.getElementById('chosenUsernameInput');
+  if (chosenUsernameInput) chosenUsernameInput.placeholder = lang === 'sr' ? 'Korisničko ime' : 'Username';
+  const chooseUsernameMsgEl = document.getElementById('chooseUsernameMsgText');
+  if (chooseUsernameMsgEl) chooseUsernameMsgEl.textContent = lang === 'sr' ? 'Izaberite javno korisničko ime da završite podešavanje naloga.' : 'Choose a public username to finish setting up your account.';
+  const submitUsernameBtnLabel = document.getElementById('submitUsernameBtnLabel');
+  if (submitUsernameBtnLabel) submitUsernameBtnLabel.textContent = lang === 'sr' ? 'Sačuvaj korisničko ime' : 'Save username';
 
   buildHelpModalContent();
   refreshRenderedPopups();
