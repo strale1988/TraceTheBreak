@@ -330,13 +330,6 @@ header p{ font-size:11px; opacity:.7; margin-top:2px; }
   font-size: 10px;
 }
 
-#reportCount {
-  color: var(--text-muted);
-  font-size: 12px;
-  text-align: right;
-  width: 90px;
-}
-
 .filter-select-row {
   background: var(--bg-surface);
   padding: 0 12px 14px 12px;
@@ -431,6 +424,11 @@ button{
 .legend-item{ display:flex; align-items:center; gap:3px; }
 .legend-dot{ width:9px; height:9px; border-radius:50%; display:inline-block; flex-shrink:0; }
 .leg{ color:var(--text-primary); font-size:10px; }
+/* Per-status counts next to the Reported/In progress/Fixed labels in
+   #mapLegend — e.g. "Reported (562)". Muted and slightly smaller than the
+   label itself so the label stays the visually primary thing and the
+   count reads as supporting detail, not a competing headline. */
+.legend-count{ color:var(--text-muted); font-size:9px; margin-left:1px; }
 
 /* Shared floating pill look for both status/category legends — background,
    border, and shadow all pull from the theme's floating-widget tokens so
@@ -1597,6 +1595,20 @@ body.driving-active #appPanel{
   flex-shrink:0;
 }
 .fullscreen-modal-header h2{ font-size:16px; font-weight:700; margin:0; }
+/* Report-detail header only: showReportDetailModal() sets this element's
+   background to the report's status color (same colors as the #mapLegend
+   status pills) and adds this class. Text/close-button colors are pinned
+   to light regardless of theme — var(--text-primary) would go near-black
+   in light mode, which reads poorly against a solid status color in
+   either theme, so this is a deliberate fixed-color exception rather than
+   a theme token. */
+.fullscreen-modal-header.status-colored{ border-bottom-color:transparent; }
+.fullscreen-modal-header.status-colored h2{ color:#fff; }
+.fullscreen-modal-header.status-colored .fullscreen-modal-close{
+  background:rgba(255,255,255,.22);
+  border-color:rgba(255,255,255,.5);
+  color:#fff;
+}
 .fullscreen-modal-close{
   background:var(--bg-surface-alt); color:var(--text-primary); border:1px solid var(--border-color-strong); border-radius:8px;
   width:36px; height:36px; flex-shrink:0;
@@ -1811,9 +1823,9 @@ span.flatpickr-weekday {
 
 <div id="mapLegend" class="map-legend-pill" style="flex-wrap:nowrap;">
   <span class="legend-item"><span class="legend-dot" style="background:#ff4b4b"></span>
-  <span class="leg" data-en="Reported" data-sr="Prijavljeno">Prijavljeno</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#f5a623"></span><span class="leg" data-en="In progress" data-sr="U toku">U toku</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#2ecc71"></span><span class="leg" data-en="Fixed" data-sr="Popravljeno">Popravljeno</span></span>
+  <span class="leg" data-en="Reported" data-sr="Prijavljeno">Prijavljeno</span><span class="legend-count" id="legendCountReported"></span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#f5a623"></span><span class="leg" data-en="In progress" data-sr="U toku">U toku</span><span class="legend-count" id="legendCountInProgress"></span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#2ecc71"></span><span class="leg" data-en="Fixed" data-sr="Popravljeno">Popravljeno</span><span class="legend-count" id="legendCountFixed"></span></span>
 </div>
 
 <div class="legend map-legend-pill" id="categoryLegend" style="flex-wrap:wrap;">
@@ -2068,7 +2080,6 @@ span.flatpickr-weekday {
     <div class="detail-section" style="padding:0;overflow:hidden;">
       <div class="filter-label-row" style="border-radius:0;">
         <span class="filter-title" id="filterTitleLabel">Time Window Filter</span>
-        <span id="reportCount">0 Reports</span>
       </div>
 
       <div class="filter-select-row" style="border-bottom:none;">
@@ -2118,9 +2129,9 @@ span.flatpickr-weekday {
      popup. Content is built dynamically by showReportDetailModal(); this is
      just the shell so it can slot into the same 9999 modal tier as the rest. -->
 <div id="reportDetailModal" class="fullscreen-modal-overlay" style="display:none">
-  <div class="fullscreen-modal-header">
+  <div class="fullscreen-modal-header" id="reportDetailHeader">
     <h2 id="reportDetailTitle"></h2>
-    <button class="fullscreen-modal-close" onclick="hideReportDetailModal()" aria-label="Close">✕</button>
+    <button class="fullscreen-modal-close" id="reportDetailCloseBtn" onclick="hideReportDetailModal()" aria-label="Close">✕</button>
   </div>
   <div class="fullscreen-modal-body" id="reportDetailBody"></div>
 </div>
@@ -2568,6 +2579,8 @@ const T = {
   detailMapLabel:        { en:'Map',                                       sr:'Mapa' },
   detailOpenMaps:        { en:'Open in Google Maps',                       sr:'Otvori u Google mapama' },
   detailMunicipalityLabel:{ en:'Municipality',                             sr:'Opština' },
+  detailStreetLabel:    { en:'Street',                                    sr:'Ulica' },
+  detailAreaLabel:       { en:'Area',                                     sr:'Deo grada' },
   detailLoading:         { en:'Loading…',                                  sr:'Učitavanje…' },
   detailUnknown:         { en:'Unknown',                                   sr:'Nepoznato' },
   detailNoMunicipality:  { en:'Could not determine the municipality for this location.', sr:'Nije moguće odrediti opštinu za ovu lokaciju.' },
@@ -4466,9 +4479,9 @@ const SPEED_SMOOTHING_FACTOR       = 0.45;
 // fixed: small movements (likely noise) are smoothed heavily, while a large
 // jump (you're actually driving) is followed almost immediately so the puck
 // never noticeably lags behind real movement.
-const POSITION_SMOOTH_MIN_FACTOR   = 0.25; // applied to tiny/no movement (pure jitter)
+const POSITION_SMOOTH_MIN_FACTOR   = 0.5;  // applied to tiny/no movement (pure jitter) — raised from 0.25: at the old value the puck visibly lagged behind real, slow movement (walking speed, or the first second or two of pulling away from a stop) because most consecutive fixes are well under POSITION_SMOOTH_FULL_SNAP_M apart and so almost never got trusted much. This still smooths pure jitter, just less sluggishly.
 const POSITION_SMOOTH_MAX_FACTOR   = 1.0;  // applied once movement is clearly real
-const POSITION_SMOOTH_FULL_SNAP_M  = 12;   // movement at/above this distance is trusted fully, no smoothing
+const POSITION_SMOOTH_FULL_SNAP_M  = 8;    // movement at/above this distance is trusted fully, no smoothing — lowered from 12 so genuine movement reaches full-trust, no-lag tracking sooner.
 function smoothPositionFix(candidate) {
   if (!smoothedFixCoords) { smoothedFixCoords = { lat: candidate.lat, lon: candidate.lon }; return smoothedFixCoords; }
   const jumpM = distMeters(smoothedFixCoords, candidate);
@@ -5151,22 +5164,23 @@ async function reportBreak(){
 // look up the right utility company contact for a report's category +
 // municipality.
 //
-// Overpass is NOT queried during normal app usage. It is only ever called
-// from the admin "Add municipality from map center" tool (see
-// addMunicipalityFromMapCenter / fetchMunicipalityFromOverpass below),
-// which imports a municipality's boundary once and saves it to Supabase.
-// Every other lookup — report creation, opening a report, boundary
-// highlighting — reads only from the in-memory cache and never touches
-// the network. If a point isn't covered by any cached boundary yet, the
-// lookup simply returns null; an admin needs to import that municipality
-// first via the map-center tool.
+// Overpass is NOT queried for this anymore (see fetchMunicipalityFromNominatim
+// below for why) and Nominatim is likewise only ever called from the admin
+// "Add municipality from map center" tool (see addMunicipalityFromMapCenter /
+// fetchMunicipalityFromNominatim below), which imports a municipality's
+// boundary once and saves it to Supabase. Every other lookup — report
+// creation, opening a report, boundary highlighting — reads only from the
+// in-memory cache and never touches the network. If a point isn't covered
+// by any cached boundary yet, the lookup simply returns null; an admin
+// needs to import that municipality first via the map-center tool.
 //
-// Deliberately simplified: imported boundaries only assemble OUTER rings
-// of a boundary relation (inner rings / holes / exclaves are ignored). For
-// point-in-polygon checks and drawing a rough boundary on a community map,
-// holes almost never matter — the one edge case (a fully donut-shaped
-// municipality) just ends up including its hole, which is an acceptable
-// trade-off against the complexity of full multipolygon reconstruction.
+// Deliberately simplified: only OUTER rings of a boundary are used for the
+// point-in-polygon test (inner rings / holes are ignored — see
+// pointInBoundary below). For point-in-polygon checks and drawing a rough
+// boundary on a community map, holes almost never matter — the one edge
+// case (a fully donut-shaped municipality) just ends up including its
+// hole, which is an acceptable trade-off against full multipolygon
+// hole-handling.
 // =============================================================================
 let municipalityCache = [];        // rows already loaded from Supabase this session
 let municipalityCacheLoaded = false;
@@ -5239,156 +5253,95 @@ function getMunicipalityById(id) {
   return municipalityCache.find(m => String(m.id) === String(id)) || null;
 }
 
-async function overpassQuery(ql) {
-  const res = await fetch('https://overpass-api.de/api/interpreter', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: 'data=' + encodeURIComponent(ql)
-  });
-  if (!res.ok) {
-    // Overpass returns a plain-text body describing *why* (bad query syntax,
-    // rate limit, server load) — surfacing it makes future failures
-    // debuggable from the console instead of just "failed: 429".
-    const bodyText = await res.text().catch(() => '');
-    throw new Error('Overpass request failed: ' + res.status + (bodyText ? ' — ' + bodyText.slice(0, 300) : ''));
-  }
-  return res.json();
-}
-
-// Stitches loose way segments (each an array of [lon,lat]) end-to-end into
-// closed rings. OSM boundary ways share exact coordinate nodes at their
-// junctions, so matching endpoints is reliable without any tolerance/snap.
-function assembleRings(segments) {
-  const pool = segments.map(s => s.slice());
-  const rings = [];
-  const keyOf = (pt) => pt[0] + ',' + pt[1];
-  while (pool.length) {
-    let ring = pool.shift();
-    let guard = 0;
-    while (keyOf(ring[0]) !== keyOf(ring[ring.length - 1]) && guard < pool.length + 1) {
-      guard++;
-      const tail = ring[ring.length - 1];
-      let matched = false;
-      for (let i = 0; i < pool.length; i++) {
-        const seg = pool[i];
-        if (keyOf(seg[0]) === keyOf(tail)) {
-          ring = ring.concat(seg.slice(1));
-          pool.splice(i, 1);
-          matched = true;
-          break;
-        }
-        if (keyOf(seg[seg.length - 1]) === keyOf(tail)) {
-          ring = ring.concat(seg.slice(0, -1).reverse());
-          pool.splice(i, 1);
-          matched = true;
-          break;
-        }
-      }
-      if (!matched) break; // best effort — push what we have, even if unclosed
-    }
-    rings.push(ring);
-  }
-  return rings;
-}
-
-function ringArea(ring) {
-  // Shoelace formula (signed) — used to pick the largest ring as the
-  // "main" outer boundary when a relation yields several closed rings.
-  let sum = 0;
-  for (let i = 0; i < ring.length - 1; i++) {
-    sum += ring[i][0] * ring[i + 1][1] - ring[i + 1][0] * ring[i][1];
-  }
-  return Math.abs(sum / 2);
-}
-
-// Picks the best "municipality-level" candidate from the tagged areas
-// Overpass' is_in() returns for a point. admin_level meaning varies by
-// country (opština in Serbia = 7, county in the US = 6, Gemeinde in
-// Germany = 8, etc.), so rather than hardcode one level we prefer
-// whichever tagged administrative area has the HIGHEST admin_level in the
-// "locality" range (6-8), and fall back to the next-best thing available.
-function pickBestAdminArea(elements) {
-  const candidates = (elements || [])
-    .filter(el => el.tags && el.tags.boundary === 'administrative' && el.tags.admin_level && el.tags.name)
-    .map(el => ({ ...el, admin_level_num: parseInt(el.tags.admin_level, 10) }))
-    .filter(el => !isNaN(el.admin_level_num) && el.admin_level_num >= 4);
-
-  if (!candidates.length) return null;
-
-  const preferred = candidates.filter(c => c.admin_level_num >= 6 && c.admin_level_num <= 8);
-  const pool = preferred.length ? preferred : candidates;
-  pool.sort((a, b) => b.admin_level_num - a.admin_level_num);
-  return pool[0];
-}
+// Reverse-geocodes a point to its enclosing municipality/administrative
+// area using Nominatim (https://nominatim.openstreetmap.org/reverse),
+// requesting polygon_geojson=1 so the exact boundary comes back in the
+// very same response — no separate geometry request, and no manual
+// way-segment stitching, needed at all.
+//
+// This replaces an earlier approach built on Overpass's is_in() statement,
+// which is what made "find the municipality at the current map center"
+// unreliable: is_in() only matches a point against Overpass's own
+// periodically-rebuilt spatial "area" index, and in practice that index
+// silently omits plenty of real, validly-tagged administrative relations
+// — for a lot of municipalities it just returned zero candidates, with no
+// error to react to, so the tool looked broken with no clue why.
+// Nominatim's reverse endpoint is purpose-built for exactly this "what
+// contains this point" question and is far more consistently populated.
+//
+// Nominatim's `zoom` parameter picks which admin level counts as "the"
+// result for a given point (see the OSM wiki's Nominatim zoom-to-address
+// -level table) — there's no single zoom that's the right municipality
+// level in every country, so this tries a short list biased toward
+// city/municipality first, then wider county/state levels, and accepts
+// the first result that's actually an administrative boundary polygon
+// rather than a point/road/building (which some zooms can return instead).
+const NOMINATIM_MUNICIPALITY_ZOOM_LEVELS = [10, 8, 12, 6];
 
 // ADMIN IMPORT TOOL ONLY — do not call this from any runtime report/viewing
-// flow. Fetches one municipality's boundary from Overpass and upserts it
+// flow. Fetches one municipality's boundary from Nominatim and upserts it
 // into Supabase so every future lookup for that area is a local cache hit.
 // Called from addMunicipalityFromMapCenter, gated behind the admin panel.
-async function fetchMunicipalityFromOverpass(lat, lon) {
-  const isInQl = `[out:json][timeout:25];\nis_in(${lat},${lon})->.a;\narea.a[boundary=administrative][admin_level];\nout tags;`;
-  const isInRes = await overpassQuery(isInQl);
-  const best = pickBestAdminArea(isInRes.elements);
-  if (!best) return null;
+async function fetchMunicipalityFromNominatim(lat, lon) {
+  for (const zoom of NOMINATIM_MUNICIPALITY_ZOOM_LEVELS) {
+    const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=${zoom}&addressdetails=1&polygon_geojson=1`;
+    let json;
+    try {
+      const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+      if (!res.ok) {
+        console.warn(`Nominatim reverse failed at zoom ${zoom}: HTTP ${res.status}`);
+        continue;
+      }
+      json = await res.json();
+    } catch (err) {
+      console.warn(`Nominatim reverse request error at zoom ${zoom}:`, err.message);
+      continue;
+    }
+    if (!json || json.error) continue;
 
-  // Overpass area ids for relations are offset by 3,600,000,000. Ways
-  // (rare for this size of boundary) aren't handled — we bail rather than
-  // build a wrong relation id.
-  if (best.id < 3600000000) return null;
-  const relId = best.id - 3600000000;
+    // Only accept an actual boundary polygon — at some zooms Nominatim's
+    // best match is a point/way (an address, a road) instead, which we
+    // can't use as a municipality outline; try the next zoom level.
+    const geo = json.geojson;
+    if (!geo || (geo.type !== 'Polygon' && geo.type !== 'MultiPolygon')) continue;
 
-  const geomQl = `[out:json][timeout:25];\nrelation(${relId});\nout geom;`;
-  const geomRes = await overpassQuery(geomQl);
-  const rel = (geomRes.elements || []).find(el => el.type === 'relation' && el.id === relId);
-  if (!rel || !rel.members) return null;
+    const addr = json.address || {};
+    const name = json.name || addr.municipality || addr.city || addr.town || addr.county;
+    if (!name) continue;
 
-  const outerSegments = rel.members
-    .filter(m => m.type === 'way' && m.role !== 'inner' && Array.isArray(m.geometry) && m.geometry.length > 1)
-    .map(m => m.geometry.map(pt => [pt.lon, pt.lat]));
-  if (!outerSegments.length) return null;
+    let bbox = null;
+    if (Array.isArray(json.boundingbox) && json.boundingbox.length === 4) {
+      const [south, north, west, east] = json.boundingbox.map(Number);
+      bbox = [west, south, east, north];
+    }
 
-  let rings = assembleRings(outerSegments).filter(r => r.length >= 4);
-  if (!rings.length) return null;
-  // Keep every closed ring (handles multi-part municipalities/exclaves),
-  // but if any are left unclosed from a best-effort stitch, drop them.
-  rings = rings.filter(r => r[0][0] === r[r.length - 1][0] && r[0][1] === r[r.length - 1][1]);
-  if (!rings.length) return null;
+    const row = {
+      osm_type: json.osm_type || null,
+      osm_id: json.osm_id != null ? json.osm_id : null,
+      admin_level: null, // Nominatim's address breakdown doesn't expose the raw OSM admin_level tag; not needed at lookup time (see findMunicipalityInCache's `|| 0` fallback)
+      name,
+      name_en: null,
+      country_code: (addr.country_code || '').toUpperCase() || null,
+      centroid_lat: parseFloat(json.lat) || lat,
+      centroid_lon: parseFloat(json.lon) || lon,
+      boundary: geo,
+      bbox
+    };
 
-  const boundary = { type: 'MultiPolygon', coordinates: rings.map(r => [r]) };
-
-  let minLon = Infinity, minLat = Infinity, maxLon = -Infinity, maxLat = -Infinity;
-  let sumLon = 0, sumLat = 0, n = 0;
-  rings.forEach(r => r.forEach(([plon, plat]) => {
-    minLon = Math.min(minLon, plon); maxLon = Math.max(maxLon, plon);
-    minLat = Math.min(minLat, plat); maxLat = Math.max(maxLat, plat);
-    sumLon += plon; sumLat += plat; n++;
-  }));
-
-  const row = {
-    osm_type: 'relation',
-    osm_id: relId,
-    admin_level: best.admin_level_num,
-    name: best.tags.name,
-    name_en: best.tags['name:en'] || null,
-    country_code: (best.tags['ISO3166-1'] || best.tags['ISO3166-2'] || '').split('-')[0] || null,
-    centroid_lat: n ? sumLat / n : lat,
-    centroid_lon: n ? sumLon / n : lon,
-    boundary,
-    bbox: [minLon, minLat, maxLon, maxLat]
-  };
-
-  try {
-    const { data, error } = await sb.from(MUNICIPALITIES_TABLE)
-      .upsert(row, { onConflict: 'osm_type,osm_id' })
-      .select()
-      .single();
-    if (error) throw error;
-    municipalityCache.push(data);
-    return data;
-  } catch (err) {
-    console.error('Failed to cache municipality:', err.message);
-    return row; // still usable for this session even if the DB write failed
+    try {
+      const { data, error } = await sb.from(MUNICIPALITIES_TABLE)
+        .upsert(row, { onConflict: 'osm_type,osm_id' })
+        .select()
+        .single();
+      if (error) throw error;
+      municipalityCache.push(data);
+      return data;
+    } catch (err) {
+      console.error('Failed to cache municipality:', err.message);
+      return row; // still usable for this session even if the DB write failed
+    }
   }
+  return null;
 }
 
 // Runtime resolver: local cache ONLY (loaded once from Supabase, then a
@@ -5701,7 +5654,7 @@ async function addMunicipalityFromMapCenter() {
     const center = map.getCenter();
     await loadMunicipalityCache();
     let muni = findMunicipalityInCache(center.lat, center.lng);
-    if (!muni) muni = await fetchMunicipalityFromOverpass(center.lat, center.lng);
+    if (!muni) muni = await fetchMunicipalityFromNominatim(center.lat, center.lng);
     if (!muni) {
       alert(t('ucAddMuniFail'));
       return;
@@ -5811,11 +5764,6 @@ function buildPopupHtml(report) {
         <span class="popup-row-value">${escapeHtml(reporterName)}${isOwner ? ` <span class="owner-tag">(${t('yourReport')})</span>` : ''}</span>
       </div>
     </div>
-    <div class="popup-timeline">
-      ${buildTimelineItem(report.created_at, true, STATUS_COLORS.reported)}
-      ${buildTimelineItem(report.in_progress_at, !!report.in_progress_at, STATUS_COLORS.in_progress)}
-      ${buildTimelineItem(report.fixed_at, !!report.fixed_at, STATUS_COLORS.fixed)}
-    </div>
     ${report.comment ? `<div class="popup-note">${escapeHtml(report.comment)}</div>` : ''}
     ${isSectionReport(report) ? '' : `<div class="status-action-row" style="border-top:none;padding-top:0;">
       <button class="status-action-btn" style="background:#2a2a2a;" onclick="showReportDetailModal('${report.id}')">📍 ${t('detailsBtn')}</button>
@@ -5839,10 +5787,10 @@ function buildVoteProgressHtml(report) {
 
 // =============================================================================
 // REPORT DETAIL MODAL — fullscreen view opened from a popup's "Detalji" row.
-// Shows exact coordinates, the municipality the pin falls in (resolved via
-// the Overpass module above, drawing its boundary on the map as a side
-// effect), and any utility company contacts responsible for that report's
-// category in that municipality.
+// Shows exact coordinates, street/area, the municipality the pin falls in
+// (resolved via the municipality cache above, drawing its boundary on the
+// map as a side effect), and any utility company contacts responsible for
+// that report's category in that municipality.
 // =============================================================================
 async function showReportDetailModal(reportId) {
   const report = globalActiveData.find(r => r.id === reportId);
@@ -5851,18 +5799,31 @@ async function showReportDetailModal(reportId) {
   const modal = document.getElementById('reportDetailModal');
   const body = document.getElementById('reportDetailBody');
   const titleEl = document.getElementById('reportDetailTitle');
+  const headerEl = document.getElementById('reportDetailHeader');
   const headerTitle = report.subcategory
     ? `${translateCategory(report.category)} / ${subcategoryLabel(report.category, report.subcategory)}`
     : translateCategory(report.category);
   titleEl.textContent = headerTitle;
+  // Header is filled with this report's status color (same colors as the
+  // #mapLegend status pills) rather than its category color, so the
+  // fullscreen view's very first impression is "what state is this in" —
+  // text/close-button are pinned to light via .status-colored (see CSS).
+  if (headerEl) {
+    headerEl.style.background = statusColor(report.status);
+    headerEl.classList.add('status-colored');
+  }
 
   const reporterName = report.owner_username || (lang === 'sr' ? 'Nepoznato' : 'Unknown');
+  const mapsUrl = `https://www.google.com/maps?q=${report.latitude},${report.longitude}`;
 
   body.innerHTML = `
     <div class="detail-section">
       <div class="detail-section-title">${t('detailLocationTitle')}</div>
-      <div class="detail-row"><span class="detail-row-label">${t('detailCoordsLabel')}</span><span class="detail-row-value">${report.latitude.toFixed(6)}, ${report.longitude.toFixed(6)}</span></div>
+      <div class="detail-row"><span class="detail-row-label">${t('detailStreetLabel')}</span><span class="detail-row-value" id="detailStreetValue">${t('detailLoading')}</span></div>
+      <div class="detail-row"><span class="detail-row-label">${t('detailAreaLabel')}</span><span class="detail-row-value" id="detailAreaValue">${t('detailLoading')}</span></div>
       <div class="detail-row"><span class="detail-row-label">${t('detailMunicipalityLabel')}</span><span class="detail-row-value" id="detailMunicipalityValue">${t('detailLoading')}</span></div>
+      <div class="detail-row"><span class="detail-row-label">${t('detailCoordsLabel')}</span><span class="detail-row-value">${report.latitude.toFixed(6)}, ${report.longitude.toFixed(6)}</span></div>
+      <div class="detail-row"><span class="detail-row-label">${t('detailMapLabel')}</span><span class="detail-row-value"><a href="${mapsUrl}" target="_blank" rel="noopener">${t('detailOpenMaps')}</a></span></div>
     </div>
     <div class="detail-section">
       <div class="detail-section-title">${t('popupStatus')}</div>
@@ -5883,6 +5844,16 @@ async function showReportDetailModal(reportId) {
 
   modal.style.display = 'flex';
 
+  // Street/area is a separate, independent lookup from the municipality
+  // resolution below — it's purely descriptive detail, not tied to the
+  // contacts feature, so it runs in parallel rather than blocking on it.
+  fetchAddressForPoint(report.latitude, report.longitude).then(addr => {
+    const streetEl = document.getElementById('detailStreetValue');
+    const areaEl   = document.getElementById('detailAreaValue');
+    if (streetEl) streetEl.textContent = (addr && addr.street) ? addr.street : t('detailUnknown');
+    if (areaEl)   areaEl.textContent   = (addr && addr.area)   ? addr.area   : t('detailUnknown');
+  });
+
   // Resolves by stored municipality_id when present (source of truth);
   // only falls back to a point-in-polygon lookup — and backfills the id —
   // for older reports that don't have one yet. Also draws this report's
@@ -5892,7 +5863,7 @@ async function showReportDetailModal(reportId) {
   renderMunicipalityBoundary(muni);
   const muniEl = document.getElementById('detailMunicipalityValue');
   if (muniEl) {
-    muniEl.textContent = muni ? (lang === 'sr' ? muni.name : (muni.name_en || muni.name)) : t('detailUnknown');
+    muniEl.textContent = muni ? municipalityDisplayName(muni) : t('detailUnknown');
   }
 
   const contactsEl = document.getElementById('detailContactsContainer');
@@ -6314,10 +6285,23 @@ function refreshRenderedPopups() {
   });
 }
 
+// Drives the "(562)" style counts next to Reported/In progress/Fixed in
+// #mapLegend on the main screen — moved here from a plain total in
+// Settings so the breakdown is visible at a glance while browsing the map,
+// not tucked away in a menu. Counts come from globalActiveData, so (like
+// the total this replaced) they reflect whatever the current date-range
+// filter plus always-on open reports currently include.
 function updateReportCount() {
-  const n = globalActiveData.length;
-  const rcEl = document.getElementById('reportCount');
-  if (rcEl) rcEl.textContent = n + ' ' + (n === 1 ? t('reportCount1') : t('reportCount'));
+  const counts = { reported: 0, in_progress: 0, fixed: 0 };
+  globalActiveData.forEach(r => { if (counts.hasOwnProperty(r.status)) counts[r.status]++; });
+
+  const setCount = (id, n) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = ` (${n})`;
+  };
+  setCount('legendCountReported',   counts.reported);
+  setCount('legendCountInProgress', counts.in_progress);
+  setCount('legendCountFixed',      counts.fixed);
 }
 
 async function loadPinsByWindow() {
