@@ -66,8 +66,8 @@
 
 body{
   font-family:-apple-system,BlinkMacSystemFont,sans-serif;
-  background:#111;
-  color:white;
+  background:#f4f4f2;
+  color:#1a1a1a;
   height: 100svh;
   display:flex;
   flex-direction:column;
@@ -75,8 +75,8 @@ body{
 
 header{
   padding:10px 12px;
-  background:#181818;
-  border-bottom:1px solid #333;
+  background:#ffffff;
+  border-bottom:1px solid #e2e2e0;
   position:relative;
   z-index:100; /* see Z-INDEX SCALE above — just needs to clear #map (1) */
 }
@@ -109,8 +109,8 @@ header p{ font-size:11px; opacity:.7; margin-top:2px; }
   right:0;
   flex-direction:column;
   gap:2px;
-  background:#232323;
-  border:1px solid #444;
+  background:#ffffff;
+  border:1px solid #ddd;
   border-radius:8px;
   padding:4px;
   min-width:110px;
@@ -126,8 +126,8 @@ header p{ font-size:11px; opacity:.7; margin-top:2px; }
 }
 
 .lang-btn, .help-icon-btn{
-  background:#303030;
-  color:#aaa;
+  background:#ececeb;
+  color:#555;
   border:none;
   border-radius:6px;
   padding:5px 8px;
@@ -140,8 +140,8 @@ header p{ font-size:11px; opacity:.7; margin-top:2px; }
 }
 .lang-btn.active{ background:#a67817; color:white; }
 .help-icon-btn{
-  background:#262626;
-  border:1px solid #444;
+  background:#ececeb;
+  border:1px solid #ddd;
   font-size:14px;
   width:32px;
   height:32px;
@@ -150,7 +150,7 @@ header p{ font-size:11px; opacity:.7; margin-top:2px; }
   align-items:center;
   justify-content:center;
 }
-.help-icon-btn:active{ background:#333; }
+.help-icon-btn:active{ background:#ddd; }
 
 #map {
   flex: 1;
@@ -184,7 +184,7 @@ header p{ font-size:11px; opacity:.7; margin-top:2px; }
   justify-content: space-between;
   align-items: center;
   padding: 10px 14px 4px 14px;
-  background: #181818;
+  background: #ffffff;
   font-size: 11px;
   font-weight: bold;
 }
@@ -204,9 +204,9 @@ header p{ font-size:11px; opacity:.7; margin-top:2px; }
 }
 
 .filter-select-row {
-  background: #181818;
+  background: #ffffff;
   padding: 0 12px 14px 12px;
-  border-bottom: 1px solid #292929;
+  border-bottom: 1px solid #e2e2e0;
   display: flex;
   gap: 8px;
   align-items: center;
@@ -220,7 +220,7 @@ header p{ font-size:11px; opacity:.7; margin-top:2px; }
 }
 
 .panel{
-  background:#181818;
+  background:#ffffff;
   padding:12px 12px;
   padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
   display:flex;
@@ -236,8 +236,8 @@ select{
   padding:11px 10px;
   border:none;
   border-radius:8px;
-  background:#262626;
-  color:white;
+  background:#f0f0ee;
+  color:#1a1a1a;
   font-size:13px;
   -webkit-appearance:none;
   appearance:none;
@@ -250,15 +250,15 @@ select{
      text color from this rule — white-on-white, so options are present
      and functional but invisible. This tells the browser the control (and
      its dropdown list) is dark, so it picks a readable native background. */
-  color-scheme:dark;
+  color-scheme:light;
 }
 /* Belt-and-suspenders for browsers that do style <option> directly: force
    the same dark background/light text so every entry — including ones
    added after the list originally shipped — stays visible regardless of
    OS theme. */
 select option{
-  background:#262626;
-  color:white;
+  background:#ffffff;
+  color:#1a1a1a;
 }
 
 input[type="text"], input[type="password"]{
@@ -266,8 +266,8 @@ input[type="text"], input[type="password"]{
   padding:11px 10px;
   border:none;
   border-radius:8px;
-  background:#262626;
-  color:white;
+  background:#f0f0ee;
+  color:#1a1a1a;
   font-size:13px;
 }
 
@@ -405,20 +405,26 @@ button{
 }
 
 .pin-map-btn{
-  background:rgba(20,20,20,.88);
-  border:1px solid #3a3a3a;
+  background:rgba(255,255,255,.92);
+  border:1px solid #ddd;
   border-radius:8px;
   width:44px; height:44px;
   display:flex; align-items:center; justify-content:center;
   cursor:pointer; font-size:22px;
-  box-shadow:0 2px 8px rgba(0,0,0,.55);
+  box-shadow:0 2px 8px rgba(0,0,0,.25);
   transition:background .15s;
   user-select:none;
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
 }
+.pin-map-btn .icon-img{ filter:brightness(0) invert(32%); }
+.pin-map-btn:active{ background:#eee; }
 .pin-map-btn.active{ background:#f5a623; border-color:#f5a623; }
 .pin-map-btn.recording-active{ background:#ff4b4b; border-color:#ff4b4b; animation:pulseRec 1.2s infinite; }
+/* On the colored accent backgrounds above, the icon's native white reads
+   better than the dark-gray tint meant for the light default state. */
+.pin-map-btn.active .icon-img,
+.pin-map-btn.recording-active .icon-img{ filter:none; }
 
 /* Custom PNG icons (https://strale1988.github.io/TraceTheStuff/) replacing
    the previous emoji glyphs. Sized to match the emoji footprint they
@@ -428,6 +434,28 @@ button{
 .icon-img.icon-img-tile{ width:19px; height:19px; }
 .icon-img.icon-img-inline{ width:16px; height:16px; margin:0 1px -3px; }
 .icon-img.icon-img-modal{ width:28px; height:28px; }
+
+/* Icons ship as light/white glyphs (a leftover of the old dark floating
+   map buttons). Now that the whole app is light-themed, they need this
+   tint everywhere they sit on a light/white surface — header buttons,
+   modals, settings, and the floating map buttons (.pin-map-btn, tinted
+   separately just below since its colored active/recording states want
+   to keep the native white icon instead) — so they read as a uniform
+   dark gray rather than washing out. */
+.icon-tint-dark,
+.help-icon-btn .icon-img,
+.generic-modal .icon-img,
+.fullscreen-modal-body .icon-img{ filter:brightness(0) invert(32%); }
+
+/* Shared light-theme button used across Settings/admin controls: light
+   gray background, dark gray text/icon — keeps every secondary button in
+   these panels visually consistent instead of one-off inline styles. */
+.settings-btn{
+  background:#ececeb; color:#3a3a3a; border:1px solid #ddd; border-radius:8px;
+  display:flex; align-items:center; justify-content:center; gap:6px;
+  padding:11px 12px; font-size:13px; font-weight:600;
+}
+.settings-btn:active{ background:#ddd; }
 
 /* --- Destination search panel (simple point-to-point navigation) ---
    Was a Leaflet topleft control, which put it in exactly the same corner
@@ -1063,8 +1091,8 @@ body.driving-active #appPanel{
 }
 .tier-pill{
   flex-shrink:0;
-  background:#2a2a2a;
-  color:#aaa;
+  background:#ececeb;
+  color:#555;
   border-radius:4px;
   padding:2px 5px;
   font-size:9px;
@@ -1076,7 +1104,7 @@ body.driving-active #appPanel{
 .profile-tier-row .tier-pill{ font-size:11px; padding:4px 10px; border-radius:20px; }
 .profile-progress-track{
   width:100%; height:8px; border-radius:4px;
-  background:#2a2a2a; overflow:hidden;
+  background:#ececeb; overflow:hidden;
 }
 .profile-progress-fill{
   height:100%; background:#a67817; border-radius:4px;
@@ -1330,7 +1358,7 @@ body.driving-active #appPanel{
   -webkit-overflow-scrolling:touch;
 }
 .generic-modal{
-  background:#1e1e1e; color:white;
+  background:#ffffff; color:#1a1a1a;
   border-radius:18px;
   padding:24px 20px;
   max-width:340px; width:100%;
@@ -1340,10 +1368,10 @@ body.driving-active #appPanel{
   pointer-events:all;
 }
 .generic-modal h2{ font-size:18px; font-weight:700; margin-bottom:12px; }
-.generic-modal p{ font-size:13px; line-height:1.6; color:#bbb; margin-bottom:12px; text-align:left; }
+.generic-modal p{ font-size:13px; line-height:1.6; color:#555; margin-bottom:12px; text-align:left; }
 .generic-modal-close{
-  background:#333; color:#eee;
-  border:1px solid #555; border-radius:10px;
+  background:#ececeb; color:#1a1a1a;
+  border:1px solid #ddd; border-radius:10px;
   padding:12px 20px;
   font-size:14px; font-weight:600;
   cursor:pointer; width:100%;
@@ -1351,7 +1379,7 @@ body.driving-active #appPanel{
   touch-action:manipulation;
   min-height:44px;
 }
-.generic-modal-close:active{ background:#444; }
+.generic-modal-close:active{ background:#ddd; }
 
 /* --- Fullscreen report detail modal ------------------------------------
    Opened from the "Detalji" row inside a pin popup. Unlike .generic-modal
@@ -1362,19 +1390,19 @@ body.driving-active #appPanel{
 .fullscreen-modal-overlay{
   position:fixed; inset:0;
   z-index:9999;
-  background:#141414;
+  background:#f7f7f5;
   display:flex; flex-direction:column;
 }
 .fullscreen-modal-header{
   display:flex; align-items:center; justify-content:space-between;
   gap:10px;
   padding:calc(14px + env(safe-area-inset-top, 0px)) 16px 14px 16px;
-  border-bottom:1px solid #292929;
+  border-bottom:1px solid #e2e2e0;
   flex-shrink:0;
 }
 .fullscreen-modal-header h2{ font-size:16px; font-weight:700; margin:0; }
 .fullscreen-modal-close{
-  background:#262626; color:#eee; border:1px solid #3a3a3a; border-radius:8px;
+  background:#f0f0ee; color:#1a1a1a; border:1px solid #ddd; border-radius:8px;
   width:36px; height:36px; flex-shrink:0;
   display:flex; align-items:center; justify-content:center;
   font-size:18px; cursor:pointer;
@@ -1385,7 +1413,7 @@ body.driving-active #appPanel{
   display:flex; flex-direction:column; gap:16px;
 }
 .detail-section{
-  background:#1e1e1e; border-radius:12px; padding:14px;
+  background:#ffffff; border:1px solid #eee; border-radius:12px; padding:14px;
 }
 .detail-section-title{
   font-size:10px; font-weight:700; letter-spacing:.4px; text-transform:uppercase;
@@ -1393,14 +1421,14 @@ body.driving-active #appPanel{
 }
 .detail-row{ display:flex; justify-content:space-between; gap:10px; padding:5px 0; font-size:13px; }
 .detail-row-label{ color:#999; flex-shrink:0; }
-.detail-row-value{ color:#eee; text-align:right; }
+.detail-row-value{ color:#1a1a1a; text-align:right; }
 .detail-row-value a{ color:#4ea1ff; text-decoration:none; }
 .contact-card{
-  background:#262626; border-radius:10px; padding:10px 12px; margin-bottom:8px;
+  background:#f5f5f3; border:1px solid #eee; border-radius:10px; padding:10px 12px; margin-bottom:8px;
 }
 .contact-card:last-child{ margin-bottom:0; }
 .contact-card-name{ font-weight:700; font-size:13.5px; margin-bottom:4px; }
-.contact-card-row{ font-size:12.5px; color:#ccc; margin-top:3px; }
+.contact-card-row{ font-size:12.5px; color:#555; margin-top:3px; }
 .contact-card-row a{ color:#4ea1ff; text-decoration:none; }
 .detail-empty{ font-size:12.5px; color:#777; font-style:italic; }
 .detail-loading{ font-size:12.5px; color:#888; }
@@ -1412,9 +1440,9 @@ body.driving-active #appPanel{
   top:calc(8px + env(safe-area-inset-top, 0px));
   left:50%; transform:translateX(-50%);
   z-index:640;
-  background:rgba(18,18,18,.88);
-  border:1px solid rgba(255,255,255,.09);
-  color:#ddd;
+  background:rgba(255,255,255,.92);
+  border:1px solid rgba(0,0,0,.08);
+  color:#333;
   font-size:11px; font-weight:600;
   padding:5px 12px;
   border-radius:20px;
@@ -1427,7 +1455,7 @@ body.driving-active #appPanel{
 
 /* --- Admin: utility company contacts (inside the settings modal) --- */
 .admin-section{
-  border-top:1px solid #292929;
+  border-top:1px solid #e2e2e0;
   padding:16px 20px calc(16px + env(safe-area-inset-bottom, 0px)) 20px;
   display:flex; flex-direction:column; gap:10px;
 }
@@ -1437,7 +1465,7 @@ body.driving-active #appPanel{
 }
 .uc-list{ display:flex; flex-direction:column; gap:8px; }
 .uc-item{
-  background:#1e1e1e; border-radius:10px; padding:10px 12px;
+  background:#ffffff; border:1px solid #eee; border-radius:10px; padding:10px 12px;
   display:flex; flex-direction:column; gap:4px;
 }
 .uc-item-top{ display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }
@@ -1454,21 +1482,21 @@ body.driving-active #appPanel{
 }
 .uc-form{
   display:flex; flex-direction:column; gap:8px;
-  background:#1e1e1e; border-radius:10px; padding:12px;
+  background:#ffffff; border:1px solid #eee; border-radius:10px; padding:12px;
 }
 .uc-cat-checks{
   display:flex; flex-wrap:wrap; gap:6px;
 }
 .uc-cat-check{
   display:flex; align-items:center; gap:4px;
-  background:#262626; border-radius:8px; padding:5px 8px;
+  background:#f0f0ee; border-radius:8px; padding:5px 8px;
   font-size:11.5px; cursor:pointer; user-select:none;
 }
 .uc-cat-check input{ margin:0; }
 .uc-form-row{ display:flex; gap:8px; }
 .uc-form-row textarea{
   width:100%; padding:11px 10px; border:none; border-radius:8px;
-  background:#262626; color:white; font-size:13px; font-family:inherit;
+  background:#f0f0ee; color:#1a1a1a; font-size:13px; font-family:inherit;
   resize:vertical; min-height:44px;
 }
 
@@ -1481,8 +1509,8 @@ body.driving-active #appPanel{
 }
 
 .flatpickr-calendar {
-  background: #181818 !important;
-  border: 1px solid #333 !important;
+  background: #ffffff !important;
+  border: 1px solid #ddd !important;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6) !important;
   border-radius: 12px !important;
   font-family: inherit !important;
@@ -1490,30 +1518,30 @@ body.driving-active #appPanel{
 .flatpickr-months .flatpickr-month,
 .flatpickr-months .flatpickr-prev-month,
 .flatpickr-months .flatpickr-next-month {
-  color: #fff !important;
-  fill: #fff !important;
+  color: #1a1a1a !important;
+  fill: #1a1a1a !important;
 }
 .flatpickr-months .flatpickr-prev-month:hover,
 .flatpickr-months .flatpickr-next-month:hover {
-  background: #262626 !important;
+  background: #f0f0ee !important;
 }
-.flatpickr-current-month .numInputWrapper span.arrowUp:after { border-bottom-color: #fff !important; }
-.flatpickr-current-month .numInputWrapper span.arrowDown:after { border-top-color: #fff !important; }
+.flatpickr-current-month .numInputWrapper span.arrowUp:after { border-bottom-color: #1a1a1a !important; }
+.flatpickr-current-month .numInputWrapper span.arrowDown:after { border-top-color: #1a1a1a !important; }
 span.flatpickr-weekday {
-  background: #181818 !important;
+  background: #ffffff !important;
   color: #888 !important;
   font-weight: bold !important;
 }
 .flatpickr-day:hover,
 .flatpickr-day.prevMonthDay:hover,
 .flatpickr-day.nextMonthDay:hover {
-  background: #262626 !important;
-  border-color: #262626 !important;
-  color: #fff !important;
+  background: #f0f0ee !important;
+  border-color: #f0f0ee !important;
+  color: #1a1a1a !important;
 }
 .flatpickr-day.prevMonthDay,
 .flatpickr-day.nextMonthDay {
-  color: #444 !important;
+  color: #ccc !important;
 }
 .flatpickr-day.selected,
 .flatpickr-day.startRange,
@@ -1577,7 +1605,7 @@ span.flatpickr-weekday {
 <div id="municipalityLabel" class="municipality-label"></div>
 
 <div id="mapLegend" style="
-  background:rgba(18,18,18,.88);
+  background:rgba(255,255,255,.92);
   backdrop-filter:blur(4px);
   -webkit-backdrop-filter:blur(4px);
   border-radius:10px;
@@ -1587,18 +1615,18 @@ span.flatpickr-weekday {
   gap:6px;
   flex-wrap:nowrap;
   pointer-events:none;
-  border:1px solid rgba(255,255,255,.09);
-  box-shadow:0 2px 10px rgba(0,0,0,.45);
+  border:1px solid #e2e2e0;
+  box-shadow:0 2px 10px rgba(0,0,0,.18);
   margin-bottom:4px;
 ">
   <span class="legend-item"><span class="legend-dot" style="background:#ff4b4b"></span>
-  <span class="leg" data-en="Reported" data-sr="Prijavljeno" style="color:#ddd;font-size:10px;">Prijavljeno</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#f5a623"></span><span class="leg" data-en="In progress" data-sr="U toku" style="color:#ddd;font-size:10px;">U toku</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#2ecc71"></span><span class="leg" data-en="Fixed" data-sr="Popravljeno" style="color:#ddd;font-size:10px;">Popravljeno</span></span>
+  <span class="leg" data-en="Reported" data-sr="Prijavljeno" style="color:#333;font-size:10px;">Prijavljeno</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#f5a623"></span><span class="leg" data-en="In progress" data-sr="U toku" style="color:#333;font-size:10px;">U toku</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#2ecc71"></span><span class="leg" data-en="Fixed" data-sr="Popravljeno" style="color:#333;font-size:10px;">Popravljeno</span></span>
 </div>
 
 <div class="legend" id="categoryLegend" style="
-  background:rgba(18,18,18,.88);
+  background:rgba(255,255,255,.92);
   backdrop-filter:blur(4px);
   -webkit-backdrop-filter:blur(4px);
   border-radius:10px;
@@ -1608,22 +1636,22 @@ span.flatpickr-weekday {
   gap:6px;
   flex-wrap:wrap;
   pointer-events:none;
-  border:1px solid rgba(255,255,255,.09);
-  box-shadow:0 2px 10px rgba(0,0,0,.45);
+  border:1px solid #e2e2e0;
+  box-shadow:0 2px 10px rgba(0,0,0,.18);
   margin-bottom:4px;
 ">
-  <span class="legend-item"><span class="legend-dot" style="background:#1e90ff"></span><span class="leg" data-en="Water" data-sr="Voda" style="color:#ddd;font-size:10px;">Voda</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#f5c518"></span><span class="leg" data-en="Electricity" data-sr="Struja" style="color:#ddd;font-size:10px;">Struja</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#8b4513"></span><span class="leg" data-en="Sewage" data-sr="Kanalizacija" style="color:#ddd;font-size:10px;">Kanalizacija</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#ff6b35"></span><span class="leg" data-en="Gas" data-sr="Gas" style="color:#ddd;font-size:10px;">Gas</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#b71c1c"></span><span class="leg" data-en="Heating" data-sr="Grejanje" style="color:#ddd;font-size:10px;">Grejanje</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#6b6b6b"></span><span class="leg" data-en="Road" data-sr="Put" style="color:#ddd;font-size:10px;">Put</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#c9a227"></span><span class="leg" data-en="Streetlight" data-sr="Ulična rasveta" style="color:#ddd;font-size:10px;">Ulična rasveta</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#6d8b3a"></span><span class="leg" data-en="Waste" data-sr="Otpad" style="color:#ddd;font-size:10px;">Otpad</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#9c8570"></span><span class="leg" data-en="Walkways" data-sr="Pešačke staze" style="color:#ddd;font-size:10px;">Pešačke staze</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#14b8a6"></span><span class="leg" data-en="Bike Lanes" data-sr="Biciklističke staze" style="color:#ddd;font-size:10px;">Biciklističke staze</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#3fa34d"></span><span class="leg" data-en="Green Spaces" data-sr="Zelene površine" style="color:#ddd;font-size:10px;">Zelene površine</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#8342a1"></span><span class="leg" data-en="Other" data-sr="Ostalo" style="color:#ddd;font-size:10px;">Ostalo</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#1e90ff"></span><span class="leg" data-en="Water" data-sr="Voda" style="color:#333;font-size:10px;">Voda</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#f5c518"></span><span class="leg" data-en="Electricity" data-sr="Struja" style="color:#333;font-size:10px;">Struja</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#8b4513"></span><span class="leg" data-en="Sewage" data-sr="Kanalizacija" style="color:#333;font-size:10px;">Kanalizacija</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#ff6b35"></span><span class="leg" data-en="Gas" data-sr="Gas" style="color:#333;font-size:10px;">Gas</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#b71c1c"></span><span class="leg" data-en="Heating" data-sr="Grejanje" style="color:#333;font-size:10px;">Grejanje</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#6b6b6b"></span><span class="leg" data-en="Road" data-sr="Put" style="color:#333;font-size:10px;">Put</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#c9a227"></span><span class="leg" data-en="Streetlight" data-sr="Ulična rasveta" style="color:#333;font-size:10px;">Ulična rasveta</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#6d8b3a"></span><span class="leg" data-en="Waste" data-sr="Otpad" style="color:#333;font-size:10px;">Otpad</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#9c8570"></span><span class="leg" data-en="Walkways" data-sr="Pešačke staze" style="color:#333;font-size:10px;">Pešačke staze</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#14b8a6"></span><span class="leg" data-en="Bike Lanes" data-sr="Biciklističke staze" style="color:#333;font-size:10px;">Biciklističke staze</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#3fa34d"></span><span class="leg" data-en="Green Spaces" data-sr="Zelene površine" style="color:#333;font-size:10px;">Zelene površine</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#8342a1"></span><span class="leg" data-en="Other" data-sr="Ostalo" style="color:#333;font-size:10px;">Ostalo</span></span>
 </div>
 
 <div id="appPanel" class="app-panel">
@@ -1821,7 +1849,7 @@ span.flatpickr-weekday {
     <div class="profile-tier-row">
       <span class="tier-pill" id="profileModalTierPill">Novi komšija</span>
     </div>
-    <p id="profileModalProgress" style="font-size:13px;color:#ccc;margin:10px 0 4px;"></p>
+    <p id="profileModalProgress" style="font-size:13px;color:#555;margin:10px 0 4px;"></p>
     <div class="profile-progress-track"><div class="profile-progress-fill" id="profileModalProgressFill"></div></div>
     <p id="profileModalStats" style="font-size:11.5px;color:#888;margin-top:8px;"></p>
     <button class="generic-modal-close" onclick="hideProfileModal()" id="profileModalBtn" style="margin-top:14px;">Close</button>
@@ -1832,42 +1860,43 @@ span.flatpickr-weekday {
      main map/report panel. Starts with the time-window filter + CSV export
      (moved out of #appPanel); more settings sections get appended here
      going forward instead of crowding the primary UI. -->
-<div id="settingsModal" class="generic-modal-overlay" style="display:none">
-  <div class="generic-modal" style="max-width: 360px; padding:0; text-align:left;">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 20px 4px 20px;">
-      <h2 id="settingsModalTitle" style="margin:0;">Settings</h2>
-      <button onclick="hideSettingsModal()" aria-label="Close"
-              style="background:none;border:none;color:#999;font-size:20px;line-height:1;cursor:pointer;padding:4px;">✕</button>
-    </div>
+<div id="settingsModal" class="fullscreen-modal-overlay" style="display:none">
+  <div class="fullscreen-modal-header">
+    <h2 id="settingsModalTitle">Settings</h2>
+    <button class="fullscreen-modal-close" onclick="hideSettingsModal()" aria-label="Close">✕</button>
+  </div>
+  <div class="fullscreen-modal-body">
 
-    <div class="filter-label-row" style="border-radius:0;">
-      <span class="filter-title" id="filterTitleLabel">Time Window Filter</span>
-      <span id="reportCount">0 Reports</span>
-    </div>
-
-    <div class="filter-select-row" style="border-bottom:none;padding-bottom:18px;">
-      <div class="select-wrap">
-        <input type="text" id="dateRangePicker" placeholder="Select date range..." readonly>
+    <div class="detail-section" style="padding:0;overflow:hidden;">
+      <div class="filter-label-row" style="border-radius:0;">
+        <span class="filter-title" id="filterTitleLabel">Time Window Filter</span>
+        <span id="reportCount">0 Reports</span>
       </div>
-      <button class="export-btn" onclick="downloadCSV()"
-              style="flex:0 0 auto;width:auto;min-width:0;font-size:12px;padding:0 12px;align-self:stretch;white-space:nowrap;">
-        <span id="csvLabel">CSV</span>
-      </button>
+
+      <div class="filter-select-row" style="border-bottom:none;">
+        <div class="select-wrap">
+          <input type="text" id="dateRangePicker" placeholder="Select date range..." readonly>
+        </div>
+        <button class="export-btn" onclick="downloadCSV()"
+                style="flex:0 0 auto;width:auto;min-width:0;font-size:12px;padding:0 12px;align-self:stretch;white-space:nowrap;">
+          <span id="csvLabel">CSV</span>
+        </button>
+      </div>
     </div>
 
     <!-- Admin-only: manage per-municipality utility company contacts.
          Visibility toggled in updateAuthUI() alongside the ADMIN badge. -->
-    <div class="admin-section" id="settingsAdminSection" style="display:none">
-      <div class="admin-section-title" id="ucSectionTitle">Utility company contacts</div>
+    <div class="admin-section detail-section" id="settingsAdminSection" style="display:none">
+      <div class="admin-section-title detail-section-title" id="ucSectionTitle">Utility company contacts</div>
       <div class="uc-list" id="ucList"></div>
-      <button type="button" style="background:#3a3a3a;color:#eee;" onclick="toggleUcForm()" id="ucAddToggleBtn">+ Add contact</button>
+      <button type="button" class="settings-btn" onclick="toggleUcForm()" id="ucAddToggleBtn">+ Add contact</button>
 
       <div class="uc-form" id="ucForm" style="display:none">
         <input type="hidden" id="ucEditId">
         <div class="uc-form-row">
           <select id="ucMunicipalitySelect" style="flex:1;"></select>
         </div>
-        <button type="button" style="background:#3a3a3a;color:#eee;" onclick="addMunicipalityFromMapCenter()" id="ucAddMuniBtn">📍 Add municipality from map center</button>
+        <button type="button" class="settings-btn" onclick="addMunicipalityFromMapCenter()" id="ucAddMuniBtn"><img class="icon-img icon-img-inline icon-tint-dark" src="icons/pin.png" alt="Pin"> Add municipality from map center</button>
         <div id="ucNoMunicipalitiesHint" class="detail-empty" style="display:none;"></div>
         <div class="uc-cat-checks" id="ucCatChecks"></div>
         <input type="text" id="ucName" placeholder="Company name">
@@ -1879,7 +1908,7 @@ span.flatpickr-weekday {
         <input type="text" id="ucAddress" placeholder="Address">
         <textarea id="ucNotes" placeholder="Notes (optional)"></textarea>
         <div class="uc-form-row">
-          <button type="button" style="background:#3a3a3a;color:#eee;flex:1;" onclick="cancelUcForm()" id="ucCancelBtn">Cancel</button>
+          <button type="button" class="settings-btn" style="flex:1;" onclick="cancelUcForm()" id="ucCancelBtn">Cancel</button>
           <button type="button" style="background:#a67817;color:white;flex:1;" onclick="saveUtilityCompany()" id="ucSaveBtn">Save</button>
         </div>
       </div>
@@ -2348,7 +2377,7 @@ const T = {
   ucNoContacts:      { en:'No utility companies added yet.',     sr:'Još uvek nema unetih javnih preduzeća.' },
   ucSelectMunicipality: { en:'— Select municipality —',          sr:'— Izaberi opštinu —' },
   ucNoMunicipalitiesHint: { en:'No municipalities cached yet. Move the map to the desired area and tap "Add municipality from map center".', sr:'Još nema keširanih opština. Pomerite mapu na željeno mesto i pritisnite "Dodaj opštinu sa centra mape".' },
-  ucAddMuniBtn:      { en:'📍 Add municipality from map center',  sr:'📍 Dodaj opštinu sa centra mape' },
+  ucAddMuniBtn:      { en:'Add municipality from map center',  sr:'Dodaj opštinu sa centra mape' },
   ucAddMuniLoading:  { en:'Looking up municipality…',            sr:'Tražim opštinu…' },
   ucAddMuniFail:     { en:'Could not find a municipality at the current map center.', sr:'Nije pronađena opština na trenutnom centru mape.' },
   ucNamePH:          { en:'Company name',                        sr:'Naziv preduzeća' },
@@ -2795,6 +2824,16 @@ function getFollowCenter(lat, lon, zoom) {
 function followMapTo(lat, lon, options) {
   const zoom = Math.max(map.getZoom(), drivingMode ? 17 : 16);
   map.setView(getFollowCenter(lat, lon, zoom), zoom, options || { animate: true });
+}
+
+// Builds the marker HTML for a manually-dropped pin — used for both "set
+// my location manually" and "place destination pin manually". Same
+// icons/pin.png used everywhere else in the UI (buttons, modals), so a
+// pin dropped on the map matches what the person already recognizes as
+// "the pin" instead of introducing a separate marker style.
+function buildDroppedPinHtml() {
+  return '<img src="icons/pin.png" alt="pin" ' +
+         'style="width:30px;height:36px;object-fit:contain;filter:drop-shadow(0 3px 6px rgba(0,0,0,.45));">';
 }
 
 // Builds the marker HTML for the user's location: a plain dot for normal
@@ -3411,11 +3450,9 @@ async function selectDestination(lat, lon, label) {
   // across two overlapping surfaces on the map.
   closeNavigatePanel();
 
-  const iconHtml = '<div style="width:20px;height:20px;border-radius:50%;background:#00d0ff;' +
-                    'border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,.5);"></div>';
   if (destinationMarker) map.removeLayer(destinationMarker);
   destinationMarker = L.marker([destLat, destLon], {
-    icon: L.divIcon({ className: '', html: iconHtml, iconAnchor: [10, 10] })
+    icon: L.divIcon({ className: '', html: buildDroppedPinHtml(), iconSize: [30, 36], iconAnchor: [15, 34] })
   }).addTo(map);
 
   const from = userCoords || manualCoords;
@@ -4541,8 +4578,9 @@ map.on('click', function(e) {
     manualMarker = L.marker(e.latlng, {
       icon: L.divIcon({
         className: '',
-        html: `<div style="width:20px;height:20px;background:#f5a623;border-radius:50%;border:2px solid white;box-shadow:0 3px 8px rgba(0,0,0,.4)"></div>`,
-        iconAnchor: [10,10]
+        html: buildDroppedPinHtml(),
+        iconSize: [30, 36],
+        iconAnchor: [15, 34]
       })
     }).addTo(map);
   }
@@ -4846,8 +4884,48 @@ async function overpassQuery(ql) {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: 'data=' + encodeURIComponent(ql)
   });
-  if (!res.ok) throw new Error('Overpass request failed: ' + res.status);
+  if (!res.ok) {
+    // Overpass returns a plain-text body describing *why* (bad query syntax,
+    // rate limit, server load) — surfacing it makes future failures
+    // debuggable from the console instead of just "failed: 429".
+    const bodyText = await res.text().catch(() => '');
+    throw new Error('Overpass request failed: ' + res.status + (bodyText ? ' — ' + bodyText.slice(0, 300) : ''));
+  }
   return res.json();
+}
+
+// Fallback name lookup via Nominatim reverse geocoding, used only when
+// Overpass can't produce a municipality (down, rate-limited, or the point
+// falls in an area with no usable administrative relation). This gets us
+// a NAME for display purposes only — it has no boundary polygon, so it is
+// never written into the municipalities table and never cached alongside
+// the real Overpass-backed rows (see resolveMunicipality).
+async function fetchMunicipalityFromNominatim(lat, lon) {
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=10&addressdetails=1`;
+    const res = await fetch(url, { headers: { 'Accept-Language': lang === 'sr' ? 'sr' : 'en' } });
+    if (!res.ok) throw new Error('Nominatim request failed: ' + res.status);
+    const data = await res.json();
+    const addr = data.address || {};
+    const name = addr.municipality || addr.county || addr.city || addr.town || addr.city_district || addr.state_district || addr.village || null;
+    if (!name) return null;
+    return {
+      id: null, // no real DB row — callers must not try to persist/query by this
+      osm_type: 'nominatim',
+      osm_id: null,
+      admin_level: null,
+      name,
+      name_en: name,
+      country_code: (addr.country_code || '').toUpperCase() || null,
+      centroid_lat: lat,
+      centroid_lon: lon,
+      boundary: null,
+      bbox: null
+    };
+  } catch (err) {
+    console.error('Nominatim fallback lookup failed:', err.message);
+    return null;
+  }
 }
 
 // Stitches loose way segments (each an array of [lon,lat]) end-to-end into
@@ -4982,26 +5060,34 @@ async function fetchMunicipalityFromOverpass(lat, lon) {
   }
 }
 
-// Best-effort resolver: cache first, Overpass only as a fallback. Never
-// throws — callers just get null back on any failure and carry on.
-async function resolveMunicipality(lat, lon) {
+// Best-effort resolver: cache first, then Overpass (full boundary polygon,
+// gets persisted to Supabase). If that fails or can't find anything, and
+// the caller allows it, falls back to a name-only Nominatim lookup so the
+// UI can still show *something* instead of "unknown" — pass
+// { allowNameOnlyFallback: false } for flows that need a real, persistable
+// municipality row (e.g. the admin "add municipality" picker).
+// Never throws — callers just get null back on total failure.
+async function resolveMunicipality(lat, lon, { allowNameOnlyFallback = true } = {}) {
   if (!isValidLatLng(lat, lon)) return null;
   await loadMunicipalityCache();
   const cached = findMunicipalityInCache(lat, lon);
   if (cached) return cached;
   try {
-    return await fetchMunicipalityFromOverpass(lat, lon);
+    const fromOverpass = await fetchMunicipalityFromOverpass(lat, lon);
+    if (fromOverpass) return fromOverpass;
+    console.warn('Overpass returned no municipality for', lat, lon, '— falling back to Nominatim if allowed.');
   } catch (err) {
     console.error('Overpass municipality lookup failed:', err.message);
-    return null;
   }
+  if (!allowNameOnlyFallback) return null;
+  return await fetchMunicipalityFromNominatim(lat, lon);
 }
 
 // Fire-and-forget: called right after a report is inserted so submission
 // itself never has to wait on Overpass. Silently does nothing if it fails.
 function resolveAndAttachMunicipality(reportId, lat, lon) {
   resolveMunicipality(lat, lon).then(muni => {
-    if (!muni || !reportId) return;
+    if (!muni || muni.id == null || !reportId) return;
     sb.from(TABLE).update({ municipality_id: muni.id }).eq('id', reportId)
       .then(({ error }) => { if (error) console.error('Failed to attach municipality to report:', error.message); });
   }).catch(err => console.error('resolveAndAttachMunicipality error:', err.message));
@@ -5017,7 +5103,12 @@ async function showMunicipalityBoundaryForPoint(lat, lon) {
     if (label) label.style.display = 'none';
     return null;
   }
-  if (municipalityBoundaryForId !== muni.id) {
+  if (!muni.boundary) {
+    // Name-only fallback result (no geometry to draw) — clear any stale
+    // boundary from a previously-viewed report rather than leaving it up.
+    if (municipalityBoundaryLayer) { map.removeLayer(municipalityBoundaryLayer); municipalityBoundaryLayer = null; }
+    municipalityBoundaryForId = null;
+  } else if (municipalityBoundaryForId !== muni.id) {
     if (municipalityBoundaryLayer) { map.removeLayer(municipalityBoundaryLayer); municipalityBoundaryLayer = null; }
     municipalityBoundaryLayer = L.geoJSON(muni.boundary, {
       style: { color: '#f5a623', weight: 2, dashArray: '6,4', fill: false, interactive: false }
@@ -5131,7 +5222,7 @@ function renderUcList() {
           '<div class="uc-item-muni">' + (muni ? escapeHtml(municipalityDisplayName(muni)) : t('detailUnknown')) + '</div>' +
         '</div>' +
         '<div class="uc-item-actions">' +
-          '<button type="button" style="background:#3a3a3a;color:#eee;" onclick="editUtilityCompany(\'' + c.id + '\')">' + t('editBtn') + '</button>' +
+          '<button type="button" style="background:#ececeb;color:#1a1a1a;" onclick="editUtilityCompany(\'' + c.id + '\')">' + t('editBtn') + '</button>' +
           '<button type="button" style="background:#7a1f1f;color:#fff;" onclick="deleteUtilityCompany(\'' + c.id + '\')">' + t('deleteBtn') + '</button>' +
         '</div>' +
       '</div>' +
@@ -5245,11 +5336,15 @@ async function deleteUtilityCompany(id) {
 
 async function addMunicipalityFromMapCenter() {
   const btn = document.getElementById('ucAddMuniBtn');
-  const original = btn ? btn.textContent : '';
-  if (btn) { btn.disabled = true; btn.textContent = t('ucAddMuniLoading'); }
+  // innerHTML (not textContent) so the pin icon survives the round trip —
+  // textContent would silently drop the <img> when restored afterwards.
+  const original = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = t('ucAddMuniLoading'); }
   try {
     const center = map.getCenter();
-    const muni = await resolveMunicipality(center.lat, center.lng);
+    // Requires a full boundary polygon to store, so unlike the report-detail
+    // lookup this one does NOT fall back to a name-only Nominatim result.
+    const muni = await resolveMunicipality(center.lat, center.lng, { allowNameOnlyFallback: false });
     if (!muni) {
       alert(t('ucAddMuniFail'));
       return;
@@ -5261,7 +5356,7 @@ async function addMunicipalityFromMapCenter() {
     console.error('Failed to add municipality from map center:', err.message);
     alert(t('ucAddMuniFail'));
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = original || t('ucAddMuniBtn'); }
+    if (btn) { btn.disabled = false; btn.innerHTML = original || t('ucAddMuniBtn'); }
   }
 }
 
@@ -5404,14 +5499,12 @@ async function showReportDetailModal(reportId) {
     : translateCategory(report.category);
   titleEl.textContent = headerTitle;
 
-  const mapsUrl = `https://www.google.com/maps?q=${report.latitude},${report.longitude}`;
   const reporterName = report.owner_username || (lang === 'sr' ? 'Nepoznato' : 'Unknown');
 
   body.innerHTML = `
     <div class="detail-section">
       <div class="detail-section-title">${t('detailLocationTitle')}</div>
       <div class="detail-row"><span class="detail-row-label">${t('detailCoordsLabel')}</span><span class="detail-row-value">${report.latitude.toFixed(6)}, ${report.longitude.toFixed(6)}</span></div>
-      <div class="detail-row"><span class="detail-row-label">${t('detailMapLabel')}</span><span class="detail-row-value"><a href="${mapsUrl}" target="_blank" rel="noopener">${t('detailOpenMaps')}</a></span></div>
       <div class="detail-row"><span class="detail-row-label">${t('detailMunicipalityLabel')}</span><span class="detail-row-value" id="detailMunicipalityValue">${t('detailLoading')}</span></div>
     </div>
     <div class="detail-section">
@@ -5441,13 +5534,15 @@ async function showReportDetailModal(reportId) {
   if (muniEl) {
     muniEl.textContent = muni ? (lang === 'sr' ? muni.name : (muni.name_en || muni.name)) : t('detailUnknown');
   }
-  if (muni && report.municipality_id == null) {
+  if (muni && muni.id != null && report.municipality_id == null) {
     sb.from(TABLE).update({ municipality_id: muni.id }).eq('id', report.id)
       .then(({ error }) => { if (!error) report.municipality_id = muni.id; });
   }
 
   const contactsEl = document.getElementById('detailContactsContainer');
-  if (!muni) {
+  // muni.id is null for a name-only Nominatim fallback (no real municipality
+  // row) — we can show the name, but there's nothing to look contacts up by.
+  if (!muni || muni.id == null) {
     if (contactsEl) contactsEl.innerHTML = `<div class="detail-empty">${t('detailNoMunicipality')}</div>`;
     return;
   }
