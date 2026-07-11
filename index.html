@@ -14,10 +14,6 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-  <!-- Dark flatpickr theme is toggled on/off (via .disabled) to match the
-       app's own Light/Dark/Auto setting instead of always forcing dark —
-       see applyTheme() near the bottom of the script. -->
-  <link rel="stylesheet" id="flatpickrDarkTheme" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
   <!-- Applies the saved theme (or the OS preference, in Auto mode) to
        <html> before the stylesheet below paints anything, so there's no
        flash of the wrong theme on load. The full theme system (Settings UI,
@@ -196,12 +192,12 @@ header p{ font-size:11px; opacity:.7; margin-top:2px; }
   right:0;
   flex-direction:column;
   gap:2px;
-  background:#ffffff;
-  border:1px solid #ddd;
+  background:var(--bg-surface);
+  border:1px solid var(--border-color-strong);
   border-radius:8px;
   padding:4px;
   min-width:110px;
-  box-shadow:0 6px 20px rgba(0,0,0,.5);
+  box-shadow:0 6px 20px var(--floating-shadow);
   z-index:10000; /* see Z-INDEX SCALE above — stays above the driving HUD (tops out at 2700) */
 }
 .lang-dd-menu.open{ display:flex; }
@@ -964,6 +960,14 @@ body.driving-active .turn-by-turn-card{ display:flex; }
 .driving-search-btn:active{ background:var(--border-color-strong); }
 .driving-back-btn{ background:var(--bg-surface-alt); border-color:var(--border-color-strong); color:var(--text-primary); }
 .driving-back-btn:active{ background:var(--border-color-strong); }
+/* Match the gray icon tint used everywhere else (.pin-map-btn) instead of
+   these icons showing their raw/white source color. */
+.driving-back-btn .icon-img,
+.driving-search-btn .icon-img{ filter:var(--icon-tint-filter); }
+/* ...except on the colored "active" background above, where the native
+   white reads better than the theme tint — same override .pin-map-btn.active
+   already gets. */
+.driving-search-btn.active .icon-img{ filter:none; }
 
 /* --- Destination header bar: a full-width strip pinned above every other
    floating widget (speed pill, compass) so it never overlaps them — those
@@ -1167,8 +1171,7 @@ body.driving-active #followLocationBtn,
 body.driving-active #panelToggleBtn,
 body.driving-active #pinMapBtn,
 body.driving-active #drivingModeBtn,
-body.driving-active #mainMapCompass,
-body.driving-active #settingsBtn{
+body.driving-active #mainMapCompass{
   display:none !important;
 }
 body.driving-active #appPanel{
@@ -1259,7 +1262,7 @@ body.driving-active #appPanel{
 }
 .locked-panel p{
   font-size:12px;
-  color:#999;
+  color:var(--text-muted);
   line-height:1.4;
   text-align:center;
   margin-bottom:2px;
@@ -1605,12 +1608,12 @@ body.driving-active #appPanel{
 }
 .uc-list{ display:flex; flex-direction:column; gap:8px; }
 .uc-item{
-  background:#ffffff; border:1px solid #eee; border-radius:10px; padding:10px 12px;
+  background:var(--bg-surface-alt); border:1px solid var(--border-color); border-radius:10px; padding:10px 12px;
   display:flex; flex-direction:column; gap:4px;
 }
 .uc-item-top{ display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }
 .uc-item-name{ font-weight:700; font-size:13px; }
-.uc-item-muni{ font-size:11px; color:#999; }
+.uc-item-muni{ font-size:11px; color:var(--text-muted); }
 .uc-item-cats{ display:flex; flex-wrap:wrap; gap:4px; margin-top:2px; }
 .uc-cat-chip{
   font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.2px;
@@ -1622,21 +1625,21 @@ body.driving-active #appPanel{
 }
 .uc-form{
   display:flex; flex-direction:column; gap:8px;
-  background:#ffffff; border:1px solid #eee; border-radius:10px; padding:12px;
+  background:var(--bg-surface-alt); border:1px solid var(--border-color); border-radius:10px; padding:12px;
 }
 .uc-cat-checks{
   display:flex; flex-wrap:wrap; gap:6px;
 }
 .uc-cat-check{
   display:flex; align-items:center; gap:4px;
-  background:#f0f0ee; border-radius:8px; padding:5px 8px;
+  background:var(--bg-surface); border:1px solid var(--border-color); border-radius:8px; padding:5px 8px;
   font-size:11.5px; cursor:pointer; user-select:none;
 }
 .uc-cat-check input{ margin:0; }
 .uc-form-row{ display:flex; gap:8px; }
 .uc-form-row textarea{
   width:100%; padding:11px 10px; border:none; border-radius:8px;
-  background:#f0f0ee; color:#1a1a1a; font-size:13px; font-family:inherit;
+  background:var(--bg-surface); color:var(--text-primary); font-size:13px; font-family:inherit;
   resize:vertical; min-height:44px;
 }
 
@@ -1648,9 +1651,16 @@ body.driving-active #appPanel{
   padding-right: 32px !important;
 }
 
+/* Flatpickr ships its own light/dark theme as a separate stylesheet, but
+   these !important overrides (needed to match the app's rounded/branded
+   look) sit later in the cascade and win regardless of which one is
+   loaded — so they're the ones that actually decide the calendar's
+   colors. Theming them directly with the app's own variables means the
+   calendar follows Settings > Theme correctly without needing to swap
+   stylesheets at all. */
 .flatpickr-calendar {
-  background: #ffffff !important;
-  border: 1px solid #ddd !important;
+  background: var(--bg-surface) !important;
+  border: 1px solid var(--border-color-strong) !important;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6) !important;
   border-radius: 12px !important;
   font-family: inherit !important;
@@ -1658,30 +1668,31 @@ body.driving-active #appPanel{
 .flatpickr-months .flatpickr-month,
 .flatpickr-months .flatpickr-prev-month,
 .flatpickr-months .flatpickr-next-month {
-  color: #1a1a1a !important;
-  fill: #1a1a1a !important;
+  color: var(--text-primary) !important;
+  fill: var(--text-primary) !important;
 }
 .flatpickr-months .flatpickr-prev-month:hover,
 .flatpickr-months .flatpickr-next-month:hover {
-  background: #f0f0ee !important;
+  background: var(--bg-surface-alt) !important;
 }
-.flatpickr-current-month .numInputWrapper span.arrowUp:after { border-bottom-color: #1a1a1a !important; }
-.flatpickr-current-month .numInputWrapper span.arrowDown:after { border-top-color: #1a1a1a !important; }
+.flatpickr-current-month .numInputWrapper span.arrowUp:after { border-bottom-color: var(--text-primary) !important; }
+.flatpickr-current-month .numInputWrapper span.arrowDown:after { border-top-color: var(--text-primary) !important; }
 span.flatpickr-weekday {
-  background: #ffffff !important;
-  color: #888 !important;
+  background: var(--bg-surface) !important;
+  color: var(--text-muted) !important;
   font-weight: bold !important;
 }
+.flatpickr-day{ color: var(--text-primary) !important; }
 .flatpickr-day:hover,
 .flatpickr-day.prevMonthDay:hover,
 .flatpickr-day.nextMonthDay:hover {
-  background: #f0f0ee !important;
-  border-color: #f0f0ee !important;
-  color: #1a1a1a !important;
+  background: var(--bg-surface-alt) !important;
+  border-color: var(--bg-surface-alt) !important;
+  color: var(--text-primary) !important;
 }
 .flatpickr-day.prevMonthDay,
 .flatpickr-day.nextMonthDay {
-  color: #ccc !important;
+  color: var(--text-muted) !important;
 }
 .flatpickr-day.selected,
 .flatpickr-day.startRange,
@@ -1726,6 +1737,7 @@ span.flatpickr-weekday {
       </div>
     </div>
     <div class="right-controls">
+      <button class="help-icon-btn" id="settingsBtn" title="Settings" onclick="showSettingsModal()"><img class="icon-img" src="icons/settings.png" alt="Settings"></button>
       <button class="help-icon-btn" id="fullscreenBtn" title="Fullscreen / Preko celog ekrana" onclick="toggleFullscreen()"><img class="icon-img" id="fullscreenBtnIcon" src="icons/fullscreen-enter.png" alt="Fullscreen"></button>
       <button class="help-icon-btn" id="helpTopBtn" title="Help / Pomoć" onclick="showHelpModal()"><img class="icon-img" src="icons/help.png" alt="Help"></button>
       <div class="lang-dropdown" id="langDropdown">
@@ -1847,7 +1859,6 @@ span.flatpickr-weekday {
     </div>
   </div>
 </div>
-<div id="settingsBtn" class="pin-map-btn" style="display:none" title="Settings" onclick="showSettingsModal()"><img class="icon-img" src="icons/settings.png" alt="Settings"></div>
 <button id="panelToggleBtn" class="pin-map-btn panel-toggle-btn" type="button" style="display:none"
         aria-expanded="true" aria-controls="appPanel" title="Hide panel">
   <img class="icon-img" id="panelToggleIcon" src="icons/arrow.png" alt="Toggle panel">
@@ -2736,7 +2747,15 @@ function saveMapView() {
 }
 
 const savedMapView = loadSavedMapView();
-const map = L.map('map', { zoomControl: false }).setView(
+// markerZoomAnimation:false — by default Leaflet scales the whole marker
+// pane in lockstep with the tile zoom animation, which means every pin's
+// box-shadow/filter/SVG gets repainted at every intermediate frame of the
+// gesture. With a report map that can have a lot of pins on screen, that
+// got noticeably janky. Turning it off just hides markers for the
+// (~250ms) duration of the zoom animation and snaps them straight to
+// their correct final size/position the instant it ends — tiles still
+// zoom smoothly, only the marker scaling animation is skipped.
+const map = L.map('map', { zoomControl: false, markerZoomAnimation: false }).setView(
   savedMapView ? [savedMapView.lat, savedMapView.lng] : EUROPE_DEFAULT_CENTER,
   savedMapView ? savedMapView.zoom : EUROPE_DEFAULT_ZOOM
 );
@@ -4683,8 +4702,12 @@ function initGps() {
 }
 initGps();
 
+// Now that #settingsBtn lives in the header (next to the fullscreen
+// button) instead of floating over the map, this stack moves into the
+// bottomright corner it vacated — panelToggleBtn is the one exception,
+// left at bottomleft since it's tied to #appPanel docked there.
 const FollowLocationControl = L.Control.extend({
-  options:{ position:'bottomleft' },
+  options:{ position:'bottomright' },
   onAdd(){
     const btn = document.getElementById('followLocationBtn');
     L.DomEvent.disableClickPropagation(btn);
@@ -4695,7 +4718,7 @@ new FollowLocationControl().addTo(map);
 document.getElementById('followLocationBtn').style.display = 'flex';
 
 const PinControl = L.Control.extend({
-  options:{ position:'bottomleft' },
+  options:{ position:'bottomright' },
   onAdd(){
     const btn = document.getElementById('pinMapBtn');
     L.DomEvent.disableClickPropagation(btn);
@@ -4706,7 +4729,7 @@ new PinControl().addTo(map);
 document.getElementById('pinMapBtn').style.display = 'flex';
 
 const DrivingControl = L.Control.extend({
-  options:{ position:'bottomleft' },
+  options:{ position:'bottomright' },
   onAdd(){
     const btn = document.getElementById('drivingModeBtn');
     L.DomEvent.disableClickPropagation(btn);
@@ -4717,7 +4740,7 @@ new DrivingControl().addTo(map);
 document.getElementById('drivingModeBtn').style.display = 'flex';
 
 const MainCompassControl = L.Control.extend({
-  options:{ position:'bottomleft' },
+  options:{ position:'bottomright' },
   onAdd(){
     const btn = document.getElementById('mainMapCompass');
     L.DomEvent.disableClickPropagation(btn);
@@ -4726,17 +4749,6 @@ const MainCompassControl = L.Control.extend({
 });
 new MainCompassControl().addTo(map);
 document.getElementById('mainMapCompass').style.display = 'flex';
-
-const SettingsControl = L.Control.extend({
-  options:{ position:'bottomright' },
-  onAdd(){
-    const btn = document.getElementById('settingsBtn');
-    L.DomEvent.disableClickPropagation(btn);
-    return btn;
-  }
-});
-new SettingsControl().addTo(map);
-document.getElementById('settingsBtn').style.display = 'flex';
 
 const PanelToggleControl = L.Control.extend({
   options:{ position:'bottomleft' },
@@ -6437,16 +6449,13 @@ function updateThemeSegmentUI() {
 }
 
 // Applies `mode` (without persisting it — see setThemeMode for the
-// persisted, user-facing entry point) to <html data-theme>, and keeps the
-// flatpickr calendar's theme and the Settings segmented control in sync.
+// persisted, user-facing entry point) to <html data-theme>. flatpickr is
+// themed directly via CSS vars (see .flatpickr-calendar rules) rather than
+// swapping stylesheets, so this is the only thing that needs to happen.
 function applyTheme(mode) {
   themeMode = mode;
   const resolved = resolveThemeMode(mode);
   document.documentElement.dataset.theme = resolved;
-  // flatpickr's own dark theme is a separate stylesheet, not CSS variables
-  // — just enable/disable that <link> instead of it always being dark.
-  const fpDark = document.getElementById('flatpickrDarkTheme');
-  if (fpDark) fpDark.disabled = (resolved !== 'dark');
   updateThemeSegmentUI();
 }
 
