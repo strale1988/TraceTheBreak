@@ -20,6 +20,16 @@
   <link rel="icon" type="image/png" href="./icons/TraceTheBreak.png">
   <meta property="og:image" content="https://github.io"/>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <!-- Leaflet.markercluster — groups overlapping pins into a single numbered
+       bubble when zoomed out, so a busy area doesn't render dozens of
+       stacked icons on top of each other. Only the structural/spiderfy CSS
+       is actually load-bearing here (the visible cluster-bubble look is
+       fully overridden by our own iconCreateFunction — see makeClusterIcon
+       near the map init below), but MarkerCluster.Default.css is cheap and
+       kept as a safety-net appearance for the brief instant before that
+       function runs. -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   <!-- Applies the saved theme (or the OS preference, in Auto mode) to
@@ -169,6 +179,21 @@ html[data-theme="dark"]{
 .leaflet-popup-pane{ transition:opacity .12s ease; }
 .leaflet-zoom-anim .leaflet-zoom-hide{
   visibility:visible !important;
+  opacity:0 !important;
+  pointer-events:none !important;
+}
+/* Leaflet only adds .leaflet-zoom-anim for the brief (~250ms) snap at the
+   very END of a pinch gesture — during the pinch itself it scales the
+   whole map pane (tiles AND markers together) live via a CSS transform, so
+   on touch devices pins were visibly growing/shrinking with your fingers
+   the entire time and only flicking hidden/visible in that last snap. This
+   class is toggled from JS on the map's zoomstart/zoomend events instead —
+   which bracket the *entire* gesture on every input (wheel, +/- buttons,
+   double-tap, and pinch alike) — so pins now hide the instant any zoom
+   begins and only fade back in once it's fully settled, matching the
+   desktop-only behavior described above across the board. */
+#map.map-zooming .leaflet-marker-pane,
+#map.map-zooming .leaflet-popup-pane{
   opacity:0 !important;
   pointer-events:none !important;
 }
@@ -2101,6 +2126,7 @@ span.flatpickr-weekday {
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/sr.js"></script>
@@ -2790,9 +2816,60 @@ const map = L.map('map', { zoomControl: false, markerZoomAnimation: false }).set
 
 map.on('moveend', saveMapView);
 
+// zoomstart/zoomend bracket a zoom gesture from ANY input the same way —
+// mouse wheel, +/- buttons, double-click/double-tap, and (crucially) touch
+// pinch, which fires 'zoomstart' the instant two fingers start moving and
+// 'zoomend' only once the whole gesture (including Leaflet's own final
+// snap) has settled. Toggling .map-zooming here — rather than relying on
+// Leaflet's built-in .leaflet-zoom-anim/.leaflet-zoom-hide pairing, which
+// only wraps that final snap — is what makes pins hide for the *entire*
+// pinch instead of visibly scaling with it. See the CSS rule above.
+const mapContainerEl = map.getContainer();
+map.on('zoomstart', () => mapContainerEl.classList.add('map-zooming'));
+map.on('zoomend',   () => mapContainerEl.classList.remove('map-zooming'));
+
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
   attribution:'© OpenStreetMap'
 }).addTo(map);
+
+// --- Pin clustering -------------------------------------------------------
+// Report pins (not section spline lines — those aren't point features and
+// clustering them wouldn't make sense) are added to this group instead of
+// straight onto the map. It groups any pins that land within
+// maxClusterRadius screen-pixels of each other into a single numbered
+// bubble; a "cluster" of just one pin is drawn as that pin's own normal
+// icon, so nothing changes visually once you're zoomed in enough that pins
+// no longer overlap. disableClusteringAtZoom turns clustering off entirely
+// at close-in zooms, so street-level browsing always shows every real pin.
+function makeClusterIcon(cluster) {
+  const count = cluster.getChildCount();
+  let size = 32, fontSize = 12;
+  if (count >= 10 && count < 100) { size = 40; fontSize = 13; }
+  else if (count >= 100) { size = 48; fontSize = 14; }
+  return L.divIcon({
+    html: `<div style="width:${size}px;height:${size}px;box-sizing:border-box;border-radius:50%;` +
+      `background:var(--accent);border:3px solid var(--accent-contrast);` +
+      `display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.5);` +
+      `color:var(--accent-contrast);font-weight:700;font-size:${fontSize}px;">${count}</div>`,
+    className: '',
+    iconSize: [size, size]
+  });
+}
+const pinCluster = L.markerClusterGroup({
+  maxClusterRadius: 50,
+  disableClusteringAtZoom: 17,
+  spiderfyOnMaxZoom: true,
+  showCoverageOnHover: false,
+  iconCreateFunction: makeClusterIcon
+}).addTo(map);
+
+// Report markers/lines are added either straight to the map (section
+// spline polylines) or into pinCluster (point pins) — this picks whichever
+// one actually holds `layer` so callers don't need to know or care which.
+function removeReportLayer(layer) {
+  if (pinCluster.hasLayer(layer)) pinCluster.removeLayer(layer);
+  else map.removeLayer(layer);
+}
 
 // Reparents Leaflet's internal map-pane (tiles + markers + lines + popups)
 // inside a plain div we control, so that div can be CSS-rotated for
@@ -5644,9 +5721,9 @@ async function addMunicipalityFromMapCenter() {
 // MARKERS — rendering reports on the map, popups, and viewport sync
 // =============================================================================
 function clearMarkers(){
-  markerById.forEach(m => map.removeLayer(m));
+  markerById.forEach(m => removeReportLayer(m));
   markerById.clear();
-  sectionPinById.forEach(m => map.removeLayer(m));
+  sectionPinById.forEach(m => removeReportLayer(m));
   sectionPinById.clear();
 }
 
@@ -6160,16 +6237,22 @@ function upsertMarker(report) {
     marker.setLatLng([report.latitude, report.longitude]);
     marker.setPopupContent(buildPopupHtml(report));
     marker.setZIndexOffset(zOffset);
+    // Re-icon/re-position doesn't automatically re-run clustering — this
+    // tells pinCluster to recompute that marker's cluster membership/icon
+    // in place, so a status change (which can change the pin icon) is
+    // reflected immediately even while the marker is grouped into a bubble.
+    if (pinCluster.hasLayer(marker)) pinCluster.refreshClusters(marker);
     return marker;
   }
 
   marker = L.marker([report.latitude, report.longitude], {
     icon: L.divIcon({ className: '', html: iconHtml, iconSize: [26,26], iconAnchor: [13,13] }),
     zIndexOffset: zOffset
-  }).addTo(map);
+  });
 
   marker._reportId = report.id;
   marker.bindPopup(buildPopupHtml(report), { autoPan: false }); // popup is always reparented to #mobilePopupOverlay, so Leaflet never needs to pan the map for it
+  pinCluster.addLayer(marker);
   markerById.set(report.id, marker);
   return marker;
 }
@@ -6207,14 +6290,14 @@ function syncMarkers(refreshExisting) {
 
   markerById.forEach((marker, id) => {
     if (!desiredIds.has(id)) {
-      map.removeLayer(marker);
+      removeReportLayer(marker);
       markerById.delete(id);
     }
   });
 
   sectionPinById.forEach((pin, id) => {
     if (!desiredIds.has(id)) {
-      map.removeLayer(pin);
+      removeReportLayer(pin);
       sectionPinById.delete(id);
     }
   });
