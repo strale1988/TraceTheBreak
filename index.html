@@ -1900,6 +1900,14 @@ span.flatpickr-weekday {
     <select id="subcategory" onchange="checkFormReady()"></select>
   </div>
 
+  <div class="row">
+    <select id="priority">
+      <option value="low">Low</option>
+      <option value="normal" selected>Normal</option>
+      <option value="high">High / Urgent</option>
+    </select>
+  </div>
+
   <input id="comment" type="text" placeholder="Optional notes...">
 
   <div class="row" style="align-items:stretch;">
@@ -2537,6 +2545,11 @@ const T = {
   statusReported:   { en:'Reported',    sr:'Prijavljeno' },
   statusInProgress: { en:'In progress', sr:'U toku' },
   statusFixed:      { en:'Fixed',       sr:'Popravljeno' },
+  priorityLabel:    { en:'Priority',           sr:'Prioritet' },
+  priorityLow:      { en:'Low',                sr:'Nizak' },
+  priorityNormal:   { en:'Normal',              sr:'Normalan' },
+  priorityHigh:     { en:'High / Urgent',        sr:'Visok / Hitno' },
+  editPriorityLabel:{ en:'Priority',            sr:'Prioritet' },
   signOutConfirm:{ en:'Sign out of TraceTheBreak?',                sr:'Odjaviti se sa TraceTheBreak?' },
   markInProgress:{ en:'Mark In Progress',                          sr:'Označi U Toku' },
   markFixed:     { en:'Mark Fixed',                                sr:'Označi Popravljeno' },
@@ -2700,6 +2713,16 @@ function applyLang(){
   const subEl = document.getElementById('subcategory');
   if (subEl && catEl.value) {
     populateSubcategoryOptions(subEl, catEl.value, subEl.value);
+  }
+
+  const prioEl = document.getElementById('priority');
+  if (prioEl) {
+    const prevPrio = prioEl.value || 'normal';
+    prioEl.innerHTML =
+      `<option value="low">${t('priorityLow')}</option>` +
+      `<option value="normal">${t('priorityNormal')}</option>` +
+      `<option value="high">${t('priorityHigh')}</option>`;
+    prioEl.value = prevPrio;
   }
 
   document.querySelectorAll('.leg').forEach(el=>{
@@ -4336,6 +4359,7 @@ async function quickReportRoad(subcategoryKey) {
       longitude: userCoords.lon,
       category: 'Road',
       subcategory: subcategoryKey,
+      priority: 'normal',
       status: 'reported',
       comment: '',
       created_at: new Date().toISOString(),
@@ -4416,6 +4440,7 @@ async function finalizeSectionReport(subcategoryKey) {
       longitude: mid[1],
       category: 'Road',
       subcategory: subcategoryKey,
+      priority: 'normal',
       status: 'reported',
       comment: '',
       path: pathJson,
@@ -5083,6 +5108,21 @@ const STATUS_COLORS = {
   'in_progress': '#f5a623',
   'fixed':       '#2ecc71',
 };
+// Report priority — self-reported severity, independent of status. Not a
+// gate on anything (any priority can be submitted with the quick-report
+// flows too, which just default to 'normal' since they intentionally skip
+// the full form). Only surfaced visually; doesn't change routing/contacts.
+const PRIORITY_COLORS = {
+  'low':    '#8a8a86',
+  'normal': '#0090ab',
+  'high':   '#e63946',
+};
+function priorityColor(p) { return PRIORITY_COLORS[p] || PRIORITY_COLORS.normal; }
+function priorityLabelText(p) {
+  if (p === 'low')  return t('priorityLow');
+  if (p === 'high') return t('priorityHigh');
+  return t('priorityNormal');
+}
 function categoryColor(cat) { return CATEGORY_COLORS[cat] || '#aaaaaa'; }
 function categoryIcon(cat)  { return CATEGORY_ICONS[cat] || CATEGORY_ICONS.Other; }
 function subcategoryLabel(cat, subKey) {
@@ -5133,6 +5173,7 @@ function resetReportingForm() {
   document.getElementById('category').selectedIndex = 0;
   document.getElementById('subcategory').innerHTML = '';
   document.getElementById('subcategoryRow').style.display = 'none';
+  document.getElementById('priority').value = 'normal';
   document.getElementById('comment').value = "";
   document.getElementById('reportBtn').disabled = true;
 
@@ -5162,6 +5203,7 @@ async function reportBreak(){
 
   const category    = document.getElementById('category').value;
   const subcategory = document.getElementById('subcategory').value || null;
+  const priority     = document.getElementById('priority').value || 'normal';
   const comment      = document.getElementById('comment').value;
 
   try {
@@ -5170,6 +5212,7 @@ async function reportBreak(){
       longitude: lon,
       category,
       subcategory,
+      priority,
       status: 'reported',
       comment,
       created_at: new Date().toISOString(),
@@ -5852,6 +5895,10 @@ function buildPopupHtml(report) {
         <span class="status-pill" style="background:${sCol};">${statusLabel(report.status)}</span>
       </div>
       <div class="popup-row">
+        <span class="popup-row-label">${t('priorityLabel')}</span>
+        <span class="status-pill" style="background:${priorityColor(report.priority)};">${priorityLabelText(report.priority)}</span>
+      </div>
+      <div class="popup-row">
         <span class="popup-row-label">${t('reportedByLabel')}</span>
         <span class="popup-row-value">${escapeHtml(reporterName)}${isOwner ? ` <span class="owner-tag">(${t('yourReport')})</span>` : ''}</span>
       </div>
@@ -5943,6 +5990,7 @@ async function showReportDetailModal(reportId) {
     <div class="detail-section">
       <div class="detail-section-title">${t('popupStatus')}</div>
       <div class="detail-row"><span class="detail-row-label">${t('popupStatus')}</span><span class="status-pill" style="background:${statusColor(report.status)};">${statusLabel(report.status)}</span></div>
+      <div class="detail-row"><span class="detail-row-label">${t('priorityLabel')}</span><span class="status-pill" style="background:${priorityColor(report.priority)};">${priorityLabelText(report.priority)}</span></div>
       <div class="detail-row"><span class="detail-row-label">${t('reportedByLabel')}</span><span class="detail-row-value">${escapeHtml(reporterName)}</span></div>
       <div class="popup-timeline" style="margin-top:8px;">
         ${buildTimelineItem(report.created_at, true, STATUS_COLORS.reported)}
@@ -6035,6 +6083,13 @@ function buildEditPopupHtml(report) {
     { key:'fixed', label: statusLabel('fixed') }
   ];
   const statusOptions = statuses.map(s => `<option value="${s.key}" ${s.key === report.status ? 'selected' : ''}>${s.label}</option>`).join('');
+  const currentPriority = report.priority || 'normal';
+  const priorities = [
+    { key:'low',    label: priorityLabelText('low') },
+    { key:'normal', label: priorityLabelText('normal') },
+    { key:'high',   label: priorityLabelText('high') }
+  ];
+  const priorityOptions = priorities.map(p => `<option value="${p.key}" ${p.key === currentPriority ? 'selected' : ''}>${p.label}</option>`).join('');
 
   return `<div class="popup-inner popup-card popup-edit-form">
     <div class="popup-header" style="background:${catCol};">
@@ -6052,6 +6107,10 @@ function buildEditPopupHtml(report) {
       <div class="popup-edit-field">
         <span class="popup-edit-field-label">${t('editStatusLabel')}</span>
         <select id="edit-status-${uid}">${statusOptions}</select>
+      </div>
+      <div class="popup-edit-field">
+        <span class="popup-edit-field-label">${t('editPriorityLabel')}</span>
+        <select id="edit-priority-${uid}">${priorityOptions}</select>
       </div>
       <div class="popup-edit-field">
         <span class="popup-edit-field-label">${t('editCommentLabel')}</span>
@@ -6164,10 +6223,12 @@ async function saveReportEdits(reportId) {
   const subcatEl     = document.getElementById(`edit-subcat-${reportId}`);
   const subcategory  = (subcatEl && subcatEl.value) ? subcatEl.value : null;
   const status       = document.getElementById(`edit-status-${reportId}`).value;
+  const priorityEl   = document.getElementById(`edit-priority-${reportId}`);
+  const priority      = (priorityEl && priorityEl.value) ? priorityEl.value : 'normal';
   const comment       = document.getElementById(`edit-comment-${reportId}`).value;
   try {
     const { error } = await sb.from(TABLE)
-      .update({ category, subcategory, comment, updated_at: new Date().toISOString(), ...buildStatusPatch(status) })
+      .update({ category, subcategory, priority, comment, updated_at: new Date().toISOString(), ...buildStatusPatch(status) })
       .eq('id', reportId);
     if (error) throw error;
     await loadPinsByWindow();
@@ -6501,7 +6562,7 @@ function downloadCSV() {
   if (!visible.length) { alert(t('noReports')); return; }
 
   let csv = `Report Generated/Downloaded On: ${new Date().toLocaleString()}\n\n`;
-  csv += 'ID,ReportedAt,InProgressAt,FixedAt,Latitude,Longitude,Category,Subcategory,Status,ReportedBy,Comment\n';
+  csv += 'ID,ReportedAt,InProgressAt,FixedAt,Latitude,Longitude,Category,Subcategory,Priority,Status,ReportedBy,Comment\n';
   visible.forEach(r => {
     csv += `${r.id},` +
            `${r.created_at},` +
@@ -6511,6 +6572,7 @@ function downloadCSV() {
            `${r.longitude},` +
            `${r.category},` +
            `${r.subcategory || ''},` +
+           `${r.priority || 'normal'},` +
            `${r.status},` +
            `"${(r.comment || '').replace(/"/g, '""')}"\n`;
   });
