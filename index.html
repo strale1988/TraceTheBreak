@@ -154,17 +154,20 @@ html[data-theme="dark"]{
   --warn-text: #f5c518;
 }
 .leaflet-tile-pane{ filter:var(--map-tile-filter); }
-/* Leaflet's own zoom-hide behavior (used because markerZoomAnimation is
-   off below) is an instant visibility:hidden with no transition, which
-   reads as a hard pop. A short opacity fade on the way out/in feels like
-   a deliberate snap instead of a glitch, without reintroducing the
-   per-frame scaling cost that was the actual performance problem.
-   Transition lives on the panes themselves (not just the .leaflet-zoom-hide
-   rule) so it also applies on the way back in, when Leaflet just removes
-   the class rather than setting a property we could transition from. */
+/* markerZoomAnimation:false (see the map init below) makes Leaflet leave
+   the .leaflet-zoom-hide class on the marker/shadow panes PERMANENTLY,
+   not just during a zoom — it only actually goes invisible while an
+   ancestor also carries .leaflet-zoom-anim, which Leaflet adds for the
+   ~250ms of the zoom transition and then removes. Leaflet's own rule for
+   this is `.leaflet-zoom-anim .leaflet-zoom-hide` (scoped, native default
+   is an instant visibility:hidden). This overrides that with the same
+   scoping — critical: an unscoped `.leaflet-zoom-hide{ opacity:0 }` would
+   hide every pin and the GPS marker permanently, all the time, not just
+   mid-zoom — but swaps the instant hide for a short opacity fade so the
+   snap back at zoomend reads as deliberate rather than a glitch. */
 .leaflet-marker-pane,
 .leaflet-popup-pane{ transition:opacity .12s ease; }
-.leaflet-zoom-hide{
+.leaflet-zoom-anim .leaflet-zoom-hide{
   visibility:visible !important;
   opacity:0 !important;
   pointer-events:none !important;
