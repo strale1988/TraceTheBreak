@@ -1892,6 +1892,49 @@ details[open] > summary .uc-group-chevron{ transform:rotate(180deg); /* point do
   padding:2px 6px; border-radius:10px; color:#fff; background:#8a8a8a;
 }
 
+/* --- Report photo evidence: picker + preview in the report form --- */
+.report-photo-row{ display:flex; align-items:center; }
+.report-photo-preview{
+  position:relative; display:flex; width:100%;
+}
+.report-photo-preview img{
+  width:100%; max-height:160px; object-fit:cover; border-radius:8px; display:block;
+}
+.report-photo-remove{
+  position:absolute; top:6px; right:6px; width:26px; height:26px; border:none; border-radius:50%;
+  background:rgba(0,0,0,.6); color:#fff; font-size:14px; line-height:1; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+}
+
+/* --- Report detail modal: photo section --- */
+.detail-photo-wrap{ border-radius:8px; overflow:hidden; }
+.detail-photo-img{ width:100%; max-height:260px; object-fit:cover; display:block; cursor:pointer; }
+.photo-status-badge{
+  font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.2px;
+  padding:2px 6px; border-radius:10px; color:#fff; margin-left:6px; vertical-align:middle;
+}
+.photo-status-badge.pending{ background:#a67817; }
+.photo-status-badge.rejected{ background:#7a1f1f; }
+
+/* --- Admin: photo review / flagged reports queues (Settings) --- */
+.photo-review-card, .flagged-report-card{
+  display:flex; align-items:center; gap:10px; padding:10px; border-radius:8px;
+  background:var(--bg-surface-alt); margin-bottom:8px; flex-wrap:wrap;
+}
+.photo-review-thumb{
+  width:56px; height:56px; border-radius:6px; overflow:hidden; flex:0 0 auto;
+  background:var(--bg-surface); display:flex; align-items:center; justify-content:center;
+}
+.photo-review-thumb img{ width:100%; height:100%; object-fit:cover; cursor:pointer; }
+.photo-review-meta{ flex:1 1 140px; min-width:0; }
+.photo-review-title{ font-size:13px; font-weight:700; color:var(--text-primary); }
+.photo-review-sub{ font-size:11.5px; color:var(--text-secondary); margin-top:2px; }
+.photo-review-actions{ display:flex; gap:6px; flex-wrap:wrap; }
+.photo-review-actions button{
+  border:none; border-radius:6px; padding:7px 10px; font-size:12px; cursor:pointer;
+}
+
+
 #dateRangePicker {
   cursor: pointer;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2' ry='2'%3E%3C/rect%3E%3Cline x1='16' y1='2' x2='16' y2='6'%3E%3C/line%3E%3Cline x1='8' y1='2' x2='8' y2='6'%3E%3C/line%3E%3Cline x1='3' y1='10' x2='21' y2='10'%3E%3C/line%3E%3C/svg%3E");
@@ -2059,6 +2102,15 @@ span.flatpickr-weekday {
   </div>
 
   <input id="comment" type="text" placeholder="Optional notes...">
+
+  <div class="report-photo-row">
+    <button type="button" class="settings-btn" id="reportPhotoAddBtn" onclick="document.getElementById('reportPhotoInput').click()">📷 <span id="reportPhotoAddBtnLabel">Add photo (optional)</span></button>
+    <input type="file" accept="image/*" id="reportPhotoInput" style="display:none" onchange="onReportPhotoSelected(this)">
+    <div class="report-photo-preview" id="reportPhotoPreview" style="display:none">
+      <img id="reportPhotoPreviewImg" alt="">
+      <button type="button" class="report-photo-remove" onclick="removePendingReportPhoto()" aria-label="Remove photo">✕</button>
+    </div>
+  </div>
 
   <div class="row" style="align-items:stretch;">
     <button class="report-btn" id="reportBtn" onclick="reportBreak()"
@@ -2324,6 +2376,17 @@ span.flatpickr-weekday {
         <div class="uc-verify-status" id="ucVerifyStatus"></div>
         <button type="button" class="uc-verify-btn" onclick="verifyUtilityCompany()" id="ucVerifyBtn">Admin has checked the data</button>
       </div>
+
+      <!-- Admin: reports whose attached photo is waiting for approval
+           before it's shown to anyone but the reporter/admins. -->
+      <div class="admin-section-title detail-section-title" id="photoReviewSectionTitle" style="margin-top:18px;">Photo review</div>
+      <div id="photoReviewList"></div>
+
+      <!-- Admin: reports flagged for follow-up (currently just "photo was
+           rejected" — see rejectReportPhoto). Lets an admin clear the flag
+           once handled, or delete the report outright. -->
+      <div class="admin-section-title detail-section-title" id="flaggedReportsSectionTitle" style="margin-top:18px;">Flagged reports</div>
+      <div id="flaggedReportsList"></div>
     </div>
   </div>
 </div>
@@ -2871,7 +2934,32 @@ const T = {
   ucVerifiedStatus:  { en:'✓ Verified — visible to reporters',    sr:'✓ Provereno — vidljivo prijaviocima' },
   ucUnverifiedStatus:{ en:'Not verified yet — hidden from reporters', sr:'Još nije provereno — skriveno od prijavilaca' },
   ucVerifiedChip:    { en:'Verified',                             sr:'Provereno' },
-  ucUnverifiedChip:  { en:'Unverified',                           sr:'Nije provereno' }
+  ucUnverifiedChip:  { en:'Unverified',                           sr:'Nije provereno' },
+
+  // --- Report photo evidence (form, detail view, admin review) ---
+  reportPhotoAddBtn:      { en:'Add photo (optional)',                        sr:'Dodaj fotografiju (opciono)' },
+  reportPhotoInvalid:     { en:'Could not use that photo. Try a different image.', sr:'Fotografija nije mogla biti korišćena. Probajte drugu sliku.' },
+  reportPhotoUploadFailed:{ en:'Report submitted, but the photo failed to upload.', sr:'Prijava je poslata, ali fotografija nije uspela da se otpremi.' },
+  detailPhotoTitle:       { en:'Photo',                                       sr:'Fotografija' },
+  photoPendingBadge:      { en:'Pending review',                              sr:'Čeka proveru' },
+  photoRejectedBadge:     { en:'Rejected',                                    sr:'Odbijeno' },
+  photoRejectedOwnerNote: { en:'Your photo didn\'t pass review, so it isn\'t shown publicly. The report itself is unaffected.', sr:'Vaša fotografija nije prošla proveru, pa nije javno prikazana. Sama prijava time nije pogođena.' },
+  photoLoadFailed:        { en:'Could not load photo.',                       sr:'Fotografija nije mogla biti učitana.' },
+
+  photoReviewSectionTitle:{ en:'Photo review',                                sr:'Provera fotografija' },
+  photoReviewEmpty:       { en:'No photos waiting for review.',               sr:'Nema fotografija koje čekaju proveru.' },
+  photoApproveBtn:        { en:'Approve',                                     sr:'Odobri' },
+  photoRejectBtn:         { en:'Reject',                                      sr:'Odbij' },
+  photoRejectConfirm:     { en:'Reject this photo as spam/inaccurate? The report will be flagged for follow-up.', sr:'Odbiti ovu fotografiju kao spam/netačnu? Prijava će biti označena za dalju proveru.' },
+  photoApproved:          { en:'Photo approved — now visible on the report.', sr:'Fotografija odobrena — sada je vidljiva na prijavi.' },
+  photoRejected:          { en:'Photo rejected.',                             sr:'Fotografija odbijena.' },
+  photoActionFailed:      { en:'Could not save that. Try again.',            sr:'Nije sačuvano. Pokušajte ponovo.' },
+
+  flaggedReportsSectionTitle: { en:'Flagged reports',                        sr:'Označene prijave' },
+  flaggedReportsEmpty:    { en:'No flagged reports right now.',              sr:'Trenutno nema označenih prijava.' },
+  flagReasonRejectedPhoto:{ en:'Flagged: rejected photo',                    sr:'Označeno: odbijena fotografija' },
+  flagClearBtn:           { en:'Clear flag',                                 sr:'Ukloni oznaku' },
+  flagCleared:            { en:'Flag cleared.',                              sr:'Oznaka uklonjena.' }
 };
 
 function t(k){ return T[k]?.[lang] ?? k; }
@@ -2915,6 +3003,7 @@ function setLang(l){
 function applyLang(){
   document.getElementById('subtitle').textContent         = t('subtitle');
   document.getElementById('reportBtnLabel').textContent   = t('reportBtn');
+  document.getElementById('reportPhotoAddBtnLabel').textContent = t('reportPhotoAddBtn');
   document.getElementById('csvLabel').textContent         = t('csvLabel');
   document.getElementById('filterTitleLabel').textContent = t('timeFilter');
   document.getElementById('settingsBtn').title = t('settingsBtnTitle');
@@ -2978,6 +3067,12 @@ function applyLang(){
     populateUcCatChecks();
     applyUcFormTranslations();
     renderUcList();
+    const prTitleEl = document.getElementById('photoReviewSectionTitle');
+    if (prTitleEl) prTitleEl.textContent = t('photoReviewSectionTitle');
+    const frTitleEl = document.getElementById('flaggedReportsSectionTitle');
+    if (frTitleEl) frTitleEl.textContent = t('flaggedReportsSectionTitle');
+    renderPhotoReviewList();
+    renderFlaggedReportsList();
   }
 
   updateDrivingGpsStatus();
@@ -5526,6 +5621,138 @@ function checkFormReady() {
   document.getElementById('reportBtn').disabled = !(category && priority && hasLoc && isAuthed);
 }
 
+// =============================================================================
+// REPORT PHOTO EVIDENCE — capture/pick, client-side compress, upload.
+// Only wired into the full report form (reportBreak), not the one-tap
+// driving-mode tiles or section reports — those are meant to stay a single
+// glance, and a camera step would defeat that.
+//
+// Every photo is downscaled and re-encoded to JPEG client-side before
+// upload (see compressReportPhoto) — keeps storage/bandwidth sane and gives
+// every uploaded photo a consistent, predictable format regardless of what
+// the phone's camera produced. Newly uploaded photos start life as
+// 'pending' (see uploadReportPhoto) and are not shown to anyone but the
+// reporter/admins until an admin approves them from the Photo review queue
+// in Settings (see loadPhotoReviewAdmin / approveReportPhoto / rejectReportPhoto).
+// =============================================================================
+const REPORT_PHOTO_BUCKET = 'report-photos';
+const REPORT_PHOTO_MAX_DIMENSION = 1600;        // px, longest side, after downscaling
+const REPORT_PHOTO_JPEG_QUALITY = 0.8;
+const REPORT_PHOTO_MAX_INPUT_BYTES = 15 * 1024 * 1024; // reject absurd originals before even trying to decode them
+const REPORT_PHOTO_SIGNED_URL_TTL = 300;        // seconds a viewing link stays valid for
+
+let pendingReportPhotoBlob = null;       // compressed Blob, uploaded only once the report itself is saved
+let pendingReportPhotoPreviewUrl = null; // object URL backing the on-screen thumbnail
+
+// Downscales + re-encodes a picked photo in the browser via <canvas>, so a
+// multi-MB camera original never gets uploaded as-is.
+function compressReportPhoto(file) {
+  return new Promise((resolve, reject) => {
+    if (!file.type || !file.type.startsWith('image/')) { reject(new Error('not-an-image')); return; }
+    if (file.size > REPORT_PHOTO_MAX_INPUT_BYTES) { reject(new Error('too-large')); return; }
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      let { width, height } = img;
+      const scale = Math.min(1, REPORT_PHOTO_MAX_DIMENSION / Math.max(width, height));
+      width = Math.max(1, Math.round(width * scale));
+      height = Math.max(1, Math.round(height * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(blob => {
+        if (!blob) { reject(new Error('encode-failed')); return; }
+        resolve(blob);
+      }, 'image/jpeg', REPORT_PHOTO_JPEG_QUALITY);
+    };
+    img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error('decode-failed')); };
+    img.src = objectUrl;
+  });
+}
+
+async function onReportPhotoSelected(inputEl) {
+  const file = inputEl.files && inputEl.files[0];
+  inputEl.value = ''; // lets the same file be picked again later (e.g. after removing it)
+  if (!file) return;
+  try {
+    const blob = await compressReportPhoto(file);
+    setPendingReportPhoto(blob);
+  } catch (err) {
+    console.error('Photo processing failed:', err.message || err);
+    toast(t('reportPhotoInvalid'), 'error');
+  }
+}
+
+function setPendingReportPhoto(blob) {
+  clearPendingReportPhotoPreviewUrl();
+  pendingReportPhotoBlob = blob;
+  pendingReportPhotoPreviewUrl = URL.createObjectURL(blob);
+  const img = document.getElementById('reportPhotoPreviewImg');
+  const preview = document.getElementById('reportPhotoPreview');
+  const addBtn = document.getElementById('reportPhotoAddBtn');
+  if (img) img.src = pendingReportPhotoPreviewUrl;
+  if (preview) preview.style.display = 'flex';
+  if (addBtn) addBtn.style.display = 'none';
+}
+
+function clearPendingReportPhotoPreviewUrl() {
+  if (pendingReportPhotoPreviewUrl) {
+    URL.revokeObjectURL(pendingReportPhotoPreviewUrl);
+    pendingReportPhotoPreviewUrl = null;
+  }
+}
+
+function removePendingReportPhoto() {
+  clearPendingReportPhotoPreviewUrl();
+  pendingReportPhotoBlob = null;
+  const preview = document.getElementById('reportPhotoPreview');
+  const addBtn = document.getElementById('reportPhotoAddBtn');
+  if (preview) preview.style.display = 'none';
+  if (addBtn) addBtn.style.display = '';
+}
+
+// Uploads the already-compressed photo for a just-created report and
+// patches the row with where it landed. Called only *after* the report
+// insert itself has already succeeded, so a photo failure never costs the
+// person their report — worst case they end up with a report and no photo,
+// which we tell them about, rather than losing the whole submission.
+async function uploadReportPhoto(reportId, blob) {
+  try {
+    const path = `${currentSession.user.id}/${reportId}.jpg`;
+    const { error: uploadError } = await sb.storage.from(REPORT_PHOTO_BUCKET)
+      .upload(path, blob, { contentType: 'image/jpeg', upsert: true });
+    if (uploadError) throw uploadError;
+    const { error: updateError } = await sb.from(TABLE).update({
+      photo_path: path,
+      photo_status: 'pending',
+      photo_uploaded_at: new Date().toISOString()
+    }).eq('id', reportId);
+    if (updateError) throw updateError;
+  } catch (err) {
+    console.error('Photo upload failed:', err.message || err);
+    toast(t('reportPhotoUploadFailed'), 'error');
+  }
+}
+
+// Signed URL for viewing a private-bucket photo — used by both the report
+// detail modal and the admin Photo review queue. Short TTL is fine since
+// both call sites fetch a fresh one each time they render, and it means a
+// copied/leaked link goes stale quickly rather than staying valid forever.
+async function getReportPhotoSignedUrl(path) {
+  if (!path) return null;
+  try {
+    const { data, error } = await sb.storage.from(REPORT_PHOTO_BUCKET).createSignedUrl(path, REPORT_PHOTO_SIGNED_URL_TTL);
+    if (error) throw error;
+    return data && data.signedUrl;
+  } catch (err) {
+    console.error('Failed to sign photo URL:', err.message || err);
+    return null;
+  }
+}
+
 function resetReportingForm() {
   document.getElementById('category').selectedIndex = 0;
   document.getElementById('subcategory').innerHTML = '';
@@ -5533,6 +5760,7 @@ function resetReportingForm() {
   document.getElementById('priority').selectedIndex = 0;
   document.getElementById('comment').value = "";
   document.getElementById('reportBtn').disabled = true;
+  removePendingReportPhoto();
 
   // If the user manually dropped a pin to file this report, turn pin-drop
   // mode back off so the pin doesn't stay "clicked"/active after submit.
@@ -5583,6 +5811,14 @@ async function reportBreak(){
     if (error) throw error;
     recordReportSubmission();
     resolveAndAttachMunicipality(data && data.id, lat, lon);
+
+    // Photo goes up only after the report row itself exists (its path is
+    // keyed off the report's id) and only after the insert has definitely
+    // succeeded — see uploadReportPhoto for why a photo failure here
+    // doesn't roll back or block the report.
+    if (pendingReportPhotoBlob && data && data.id) {
+      await uploadReportPhoto(data.id, pendingReportPhotoBlob);
+    }
 
     alert(t('submitted'));
     resetReportingForm();
@@ -6224,6 +6460,171 @@ async function loadUtilityCompaniesAdmin() {
   renderUcList();
 }
 
+// =============================================================================
+// ADMIN: PHOTO REVIEW + FLAGGED REPORTS (Settings, admin-only)
+// Two related queues, both driven off columns on brake_reports:
+//   photo_status ('pending' | 'approved' | 'rejected') — set to 'pending'
+//   the moment a photo finishes uploading (see uploadReportPhoto), and only
+//   an admin approving/rejecting here ever moves it out of that state.
+//   flagged_for_review (bool) — set true by rejectReportPhoto() as a
+//   standing "needs follow-up" marker, independent of photo_status, so a
+//   rejected-photo report doesn't just quietly disappear once handled here —
+//   an admin still sees it in Flagged reports until they clear it or delete
+//   the report outright.
+// Both lists are loaded together (loadPhotoReviewAdmin drives both) since
+// they're shown in the same admin panel and a photo action can move a
+// report from one list to the other.
+// =============================================================================
+let photoReviewCache = [];
+let flaggedReportsCache = [];
+
+async function loadPhotoReviewAdmin() {
+  const prTitleEl = document.getElementById('photoReviewSectionTitle');
+  if (prTitleEl) prTitleEl.textContent = t('photoReviewSectionTitle');
+  const frTitleEl = document.getElementById('flaggedReportsSectionTitle');
+  if (frTitleEl) frTitleEl.textContent = t('flaggedReportsSectionTitle');
+
+  try {
+    const { data, error } = await sb.from(TABLE).select('*')
+      .eq('photo_status', 'pending').order('photo_uploaded_at', { ascending: true });
+    if (error) throw error;
+    photoReviewCache = data || [];
+  } catch (err) {
+    console.error('Failed to load photo review queue:', err.message);
+    photoReviewCache = [];
+  }
+  renderPhotoReviewList();
+
+  try {
+    const { data, error } = await sb.from(TABLE).select('*')
+      .eq('flagged_for_review', true).order('photo_reviewed_at', { ascending: false });
+    if (error) throw error;
+    flaggedReportsCache = data || [];
+  } catch (err) {
+    console.error('Failed to load flagged reports:', err.message);
+    flaggedReportsCache = [];
+  }
+  renderFlaggedReportsList();
+}
+
+function reportSummaryTitle(r) {
+  return r.subcategory
+    ? `${translateCategory(r.category)} / ${subcategoryLabel(r.category, r.subcategory)}`
+    : translateCategory(r.category);
+}
+
+function renderPhotoReviewList() {
+  const listEl = document.getElementById('photoReviewList');
+  if (!listEl) return;
+  if (!photoReviewCache.length) {
+    listEl.innerHTML = `<div class="detail-empty">${t('photoReviewEmpty')}</div>`;
+    return;
+  }
+  listEl.innerHTML = photoReviewCache.map(r => `
+    <div class="photo-review-card">
+      <div class="photo-review-thumb" id="photo-review-thumb-${r.id}"><div class="detail-loading">${t('detailLoading')}</div></div>
+      <div class="photo-review-meta">
+        <div class="photo-review-title">${escapeHtml(reportSummaryTitle(r))}</div>
+        <div class="photo-review-sub">${escapeHtml(r.owner_username || t('detailUnknown'))} · ${formatDate(r.photo_uploaded_at || r.created_at)}</div>
+      </div>
+      <div class="photo-review-actions">
+        <button type="button" class="settings-btn" onclick="viewReportFromAdminQueue('${r.id}')">${t('detailsBtn')}</button>
+        <button type="button" style="background:#2e7d32;color:#fff;" onclick="approveReportPhoto('${r.id}')">${t('photoApproveBtn')}</button>
+        <button type="button" style="background:#7a1f1f;color:#fff;" onclick="rejectReportPhoto('${r.id}')">${t('photoRejectBtn')}</button>
+      </div>
+    </div>
+  `).join('');
+
+  photoReviewCache.forEach(r => {
+    getReportPhotoSignedUrl(r.photo_path).then(url => {
+      const thumb = document.getElementById('photo-review-thumb-' + r.id);
+      if (!thumb) return;
+      thumb.innerHTML = url
+        ? `<img src="${url}" alt="" onclick="window.open('${url}','_blank')">`
+        : `<div class="detail-empty">${t('photoLoadFailed')}</div>`;
+    });
+  });
+}
+
+function renderFlaggedReportsList() {
+  const listEl = document.getElementById('flaggedReportsList');
+  if (!listEl) return;
+  if (!flaggedReportsCache.length) {
+    listEl.innerHTML = `<div class="detail-empty">${t('flaggedReportsEmpty')}</div>`;
+    return;
+  }
+  listEl.innerHTML = flaggedReportsCache.map(r => `
+    <div class="flagged-report-card">
+      <div class="photo-review-meta">
+        <div class="photo-review-title">${escapeHtml(reportSummaryTitle(r))}</div>
+        <div class="photo-review-sub">${escapeHtml(r.owner_username || t('detailUnknown'))} · ${t('flagReasonRejectedPhoto')}</div>
+      </div>
+      <div class="photo-review-actions">
+        <button type="button" class="settings-btn" onclick="viewReportFromAdminQueue('${r.id}')">${t('detailsBtn')}</button>
+        <button type="button" class="settings-btn" onclick="clearReportFlag('${r.id}')">${t('flagClearBtn')}</button>
+        <button type="button" style="background:#7a1f1f;color:#fff;" onclick="deleteReport('${r.id}')">${t('deleteBtn')}</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+// Both admin queues can include reports outside the current map window (and
+// so outside globalActiveData) — stash the cached row there first so
+// showReportDetailModal() has something to find.
+function viewReportFromAdminQueue(reportId) {
+  const cached = photoReviewCache.find(r => r.id === reportId) || flaggedReportsCache.find(r => r.id === reportId);
+  if (cached && !globalActiveData.some(r => r.id === cached.id)) globalActiveData.push(cached);
+  showReportDetailModal(reportId);
+}
+
+async function approveReportPhoto(reportId) {
+  try {
+    const { error } = await sb.from(TABLE).update({
+      photo_status: 'approved',
+      photo_reviewed_at: new Date().toISOString(),
+      photo_reviewed_by: currentSession ? currentSession.user.id : null
+    }).eq('id', reportId);
+    if (error) throw error;
+    toast(t('photoApproved'), 'success');
+    await loadPhotoReviewAdmin();
+    await loadPinsByWindow(); // the approved photo may now be visible on the public report
+  } catch (err) {
+    console.error('Failed to approve photo:', err.message);
+    toast(t('photoActionFailed'), 'error');
+  }
+}
+
+async function rejectReportPhoto(reportId) {
+  if (!confirm(t('photoRejectConfirm'))) return;
+  try {
+    const { error } = await sb.from(TABLE).update({
+      photo_status: 'rejected',
+      photo_reviewed_at: new Date().toISOString(),
+      photo_reviewed_by: currentSession ? currentSession.user.id : null,
+      flagged_for_review: true,
+      flag_reason: 'rejected_photo'
+    }).eq('id', reportId);
+    if (error) throw error;
+    toast(t('photoRejected'), 'success');
+    await loadPhotoReviewAdmin();
+  } catch (err) {
+    console.error('Failed to reject photo:', err.message);
+    toast(t('photoActionFailed'), 'error');
+  }
+}
+
+async function clearReportFlag(reportId) {
+  try {
+    const { error } = await sb.from(TABLE).update({ flagged_for_review: false }).eq('id', reportId);
+    if (error) throw error;
+    toast(t('flagCleared'), 'success');
+    await loadPhotoReviewAdmin();
+  } catch (err) {
+    console.error('Failed to clear flag:', err.message);
+    toast(t('photoActionFailed'), 'error');
+  }
+}
+
 function applyUcFormTranslations() {
   const fieldMap = {
     ucName: 'ucNamePH', ucPhone: 'ucPhonePH', ucEmail: 'ucEmailPH',
@@ -6832,6 +7233,42 @@ async function showReportDetailModal(reportId) {
     headerEl.classList.add('status-colored');
   }
   const reporterName = report.owner_username || (lang === 'sr' ? 'Nepoznato' : 'Unknown');
+
+  // Photo section — who gets to see what depends on photo_status:
+  //  - approved:  everyone sees the photo, no badge needed.
+  //  - pending:   only the reporter or an admin see it (with a badge),
+  //               everyone else gets no photo section at all.
+  //  - rejected:  only an admin still sees the image (for moderation
+  //               reference); the reporter gets a plain text note instead
+  //               (no image) so a rejected upload isn't just re-shown to
+  //               them at a different URL; anyone else sees nothing.
+  const isOwner = !!(currentSession && report.owner_id === currentSession.user.id);
+  const isAdmin = !!(currentProfile && currentProfile.is_admin);
+  let photoSectionHtml = '';
+  const showPhotoImage = !!report.photo_path && (
+    report.photo_status === 'approved' ||
+    (report.photo_status === 'pending' && (isOwner || isAdmin)) ||
+    (report.photo_status === 'rejected' && isAdmin)
+  );
+  if (showPhotoImage) {
+    const badge = report.photo_status === 'pending'
+      ? `<span class="photo-status-badge pending">${t('photoPendingBadge')}</span>`
+      : report.photo_status === 'rejected'
+        ? `<span class="photo-status-badge rejected">${t('photoRejectedBadge')}</span>`
+        : '';
+    photoSectionHtml = `
+    <div class="detail-section">
+      <div class="detail-section-title">${t('detailPhotoTitle')}${badge}</div>
+      <div class="detail-photo-wrap" id="detailPhotoWrap"><div class="detail-loading">${t('detailLoading')}</div></div>
+    </div>`;
+  } else if (report.photo_path && isOwner && report.photo_status === 'rejected') {
+    photoSectionHtml = `
+    <div class="detail-section">
+      <div class="detail-section-title">${t('detailPhotoTitle')}</div>
+      <p class="detail-export-hint">${t('photoRejectedOwnerNote')}</p>
+    </div>`;
+  }
+
   body.innerHTML = `
     <div class="detail-section">
       <div class="detail-section-title">${t('detailLocationTitle')}</div>
@@ -6843,6 +7280,7 @@ async function showReportDetailModal(reportId) {
     <div class="detail-section" id="reportDetailStatusSection">
       ${buildDetailStatusReadonlyHtml(report, reporterName)}
     </div>
+    ${photoSectionHtml}
     <div class="detail-section">
       <div class="detail-section-title">${t('detailContactsTitle')}</div>
       <div id="detailContactsContainer"><div class="detail-loading">${t('detailLoading')}</div></div>
@@ -6858,6 +7296,16 @@ async function showReportDetailModal(reportId) {
   `;
 
   modal.style.display = 'flex';
+
+  if (showPhotoImage) {
+    getReportPhotoSignedUrl(report.photo_path).then(url => {
+      const wrap = document.getElementById('detailPhotoWrap');
+      if (!wrap) return;
+      wrap.innerHTML = url
+        ? `<img src="${url}" alt="" class="detail-photo-img" onclick="window.open('${url}','_blank')">`
+        : `<div class="detail-empty">${t('photoLoadFailed')}</div>`;
+    });
+  }
 
   // Street/area is a separate, independent lookup from the municipality
   // resolution below — it's purely descriptive detail, not tied to the
