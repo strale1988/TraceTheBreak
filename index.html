@@ -1693,10 +1693,17 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 }
 .contact-card:last-child{ margin-bottom:0; }
 .contact-card-name{ font-weight:700; font-size:14px; margin-bottom:8px; }
-.contact-card-row{ display:flex; align-items:center; gap:9px; font-size:12.5px; color:var(--text-secondary); padding:5px 0; }
+.contact-card-row{ display:flex; align-items:flex-start; gap:9px; font-size:12.5px; color:var(--text-secondary); padding:5px 0; min-width:0; }
 .contact-card-row:not(:last-child){ border-bottom:1px solid var(--border-color); }
 .contact-card-row a{ color:#4ea1ff; text-decoration:none; }
-.contact-card-icon{ width:15px; height:15px; flex-shrink:0; filter:var(--icon-tint-filter); }
+/* The icon is the only child that should stay a fixed size — the text/link
+   next to it is the last child of the row. Without min-width:0 a flex item's
+   default min-width is auto, so a long unbroken email or URL refused to wrap
+   and instead forced the whole row (and the popup around it) wider than its
+   max-width — which is what made the popup look off-center: it wasn't
+   actually mis-centered, it was just wider than the box doing the centering. */
+.contact-card-row > *:last-child{ min-width:0; overflow-wrap:anywhere; word-break:break-word; }
+.contact-card-icon{ width:15px; height:15px; flex-shrink:0; filter:var(--icon-tint-filter); margin-top:1px; }
 .company-marker-icon{
   width:26px; height:31px; object-fit:contain;
   filter:var(--icon-tint-filter) drop-shadow(0 3px 6px rgba(0,0,0,.45));
@@ -2320,7 +2327,6 @@ span.flatpickr-weekday {
 <div id="reportDetailModal" class="fullscreen-modal-overlay" style="display:none">
   <div class="fullscreen-modal-header" id="reportDetailHeader">
     <h2 id="reportDetailTitle"></h2>
-    <button class="fullscreen-modal-share" id="reportDetailShareBtn" aria-label="Share"><img class="icon-img" src="icons/link.png" alt="share"></button>
     <button class="fullscreen-modal-close" id="reportDetailCloseBtn" onclick="hideReportDetailModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
   </div>
   <div class="fullscreen-modal-body" id="reportDetailBody"></div>
@@ -5941,13 +5947,28 @@ async function loadAllCompanyMarkers() {
       icon: L.divIcon({ className: '', html: buildCompanyMarkerHtml(), iconSize: [26, 31], iconAnchor: [13, 29] }),
       zIndexOffset: 200
     });
-    marker.bindPopup(`<div class="popup-inner popup-card">
-      <div class="popup-body" style="padding:12px 14px;">${renderContactCards([c])}</div>
-    </div>`, { autoPan: false, closeButton: false });
+    marker.bindPopup(buildCompanyPopupHtml(c), { autoPan: false, closeButton: false });
     marker.addTo(companyMarkersLayer);
     // Nominatim's usage policy caps unauthenticated requests at ~1/second.
     await new Promise(res => setTimeout(res, 1100));
   }
+}
+
+// Popup for a utility-company map pin — matches the report pin popup's
+// header/body/close-button chrome (see buildPopupHtml) instead of the older
+// bare contact card, so both kinds of pins feel like the same UI. The
+// company name lives in the header (as the report popup's category does),
+// so the body only needs the contact rows, not a repeated name.
+function buildCompanyPopupHtml(c) {
+  return `<div class="popup-inner popup-card">
+    <div class="popup-header" style="background:#3a3a3a;">
+      <span class="popup-header-title">${escapeHtml(c.name)}</span>
+    </div>
+    <div class="popup-body" style="padding:12px 14px;">${renderContactRows(c)}</div>
+    <div class="status-action-row" style="border-top:none;padding-top:0;">
+      <button class="status-action-btn popup-close-btn" style="background:#3a3a3a;" onclick="map.closePopup();">${t('closeBtn')}</button>
+    </div>
+  </div>`;
 }
 
 // Small popup card for the GPS/manual-pin marker — the floating badge above
@@ -6591,7 +6612,6 @@ async function showReportDetailModal(reportId) {
   const body = document.getElementById('reportDetailBody');
   const titleEl = document.getElementById('reportDetailTitle');
   const headerEl = document.getElementById('reportDetailHeader');
-  const shareBtn = document.getElementById('reportDetailShareBtn');
   const headerTitle = report.subcategory
     ? `${translateCategory(report.category)} / ${subcategoryLabel(report.category, report.subcategory)}`
     : translateCategory(report.category);
@@ -6604,11 +6624,6 @@ async function showReportDetailModal(reportId) {
     headerEl.style.background = statusColor(report.status);
     headerEl.classList.add('status-colored');
   }
-  // The header shell is static (not rebuilt per-report like the body below),
-  // so the share button's handler is bound fresh each time the modal opens
-  // rather than baked into the HTML with a report id.
-  if (shareBtn) shareBtn.onclick = () => shareReport(report.id);
-
   const reporterName = report.owner_username || (lang === 'sr' ? 'Nepoznato' : 'Unknown');
   body.innerHTML = `
     <div class="detail-section">
@@ -6628,7 +6643,10 @@ async function showReportDetailModal(reportId) {
     <div class="detail-section">
       <div class="detail-section-title">${t('detailExportTitle')}</div>
       <p class="detail-export-hint">${t('detailExportHint')}</p>
-      <button type="button" class="settings-btn" style="width:100%;" onclick="emailReport('${report.id}')" id="reportDetailExportBtn"><img class="icon-img icon-img-inline" src="icons/email.png" alt="email"> ${t('detailExportBtn')}</button>
+      <div style="display:flex;gap:8px;">
+        <button type="button" class="settings-btn" style="flex:1;" onclick="emailReport('${report.id}')" id="reportDetailExportBtn"><img class="icon-img icon-img-inline" src="icons/email.png" alt="email"> ${t('detailExportBtn')}</button>
+        <button type="button" class="fullscreen-modal-share" onclick="shareReport('${report.id}')" id="reportDetailShareBtn" aria-label="Share"><img class="icon-img" src="icons/link.png" alt="share"></button>
+      </div>
     </div>
   `;
 
@@ -6712,16 +6730,27 @@ async function getReportContacts(report, muni) {
   return report.contacts;
 }
 
+// Just the phone/email/website/address/notes rows for a single company —
+// no name, no outer .contact-card box. Shared by renderContactCards()
+// below (detail modal's contacts list, one card per company, name included)
+// and buildCompanyPopupHtml() (map pin popup, where the name already lives
+// in the popup-header so repeating it in a nested card would be redundant).
+function renderContactRows(c) {
+  return `
+      ${c.phone ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/phone.png" alt="phone"><a href="tel:${escapeHtml(c.phone)}">${escapeHtml(c.phone)}</a></div>` : ''}
+      ${c.email ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/email.png" alt="email"><a href="mailto:${escapeHtml(c.email)}">${escapeHtml(c.email)}</a></div>` : ''}
+      ${c.website ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/link.png" alt="link"><a href="${escapeHtml(c.website)}" target="_blank" rel="noopener">${escapeHtml(c.website)}</a></div>` : ''}
+      ${c.address ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/pin.png" alt="pin"><span>${escapeHtml(c.address)}</span></div>` : ''}
+      ${c.notes ? `<div class="contact-card-row contact-card-notes"><span>${escapeHtml(c.notes)}</span></div>` : ''}
+  `;
+}
+
 function renderContactCards(companies) {
   if (!companies.length) return `<div class="detail-empty">${t('detailNoContacts')}</div>`;
   return companies.map(c => `
     <div class="contact-card">
       <div class="contact-card-name">${escapeHtml(c.name)}</div>
-      ${c.phone ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/phone.png" alt="phone"><a href="tel:${escapeHtml(c.phone)}">${escapeHtml(c.phone)}</a></div>` : ''}
-      ${c.email ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/email.png" alt="email"><a href="mailto:${escapeHtml(c.email)}">${escapeHtml(c.email)}</a></div>` : ''}
-      ${c.website ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/link.png" alt="link"><a href="${escapeHtml(c.website)}" target="_blank" rel="noopener">${escapeHtml(c.website)}</a></div>` : ''}
-      ${c.address ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/pin.png" alt="pin">${escapeHtml(c.address)}</div>` : ''}
-      ${c.notes ? `<div class="contact-card-row contact-card-notes">${escapeHtml(c.notes)}</div>` : ''}
+      ${renderContactRows(c)}
     </div>
   `).join('');
 }
