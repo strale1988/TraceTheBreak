@@ -6210,9 +6210,26 @@ function countryDisplayName(code) {
   }
 }
 
+// renderUcList() is called after every save/delete (via loadUtilityCompaniesAdmin),
+// which rebuilds the whole <details> tree from scratch. Without this, every
+// admin edit would silently re-collapse every country/municipality group the
+// admin had open — annoying when you're working through a long list. We
+// snapshot which groups are currently open before wiping the innerHTML, then
+// re-apply that same open state to the freshly rendered groups afterward.
+function getOpenUcGroupIds() {
+  return Array.from(document.querySelectorAll('#ucList details[open]')).map(d => d.id).filter(Boolean);
+}
+function restoreOpenUcGroupIds(ids) {
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.open = true;
+  });
+}
+
 function renderUcList() {
   const listEl = document.getElementById('ucList');
   if (!listEl) return;
+  const openIds = getOpenUcGroupIds();
   if (!ucCompaniesCache.length) {
     listEl.innerHTML = '<div class="detail-empty">' + t('ucNoContacts') + '</div>';
     return;
@@ -6280,13 +6297,15 @@ function renderUcList() {
       '</details>';
     }).join('');
 
-    return '<details class="uc-country-group">' +
+    return '<details class="uc-country-group" id="uc-country-group-' + (countryCode || 'unknown') + '">' +
       '<summary><span class="uc-group-chevron"><img src="icons/arrow.png" alt=""></span> ' + escapeHtml(countryDisplayName(countryCode)) +
         (countryCode ? ' (' + escapeHtml(countryCode) + ')' : '') +
         ' <span class="uc-country-count">(' + countryTotal + ')</span></summary>' +
       muniHtml +
     '</details>';
   }).join('') + '</div>';
+
+  restoreOpenUcGroupIds(openIds);
 }
 
 // Shows/hides the municipality <select> + "Add municipality from map center"
@@ -6312,6 +6331,8 @@ function addContactForMunicipality(municipalityId) {
   const detailsEl = document.getElementById('uc-muni-group-' + municipalityId);
   if (detailsEl) {
     detailsEl.open = true; // the + button suppresses the native toggle (see renderUcList), so force it open here
+    const countryDetailsEl = detailsEl.closest('details.uc-country-group');
+    if (countryDetailsEl) countryDetailsEl.open = true; // and its parent country group, so the form is actually visible
     const itemsEl = detailsEl.querySelector('.uc-muni-items');
     if (itemsEl && form) itemsEl.insertAdjacentElement('beforeend', form); // just below this municipality's existing contacts
   }
@@ -6456,7 +6477,15 @@ async function persistUcRow(verified) {
       ({ error } = await sb.from(UTILITY_COMPANIES_TABLE).insert(row));
     }
     if (error) throw error;
-    cancelUcForm();
+    // Unlike cancelUcForm(), we don't hide the form here — after a save the
+    // admin is often about to add/edit another contact right away, so we
+    // just reset it back to a blank "add" state and keep it open. We do
+    // still need to move it back to its default anchor (out of whichever
+    // uc-item/uc-muni-items it was living in) before loadUtilityCompaniesAdmin()
+    // rebuilds #ucList's innerHTML, or the form node itself would be wiped out.
+    moveUcFormToAnchor();
+    resetUcForm();
+    setUcMuniPickerVisible(true);
     await loadUtilityCompaniesAdmin();
   } catch (err) {
     console.error('Failed to save utility company:', err.message);
@@ -6950,7 +6979,7 @@ async function emailReport(reportId) {
     const toEmails = contacts.map(c => c.email).filter(Boolean).join(',');
 
     const shareUrl = reportShareUrl(report.id);
-    const subject = encodeURIComponent(`${headerTitle} — TraceTheBreak`);
+    const subject = encodeURIComponent(headerTitle);
     const bodyLines = [
       lang === 'sr' ? 'Poštovani,' : 'Hello,',
       '',
@@ -6971,7 +7000,7 @@ async function emailReport(reportId) {
       lang === 'sr' ? `Detaljan izveštaj i mapa: ${shareUrl}` : `Full report and map: ${shareUrl}`,
       '',
       lang === 'sr' ? 'Hvala unapred,' : 'Thank you,',
-      'TraceTheBreak',
+      lang === 'sr' ? 'Vaš komšija' : 'Your neighbor',
     ];
     const body = encodeURIComponent(bodyLines.join('\n'));
     window.location.href = `mailto:${toEmails}?subject=${subject}&body=${body}`;
