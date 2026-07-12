@@ -1094,6 +1094,13 @@ body.driving-active .driving-report-sheet{ display:flex; }
   display:flex;
   gap:6px;
 }
+/* Applied while a report submission from these tiles is in flight, so a
+   second tap can't fire a duplicate insert while we're waiting on the
+   network (see shouldBlockReportSubmission / reportSubmissionInFlight). */
+.driving-tile-row.submitting{
+  opacity:.5;
+  pointer-events:none;
+}
 .driving-tile{
   flex:1;
   min-width:0;
@@ -2711,6 +2718,8 @@ const T = {
   commentPH:    { en:'Optional notes...',                sr:'Opciona napomena...' },
   waitGps:      { en:'Waiting for GPS...',               sr:'Čekanje GPS-a...' },
   submitted:    { en:'Report submitted.',                sr:'Prijava uspešna.' },
+  reportRateLimitedPrefix: { en:'You\'re submitting reports quickly — try again in ', sr:'Prebrzo šaljete prijave — pokušajte ponovo za ' },
+  reportRateLimitedSuffix: { en:'s.',                    sr:'s.' },
   timeFilter:   { en:'Time Window Filter',               sr:'Filter vremenskog prozora' },
   settingsBtnTitle: { en:'Settings',                     sr:'Podešavanja' },
   settingsModalTitle: { en:'Settings',                   sr:'Podešavanja' },
@@ -4591,6 +4600,68 @@ function toggleDrivingMode() {
   setTimeout(() => { if (typeof map !== 'undefined' && map.invalidateSize) { map.invalidateSize(); updateRotationOrigin(); } }, 60);
 }
 
+// =============================================================================
+// REPORT SUBMISSION GUARDS — spam/abuse protection
+// Shared by all three report-creation paths below (quickReportRoad,
+// finalizeSectionReport, reportBreak):
+//   1. reportSubmissionInFlight — a simple in-flight lock so a fast double-tap
+//      (or a slow network response) can't fire off two inserts for what the
+//      person meant as a single report.
+//   2. A rolling rate limit, persisted in localStorage so it survives a
+//      reload, capping how many reports one browser can submit in a short
+//      window — a backstop against a signed-in user firing off a burst of
+//      reports faster than any real person moves between distinct issues.
+// NOTE: both are client-side only. They keep the normal UI honest but can't
+// stop someone from calling the Supabase API directly, bypassing this page
+// entirely — real enforcement against that needs a rate-limiting policy or
+// function on the brake_reports table itself, on the Supabase side.
+// =============================================================================
+let reportSubmissionInFlight = false;
+
+const REPORT_RATE_LIMIT_MAX = 5;                    // max reports...
+const REPORT_RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000;  // ...per rolling 5 minutes
+const REPORT_RATE_LIMIT_STORAGE_KEY = 'ttb_recent_report_times';
+
+function getRecentReportTimestamps() {
+  try {
+    const raw = localStorage.getItem(REPORT_RATE_LIMIT_STORAGE_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    const cutoff = Date.now() - REPORT_RATE_LIMIT_WINDOW_MS;
+    return Array.isArray(arr) ? arr.filter(ts => typeof ts === 'number' && ts > cutoff) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+// null = fine to submit now; otherwise the number of seconds to wait.
+function reportRateLimitWaitSeconds() {
+  const recent = getRecentReportTimestamps();
+  if (recent.length < REPORT_RATE_LIMIT_MAX) return null;
+  const oldest = Math.min(...recent);
+  const waitMs = (oldest + REPORT_RATE_LIMIT_WINDOW_MS) - Date.now();
+  return Math.max(1, Math.ceil(waitMs / 1000));
+}
+
+function recordReportSubmission() {
+  const recent = getRecentReportTimestamps();
+  recent.push(Date.now());
+  try { localStorage.setItem(REPORT_RATE_LIMIT_STORAGE_KEY, JSON.stringify(recent)); } catch (e) {}
+}
+
+// Called at the top of every report-submission function. Returns true (and,
+// for the rate-limit case, shows a toast) if the submission should be
+// blocked. The in-flight case stays silent — it's just absorbing an
+// accidental double-tap, not something the person needs to be told about.
+function shouldBlockReportSubmission() {
+  if (reportSubmissionInFlight) return true;
+  const waitSeconds = reportRateLimitWaitSeconds();
+  if (waitSeconds !== null) {
+    toast(t('reportRateLimitedPrefix') + waitSeconds + t('reportRateLimitedSuffix'), 'error');
+    return true;
+  }
+  return false;
+}
+
 // Routes a tap on one of the always-visible road-report tiles: normally
 // it's an instant point report at the current location, but right after a
 // section recording is stopped the same tiles switch to categorizing (and
@@ -4610,7 +4681,11 @@ async function quickReportRoad(subcategoryKey) {
   if (!currentSession || !currentProfile) { toast(t('signInFirst') || 'Sign in first', 'error'); return; }
   if (!userCoords) { toast(t('waitGps'), 'error'); return; }
   if (!isValidCoordObj(userCoords)) { toast(t('invalidLocation'), 'error'); return; }
+  if (shouldBlockReportSubmission()) return;
 
+  reportSubmissionInFlight = true;
+  const tileRow = document.querySelector('.driving-tile-row');
+  if (tileRow) tileRow.classList.add('submitting');
   try {
     const { data, error } = await sb.from(TABLE).insert([{
       latitude: userCoords.lat,
@@ -4625,12 +4700,16 @@ async function quickReportRoad(subcategoryKey) {
       owner_username: currentProfile.username
     }]).select('id').single();
     if (error) throw error;
+    recordReportSubmission();
     resolveAndAttachMunicipality(data && data.id, userCoords.lat, userCoords.lon);
     toast('✓ ' + t('submitted'), 'success');
     await loadPinsByWindow();
   } catch (err) {
     console.error('Quick report error (full):', err);
     toast(describeAuthError(err), 'error');
+  } finally {
+    reportSubmissionInFlight = false;
+    if (tileRow) tileRow.classList.remove('submitting');
   }
 }
 
@@ -4690,8 +4769,12 @@ async function finalizeSectionReport(subcategoryKey) {
     toast(t('invalidLocation'), 'error');
     return;
   }
+  if (shouldBlockReportSubmission()) return;
   const mid = pathJson[Math.floor(pathJson.length / 2)];
 
+  reportSubmissionInFlight = true;
+  const tileRow = document.querySelector('.driving-tile-row');
+  if (tileRow) tileRow.classList.add('submitting');
   try {
     const { data, error } = await sb.from(TABLE).insert([{
       latitude: mid[0],
@@ -4707,6 +4790,7 @@ async function finalizeSectionReport(subcategoryKey) {
       owner_username: currentProfile.username
     }]).select('id').single();
     if (error) throw error;
+    recordReportSubmission();
     resolveAndAttachMunicipality(data && data.id, mid[0], mid[1]);
     sectionAwaitingCategory = false;
     updateSectionButtonUI();
@@ -4716,6 +4800,9 @@ async function finalizeSectionReport(subcategoryKey) {
   } catch (err) {
     console.error('Section report submit error (full):', err);
     toast(describeAuthError(err), 'error');
+  } finally {
+    reportSubmissionInFlight = false;
+    if (tileRow) tileRow.classList.remove('submitting');
   }
 }
 
@@ -5470,12 +5557,16 @@ async function reportBreak(){
     alert(t('invalidLocation'));
     return;
   }
+  if (shouldBlockReportSubmission()) return;
 
   const category    = document.getElementById('category').value;
   const subcategory = document.getElementById('subcategory').value || null;
   const priority     = document.getElementById('priority').value || 'normal';
   const comment      = cyrillicToLatin(document.getElementById('comment').value);
 
+  reportSubmissionInFlight = true;
+  const reportBtn = document.getElementById('reportBtn');
+  if (reportBtn) reportBtn.disabled = true;
   try {
     const { data, error } = await sb.from(TABLE).insert([{
       latitude:  lat,
@@ -5490,6 +5581,7 @@ async function reportBreak(){
       owner_username: currentProfile.username
     }]).select('id').single();
     if (error) throw error;
+    recordReportSubmission();
     resolveAndAttachMunicipality(data && data.id, lat, lon);
 
     alert(t('submitted'));
@@ -5498,6 +5590,12 @@ async function reportBreak(){
   } catch (err) {
     console.error('Report submit error (full):', err);
     alert(describeAuthError(err));
+  } finally {
+    reportSubmissionInFlight = false;
+    // resetReportingForm() (on success) already sets reportBtn.disabled via
+    // checkFormReady(); on failure the form still has valid data in it, so
+    // re-run checkFormReady() rather than force it back to enabled.
+    checkFormReady();
   }
 }
 
