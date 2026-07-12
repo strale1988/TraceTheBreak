@@ -31,7 +31,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
 
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
   <!-- Applies the saved theme (or the OS preference, in Auto mode) to
        <html> before the stylesheet below paints anything, so there's no
        flash of the wrong theme on load. The full theme system (Settings UI,
@@ -2269,9 +2269,18 @@ span.flatpickr-weekday {
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/sr.js"></script>
+<!-- Pinned to an exact release, not a floating "@2" tag: an unpinned major-version
+     tag re-resolves to whatever supabase-js has shipped THAT DAY on every page
+     load. supabase-js has had at least one real regression that specifically
+     broke OAuth sign-in behind an unpinned "@2" (v2.91.0 deferred the SIGNED_IN
+     event during OAuth callbacks), which is consistent with reports of users
+     completing Google/OSM auth but not ending up signed in. Bump this
+     deliberately when you want a newer version, and test sign-in after doing so. -->
+<script src="https://unpkg.com/@supabase/supabase-js@2.108.1/dist/umd/supabase.js"></script>
+<!-- Same reasoning: was completely unversioned before (bare "flatpickr" with no
+     tag at all), so it could serve a different build on every visit. -->
+<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/sr.js"></script>
 <script>
 
 // =============================================================================
