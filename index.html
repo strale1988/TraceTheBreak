@@ -1934,6 +1934,24 @@ details[open] > summary .uc-group-chevron{ transform:rotate(180deg); /* point do
   border:none; border-radius:6px; padding:7px 10px; font-size:12px; cursor:pointer;
 }
 
+/* --- Inline "add photo later" camera button — sits to the right of the
+   comment/note in both the map popup and the report detail modal, so a
+   report can pick up a photo after the fact (owner: if it doesn't have one
+   yet, or a previous one was rejected; admin: always, on any report). See
+   addPhotoToReport / uploadOrReplaceReportPhoto. --- */
+.popup-note-row{
+  display:flex; align-items:flex-start; gap:6px;
+  margin:4px 8px 6px 8px;
+}
+.popup-note-row .popup-note{ margin:0; flex:1 1 auto; }
+.icon-only-btn{
+  flex:0 0 auto; width:28px; height:28px; border-radius:6px;
+  border:1px solid var(--border-color-strong); background:var(--bg-surface);
+  display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0;
+}
+.icon-only-btn .icon-img{ width:16px; height:16px; filter:var(--icon-tint-filter); }
+.icon-only-btn:hover{ background:var(--bg-surface-alt); }
+
 
 #dateRangePicker {
   cursor: pointer;
@@ -2945,6 +2963,9 @@ const T = {
   photoRejectedBadge:     { en:'Rejected',                                    sr:'Odbijeno' },
   photoRejectedOwnerNote: { en:'Your photo didn\'t pass review, so it isn\'t shown publicly. The report itself is unaffected.', sr:'Vaša fotografija nije prošla proveru, pa nije javno prikazana. Sama prijava time nije pogođena.' },
   photoLoadFailed:        { en:'Could not load photo.',                       sr:'Fotografija nije mogla biti učitana.' },
+  addPhotoTooltip:        { en:'Add photo',                                   sr:'Dodaj fotografiju' },
+  photoAddedPending:      { en:'Photo added — waiting for admin review.',     sr:'Fotografija dodata — čeka proveru administratora.' },
+  photoAddedApproved:     { en:'Photo added.',                                sr:'Fotografija dodata.' },
 
   photoReviewSectionTitle:{ en:'Photo review',                                sr:'Provera fotografija' },
   photoReviewEmpty:       { en:'No photos waiting for review.',               sr:'Nema fotografija koje čekaju proveru.' },
@@ -3110,6 +3131,7 @@ function showSettingsModal() {
   if (currentProfile && currentProfile.is_admin) {
     cancelUcForm();
     loadUtilityCompaniesAdmin();
+    loadPhotoReviewAdmin();
   }
 }
 function hideSettingsModal() {
@@ -5636,8 +5658,8 @@ function checkFormReady() {
 // in Settings (see loadPhotoReviewAdmin / approveReportPhoto / rejectReportPhoto).
 // =============================================================================
 const REPORT_PHOTO_BUCKET = 'report-photos';
-const REPORT_PHOTO_MAX_DIMENSION = 1600;        // px, longest side, after downscaling
-const REPORT_PHOTO_JPEG_QUALITY = 0.8;
+const REPORT_PHOTO_MAX_DIMENSION = 1280;        // px, longest side, after downscaling — plenty to see a pothole/leak/downed line clearly, well below what a phone camera shoots natively
+const REPORT_PHOTO_JPEG_QUALITY = 0.72;         // still visually clean at this size; the drop from 0.8 saves more here than it would at full resolution
 const REPORT_PHOTO_MAX_INPUT_BYTES = 15 * 1024 * 1024; // reject absurd originals before even trying to decode them
 const REPORT_PHOTO_SIGNED_URL_TTL = 300;        // seconds a viewing link stays valid for
 
@@ -5734,6 +5756,99 @@ async function uploadReportPhoto(reportId, blob) {
   } catch (err) {
     console.error('Photo upload failed:', err.message || err);
     toast(t('reportPhotoUploadFailed'), 'error');
+  }
+}
+
+// =============================================================================
+// ADD/REPLACE PHOTO LATER — the camera-icon button next to the comment (see
+// buildPopupHtml / buildDetailStatusReadonlyHtml) lets a photo be attached
+// to a report *after* it was created, not just at submission time:
+//   - the reporter can add one if their report doesn't have one yet, or
+//     retry after a rejection — it still goes through admin review, exactly
+//     like a photo attached at creation time.
+//   - an admin can add or replace the photo on *any* report, at any time
+//     (e.g. attaching field-verified evidence); an admin's own upload is
+//     considered already-reviewed and is marked approved immediately rather
+//     than sitting in their own review queue.
+// Reuses compressReportPhoto() so a later-added photo is downscaled/
+// re-encoded exactly the same way as one attached at submission.
+// =============================================================================
+async function addPhotoToReport(reportId) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.onchange = async () => {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    let blob;
+    try {
+      blob = await compressReportPhoto(file);
+    } catch (err) {
+      console.error('Photo processing failed:', err.message || err);
+      toast(t('reportPhotoInvalid'), 'error');
+      return;
+    }
+    const isAdmin = !!(currentProfile && currentProfile.is_admin);
+    const ok = await uploadOrReplaceReportPhoto(reportId, blob, { markApproved: isAdmin });
+    if (ok) refreshReportViews(reportId);
+  };
+  input.click();
+}
+
+// Uploads/overwrites the photo on an already-existing report. Unlike
+// uploadReportPhoto() (only ever called right after a brand-new report is
+// inserted, by its own owner), this can run at any time and by someone other
+// than the report's owner — an admin replacing what the reporter originally
+// attached, or the reporter retrying after a rejection — so it also cleans
+// up whatever object used to live at the old photo_path, to avoid leaving
+// an orphaned file taking up space in the bucket once its path changes.
+async function uploadOrReplaceReportPhoto(reportId, blob, { markApproved = false } = {}) {
+  const report = globalActiveData.find(r => r.id === reportId);
+  try {
+    const previousPath = report && report.photo_path;
+    const path = `${currentSession.user.id}/${reportId}.jpg`;
+    if (previousPath && previousPath !== path) {
+      sb.storage.from(REPORT_PHOTO_BUCKET).remove([previousPath]).catch(() => {});
+    }
+    const { error: uploadError } = await sb.storage.from(REPORT_PHOTO_BUCKET)
+      .upload(path, blob, { contentType: 'image/jpeg', upsert: true });
+    if (uploadError) throw uploadError;
+    const patch = {
+      photo_path: path,
+      photo_status: markApproved ? 'approved' : 'pending',
+      photo_uploaded_at: new Date().toISOString(),
+      flagged_for_review: false
+    };
+    if (markApproved) {
+      patch.photo_reviewed_at = new Date().toISOString();
+      patch.photo_reviewed_by = currentSession ? currentSession.user.id : null;
+    }
+    const { error: updateError } = await sb.from(TABLE).update(patch).eq('id', reportId);
+    if (updateError) throw updateError;
+    toast(t(markApproved ? 'photoAddedApproved' : 'photoAddedPending'), 'success');
+    await loadPinsByWindow();
+    return true;
+  } catch (err) {
+    console.error('Photo upload failed:', err.message || err);
+    toast(t('reportPhotoUploadFailed'), 'error');
+    return false;
+  }
+}
+
+// Re-renders whichever open views show this report — the map/section popup
+// and, if it's the one currently on screen, the fullscreen detail modal —
+// so a newly added photo (and its pending badge) appears immediately
+// without the person needing to close and reopen anything.
+function refreshReportViews(reportId) {
+  const report = globalActiveData.find(r => r.id === reportId);
+  if (!report) return;
+  const marker = markerById.get(reportId);
+  const pin = sectionPinById.get(reportId);
+  if (marker) marker.setPopupContent(buildPopupHtml(report));
+  if (pin) pin.setPopupContent(buildPopupHtml(report));
+  const modal = document.getElementById('reportDetailModal');
+  if (modal && modal.style.display === 'flex' && modal.dataset.openReportId === reportId) {
+    showReportDetailModal(reportId);
   }
 }
 
@@ -7138,6 +7253,20 @@ function buildPopupHtml(report) {
     </div>`;
   }
 
+  // Camera icon to add/replace a photo after the fact: the reporter gets it
+  // while they don't yet have one (or theirs was rejected and they want to
+  // retry); an admin always gets it, on any report — see addPhotoToReport.
+  const canAddPhotoInline = !!currentSession && (
+    (isOwner && (!report.photo_path || report.photo_status === 'rejected')) ||
+    isAdmin
+  );
+  const addPhotoBtnHtml = canAddPhotoInline
+    ? `<button type="button" class="icon-only-btn" onclick="addPhotoToReport('${report.id}')" aria-label="${t('addPhotoTooltip')}" title="${t('addPhotoTooltip')}"><img class="icon-img" src="icons/camera.png" alt=""></button>`
+    : '';
+  const noteRowHtml = (report.comment || canAddPhotoInline)
+    ? `<div class="popup-note-row">${report.comment ? `<div class="popup-note">${escapeHtml(report.comment)}</div>` : '<div style="flex:1 1 auto;"></div>'}${addPhotoBtnHtml}</div>`
+    : '';
+
   return `<div class="popup-inner popup-card">
     <div class="popup-header" style="background:${catCol};">
       <span class="popup-header-title">${headerTitle}</span>
@@ -7157,7 +7286,7 @@ function buildPopupHtml(report) {
         <span class="popup-row-value">${escapeHtml(reporterName)}${isOwner ? ` <span class="owner-tag">(${t('yourReport')})</span>` : ''}</span>
       </div>
     </div>
-    ${report.comment ? `<div class="popup-note">${escapeHtml(report.comment)}</div>` : ''}
+    ${noteRowHtml}
     <div class="status-action-row" style="border-top:none;padding-top:0;">
       <button class="status-action-btn" style="background:#2a2a2a;" onclick="showReportDetailModal('${report.id}')">${t('detailsBtn')}</button>
       <button class="status-action-btn popup-close-btn" style="background:#3a3a3a;" onclick="map.closePopup();">${t('closeBtn')}</button>
@@ -7296,6 +7425,7 @@ async function showReportDetailModal(reportId) {
   `;
 
   modal.style.display = 'flex';
+  modal.dataset.openReportId = report.id;
 
   if (showPhotoImage) {
     getReportPhotoSignedUrl(report.photo_path).then(url => {
@@ -7412,7 +7542,9 @@ function renderContactCards(companies) {
 }
 
 function hideReportDetailModal() {
-  document.getElementById('reportDetailModal').style.display = 'none';
+  const modal = document.getElementById('reportDetailModal');
+  modal.style.display = 'none';
+  delete modal.dataset.openReportId;
 }
 
 // Closes the detail modal and re-centers/zooms the app's own map on a
@@ -7586,6 +7718,19 @@ async function emailReport(reportId) {
 // same section into buildDetailEditFieldsHtml below.
 function buildDetailStatusReadonlyHtml(report, reporterName) {
   const isAdmin = !!(currentProfile && currentProfile.is_admin);
+  const isOwner = !!(currentSession && report.owner_id === currentSession.user.id);
+  // Same eligibility rule as the map popup (buildPopupHtml) — kept in sync
+  // there so the button doesn't appear in one view but not the other.
+  const canAddPhotoInline = !!currentSession && (
+    (isOwner && (!report.photo_path || report.photo_status === 'rejected')) ||
+    isAdmin
+  );
+  const addPhotoBtnHtml = canAddPhotoInline
+    ? `<button type="button" class="icon-only-btn" onclick="addPhotoToReport('${report.id}')" aria-label="${t('addPhotoTooltip')}" title="${t('addPhotoTooltip')}"><img class="icon-img" src="icons/camera.png" alt=""></button>`
+    : '';
+  const noteRowHtml = (report.comment || canAddPhotoInline)
+    ? `<div class="popup-note-row" style="margin-top:10px;">${report.comment ? `<div class="popup-note">${escapeHtml(report.comment)}</div>` : '<div style="flex:1 1 auto;"></div>'}${addPhotoBtnHtml}</div>`
+    : '';
   return `
     <div class="detail-section-title-row">
       <div class="detail-section-title">${t('popupStatus')}</div>
@@ -7602,7 +7747,7 @@ function buildDetailStatusReadonlyHtml(report, reporterName) {
       ${buildTimelineItem(report.in_progress_at, !!report.in_progress_at, STATUS_COLORS.in_progress)}
       ${buildTimelineItem(report.fixed_at, !!report.fixed_at, STATUS_COLORS.fixed)}
     </div>
-    ${report.comment ? `<div class="popup-note" style="margin-top:10px;">${escapeHtml(report.comment)}</div>` : ''}
+    ${noteRowHtml}
   `;
 }
 
