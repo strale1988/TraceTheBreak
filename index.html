@@ -1725,10 +1725,15 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 }
 
 /* Small floating pill showing which municipality the map is currently
-   centered/GPS-fixed in — appears once boundary auto-detection resolves. */
+   centered/GPS-fixed in — appears once boundary auto-detection resolves,
+   then auto-hides after a few seconds (see showMunicipalityLabel()).
+   Sits just below the header (--header-h, kept in sync from JS — see
+   updateHeaderHeightVar()) rather than on top of it, since header isn't
+   fixed/sticky and this badge is. Falls back to a sane fixed value if
+   --header-h hasn't been set yet (e.g. very first paint). */
 .municipality-label{
   position:fixed;
-  top:calc(8px + env(safe-area-inset-top, 0px));
+  top:calc(var(--header-h, 64px) + 8px);
   left:50%; transform:translateX(-50%);
   z-index:640;
   background:var(--floating-bg);
@@ -1740,9 +1745,12 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   box-shadow:0 2px 8px var(--floating-shadow);
   pointer-events:none;
   display:none;
+  opacity:0;
+  transition:opacity .3s ease;
   white-space:nowrap;
   max-width:80vw; overflow:hidden; text-overflow:ellipsis;
 }
+.municipality-label.visible{ opacity:1; }
 
 /* --- Admin: utility company contacts (inside the settings modal) --- */
 .admin-section{
@@ -5088,6 +5096,12 @@ function togglePinMode() {
     if (manualMarker) { map.removeLayer(manualMarker); manualMarker = null; }
     manualCoords = null;
     loadPinsByWindow();
+    // The manual pin (if one was dropped) may have overridden the
+    // municipality badge/boundary — see the map click handler below.
+    // Leaving pin mode hands control back to GPS, so re-resolve from
+    // userCoords rather than leaving the manual pin's municipality showing.
+    if (userCoords) showMunicipalityBoundaryForPoint(userCoords.lat, userCoords.lon);
+    else renderMunicipalityBoundary(null);
   }
   checkFormReady();
 }
@@ -5126,6 +5140,11 @@ map.on('click', function(e) {
       })
     }).addTo(map);
   }
+  // A manually-dropped pin is a deliberate override of GPS — resolve and
+  // show the municipality for the pin's location, not wherever the GPS fix
+  // happens to be. Reverted back to the GPS municipality in togglePinMode()
+  // once pin mode is switched off.
+  showMunicipalityBoundaryForPoint(manualCoords.lat, manualCoords.lon);
   checkFormReady();
 });
 
@@ -5393,17 +5412,71 @@ let municipalityCacheLoaded = false;
 let municipalityBoundaryLayer = null;
 let municipalityBoundaryForId = null;
 
-async function loadMunicipalityCache() {
-  if (municipalityCacheLoaded) return;
+// Local persistence for the boundary cache. Boundaries are dozens of KB of
+// polygon geometry EACH, and re-downloading the entire table over the
+// network on every single page load (previous behavior) was the actual
+// source of "sometimes loads very slow" — not the point-in-polygon math,
+// which is cheap. Boundaries also basically never change once imported, so
+// a plain localStorage snapshot (no TTL) is safe here: it only ever goes
+// stale when an admin imports a new municipality, and that write path
+// (see fetchMunicipalityFromNominatim) updates this same storage key
+// immediately, so every tab picks up the addition on its next load.
+// Wrapped in try/catch throughout since localStorage can throw (private
+// browsing, quota, disabled storage) — none of that should ever block
+// municipality resolution, it should just fall back to a plain fetch.
+const MUNICIPALITY_CACHE_STORAGE_KEY = 'ttb_municipality_cache_v1';
+
+function readMunicipalityCacheFromStorage() {
   try {
-    const { data, error } = await sb.from(MUNICIPALITIES_TABLE)
-      .select('id,osm_type,osm_id,admin_level,name,name_en,country_code,centroid_lat,centroid_lon,boundary,bbox');
-    if (error) throw error;
-    municipalityCache = data || [];
-    municipalityCacheLoaded = true;
-  } catch (err) {
-    console.error('Failed to load municipality cache:', err.message);
+    const raw = localStorage.getItem(MUNICIPALITY_CACHE_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
   }
+}
+
+function writeMunicipalityCacheToStorage(rows) {
+  try {
+    localStorage.setItem(MUNICIPALITY_CACHE_STORAGE_KEY, JSON.stringify(rows));
+  } catch (e) {
+    // Quota exceeded or storage disabled — the in-memory cache still works
+    // fine for this session, it just won't be instant next time.
+  }
+}
+
+// Stale-while-revalidate: if a previous session already saved a local copy,
+// that copy is used immediately (near-instant, no network round trip) so
+// the map/badge/report form never sit around waiting on it, while a fresh
+// copy is still fetched in the background and swaps in once it lands. On a
+// genuinely first-ever load there's nothing local yet, so this just waits
+// on the network fetch like before.
+//
+// Call this as early as possible at startup (see STARTUP section below) —
+// don't wait for GPS or a manual pin to trigger it, so the cache is already
+// warm (or well underway) by the time either one needs it.
+let municipalityCacheLoadPromise = null;
+async function loadMunicipalityCache() {
+  if (municipalityCacheLoadPromise) return municipalityCacheLoadPromise;
+  municipalityCacheLoadPromise = (async () => {
+    const cached = readMunicipalityCacheFromStorage();
+    if (cached && cached.length) {
+      municipalityCache = cached;
+      municipalityCacheLoaded = true; // usable right away; refreshed below
+    }
+    try {
+      const { data, error } = await sb.from(MUNICIPALITIES_TABLE)
+        .select('id,osm_type,osm_id,admin_level,name,name_en,country_code,centroid_lat,centroid_lon,boundary,bbox');
+      if (error) throw error;
+      municipalityCache = data || [];
+      municipalityCacheLoaded = true;
+      writeMunicipalityCacheToStorage(municipalityCache);
+    } catch (err) {
+      console.error('Failed to load municipality cache:', err.message);
+      // If a local copy was already loaded above, keep using it — only a
+      // real problem if neither the local copy nor the network came through.
+    }
+  })();
+  return municipalityCacheLoadPromise;
 }
 
 // Ray-casting point-in-polygon against a single [ [lon,lat], ... ] ring.
@@ -5541,6 +5614,7 @@ async function fetchMunicipalityFromNominatim(lat, lon) {
         .single();
       if (error) throw error;
       municipalityCache.push(data);
+      writeMunicipalityCacheToStorage(municipalityCache);
       return data;
     } catch (err) {
       console.error('Failed to cache municipality:', err.message);
@@ -5597,12 +5671,44 @@ function resolveAndAttachMunicipality(reportId, lat, lon) {
 // Shared renderer: draws (or clears) the boundary + floating name pill for
 // a given resolved municipality (or null). Used by both the live-location
 // point lookup below and the report-detail flow (resolveReportMunicipality).
-function renderMunicipalityBoundary(muni) {
+// The badge auto-hides 5s after it (re)appears, but the dashed boundary
+// outline on the map is left alone — it stays until the location/pin
+// changes municipality. Only one hide timer is ever live at a time so a
+// fresh resolution (new GPS fix, manual pin drop) always gets its own
+// full 5s rather than inheriting whatever was left on a previous timer.
+let municipalityLabelHideTimer = null;
+
+function showMunicipalityLabel(muni) {
   const label = document.getElementById('municipalityLabel');
+  if (!label) return;
+  label.textContent = (lang === 'sr' ? muni.name : (muni.name_en || muni.name));
+  label.style.display = 'block';
+  // Two-step display:block -> class .visible so the opacity transition
+  // actually animates in (toggling opacity in the same tick as display:none
+  // -> block wouldn't transition).
+  requestAnimationFrame(() => label.classList.add('visible'));
+  if (municipalityLabelHideTimer) clearTimeout(municipalityLabelHideTimer);
+  municipalityLabelHideTimer = setTimeout(() => {
+    label.classList.remove('visible');
+    setTimeout(() => {
+      if (!label.classList.contains('visible')) label.style.display = 'none';
+    }, 300); // matches the .municipality-label opacity transition duration
+  }, 5000);
+}
+
+function hideMunicipalityLabel() {
+  const label = document.getElementById('municipalityLabel');
+  if (!label) return;
+  if (municipalityLabelHideTimer) { clearTimeout(municipalityLabelHideTimer); municipalityLabelHideTimer = null; }
+  label.classList.remove('visible');
+  label.style.display = 'none';
+}
+
+function renderMunicipalityBoundary(muni) {
   if (!muni) {
     if (municipalityBoundaryLayer) { map.removeLayer(municipalityBoundaryLayer); municipalityBoundaryLayer = null; }
     municipalityBoundaryForId = null;
-    if (label) label.style.display = 'none';
+    hideMunicipalityLabel();
     return;
   }
   if (!muni.boundary) {
@@ -5617,10 +5723,7 @@ function renderMunicipalityBoundary(muni) {
     }).addTo(map);
     municipalityBoundaryForId = muni.id;
   }
-  if (label) {
-    label.textContent = (lang === 'sr' ? muni.name : (muni.name_en || muni.name));
-    label.style.display = 'block';
-  }
+  showMunicipalityLabel(muni);
 }
 
 // Draws (or redraws) the municipality boundary containing a given point,
@@ -6921,6 +7024,30 @@ function initTheme() {
   }
 }
 
+// Keeps the --header-h CSS var in sync with the header's real rendered
+// height, so fixed-position elements below it (currently just
+// #municipalityLabel) can sit right underneath instead of using a guessed
+// fixed offset. Height isn't constant: it depends on the safe-area inset
+// (device/rotation), text wrapping at narrow widths, and whether the
+// user-badge row is showing. A ResizeObserver on the header picks up all of
+// those automatically instead of needing a manual recompute call wired into
+// every place that could change it.
+function updateHeaderHeightVar() {
+  const header = document.querySelector('header');
+  if (header) document.documentElement.style.setProperty('--header-h', header.offsetHeight + 'px');
+}
+(function initHeaderHeightTracking() {
+  const header = document.querySelector('header');
+  if (!header) return;
+  updateHeaderHeightVar();
+  if (window.ResizeObserver) {
+    new ResizeObserver(updateHeaderHeightVar).observe(header);
+  } else {
+    window.addEventListener('resize', updateHeaderHeightVar);
+    window.addEventListener('orientationchange', updateHeaderHeightVar);
+  }
+})();
+
 // =============================================================================
 // STARTUP
 // =============================================================================
@@ -6928,6 +7055,7 @@ initTheme();
 initCalendarFilter();
 applyLang();
 loadPinsByWindow();
+loadMunicipalityCache(); // fire-and-forget warmup — see loadMunicipalityCache for why
 // Help modal should greet first-time/logged-out visitors, but not talk
 // over a returning, already-signed-in user every time they open the app.
 // initAuth() resolves the session check first, then we decide.
