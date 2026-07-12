@@ -459,8 +459,7 @@ button{
 }
 .leaflet-popup-content{ margin:0 !important; width:auto !important; }
 .leaflet-popup-tip{ background: var(--floating-bg) !important; box-shadow:none !important; }
-.leaflet-popup-close-button{ color:var(--text-secondary) !important; }
-.leaflet-popup-close-button:hover{ color:var(--text-primary) !important; }
+.leaflet-popup-close-button{ display:none !important; }
 
 /* --- Pin popups: full-screen dialog instead of a map-anchored bubble --
    On a small screen a marker-anchored popup either has to stay tiny or
@@ -514,15 +513,6 @@ button{
   -webkit-overflow-scrolling:touch;
   box-shadow:0 16px 48px rgba(0,0,0,.8);
 }
-#mobilePopupOverlay .leaflet-popup-close-button{
-  width:32px !important;
-  height:32px !important;
-  font-size:22px !important;
-  line-height:32px !important;
-  top:8px !important;
-  right:8px !important;
-}
-
 /* --- Popup counter-rotation (see rotatePopupElement/updateAllPopupRotations) ---
    Popups live inside the CSS-rotated .leaflet-rotate-wrapper along with the
    tiles, so in heading-up mode they'd otherwise tip sideways/upside-down as
@@ -1692,8 +1682,10 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   font-size:10px; font-weight:700; letter-spacing:.4px; text-transform:uppercase;
   color:var(--text-muted); margin-bottom:10px;
 }
-.detail-row{ display:flex; justify-content:space-between; gap:10px; padding:5px 0; font-size:13px; }
-.detail-row-label{ color:var(--text-muted); flex-shrink:0; }
+.detail-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:7px 0; font-size:12.5px; }
+.detail-row:not(:last-child){ border-bottom:1px solid var(--border-color); }
+.detail-row-label{ color:var(--text-muted); flex-shrink:0; display:flex; align-items:center; gap:8px; }
+.detail-row-icon{ width:14px; height:14px; flex-shrink:0; filter:var(--icon-tint-filter); opacity:.85; }
 .detail-row-value{ color:var(--text-primary); text-align:right; }
 .detail-row-value a{ color:#4ea1ff; text-decoration:none; }
 .contact-card{
@@ -2344,9 +2336,6 @@ span.flatpickr-weekday {
      tag at all), so it could serve a different build on every visit. -->
 <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/sr.js"></script>
-<!-- Used only by exportReportPdf() to build the downloadable/shareable report
-     PDF client-side — no server round trip needed for that. -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 
 // =============================================================================
@@ -2481,7 +2470,7 @@ function signInWithOsm() {
 
 async function submitUsername() {
   const input = document.getElementById('chosenUsernameInput');
-  const username = input.value.trim();
+  const username = cyrillicToLatin(input.value.trim());
   if (!username || username.length < 3) {
     alert(lang === 'sr' ? 'Korisničko ime mora imati bar 3 karaktera.' : 'Username must be at least 3 characters.');
     return;
@@ -2830,12 +2819,10 @@ const T = {
   detailNoContacts:      { en:'No contacts registered yet for this type of break in this municipality.', sr:'Za ovu vrstu kvara u ovoj opštini još uvek nema unetih kontakata.' },
   detailContactsError:   { en:'Could not load contacts.',                  sr:'Kontakti nisu učitani.' },
 
-  detailExportTitle:     { en:'Export & share',                            sr:'Izvoz i deljenje' },
-  detailExportHint:      { en:'Save this report as a PDF and send it straight to the responsible utility, or share a link to it.', sr:'Sačuvajte ovaj prijavu kao PDF i pošaljite je direktno nadležnom preduzeću, ili podelite link ka njoj.' },
-  detailExportBtn:       { en:'Export PDF & email',                        sr:'Izvezi PDF i pošalji mejlom' },
-  detailExporting:       { en:'Preparing PDF…',                            sr:'Priprema PDF-a…' },
-  detailExportReady:     { en:'PDF downloaded — attach it to the email that just opened.', sr:'PDF je preuzet — otvoren je mejl, samo prikačite fajl.' },
-  detailExportFailed:    { en:'Could not create the PDF.',                 sr:'PDF nije mogao biti kreiran.' },
+  detailExportTitle:     { en:'Send & share',                              sr:'Slanje i deljenje' },
+  detailExportHint:      { en:'Email this report straight to the responsible utility, or share a link to it.', sr:'Pošaljite ovu prijavu mejlom direktno nadležnom preduzeću, ili podelite link ka njoj.' },
+  detailExportBtn:       { en:'Email report',                              sr:'Pošalji prijavu mejlom' },
+  detailExportFailed:    { en:'Could not open the email.',                 sr:'Mejl nije mogao biti otvoren.' },
   shareReportBtn:        { en:'Share',                                     sr:'Podeli' },
   shareText:             { en:'Take a look at this reported issue: {category}', sr:'Pogledajte prijavljeni problem: {category}' },
   shareLinkCopied:       { en:'Link copied to clipboard.',                 sr:'Link je kopiran.' },
@@ -3155,6 +3142,12 @@ function removeReportLayer(layer) {
   if (pinCluster.hasLayer(layer)) pinCluster.removeLayer(layer);
   else map.removeLayer(layer);
 }
+
+// Holds the auto-shown pins for verified public utility companies in
+// whichever municipality is currently "active" (GPS fix, manual pin, or an
+// open report's municipality) — see showCompanyMarkersForMunicipality()
+// near renderMunicipalityBoundary() below.
+const companyMarkersLayer = L.layerGroup().addTo(map);
 
 // Reparents Leaflet's internal map-pane (tiles + markers + lines + popups)
 // inside a plain div we control, so that div can be CSS-rotated for
@@ -5869,9 +5862,106 @@ function hideMunicipalityLabel() {
 function renderMunicipalityBoundary(muni) {
   if (!muni) {
     hideMunicipalityLabel();
+    showCompanyMarkersForMunicipality(null);
     return;
   }
   showMunicipalityLabel(muni);
+  // Fire-and-forget: pins are added to the map one by one as each address
+  // finishes geocoding, rather than blocking the badge on the whole batch.
+  showCompanyMarkersForMunicipality(muni);
+}
+
+// =============================================================================
+// PUBLIC UTILITY COMPANY PINS — automatically shown on the map for
+// whichever municipality is currently "active" (see renderMunicipalityBoundary
+// above: GPS fix, a manually-dropped pin, or an open report's municipality).
+// Company addresses are free text entered by an admin, so there's no
+// lat/lon on file for them — each address is forward-geocoded via
+// Nominatim the first time its municipality comes up in a session and
+// cached in memory afterwards, so revisiting the same municipality later
+// never re-geocodes anything.
+// =============================================================================
+let companyMarkersMuniId = null;          // municipality these pins currently belong to
+const companyGeocodeCache = {};           // "query|countrycode" -> {lat,lon} | null
+
+function buildCompanyMarkerHtml() {
+  // Same pin artwork as a manually-dropped pin, tinted blue so it reads as
+  // "a place" rather than "a reported break" (report pins use category
+  // colors) at a glance.
+  return '<img src="icons/pin.png" alt="" style="width:26px;height:31px;' +
+    'object-fit:contain;filter:drop-shadow(0 3px 6px rgba(0,0,0,.45)) hue-rotate(190deg) saturate(2.2) brightness(1.05);">';
+}
+
+// Forward-geocodes one free-text address via Nominatim. Never called
+// concurrently by showCompanyMarkersForMunicipality below, so this alone is
+// enough to keep to Nominatim's usage-policy limit of ~1 request/second.
+async function geocodeAddress(address, muniName, countryCode) {
+  const query = [address, muniName].filter(Boolean).join(', ');
+  const cacheKey = `${query}|${countryCode || ''}`;
+  if (cacheKey in companyGeocodeCache) return companyGeocodeCache[cacheKey];
+  let result = null;
+  try {
+    const params = new URLSearchParams({ format: 'jsonv2', q: query, limit: '1' });
+    if (countryCode) params.set('countrycodes', countryCode.toLowerCase());
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, { headers: { 'Accept': 'application/json' } });
+    const json = res.ok ? await res.json() : [];
+    const hit = Array.isArray(json) && json[0];
+    if (hit) result = { lat: parseFloat(hit.lat), lon: parseFloat(hit.lon) };
+  } catch (err) {
+    console.error('geocodeAddress error:', err.message);
+  }
+  companyGeocodeCache[cacheKey] = result;
+  return result;
+}
+
+// Loads every verified utility company with an address on file for `muni`,
+// geocodes each address one at a time, and drops a pin for it. Skips the
+// whole thing when `muni` is the same one already shown (this is called
+// every time the GPS puck or manual pin is (re)placed, not just when the
+// municipality actually changes), and bails out mid-batch if the active
+// municipality moves on again before it finishes.
+async function showCompanyMarkersForMunicipality(muni) {
+  if (!muni) {
+    companyMarkersMuniId = null;
+    companyMarkersLayer.clearLayers();
+    return;
+  }
+  if (muni.id === companyMarkersMuniId) return;
+  companyMarkersMuniId = muni.id;
+  companyMarkersLayer.clearLayers();
+
+  let companies;
+  try {
+    const { data, error } = await sb.from(UTILITY_COMPANIES_TABLE)
+      .select('*')
+      .eq('municipality_id', muni.id)
+      .eq('verified', true)
+      .not('address', 'is', null);
+    if (error) throw error;
+    companies = data || [];
+  } catch (err) {
+    console.error('Failed to load utility companies for map pins:', err.message);
+    return;
+  }
+
+  const muniName = municipalityDisplayName(muni);
+  for (const c of companies) {
+    if (!c.address) continue;
+    if (companyMarkersMuniId !== muni.id) return; // active municipality changed mid-batch
+    const pos = await geocodeAddress(c.address, muniName, muni.country_code);
+    if (companyMarkersMuniId !== muni.id) return; // changed again while awaiting the geocode
+    if (!pos || !isValidLatLng(pos.lat, pos.lon)) continue;
+    const marker = L.marker([pos.lat, pos.lon], {
+      icon: L.divIcon({ className: '', html: buildCompanyMarkerHtml(), iconSize: [26, 31], iconAnchor: [13, 29] }),
+      zIndexOffset: 200
+    });
+    marker.bindPopup(`<div class="popup-inner popup-card">
+      <div class="popup-body" style="padding:12px 14px;">${renderContactCards([c])}</div>
+    </div>`, { autoPan: false, closeButton: false });
+    marker.addTo(companyMarkersLayer);
+    // Nominatim's usage policy caps unauthenticated requests at ~1/second.
+    await new Promise(res => setTimeout(res, 1100));
+  }
 }
 
 // Small popup card for the GPS/manual-pin marker — the floating badge above
@@ -5905,7 +5995,7 @@ function bindMunicipalityPopupToMarker(marker, muni, lat, lon) {
   if (!marker) return;
   const html = buildMunicipalityPopupHtml(muni, lat, lon);
   if (marker.getPopup()) marker.setPopupContent(html);
-  else marker.bindPopup(html, { autoPan: false }); // reparented into #mobilePopupOverlay on open, same as report pins
+  else marker.bindPopup(html, { autoPan: false, closeButton: false }); // reparented into #mobilePopupOverlay on open, same as report pins
 }
 
 // Resolves the municipality containing a given point and updates the small
@@ -6537,10 +6627,10 @@ async function showReportDetailModal(reportId) {
   body.innerHTML = `
     <div class="detail-section">
       <div class="detail-section-title">${t('detailLocationTitle')}</div>
-      <div class="detail-row"><span class="detail-row-label">${t('detailStreetLabel')}</span><span class="detail-row-value" id="detailStreetValue">${t('detailLoading')}</span></div>
-      <div class="detail-row"><span class="detail-row-label">${t('detailAreaLabel')}</span><span class="detail-row-value" id="detailAreaValue">${t('detailLoading')}</span></div>
-      <div class="detail-row"><span class="detail-row-label">${t('detailMunicipalityLabel')}</span><span class="detail-row-value" id="detailMunicipalityValue">${t('detailLoading')}</span></div>
-      <div class="detail-row"><span class="detail-row-label">${t('detailCoordsLabel')}</span><span class="detail-row-value">${report.latitude.toFixed(6)}, ${report.longitude.toFixed(6)}</span></div>
+      <div class="detail-row"><span class="detail-row-label"><img class="detail-row-icon" src="icons/pin.png" alt="">${t('detailStreetLabel')}</span><span class="detail-row-value" id="detailStreetValue">${t('detailLoading')}</span></div>
+      <div class="detail-row"><span class="detail-row-label"><img class="detail-row-icon" src="icons/pin.png" alt="">${t('detailAreaLabel')}</span><span class="detail-row-value" id="detailAreaValue">${t('detailLoading')}</span></div>
+      <div class="detail-row"><span class="detail-row-label"><img class="detail-row-icon" src="icons/pin.png" alt="">${t('detailMunicipalityLabel')}</span><span class="detail-row-value" id="detailMunicipalityValue">${t('detailLoading')}</span></div>
+      <div class="detail-row"><span class="detail-row-label"><img class="detail-row-icon" src="icons/target.png" alt="">${t('detailCoordsLabel')}</span><span class="detail-row-value">${report.latitude.toFixed(6)}, ${report.longitude.toFixed(6)}</span></div>
     </div>
     <div class="detail-section" id="reportDetailStatusSection">
       ${buildDetailStatusReadonlyHtml(report, reporterName)}
@@ -6552,7 +6642,7 @@ async function showReportDetailModal(reportId) {
     <div class="detail-section">
       <div class="detail-section-title">${t('detailExportTitle')}</div>
       <p class="detail-export-hint">${t('detailExportHint')}</p>
-      <button type="button" class="settings-btn" style="width:100%;" onclick="exportReportPdf('${report.id}')" id="reportDetailExportBtn"><img class="icon-img icon-img-inline" src="icons/pdf.png" alt="pdf"> ${t('detailExportBtn')}</button>
+      <button type="button" class="settings-btn" style="width:100%;" onclick="emailReport('${report.id}')" id="reportDetailExportBtn"><img class="icon-img icon-img-inline" src="icons/email.png" alt="email"> ${t('detailExportBtn')}</button>
     </div>
   `;
 
@@ -6596,12 +6686,12 @@ async function showReportDetailModal(reportId) {
   if (contactsEl) contactsEl.innerHTML = renderContactCards(contacts);
 }
 
-// Shared by showReportDetailModal and exportReportPdf so both always agree
+// Shared by showReportDetailModal and emailReport so both always agree
 // on exactly which contacts count (verified + matching category) — resolving
 // this two different ways in two places would risk them drifting apart.
 // Once resolved for a report/pin, contacts are cached directly on the report
 // object (report.contacts) so reopening the same pin later in the session —
-// or exporting right after viewing it — reuses them instead of re-querying
+// or emailing right after viewing it — reuses them instead of re-querying
 // Supabase every time. This mirrors the municipality_id backfill elsewhere:
 // resolve once, keep it on the pin. Note: this is an in-memory, per-session
 // cache only (cleared whenever loadPinsByWindow() re-fetches reports), so a
@@ -6721,262 +6811,43 @@ async function openSharedReportFromUrl() {
 }
 
 // =============================================================================
-// REPORT DETAIL MODAL — PDF EXPORT & EMAIL TO RESPONSIBLE UTILITY
-// Builds a printable, shareable PDF for a single report client-side (jsPDF,
-// loaded once near the top of the file) covering everything a utility
-// company contact would need to act on it: category/status/priority, who
-// reported it and when, its resolved address/municipality/coordinates, the
-// reporter's note, and — reusing getReportContacts() so this can never
-// disagree with what the detail modal already shows — the verified utility
-// contacts responsible for that category in that municipality. The PDF then
-// downloads to the device and a pre-filled email opens addressed to those
-// contacts; mailto: links can't carry attachments themselves, so the email
-// body explicitly asks the sender to attach the file that just downloaded.
+// REPORT DETAIL MODAL — EMAIL TO RESPONSIBLE UTILITY
+// Builds a pre-filled email covering everything a utility company contact
+// would need to act on a report: category/status/priority, who reported it
+// and when, its resolved address/municipality/coordinates, the reporter's
+// note, and a link back to the live report on the map. The utility's own
+// contact details aren't repeated in the body — they're the recipient, so
+// restating their own phone/email/address back to them adds nothing.
+// mailto: is addressed to every verified contact on file for that report's
+// category in that municipality (reusing getReportContacts() so this can
+// never disagree with what the detail modal's Contacts section shows).
 // =============================================================================
-
-// Filesystem-safe filename stem, e.g. "TraceTheBreak-water-leak-a1b2c3d4.pdf".
-function reportPdfFilename(report) {
-  const catPart = String(report.subcategory || report.category || 'report')
-    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '');
-  const idPart = String(report.id).replace(/[^a-zA-Z0-9]/g, '').slice(0, 8);
-  return `TraceTheBreak-${catPart}-${idPart}.pdf`;
-}
-
-// Converts a "#rrggbb" (or "#rgb") hex color to a jsPDF-friendly [r,g,b] array.
-function hexToRgb(hex) {
-  const h = String(hex || '').replace('#', '');
-  const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
-  const n = parseInt(full, 16);
-  if (!full || isNaN(n)) return [120, 120, 120];
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-}
-
-async function exportReportPdf(reportId) {
+async function emailReport(reportId) {
   const report = globalActiveData.find(r => r.id === reportId);
   if (!report) return;
 
   const btn = document.getElementById('reportDetailExportBtn');
   const originalLabel = btn ? btn.innerHTML : '';
-  if (btn) { btn.disabled = true; btn.innerHTML = `⏳ ${t('detailExporting')}`; }
+  if (btn) btn.disabled = true;
 
   try {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 48;
-    const contentWidth = pageWidth - margin * 2;
-    let y = margin;
-
-    // --- Small layout helpers ---------------------------------------------
-    // Every one of these runs its text through pdfSafeText() itself, so
-    // callers never have to remember to do it — jsPDF's built-in fonts
-    // can't render Cyrillic or the č/ć/š/ž/đ diacritics used in the sr
-    // translation strings, so this is the single choke point that keeps
-    // Cyrillic/diacritics out of the actual rendered PDF (see
-    // pdfSafeText()/cyrillicToLatin() near escapeHtml() for the "why").
-    const ensureSpace = (h) => { if (y + h > pageHeight - margin - 26) { doc.addPage(); y = margin; } };
-
-    function sectionTitle(text) {
-      ensureSpace(24);
-      y += 10;
-      doc.setFillColor(166, 120, 23);
-      doc.rect(margin, y - 9, 3, 13, 'F');
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(12);
-      doc.setTextColor(26, 26, 26);
-      doc.text(pdfSafeText(text), margin + 10, y);
-      y += 16;
-    }
-
-    // Label/value row, e.g. "STREET   Main Rd 12" — label in a fixed-width
-    // left column, value wrapping in the remainder, with a hairline divider
-    // under each row so a stack of these reads as a clean little table.
-    const labelColW = 118;
-    function keyValueRow(label, value) {
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8.5);
-      doc.setTextColor(150, 150, 150);
-      const valueLines = doc.splitTextToSize(pdfSafeText(String(value ?? '')), contentWidth - labelColW);
-      ensureSpace(valueLines.length * 14 + 10);
-      doc.text(pdfSafeText(String(label)).toUpperCase(), margin, y + 9);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10.5);
-      doc.setTextColor(30, 30, 30);
-      valueLines.forEach((line, i) => doc.text(line, margin + labelColW, y + 9 + i * 14));
-      y += Math.max(20, valueLines.length * 14 + 6);
-      doc.setDrawColor(232, 232, 228);
-      doc.setLineWidth(0.6);
-      doc.line(margin, y - 4, pageWidth - margin, y - 4);
-      y += 6;
-    }
-
-    // Small filled rounded-rect label — used for the status/priority pills.
-    function pill(x, topY, text, rgb) {
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8.5);
-      const label = pdfSafeText(text).toUpperCase();
-      const w = doc.getTextWidth(label) + 16;
-      const h = 17;
-      doc.setFillColor(rgb[0], rgb[1], rgb[2]);
-      doc.roundedRect(x, topY, w, h, 4, 4, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.text(label, x + 8, topY + h - 5.5);
-      return w;
-    }
-
-    // A soft rounded card containing a block of plain wrapped text —
-    // used for the reporter's note and the "no contacts" empty state.
-    function textCard(text) {
-      const padX = 12, padY = 10, lineGap = 13.5;
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
-      const lines = doc.splitTextToSize(pdfSafeText(text), contentWidth - padX * 2);
-      const h = lines.length * lineGap + padY * 2;
-      ensureSpace(h + 8);
-      doc.setFillColor(250, 249, 246);
-      doc.setDrawColor(230, 226, 216);
-      doc.setLineWidth(0.7);
-      doc.roundedRect(margin, y, contentWidth, h, 6, 6, 'FD');
-      doc.setTextColor(70, 70, 70);
-      lines.forEach((line, i) => doc.text(line, margin + padX, y + padY + 9 + i * lineGap));
-      y += h + 10;
-    }
-
-    // A rounded card per utility contact: bold name, then one line per
-    // phone/email/website/address field that's actually present.
-    function contactCard(c) {
-      const padX = 13, padY = 11, lineGap = 13.5;
-      const rows = [{ text: c.name, bold: true, size: 11.5, color: [26, 26, 26] }];
-      if (c.phone)   rows.push({ text: `${lang === 'sr' ? 'Telefon' : 'Phone'}: ${c.phone}`,     size: 9.5, color: [95, 95, 95] });
-      if (c.email)   rows.push({ text: `Email: ${c.email}`,                                       size: 9.5, color: [95, 95, 95] });
-      if (c.website) rows.push({ text: `${lang === 'sr' ? 'Sajt' : 'Website'}: ${c.website}`,      size: 9.5, color: [95, 95, 95] });
-      if (c.address) rows.push({ text: `${lang === 'sr' ? 'Adresa' : 'Address'}: ${c.address}`,    size: 9.5, color: [95, 95, 95] });
-
-      // Pre-wrap every row at its real font/size so the card's background
-      // can be drawn at the right height before any text goes on top of it.
-      const wrapped = [];
-      rows.forEach(r => {
-        doc.setFont('helvetica', r.bold ? 'bold' : 'normal');
-        doc.setFontSize(r.size);
-        doc.splitTextToSize(pdfSafeText(r.text), contentWidth - padX * 2)
-          .forEach(line => wrapped.push({ text: line, bold: r.bold, size: r.size, color: r.color }));
-      });
-      const h = wrapped.length * lineGap + padY * 2;
-      ensureSpace(h + 10);
-
-      doc.setFillColor(250, 249, 246);
-      doc.setDrawColor(230, 226, 216);
-      doc.setLineWidth(0.7);
-      doc.roundedRect(margin, y, contentWidth, h, 7, 7, 'FD');
-
-      let ty = y + padY + (wrapped[0]?.size || 10);
-      wrapped.forEach(w => {
-        doc.setFont('helvetica', w.bold ? 'bold' : 'normal');
-        doc.setFontSize(w.size);
-        doc.setTextColor(w.color[0], w.color[1], w.color[2]);
-        doc.text(w.text, margin + padX, ty);
-        ty += lineGap;
-      });
-      y += h + 8;
-    }
-
     const headerTitle = report.subcategory
       ? `${translateCategory(report.category)} / ${subcategoryLabel(report.category, report.subcategory)}`
       : translateCategory(report.category);
     const reporterName = report.owner_username || (lang === 'sr' ? 'Nepoznato' : 'Unknown');
 
-    // --- Branded header band -------------------------------------------------
-    doc.setFillColor(166, 120, 23);
-    doc.rect(0, 0, pageWidth, 72, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(20);
-    doc.text('TraceTheBreak', margin, 34);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.text(pdfSafeText(lang === 'sr' ? 'Izvestaj o prijavljenom kvaru' : 'Reported infrastructure issue'), margin, 50);
-    doc.setFontSize(8.5);
-    doc.text(`${pdfSafeText(lang === 'sr' ? 'Generisano' : 'Generated')}: ${formatDate(new Date().toISOString())}`, pageWidth - margin, 50, { align: 'right' });
-    y = 72 + 30;
-
-    // --- Title + status/priority pills ---------------------------------------
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(17);
-    doc.setTextColor(26, 26, 26);
-    doc.splitTextToSize(pdfSafeText(headerTitle), contentWidth).forEach(line => { doc.text(line, margin, y); y += 21; });
-    y += 6;
-    let pillX = margin;
-    pillX += pill(pillX, y, statusLabel(report.status), hexToRgb(statusColor(report.status))) + 8;
-    pill(pillX, y, priorityLabelText(report.priority), hexToRgb(priorityColor(report.priority)));
-    y += 17 + 18;
-
-    // --- Who / when -------------------------------------------------------------
-    keyValueRow(t('reportedByLabel'), reporterName);
-    keyValueRow(lang === 'sr' ? 'Prijavljeno' : 'Reported on', formatDate(report.created_at));
-    y += 4;
-
-    // --- Location -------------------------------------------------------------
     // Street/area/municipality were already resolved for the open detail
     // modal — read straight from its DOM rather than re-querying, so the
-    // export always matches exactly what's on screen.
+    // email always matches exactly what's on screen.
     const street = document.getElementById('detailStreetValue')?.textContent || t('detailUnknown');
     const area = document.getElementById('detailAreaValue')?.textContent || t('detailUnknown');
     const muniText = document.getElementById('detailMunicipalityValue')?.textContent || t('detailUnknown');
 
-    sectionTitle(t('detailLocationTitle'));
-    keyValueRow(t('detailStreetLabel'), street);
-    keyValueRow(t('detailAreaLabel'), area);
-    keyValueRow(t('detailMunicipalityLabel'), muniText);
-    keyValueRow(t('detailCoordsLabel'), `${report.latitude.toFixed(6)}, ${report.longitude.toFixed(6)}`);
-    y += 4;
-
-    // --- Reporter's note --------------------------------------------------------
-    if (report.comment) {
-      sectionTitle(lang === 'sr' ? 'Opis' : 'Description');
-      textCard(report.comment);
-    }
-
-    // --- Responsible utility contacts -------------------------------------------
     const muni = await resolveReportMunicipality(report);
     const contacts = muni ? await getReportContacts(report, muni) : [];
-    sectionTitle(t('detailContactsTitle'));
-    if (!contacts.length) {
-      textCard(t('detailNoContacts'));
-    } else {
-      contacts.forEach(c => contactCard(c));
-    }
-
-    // --- Link back to the live report -------------------------------------------
-    const shareUrl = reportShareUrl(report.id);
-    sectionTitle(lang === 'sr' ? 'Poveznica ka prijavi' : 'Report link');
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.setTextColor(0, 102, 204);
-    ensureSpace(18);
-    doc.textWithLink(shareUrl, margin, y, { url: shareUrl });
-    doc.setTextColor(26, 26, 26);
-    y += 18;
-
-    // --- Footer (page numbers + branding) on every page --------------------------
-    const totalPages = doc.internal.getNumberOfPages();
-    for (let p = 1; p <= totalPages; p++) {
-      doc.setPage(p);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      doc.setTextColor(170, 170, 170);
-      doc.text('TraceTheBreak', margin, pageHeight - 22);
-      doc.text(`${p} / ${totalPages}`, pageWidth - margin, pageHeight - 22, { align: 'right' });
-    }
-
-    const filename = reportPdfFilename(report);
-    doc.save(filename);
-
-    // Pre-fill an email to every verified contact that has one on file.
-    // The PDF just downloaded to the device rather than being attached
-    // here directly — mailto: links have no attachment mechanism — so the
-    // body spells out which file to attach.
     const toEmails = contacts.map(c => c.email).filter(Boolean).join(',');
+
+    const shareUrl = reportShareUrl(report.id);
     const subject = encodeURIComponent(`${headerTitle} — TraceTheBreak`);
     const bodyLines = [
       lang === 'sr' ? 'Poštovani,' : 'Hello,',
@@ -6984,26 +6855,33 @@ async function exportReportPdf(reportId) {
       lang === 'sr'
         ? `Prijavljen je sledeći problem: ${headerTitle}.`
         : `The following issue has been reported: ${headerTitle}.`,
-      `${t('detailStreetLabel')}: ${street}, ${area}, ${muniText}`,
+      '',
+      `${t('popupStatus')}: ${statusLabel(report.status)}`,
+      `${t('priorityLabel')}: ${priorityLabelText(report.priority)}`,
+      `${t('reportedByLabel')}: ${reporterName}`,
+      `${lang === 'sr' ? 'Prijavljeno' : 'Reported on'}: ${formatDate(report.created_at)}`,
+      '',
+      `${t('detailStreetLabel')}: ${street}`,
+      `${t('detailAreaLabel')}: ${area}`,
+      `${t('detailMunicipalityLabel')}: ${muniText}`,
       `${t('detailCoordsLabel')}: ${report.latitude.toFixed(6)}, ${report.longitude.toFixed(6)}`,
+      ...(report.comment ? ['', `${lang === 'sr' ? 'Opis' : 'Description'}: ${report.comment}`] : []),
       '',
-      lang === 'sr' ? `Detaljan izveštaj: ${shareUrl}` : `Full report: ${shareUrl}`,
+      lang === 'sr' ? `Detaljan izveštaj i mapa: ${shareUrl}` : `Full report and map: ${shareUrl}`,
       '',
-      lang === 'sr'
-        ? `Molimo priložite fajl "${filename}" koji je upravo preuzet.`
-        : `Please attach the file "${filename}" that was just downloaded.`,
+      lang === 'sr' ? 'Hvala unapred,' : 'Thank you,',
+      'TraceTheBreak',
     ];
     const body = encodeURIComponent(bodyLines.join('\n'));
     window.location.href = `mailto:${toEmails}?subject=${subject}&body=${body}`;
-
-    toast(t('detailExportReady'), 'success');
   } catch (err) {
-    console.error('exportReportPdf error:', err.message || err);
+    console.error('emailReport error:', err.message || err);
     toast(t('detailExportFailed'), 'error');
   } finally {
     if (btn) { btn.disabled = false; btn.innerHTML = originalLabel; }
   }
 }
+
 
 // =============================================================================
 // REPORT DETAIL MODAL — ADMIN IN-PLACE EDIT
@@ -7291,15 +7169,14 @@ function escapeHtml(str) {
 // =============================================================================
 // CYRILLIC -> LATIN TRANSLITERATION
 // Serbian can be typed in either script; everything downstream of here
-// (the map, the exported PDF, admin lists) is Latin-only, so free-text
-// fields are transliterated to Latin at the point they're saved (see
-// reportBreak(), saveOwnerNote(), saveReportDetailEdits(), and
-// persistUcRow() below) rather than trying to detect/convert script on
+// (the map, admin lists, emails) is Latin-only, so free-text fields are
+// transliterated to Latin at the point they're saved (see reportBreak(),
+// saveOwnerNote(), saveReportDetailEdits(), persistUcRow(), and
+// submitUsername() below) rather than trying to detect/convert script on
 // every future read. That also means older rows saved before this existed
 // can still legitimately contain Cyrillic — cyrillicToLatin() is safe to
 // run on already-Latin text (a no-op) so it's fine to call defensively
-// wherever Cyrillic might still show up, e.g. right before drawing text
-// into the exported PDF.
+// wherever Cyrillic might still show up.
 const CYRILLIC_TO_LATIN_MAP = {
   'А':'A','Б':'B','В':'V','Г':'G','Д':'D','Ђ':'Đ','Е':'E','Ж':'Ž','З':'Z','И':'I',
   'Ј':'J','К':'K','Л':'L','Љ':'Lj','М':'M','Н':'N','Њ':'Nj','О':'O','П':'P','Р':'R',
@@ -7315,21 +7192,6 @@ const CYRILLIC_TO_LATIN_MAP = {
 function cyrillicToLatin(str) {
   if (!str) return str;
   return String(str).replace(/[А-Яа-яЂђЈјЉљЊњЋћЏџ]/g, ch => CYRILLIC_TO_LATIN_MAP[ch] ?? ch);
-}
-
-// jsPDF's built-in (non-embedded) fonts only support the WinAnsi/Latin-1
-// character set, which is missing č/ć/š/ž/đ — those would silently render
-// as blank boxes or the wrong glyph. So text going INTO the exported PDF
-// specifically gets this extra, plain-ASCII pass on top of
-// cyrillicToLatin(); everywhere else in the app keeps the real diacritics.
-const LATIN_DIACRITIC_STRIP_MAP = {
-  'Č':'C','Ć':'C','Š':'S','Ž':'Z','Đ':'Dj',
-  'č':'c','ć':'c','š':'s','ž':'z','đ':'dj'
-};
-function pdfSafeText(str) {
-  if (!str) return str;
-  const latin = cyrillicToLatin(str);
-  return latin.replace(/[ČĆŠŽĐčćšžđ]/g, ch => LATIN_DIACRITIC_STRIP_MAP[ch] ?? ch);
 }
 
 // Creates the marker for a report if it isn't rendered yet, or updates an
@@ -7367,7 +7229,7 @@ function upsertSectionLine(report) {
 
   line = L.polyline(path, { color: sCol, weight: 6, opacity, lineCap: 'round', renderer: sectionLineRenderer }).addTo(map);
   line._reportId = report.id;
-  line.bindPopup(buildPopupHtml(report), { autoPan: false }); // popup is always reparented to #mobilePopupOverlay, so Leaflet never needs to pan the map for it
+  line.bindPopup(buildPopupHtml(report), { autoPan: false, closeButton: false }); // popup is always reparented to #mobilePopupOverlay, so Leaflet never needs to pan the map for it
   markerById.set(report.id, line);
   if (report.status === 'fixed') line.bringToBack();
   return line;
@@ -7425,7 +7287,7 @@ function upsertMarker(report) {
   });
 
   marker._reportId = report.id;
-  marker.bindPopup(buildPopupHtml(report), { autoPan: false }); // popup is always reparented to #mobilePopupOverlay, so Leaflet never needs to pan the map for it
+  marker.bindPopup(buildPopupHtml(report), { autoPan: false, closeButton: false }); // popup is always reparented to #mobilePopupOverlay, so Leaflet never needs to pan the map for it
   pinCluster.addLayer(marker);
   markerById.set(report.id, marker);
   return marker;
