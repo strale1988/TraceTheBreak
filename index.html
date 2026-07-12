@@ -6592,6 +6592,242 @@ function hideReportDetailModal() {
 }
 
 // =============================================================================
+// REPORT DETAIL MODAL — SHARE LINK
+// Builds a canonical, bookmarkable/forwardable link back to a single report
+// (origin + pathname + ?report=<id>) and hands it off via the native share
+// sheet where available, falling back to clipboard-copy everywhere else.
+// The matching read side — resolving ?report=<id> back into an open detail
+// modal on page load — lives in openSharedReportFromUrl() near STARTUP.
+// =============================================================================
+function reportShareUrl(reportId) {
+  return `${window.location.origin}${window.location.pathname}?report=${encodeURIComponent(reportId)}`;
+}
+
+async function shareReport(reportId) {
+  const report = globalActiveData.find(r => r.id === reportId);
+  if (!report) return;
+
+  const url = reportShareUrl(reportId);
+  const headerTitle = report.subcategory
+    ? `${translateCategory(report.category)} / ${subcategoryLabel(report.category, report.subcategory)}`
+    : translateCategory(report.category);
+  const text = t('shareText').replace('{category}', headerTitle);
+
+  // navigator.share is the native OS share sheet (iOS/Android/most mobile
+  // browsers) — preferred whenever it exists since it lets the user pick
+  // any app (Messages, WhatsApp, email...) rather than just a clipboard copy.
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: 'TraceTheBreak', text, url });
+      return;
+    } catch (err) {
+      // AbortError just means the user closed the share sheet without
+      // picking anything — not a real failure, so no clipboard fallback
+      // and no error toast for that case specifically.
+      if (err && err.name === 'AbortError') return;
+      console.warn('navigator.share failed, falling back to clipboard:', err.message);
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    toast(t('shareLinkCopied'), 'success');
+  } catch (err) {
+    console.error('Clipboard write failed:', err.message);
+    // Last-resort fallback for browsers with no Clipboard API (or that
+    // deny it outside a user gesture context) — still gets the link in
+    // front of the user in a copyable form.
+    window.prompt(lang === 'sr' ? 'Kopirajte link:' : 'Copy this link:', url);
+  }
+}
+
+// Opens straight into a single report's detail view when the page is loaded
+// via a link produced by shareReport() above. Called once at STARTUP after
+// the normal viewport-window load. The report is always fetched directly by
+// id (not read out of globalActiveData), so a shared link still opens
+// correctly even if that report falls outside the current date filter or
+// map viewport that loadPinsByWindow() just populated.
+async function openSharedReportFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const reportId = params.get('report');
+  if (!reportId) return;
+  try {
+    const { data, error } = await sb.from(TABLE).select('*').eq('id', reportId).single();
+    if (error || !data) throw (error || new Error('Report not found'));
+    if (!globalActiveData.some(r => r.id === data.id)) globalActiveData.push(data);
+    if (isValidLatLng(data.latitude, data.longitude)) {
+      map.setView([data.latitude, data.longitude], Math.max(map.getZoom(), 16), { animate: false });
+    }
+    await showReportDetailModal(data.id);
+  } catch (err) {
+    console.error('Shared report lookup failed:', err.message || err);
+    toast(t('shareReportNotFound'), 'error');
+  }
+}
+
+// =============================================================================
+// REPORT DETAIL MODAL — PDF EXPORT & EMAIL TO RESPONSIBLE UTILITY
+// Builds a printable, shareable PDF for a single report client-side (jsPDF,
+// loaded once near the top of the file) covering everything a utility
+// company contact would need to act on it: category/status/priority, who
+// reported it and when, its resolved address/municipality/coordinates, the
+// reporter's note, and — reusing getReportContacts() so this can never
+// disagree with what the detail modal already shows — the verified utility
+// contacts responsible for that category in that municipality. The PDF then
+// downloads to the device and a pre-filled email opens addressed to those
+// contacts; mailto: links can't carry attachments themselves, so the email
+// body explicitly asks the sender to attach the file that just downloaded.
+// =============================================================================
+
+// Filesystem-safe filename stem, e.g. "TraceTheBreak-water-leak-a1b2c3d4.pdf".
+function reportPdfFilename(report) {
+  const catPart = String(report.subcategory || report.category || 'report')
+    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '');
+  const idPart = String(report.id).replace(/[^a-zA-Z0-9]/g, '').slice(0, 8);
+  return `TraceTheBreak-${catPart}-${idPart}.pdf`;
+}
+
+async function exportReportPdf(reportId) {
+  const report = globalActiveData.find(r => r.id === reportId);
+  if (!report) return;
+
+  const btn = document.getElementById('reportDetailExportBtn');
+  const originalLabel = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = `⏳ ${t('detailExporting')}`; }
+
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 48;
+    let y = margin;
+
+    // Wraps text to the page width and advances y, adding a page instead
+    // of running off the bottom. Kept as one small helper so every section
+    // below stays a plain, readable list of addLine() calls.
+    const addLine = (text, opts = {}) => {
+      const { size = 11, bold = false, color = [26, 26, 26], gap = 16 } = opts;
+      doc.setFont('helvetica', bold ? 'bold' : 'normal');
+      doc.setFontSize(size);
+      doc.setTextColor(color[0], color[1], color[2]);
+      const lines = doc.splitTextToSize(String(text), pageWidth - margin * 2);
+      lines.forEach(line => {
+        if (y > pageHeight - margin) { doc.addPage(); y = margin; }
+        doc.text(line, margin, y);
+        y += gap;
+      });
+    };
+
+    const headerTitle = report.subcategory
+      ? `${translateCategory(report.category)} / ${subcategoryLabel(report.category, report.subcategory)}`
+      : translateCategory(report.category);
+    const reporterName = report.owner_username || (lang === 'sr' ? 'Nepoznato' : 'Unknown');
+
+    // --- Branded header band -----------------------------------------------
+    doc.setFillColor(166, 120, 23);
+    doc.rect(0, 0, pageWidth, 64, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(18);
+    doc.text('TraceTheBreak', margin, 38);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text(lang === 'sr' ? 'Izveštaj o prijavljenom kvaru' : 'Reported infrastructure issue', margin, 54);
+    y = 64 + 32;
+
+    // --- Category / status / priority / who + when --------------------------
+    addLine(headerTitle, { size: 16, bold: true, gap: 22 });
+    addLine(`${t('popupStatus')}: ${statusLabel(report.status)}     ${t('priorityLabel')}: ${priorityLabelText(report.priority)}`, { color: [85, 85, 85] });
+    addLine(`${t('reportedByLabel')}: ${reporterName}     ${formatDate(report.created_at)}`, { color: [85, 85, 85] });
+    y += 8;
+
+    // --- Location -------------------------------------------------------------
+    // Street/area/municipality were already resolved for the open detail
+    // modal — read straight from its DOM rather than re-querying, so the
+    // export always matches exactly what's on screen.
+    const street = document.getElementById('detailStreetValue')?.textContent || t('detailUnknown');
+    const area = document.getElementById('detailAreaValue')?.textContent || t('detailUnknown');
+    const muniText = document.getElementById('detailMunicipalityValue')?.textContent || t('detailUnknown');
+
+    addLine(t('detailLocationTitle'), { size: 13, bold: true, gap: 20 });
+    addLine(`${t('detailStreetLabel')}: ${street}`);
+    addLine(`${t('detailAreaLabel')}: ${area}`);
+    addLine(`${t('detailMunicipalityLabel')}: ${muniText}`);
+    addLine(`${t('detailCoordsLabel')}: ${report.latitude.toFixed(6)}, ${report.longitude.toFixed(6)}`);
+    y += 8;
+
+    // --- Reporter's note --------------------------------------------------------
+    if (report.comment) {
+      addLine(lang === 'sr' ? 'Napomena' : 'Description', { size: 13, bold: true, gap: 20 });
+      addLine(report.comment);
+      y += 8;
+    }
+
+    // --- Responsible utility contacts -------------------------------------------
+    const muni = await resolveReportMunicipality(report);
+    const contacts = muni ? await getReportContacts(report, muni) : [];
+    addLine(t('detailContactsTitle'), { size: 13, bold: true, gap: 20 });
+    if (!contacts.length) {
+      addLine(t('detailNoContacts'), { color: [140, 140, 140] });
+    } else {
+      contacts.forEach(c => {
+        addLine(c.name, { bold: true, gap: 15 });
+        if (c.phone)   addLine(`${lang === 'sr' ? 'Telefon' : 'Phone'}: ${c.phone}`, { size: 10, gap: 13, color: [85, 85, 85] });
+        if (c.email)   addLine(`Email: ${c.email}`, { size: 10, gap: 13, color: [85, 85, 85] });
+        if (c.website) addLine(`${lang === 'sr' ? 'Sajt' : 'Website'}: ${c.website}`, { size: 10, gap: 13, color: [85, 85, 85] });
+        if (c.address) addLine(`${lang === 'sr' ? 'Adresa' : 'Address'}: ${c.address}`, { size: 10, gap: 13, color: [85, 85, 85] });
+        y += 6;
+      });
+    }
+
+    // --- Link back to the live report -------------------------------------------
+    const shareUrl = reportShareUrl(report.id);
+    y += 4;
+    addLine(lang === 'sr' ? 'Poveznica ka prijavi' : 'Report link', { size: 11, bold: true, gap: 15 });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(0, 102, 204);
+    if (y > pageHeight - margin) { doc.addPage(); y = margin; }
+    doc.textWithLink(shareUrl, margin, y, { url: shareUrl });
+    doc.setTextColor(26, 26, 26);
+
+    const filename = reportPdfFilename(report);
+    doc.save(filename);
+
+    // Pre-fill an email to every verified contact that has one on file.
+    // The PDF just downloaded to the device rather than being attached
+    // here directly — mailto: links have no attachment mechanism — so the
+    // body spells out which file to attach.
+    const toEmails = contacts.map(c => c.email).filter(Boolean).join(',');
+    const subject = encodeURIComponent(`${headerTitle} — TraceTheBreak`);
+    const bodyLines = [
+      lang === 'sr' ? 'Poštovani,' : 'Hello,',
+      '',
+      lang === 'sr'
+        ? `Prijavljen je sledeći problem: ${headerTitle}.`
+        : `The following issue has been reported: ${headerTitle}.`,
+      `${t('detailStreetLabel')}: ${street}, ${area}, ${muniText}`,
+      `${t('detailCoordsLabel')}: ${report.latitude.toFixed(6)}, ${report.longitude.toFixed(6)}`,
+      '',
+      lang === 'sr' ? `Detaljan izveštaj: ${shareUrl}` : `Full report: ${shareUrl}`,
+      '',
+      lang === 'sr'
+        ? `Molimo priložite fajl "${filename}" koji je upravo preuzet.`
+        : `Please attach the file "${filename}" that was just downloaded.`,
+    ];
+    const body = encodeURIComponent(bodyLines.join('\n'));
+    window.location.href = `mailto:${toEmails}?subject=${subject}&body=${body}`;
+
+    toast(t('detailExportReady'), 'success');
+  } catch (err) {
+    console.error('exportReportPdf error:', err.message || err);
+    toast(t('detailExportFailed'), 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = originalLabel; }
+  }
+}
+
+// =============================================================================
 // REPORT DETAIL MODAL — ADMIN IN-PLACE EDIT
 // Admins used to get a separate, cramped popup edit form on the map pin
 // itself. That's gone now — editing (and deleting) a report happens right
@@ -7348,7 +7584,11 @@ function updateHeaderHeightVar() {
 initTheme();
 initCalendarFilter();
 applyLang();
+// openSharedReportFromUrl() fetches its report directly by id (it doesn't
+// wait on or depend on globalActiveData), so it can safely run right
+// alongside loadPinsByWindow() rather than waiting for it to finish.
 loadPinsByWindow();
+openSharedReportFromUrl();
 loadMunicipalityCache(); // fire-and-forget warmup — see loadMunicipalityCache for why
 // Help modal should greet first-time/logged-out visitors, but not talk
 // over a returning, already-signed-in user every time they open the app.
