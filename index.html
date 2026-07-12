@@ -2262,6 +2262,7 @@ span.flatpickr-weekday {
       <div class="admin-section-title detail-section-title" id="ucSectionTitle">Utility company contacts</div>
       <div class="uc-list" id="ucList"></div>
       <button type="button" class="settings-btn" onclick="toggleUcForm()" id="ucAddToggleBtn">+ Add contact</button>
+      <div id="ucFormAnchor"></div>
 
       <div class="uc-form" id="ucForm" style="display:none">
         <input type="hidden" id="ucEditId">
@@ -5990,7 +5991,7 @@ function renderUcList() {
         const verifiedChip = c.verified
           ? '<span class="uc-verified-chip">' + t('ucVerifiedChip') + '</span>'
           : '<span class="uc-unverified-chip">' + t('ucUnverifiedChip') + '</span>';
-        return '<div class="uc-item">' +
+        return '<div class="uc-item" id="uc-item-' + c.id + '">' +
           '<div class="uc-item-top">' +
             '<div>' +
               '<div class="uc-item-name">' + escapeHtml(c.name) + '</div>' +
@@ -6019,11 +6020,27 @@ function renderUcList() {
   }).join('') + '</div>';
 }
 
+// The form is a single shared node that gets physically relocated in the
+// DOM: editUtilityCompany() moves it to sit right under the row being
+// edited, so this snaps it back to its default spot (right after the
+// "+ Add contact" button, via the invisible #ucFormAnchor marker) for the
+// "add new" flow and whenever the form is closed. Doing this on close
+// (cancelUcForm) rather than only on open matters because
+// loadUtilityCompaniesAdmin() re-renders #ucList's innerHTML after every
+// save/delete — if the form were still parented inside a uc-item's group
+// at that point, it'd be wiped out along with the old list markup.
+function moveUcFormToAnchor() {
+  const form = document.getElementById('ucForm');
+  const anchor = document.getElementById('ucFormAnchor');
+  if (form && anchor) anchor.insertAdjacentElement('afterend', form);
+}
+
 function toggleUcForm() {
   const form = document.getElementById('ucForm');
   if (!form) return;
   if (form.style.display !== 'none') { cancelUcForm(); return; }
   resetUcForm();
+  moveUcFormToAnchor();
   form.style.display = 'flex';
 }
 
@@ -6046,6 +6063,7 @@ function resetUcForm() {
 function cancelUcForm() {
   const form = document.getElementById('ucForm');
   if (form) form.style.display = 'none';
+  moveUcFormToAnchor();
   resetUcForm();
 }
 
@@ -6071,6 +6089,12 @@ function editUtilityCompany(id) {
   });
   renderUcVerifyStatus();
   const form = document.getElementById('ucForm');
+  // Open the form right under the row that was clicked, instead of always
+  // at the bottom of the list — the row lives inside a collapsible
+  // per-municipality <details> group, so this also naturally keeps it
+  // visible within that open group.
+  const itemEl = document.getElementById('uc-item-' + id);
+  if (itemEl) itemEl.insertAdjacentElement('afterend', form);
   form.style.display = 'flex';
   form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
@@ -6289,9 +6313,9 @@ function buildPopupHtml(report) {
       </div>
     </div>
     ${report.comment ? `<div class="popup-note">${escapeHtml(report.comment)}</div>` : ''}
-    ${isSectionReport(report) ? '' : `<div class="status-action-row" style="border-top:none;padding-top:0;">
+    <div class="status-action-row" style="border-top:none;padding-top:0;">
       <button class="status-action-btn" style="background:#2a2a2a;" onclick="showReportDetailModal('${report.id}')"><img class="icon-img icon-img-inline" src="icons/pin.png" alt="pin"> ${t('detailsBtn')}</button>
-    </div>`}
+    </div>
     ${actionsHtml}
     ${noteActionHtml}
   </div>`;
@@ -6747,7 +6771,7 @@ function escapeHtml(str) {
 // invisible padding around every path it draws for hit-testing purposes
 // only — the visual stroke width is untouched, just what counts as "on
 // the line" for taps/clicks.
-const sectionLineRenderer = L.svg({ tolerance: 18 });
+const sectionLineRenderer = L.svg({ tolerance: 32 });
 
 function isSectionReport(report) {
   return sanitizePath(report.path).length > 1;
