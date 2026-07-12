@@ -1663,11 +1663,22 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   border-color:rgba(255,255,255,.5);
   color:#fff;
 }
+/* Icons ship as light/white glyphs (see the general --icon-tint-filter note
+   near :root) — tinted to read against the plain surface background here,
+   then forced to plain white instead whenever the header is status-colored
+   (a solid, possibly light, accent color) so they stay legible either way. */
+.fullscreen-modal-header.status-colored .fullscreen-modal-close .icon-img,
+.fullscreen-modal-header.status-colored .fullscreen-modal-share .icon-img{
+  filter:brightness(0) invert(1);
+}
 .fullscreen-modal-close, .fullscreen-modal-share{
   background:var(--bg-surface-alt); color:var(--text-primary); border:1px solid var(--border-color-strong); border-radius:8px;
   width:36px; height:36px; flex-shrink:0;
   display:flex; align-items:center; justify-content:center;
   font-size:18px; cursor:pointer;
+}
+.fullscreen-modal-close .icon-img, .fullscreen-modal-share .icon-img{
+  width:18px; height:18px; filter:var(--icon-tint-filter);
 }
 .fullscreen-modal-body{
   flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch;
@@ -1686,12 +1697,15 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 .detail-row-value{ color:var(--text-primary); text-align:right; }
 .detail-row-value a{ color:#4ea1ff; text-decoration:none; }
 .contact-card{
-  background:var(--bg-surface-alt); border:1px solid var(--border-color); border-radius:10px; padding:10px 12px; margin-bottom:8px;
+  background:var(--bg-surface-alt); border:1px solid var(--border-color); border-radius:12px; padding:14px 16px; margin-bottom:10px;
 }
 .contact-card:last-child{ margin-bottom:0; }
-.contact-card-name{ font-weight:700; font-size:13.5px; margin-bottom:4px; }
-.contact-card-row{ font-size:12.5px; color:var(--text-secondary); margin-top:3px; }
+.contact-card-name{ font-weight:700; font-size:14px; margin-bottom:8px; }
+.contact-card-row{ display:flex; align-items:center; gap:9px; font-size:12.5px; color:var(--text-secondary); padding:5px 0; }
+.contact-card-row:not(:last-child){ border-bottom:1px solid var(--border-color); }
 .contact-card-row a{ color:#4ea1ff; text-decoration:none; }
+.contact-card-icon{ width:15px; height:15px; flex-shrink:0; filter:var(--icon-tint-filter); }
+.contact-card-row.contact-card-notes{ color:var(--text-muted); font-style:italic; }
 .detail-empty{ font-size:12.5px; color:var(--text-secondary); font-style:italic; }
 .detail-loading{ font-size:12.5px; color:var(--text-muted); }
 .detail-export-hint{ font-size:12px; color:var(--text-secondary); margin:0 0 10px; line-height:1.4; }
@@ -2238,7 +2252,7 @@ span.flatpickr-weekday {
 <div id="settingsModal" class="fullscreen-modal-overlay" style="display:none">
   <div class="fullscreen-modal-header">
     <h2 id="settingsModalTitle">Settings</h2>
-    <button class="fullscreen-modal-close" onclick="hideSettingsModal()" aria-label="Close">✕</button>
+    <button class="fullscreen-modal-close" onclick="hideSettingsModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
   </div>
   <div class="fullscreen-modal-body">
 
@@ -2310,8 +2324,8 @@ span.flatpickr-weekday {
 <div id="reportDetailModal" class="fullscreen-modal-overlay" style="display:none">
   <div class="fullscreen-modal-header" id="reportDetailHeader">
     <h2 id="reportDetailTitle"></h2>
-    <button class="fullscreen-modal-share" id="reportDetailShareBtn" aria-label="Share">🔗</button>
-    <button class="fullscreen-modal-close" id="reportDetailCloseBtn" onclick="hideReportDetailModal()" aria-label="Close">✕</button>
+    <button class="fullscreen-modal-share" id="reportDetailShareBtn" aria-label="Share"><img class="icon-img" src="icons/link.png" alt="share"></button>
+    <button class="fullscreen-modal-close" id="reportDetailCloseBtn" onclick="hideReportDetailModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
   </div>
   <div class="fullscreen-modal-body" id="reportDetailBody"></div>
 </div>
@@ -2763,6 +2777,7 @@ const T = {
   deleteBtn:     { en:'Delete',                                    sr:'Obriši' },
   saveBtn:       { en:'Save',                                      sr:'Sačuvaj' },
   cancelBtn:     { en:'Cancel',                                    sr:'Otkaži' },
+  closeBtn:      { en:'Close',                                     sr:'Zatvori' },
   deleteConfirm: { en:'Delete this report permanently?',           sr:'Trajno obrisati ovu prijavu?' },
   markReported:  { en:'Mark Reported',                             sr:'Označi kao prijavljeno' },
   navigateSearchPH:  { en:'Search destination...',                  sr:'Pretraži odredište...' },
@@ -4948,7 +4963,7 @@ function startWatching() {
           zIndexOffset: 1000
         }).addTo(map);
         map.setView(getFollowCenter(userCoords.lat, userCoords.lon, 13), 13);
-        showMunicipalityBoundaryForPoint(userCoords.lat, userCoords.lon);
+        showMunicipalityBoundaryForPoint(userCoords.lat, userCoords.lon, userMarker);
       } else if (drivingMode) {
         // Don't show the raw fix right away — hold it back until it's
         // been snapped to the road (or the fallback timeout fires), so
@@ -5178,7 +5193,7 @@ function togglePinMode() {
     // municipality badge/boundary — see the map click handler below.
     // Leaving pin mode hands control back to GPS, so re-resolve from
     // userCoords rather than leaving the manual pin's municipality showing.
-    if (userCoords) showMunicipalityBoundaryForPoint(userCoords.lat, userCoords.lon);
+    if (userCoords) showMunicipalityBoundaryForPoint(userCoords.lat, userCoords.lon, userMarker);
     else renderMunicipalityBoundary(null);
   }
   checkFormReady();
@@ -5222,7 +5237,7 @@ map.on('click', function(e) {
   // show the municipality for the pin's location, not wherever the GPS fix
   // happens to be. Reverted back to the GPS municipality in togglePinMode()
   // once pin mode is switched off.
-  showMunicipalityBoundaryForPoint(manualCoords.lat, manualCoords.lon);
+  showMunicipalityBoundaryForPoint(manualCoords.lat, manualCoords.lon, manualMarker);
   checkFormReady();
 });
 
@@ -5433,7 +5448,7 @@ async function reportBreak(){
   const category    = document.getElementById('category').value;
   const subcategory = document.getElementById('subcategory').value || null;
   const priority     = document.getElementById('priority').value || 'normal';
-  const comment      = document.getElementById('comment').value;
+  const comment      = cyrillicToLatin(document.getElementById('comment').value);
 
   try {
     const { data, error } = await sb.from(TABLE).insert([{
@@ -5859,15 +5874,53 @@ function renderMunicipalityBoundary(muni) {
   showMunicipalityLabel(muni);
 }
 
+// Small popup card for the GPS/manual-pin marker — the floating badge above
+// already flashes the municipality name for 5s, but a tap-and-hold-visible
+// popup (matching the look of a report pin's popup) is more useful for
+// actually reading it and the coordinates at a glance, especially once the
+// badge has already faded.
+function buildMunicipalityPopupHtml(muni, lat, lon) {
+  const name = muni ? municipalityDisplayName(muni) : t('detailUnknown');
+  return `<div class="popup-inner popup-card">
+    <div class="popup-header" style="background:#3a3a3a;">
+      <span class="popup-header-title">${escapeHtml(t('detailMunicipalityLabel'))}</span>
+    </div>
+    <div class="popup-body">
+      <div class="popup-row">
+        <span class="popup-row-label">${t('detailMunicipalityLabel')}</span>
+        <span class="popup-row-value">${escapeHtml(name)}</span>
+      </div>
+      <div class="popup-row">
+        <span class="popup-row-label">${t('detailCoordsLabel')}</span>
+        <span class="popup-row-value">${lat.toFixed(6)}, ${lon.toFixed(6)}</span>
+      </div>
+    </div>
+  </div>`;
+}
+
+// Binds (or refreshes, if already bound) a municipality popup onto a live
+// location marker — the GPS puck or the manually-dropped pin — so tapping
+// it shows exactly what municipality it's currently resolved to.
+function bindMunicipalityPopupToMarker(marker, muni, lat, lon) {
+  if (!marker) return;
+  const html = buildMunicipalityPopupHtml(muni, lat, lon);
+  if (marker.getPopup()) marker.setPopupContent(html);
+  else marker.bindPopup(html, { autoPan: false }); // reparented into #mobilePopupOverlay on open, same as report pins
+}
+
 // Resolves the municipality containing a given point and updates the small
 // floating name badge. Called once GPS gets its first fix, whenever a
 // manual pin is dropped/cleared, and whenever the map is otherwise tracking
 // a live point rather than an already-saved report (see
 // resolveReportMunicipality for the report-detail case, which resolves by
-// stored municipality_id).
-async function showMunicipalityBoundaryForPoint(lat, lon) {
+// stored municipality_id). Pass the marker that this point belongs to
+// (userMarker or manualMarker) to also bind/refresh its tap-to-view
+// municipality popup — omit it for callers that don't have one, such as an
+// already-saved report.
+async function showMunicipalityBoundaryForPoint(lat, lon, marker) {
   const muni = await resolveMunicipality(lat, lon);
   renderMunicipalityBoundary(muni);
+  if (marker) bindMunicipalityPopupToMarker(marker, muni, lat, lon);
   return muni;
 }
 
@@ -6188,12 +6241,14 @@ function editUtilityCompany(id) {
 // verify action. Returns null (after alerting) if required fields are missing.
 function readUcFormRow() {
   const municipalityId = document.getElementById('ucMunicipalitySelect').value;
-  const name = document.getElementById('ucName').value.trim();
+  const name = cyrillicToLatin(document.getElementById('ucName').value.trim());
   const categories = Array.from(document.querySelectorAll('#ucCatChecks input:checked')).map(cb => cb.value);
   if (!municipalityId || !name || !categories.length) {
     alert(t('ucValidationError'));
     return null;
   }
+  const address = document.getElementById('ucAddress').value.trim();
+  const notes   = document.getElementById('ucNotes').value.trim();
   return {
     municipality_id: municipalityId,
     name,
@@ -6201,8 +6256,8 @@ function readUcFormRow() {
     phone:   document.getElementById('ucPhone').value.trim()   || null,
     email:   document.getElementById('ucEmail').value.trim()   || null,
     website: document.getElementById('ucWebsite').value.trim() || null,
-    address: document.getElementById('ucAddress').value.trim() || null,
-    notes:   document.getElementById('ucNotes').value.trim()   || null,
+    address: address ? cyrillicToLatin(address) : null,
+    notes:   notes   ? cyrillicToLatin(notes)   : null,
   };
 }
 
@@ -6399,7 +6454,8 @@ function buildPopupHtml(report) {
     </div>
     ${report.comment ? `<div class="popup-note">${escapeHtml(report.comment)}</div>` : ''}
     <div class="status-action-row" style="border-top:none;padding-top:0;">
-      <button class="status-action-btn" style="background:#2a2a2a;" onclick="showReportDetailModal('${report.id}')"><img class="icon-img icon-img-inline" src="icons/pin.png" alt="pin"> ${t('detailsBtn')}</button>
+      <button class="status-action-btn" style="background:#2a2a2a;" onclick="showReportDetailModal('${report.id}')">${t('detailsBtn')}</button>
+      <button class="status-action-btn popup-close-btn" style="background:#3a3a3a;flex:0 0 auto;min-width:0;width:36px;" onclick="map.closePopup();" aria-label="${t('closeBtn')}"><img class="icon-img icon-img-inline" src="icons/close.png" alt="close"></button>
     </div>
     ${actionsHtml}
     ${noteActionHtml}
@@ -6496,7 +6552,7 @@ async function showReportDetailModal(reportId) {
     <div class="detail-section">
       <div class="detail-section-title">${t('detailExportTitle')}</div>
       <p class="detail-export-hint">${t('detailExportHint')}</p>
-      <button type="button" class="settings-btn" style="width:100%;" onclick="exportReportPdf('${report.id}')" id="reportDetailExportBtn">📄 ${t('detailExportBtn')}</button>
+      <button type="button" class="settings-btn" style="width:100%;" onclick="exportReportPdf('${report.id}')" id="reportDetailExportBtn"><img class="icon-img icon-img-inline" src="icons/pdf.png" alt="pdf"> ${t('detailExportBtn')}</button>
     </div>
   `;
 
@@ -6578,11 +6634,11 @@ function renderContactCards(companies) {
   return companies.map(c => `
     <div class="contact-card">
       <div class="contact-card-name">${escapeHtml(c.name)}</div>
-      ${c.phone ? `<div class="contact-card-row"><img class="icon-img icon-img-inline" src="icons/phone.png" alt="phone"> <a href="tel:${escapeHtml(c.phone)}">${escapeHtml(c.phone)}</a></div>` : ''}
-      ${c.email ? `<div class="contact-card-row"><img class="icon-img icon-img-inline" src="icons/email.png" alt="email"> <a href="mailto:${escapeHtml(c.email)}">${escapeHtml(c.email)}</a></div>` : ''}
-      ${c.website ? `<div class="contact-card-row"><img class="icon-img icon-img-inline" src="icons/link.png" alt="link"> <a href="${escapeHtml(c.website)}" target="_blank" rel="noopener">${escapeHtml(c.website)}</a></div>` : ''}
-      ${c.address ? `<div class="contact-card-row"><img class="icon-img icon-img-inline" src="icons/pin.png" alt="pin"> ${escapeHtml(c.address)}</div>` : ''}
-      ${c.notes ? `<div class="contact-card-row" style="color:#999;">${escapeHtml(c.notes)}</div>` : ''}
+      ${c.phone ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/phone.png" alt="phone"><a href="tel:${escapeHtml(c.phone)}">${escapeHtml(c.phone)}</a></div>` : ''}
+      ${c.email ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/email.png" alt="email"><a href="mailto:${escapeHtml(c.email)}">${escapeHtml(c.email)}</a></div>` : ''}
+      ${c.website ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/link.png" alt="link"><a href="${escapeHtml(c.website)}" target="_blank" rel="noopener">${escapeHtml(c.website)}</a></div>` : ''}
+      ${c.address ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/pin.png" alt="pin">${escapeHtml(c.address)}</div>` : ''}
+      ${c.notes ? `<div class="contact-card-row contact-card-notes">${escapeHtml(c.notes)}</div>` : ''}
     </div>
   `).join('');
 }
@@ -6686,6 +6742,15 @@ function reportPdfFilename(report) {
   return `TraceTheBreak-${catPart}-${idPart}.pdf`;
 }
 
+// Converts a "#rrggbb" (or "#rgb") hex color to a jsPDF-friendly [r,g,b] array.
+function hexToRgb(hex) {
+  const h = String(hex || '').replace('#', '');
+  const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+  const n = parseInt(full, 16);
+  if (!full || isNaN(n)) return [120, 120, 120];
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
 async function exportReportPdf(reportId) {
   const report = globalActiveData.find(r => r.id === reportId);
   if (!report) return;
@@ -6700,46 +6765,156 @@ async function exportReportPdf(reportId) {
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     const margin = 48;
+    const contentWidth = pageWidth - margin * 2;
     let y = margin;
 
-    // Wraps text to the page width and advances y, adding a page instead
-    // of running off the bottom. Kept as one small helper so every section
-    // below stays a plain, readable list of addLine() calls.
-    const addLine = (text, opts = {}) => {
-      const { size = 11, bold = false, color = [26, 26, 26], gap = 16 } = opts;
-      doc.setFont('helvetica', bold ? 'bold' : 'normal');
-      doc.setFontSize(size);
-      doc.setTextColor(color[0], color[1], color[2]);
-      const lines = doc.splitTextToSize(String(text), pageWidth - margin * 2);
-      lines.forEach(line => {
-        if (y > pageHeight - margin) { doc.addPage(); y = margin; }
-        doc.text(line, margin, y);
-        y += gap;
+    // --- Small layout helpers ---------------------------------------------
+    // Every one of these runs its text through pdfSafeText() itself, so
+    // callers never have to remember to do it — jsPDF's built-in fonts
+    // can't render Cyrillic or the č/ć/š/ž/đ diacritics used in the sr
+    // translation strings, so this is the single choke point that keeps
+    // Cyrillic/diacritics out of the actual rendered PDF (see
+    // pdfSafeText()/cyrillicToLatin() near escapeHtml() for the "why").
+    const ensureSpace = (h) => { if (y + h > pageHeight - margin - 26) { doc.addPage(); y = margin; } };
+
+    function sectionTitle(text) {
+      ensureSpace(24);
+      y += 10;
+      doc.setFillColor(166, 120, 23);
+      doc.rect(margin, y - 9, 3, 13, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.setTextColor(26, 26, 26);
+      doc.text(pdfSafeText(text), margin + 10, y);
+      y += 16;
+    }
+
+    // Label/value row, e.g. "STREET   Main Rd 12" — label in a fixed-width
+    // left column, value wrapping in the remainder, with a hairline divider
+    // under each row so a stack of these reads as a clean little table.
+    const labelColW = 118;
+    function keyValueRow(label, value) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(150, 150, 150);
+      const valueLines = doc.splitTextToSize(pdfSafeText(String(value ?? '')), contentWidth - labelColW);
+      ensureSpace(valueLines.length * 14 + 10);
+      doc.text(pdfSafeText(String(label)).toUpperCase(), margin, y + 9);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10.5);
+      doc.setTextColor(30, 30, 30);
+      valueLines.forEach((line, i) => doc.text(line, margin + labelColW, y + 9 + i * 14));
+      y += Math.max(20, valueLines.length * 14 + 6);
+      doc.setDrawColor(232, 232, 228);
+      doc.setLineWidth(0.6);
+      doc.line(margin, y - 4, pageWidth - margin, y - 4);
+      y += 6;
+    }
+
+    // Small filled rounded-rect label — used for the status/priority pills.
+    function pill(x, topY, text, rgb) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      const label = pdfSafeText(text).toUpperCase();
+      const w = doc.getTextWidth(label) + 16;
+      const h = 17;
+      doc.setFillColor(rgb[0], rgb[1], rgb[2]);
+      doc.roundedRect(x, topY, w, h, 4, 4, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.text(label, x + 8, topY + h - 5.5);
+      return w;
+    }
+
+    // A soft rounded card containing a block of plain wrapped text —
+    // used for the reporter's note and the "no contacts" empty state.
+    function textCard(text) {
+      const padX = 12, padY = 10, lineGap = 13.5;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      const lines = doc.splitTextToSize(pdfSafeText(text), contentWidth - padX * 2);
+      const h = lines.length * lineGap + padY * 2;
+      ensureSpace(h + 8);
+      doc.setFillColor(250, 249, 246);
+      doc.setDrawColor(230, 226, 216);
+      doc.setLineWidth(0.7);
+      doc.roundedRect(margin, y, contentWidth, h, 6, 6, 'FD');
+      doc.setTextColor(70, 70, 70);
+      lines.forEach((line, i) => doc.text(line, margin + padX, y + padY + 9 + i * lineGap));
+      y += h + 10;
+    }
+
+    // A rounded card per utility contact: bold name, then one line per
+    // phone/email/website/address field that's actually present.
+    function contactCard(c) {
+      const padX = 13, padY = 11, lineGap = 13.5;
+      const rows = [{ text: c.name, bold: true, size: 11.5, color: [26, 26, 26] }];
+      if (c.phone)   rows.push({ text: `${lang === 'sr' ? 'Telefon' : 'Phone'}: ${c.phone}`,     size: 9.5, color: [95, 95, 95] });
+      if (c.email)   rows.push({ text: `Email: ${c.email}`,                                       size: 9.5, color: [95, 95, 95] });
+      if (c.website) rows.push({ text: `${lang === 'sr' ? 'Sajt' : 'Website'}: ${c.website}`,      size: 9.5, color: [95, 95, 95] });
+      if (c.address) rows.push({ text: `${lang === 'sr' ? 'Adresa' : 'Address'}: ${c.address}`,    size: 9.5, color: [95, 95, 95] });
+
+      // Pre-wrap every row at its real font/size so the card's background
+      // can be drawn at the right height before any text goes on top of it.
+      const wrapped = [];
+      rows.forEach(r => {
+        doc.setFont('helvetica', r.bold ? 'bold' : 'normal');
+        doc.setFontSize(r.size);
+        doc.splitTextToSize(pdfSafeText(r.text), contentWidth - padX * 2)
+          .forEach(line => wrapped.push({ text: line, bold: r.bold, size: r.size, color: r.color }));
       });
-    };
+      const h = wrapped.length * lineGap + padY * 2;
+      ensureSpace(h + 10);
+
+      doc.setFillColor(250, 249, 246);
+      doc.setDrawColor(230, 226, 216);
+      doc.setLineWidth(0.7);
+      doc.roundedRect(margin, y, contentWidth, h, 7, 7, 'FD');
+
+      let ty = y + padY + (wrapped[0]?.size || 10);
+      wrapped.forEach(w => {
+        doc.setFont('helvetica', w.bold ? 'bold' : 'normal');
+        doc.setFontSize(w.size);
+        doc.setTextColor(w.color[0], w.color[1], w.color[2]);
+        doc.text(w.text, margin + padX, ty);
+        ty += lineGap;
+      });
+      y += h + 8;
+    }
 
     const headerTitle = report.subcategory
       ? `${translateCategory(report.category)} / ${subcategoryLabel(report.category, report.subcategory)}`
       : translateCategory(report.category);
     const reporterName = report.owner_username || (lang === 'sr' ? 'Nepoznato' : 'Unknown');
 
-    // --- Branded header band -----------------------------------------------
+    // --- Branded header band -------------------------------------------------
     doc.setFillColor(166, 120, 23);
-    doc.rect(0, 0, pageWidth, 64, 'F');
+    doc.rect(0, 0, pageWidth, 72, 'F');
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(18);
-    doc.text('TraceTheBreak', margin, 38);
+    doc.setFontSize(20);
+    doc.text('TraceTheBreak', margin, 34);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
-    doc.text(lang === 'sr' ? 'Izveštaj o prijavljenom kvaru' : 'Reported infrastructure issue', margin, 54);
-    y = 64 + 32;
+    doc.text(pdfSafeText(lang === 'sr' ? 'Izvestaj o prijavljenom kvaru' : 'Reported infrastructure issue'), margin, 50);
+    doc.setFontSize(8.5);
+    doc.text(`${pdfSafeText(lang === 'sr' ? 'Generisano' : 'Generated')}: ${formatDate(new Date().toISOString())}`, pageWidth - margin, 50, { align: 'right' });
+    y = 72 + 30;
 
-    // --- Category / status / priority / who + when --------------------------
-    addLine(headerTitle, { size: 16, bold: true, gap: 22 });
-    addLine(`${t('popupStatus')}: ${statusLabel(report.status)}     ${t('priorityLabel')}: ${priorityLabelText(report.priority)}`, { color: [85, 85, 85] });
-    addLine(`${t('reportedByLabel')}: ${reporterName}     ${formatDate(report.created_at)}`, { color: [85, 85, 85] });
-    y += 8;
+    // --- Title + status/priority pills ---------------------------------------
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(17);
+    doc.setTextColor(26, 26, 26);
+    doc.splitTextToSize(pdfSafeText(headerTitle), contentWidth).forEach(line => { doc.text(line, margin, y); y += 21; });
+    y += 6;
+    let pillX = margin;
+    pillX += pill(pillX, y, statusLabel(report.status), hexToRgb(statusColor(report.status))) + 8;
+    pill(pillX, y, priorityLabelText(report.priority), hexToRgb(priorityColor(report.priority)));
+    y += 17 + 18;
+
+    // --- Who / when -------------------------------------------------------------
+    keyValueRow(t('reportedByLabel'), reporterName);
+    keyValueRow(lang === 'sr' ? 'Prijavljeno' : 'Reported on', formatDate(report.created_at));
+    y += 4;
 
     // --- Location -------------------------------------------------------------
     // Street/area/municipality were already resolved for the open detail
@@ -6749,47 +6924,50 @@ async function exportReportPdf(reportId) {
     const area = document.getElementById('detailAreaValue')?.textContent || t('detailUnknown');
     const muniText = document.getElementById('detailMunicipalityValue')?.textContent || t('detailUnknown');
 
-    addLine(t('detailLocationTitle'), { size: 13, bold: true, gap: 20 });
-    addLine(`${t('detailStreetLabel')}: ${street}`);
-    addLine(`${t('detailAreaLabel')}: ${area}`);
-    addLine(`${t('detailMunicipalityLabel')}: ${muniText}`);
-    addLine(`${t('detailCoordsLabel')}: ${report.latitude.toFixed(6)}, ${report.longitude.toFixed(6)}`);
-    y += 8;
+    sectionTitle(t('detailLocationTitle'));
+    keyValueRow(t('detailStreetLabel'), street);
+    keyValueRow(t('detailAreaLabel'), area);
+    keyValueRow(t('detailMunicipalityLabel'), muniText);
+    keyValueRow(t('detailCoordsLabel'), `${report.latitude.toFixed(6)}, ${report.longitude.toFixed(6)}`);
+    y += 4;
 
     // --- Reporter's note --------------------------------------------------------
     if (report.comment) {
-      addLine(lang === 'sr' ? 'Napomena' : 'Description', { size: 13, bold: true, gap: 20 });
-      addLine(report.comment);
-      y += 8;
+      sectionTitle(lang === 'sr' ? 'Opis' : 'Description');
+      textCard(report.comment);
     }
 
     // --- Responsible utility contacts -------------------------------------------
     const muni = await resolveReportMunicipality(report);
     const contacts = muni ? await getReportContacts(report, muni) : [];
-    addLine(t('detailContactsTitle'), { size: 13, bold: true, gap: 20 });
+    sectionTitle(t('detailContactsTitle'));
     if (!contacts.length) {
-      addLine(t('detailNoContacts'), { color: [140, 140, 140] });
+      textCard(t('detailNoContacts'));
     } else {
-      contacts.forEach(c => {
-        addLine(c.name, { bold: true, gap: 15 });
-        if (c.phone)   addLine(`${lang === 'sr' ? 'Telefon' : 'Phone'}: ${c.phone}`, { size: 10, gap: 13, color: [85, 85, 85] });
-        if (c.email)   addLine(`Email: ${c.email}`, { size: 10, gap: 13, color: [85, 85, 85] });
-        if (c.website) addLine(`${lang === 'sr' ? 'Sajt' : 'Website'}: ${c.website}`, { size: 10, gap: 13, color: [85, 85, 85] });
-        if (c.address) addLine(`${lang === 'sr' ? 'Adresa' : 'Address'}: ${c.address}`, { size: 10, gap: 13, color: [85, 85, 85] });
-        y += 6;
-      });
+      contacts.forEach(c => contactCard(c));
     }
 
     // --- Link back to the live report -------------------------------------------
     const shareUrl = reportShareUrl(report.id);
-    y += 4;
-    addLine(lang === 'sr' ? 'Poveznica ka prijavi' : 'Report link', { size: 11, bold: true, gap: 15 });
+    sectionTitle(lang === 'sr' ? 'Poveznica ka prijavi' : 'Report link');
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
     doc.setTextColor(0, 102, 204);
-    if (y > pageHeight - margin) { doc.addPage(); y = margin; }
+    ensureSpace(18);
     doc.textWithLink(shareUrl, margin, y, { url: shareUrl });
     doc.setTextColor(26, 26, 26);
+    y += 18;
+
+    // --- Footer (page numbers + branding) on every page --------------------------
+    const totalPages = doc.internal.getNumberOfPages();
+    for (let p = 1; p <= totalPages; p++) {
+      doc.setPage(p);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(170, 170, 170);
+      doc.text('TraceTheBreak', margin, pageHeight - 22);
+      doc.text(`${p} / ${totalPages}`, pageWidth - margin, pageHeight - 22, { align: 'right' });
+    }
 
     const filename = reportPdfFilename(report);
     doc.save(filename);
@@ -6945,7 +7123,7 @@ async function saveReportDetailEdits(reportId) {
   const status       = document.getElementById(`detailEditStatus-${reportId}`).value;
   const priorityEl   = document.getElementById(`detailEditPriority-${reportId}`);
   const priority      = (priorityEl && priorityEl.value) ? priorityEl.value : 'normal';
-  const comment       = document.getElementById(`detailEditComment-${reportId}`).value;
+  const comment       = cyrillicToLatin(document.getElementById(`detailEditComment-${reportId}`).value);
   try {
     const { error } = await sb.from(TABLE)
       .update({ category, subcategory, priority, comment, updated_at: new Date().toISOString(), ...buildStatusPatch(status) })
@@ -6997,7 +7175,7 @@ function enterNoteEditMode(reportId) {
 async function saveOwnerNote(reportId) {
   const input = document.getElementById(`edit-note-${reportId}`);
   if (!input) return;
-  const comment = input.value;
+  const comment = cyrillicToLatin(input.value);
   try {
     const { error } = await sb.from(TABLE)
       .update({ comment, updated_at: new Date().toISOString() })
@@ -7108,6 +7286,50 @@ function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
+}
+
+// =============================================================================
+// CYRILLIC -> LATIN TRANSLITERATION
+// Serbian can be typed in either script; everything downstream of here
+// (the map, the exported PDF, admin lists) is Latin-only, so free-text
+// fields are transliterated to Latin at the point they're saved (see
+// reportBreak(), saveOwnerNote(), saveReportDetailEdits(), and
+// persistUcRow() below) rather than trying to detect/convert script on
+// every future read. That also means older rows saved before this existed
+// can still legitimately contain Cyrillic — cyrillicToLatin() is safe to
+// run on already-Latin text (a no-op) so it's fine to call defensively
+// wherever Cyrillic might still show up, e.g. right before drawing text
+// into the exported PDF.
+const CYRILLIC_TO_LATIN_MAP = {
+  'А':'A','Б':'B','В':'V','Г':'G','Д':'D','Ђ':'Đ','Е':'E','Ж':'Ž','З':'Z','И':'I',
+  'Ј':'J','К':'K','Л':'L','Љ':'Lj','М':'M','Н':'N','Њ':'Nj','О':'O','П':'P','Р':'R',
+  'С':'S','Т':'T','Ћ':'Ć','У':'U','Ф':'F','Х':'H','Ц':'C','Ч':'Č','Џ':'Dž','Ш':'Š',
+  'а':'a','б':'b','в':'v','г':'g','д':'d','ђ':'đ','е':'e','ж':'ž','з':'z','и':'i',
+  'ј':'j','к':'k','л':'l','љ':'lj','м':'m','н':'n','њ':'nj','о':'o','п':'p','р':'r',
+  'с':'s','т':'t','ћ':'ć','у':'u','ф':'f','х':'h','ц':'c','ч':'č','џ':'dž','ш':'š'
+};
+
+// Converts Serbian Cyrillic to proper Serbian Latin (keeping č/ć/š/ž/đ),
+// suitable for storing and displaying on screen. Non-Cyrillic input (incl.
+// already-Latin text) passes through unchanged.
+function cyrillicToLatin(str) {
+  if (!str) return str;
+  return String(str).replace(/[А-Яа-яЂђЈјЉљЊњЋћЏџ]/g, ch => CYRILLIC_TO_LATIN_MAP[ch] ?? ch);
+}
+
+// jsPDF's built-in (non-embedded) fonts only support the WinAnsi/Latin-1
+// character set, which is missing č/ć/š/ž/đ — those would silently render
+// as blank boxes or the wrong glyph. So text going INTO the exported PDF
+// specifically gets this extra, plain-ASCII pass on top of
+// cyrillicToLatin(); everywhere else in the app keeps the real diacritics.
+const LATIN_DIACRITIC_STRIP_MAP = {
+  'Č':'C','Ć':'C','Š':'S','Ž':'Z','Đ':'Dj',
+  'č':'c','ć':'c','š':'s','ž':'z','đ':'dj'
+};
+function pdfSafeText(str) {
+  if (!str) return str;
+  const latin = cyrillicToLatin(str);
+  return latin.replace(/[ČĆŠŽĐčćšžđ]/g, ch => LATIN_DIACRITIC_STRIP_MAP[ch] ?? ch);
 }
 
 // Creates the marker for a report if it isn't rendered yet, or updates an
