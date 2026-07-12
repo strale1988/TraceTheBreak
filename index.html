@@ -2780,6 +2780,7 @@ const T = {
   deleteConfirm: { en:'Delete this report permanently?',           sr:'Trajno obrisati ovu prijavu?' },
   markReported:  { en:'Mark Reported',                             sr:'Označi kao prijavljeno' },
   navigateSearchPH:  { en:'Search destination...',                  sr:'Pretraži odredište...' },
+  navigatePinPopupBtn: { en:'Navigate',                             sr:'Navigiraj' },
   navigateSearching: { en:'Searching...',                           sr:'Pretraga...' },
   navigateNoResults: { en:'No results found.',                      sr:'Nema rezultata.' },
   navigateSearchFailed: { en:'Search failed. Check connection.',    sr:'Pretraga nije uspela. Provjerite konekciju.' },
@@ -3315,6 +3316,12 @@ const mobilePopupOverlay = document.getElementById('mobilePopupOverlay');
 let mobilePopupOriginalParent = null;
 
 map.on('popupopen', e => {
+  // Utility-company popups are built once at marker-creation time (see
+  // loadAllCompanyMarkers), but whether the Navigate button should show
+  // depends on drivingMode *now* — refresh the content on every open so
+  // toggling driving mode after the pin was created is reflected correctly.
+  const uc = e.popup && e.popup._source && e.popup._source._utilityCompany;
+  if (uc) e.popup.setContent(buildCompanyPopupHtml(uc.c, uc.lat, uc.lon));
   const popupEl = e.popup && e.popup._container;
   if (popupEl) rotatePopupElement(popupEl);
   // Center the map on the report this popup belongs to. The popup itself no
@@ -5887,6 +5894,12 @@ function renderMunicipalityBoundary(muni) {
 // =============================================================================
 const companyGeocodeCache = {}; // "query|countrycode" -> {lat,lon} | null
 
+// Utility companies as rendered into contact rows (map popup or the detail
+// modal's contacts list) keyed by id, so a click on the address — which can
+// only carry a short id through an onclick="" attribute, not an arbitrary
+// string full of quotes/diacritics — can look the full row back up.
+const utilityCompanyRegistry = new Map();
+
 function buildCompanyMarkerHtml() {
   // Same pin proportions as a manually-dropped pin, but its own icon so it
   // reads as "a place" rather than "a reported break" at a glance, tinted
@@ -5915,6 +5928,19 @@ async function geocodeAddress(address, muniName, countryCode) {
   }
   companyGeocodeCache[cacheKey] = result;
   return result;
+}
+
+// Backs the clickable address in a utility company's contact row (map
+// popup or the detail modal's contacts list) — geocodes it (reusing
+// loadAllCompanyMarkers' cache, so this is usually instant) and re-centers
+// the map on it, same as clicking a report's own street address does.
+async function focusUtilityCompanyAddress(id) {
+  const c = utilityCompanyRegistry.get(String(id));
+  if (!c || !c.address) return;
+  const muni = getMunicipalityById(c.municipality_id);
+  const pos = await geocodeAddress(c.address, muni ? municipalityDisplayName(muni) : '', muni ? muni.country_code : null);
+  if (!pos || !isValidLatLng(pos.lat, pos.lon)) return;
+  viewLocationOnMap(pos.lat, pos.lon);
 }
 
 // Loads every verified utility company with an address on file (across all
@@ -5947,7 +5973,8 @@ async function loadAllCompanyMarkers() {
       icon: L.divIcon({ className: '', html: buildCompanyMarkerHtml(), iconSize: [26, 31], iconAnchor: [13, 29] }),
       zIndexOffset: 200
     });
-    marker.bindPopup(buildCompanyPopupHtml(c), { autoPan: false, closeButton: false });
+    marker._utilityCompany = { c, lat: pos.lat, lon: pos.lon };
+    marker.bindPopup(buildCompanyPopupHtml(c, pos.lat, pos.lon), { autoPan: false, closeButton: false });
     marker.addTo(companyMarkersLayer);
     // Nominatim's usage policy caps unauthenticated requests at ~1/second.
     await new Promise(res => setTimeout(res, 1100));
@@ -5959,16 +5986,32 @@ async function loadAllCompanyMarkers() {
 // bare contact card, so both kinds of pins feel like the same UI. The
 // company name lives in the header (as the report popup's category does),
 // so the body only needs the contact rows, not a repeated name.
-function buildCompanyPopupHtml(c) {
+function buildCompanyPopupHtml(c, lat, lon) {
+  // Only offered while actively driving — browsing pins on the regular map
+  // already has "Details"-style ways to look at a place; drive mode is
+  // specifically where "get me there" is the useful action.
+  const navigateBtnHtml = (drivingMode && isValidLatLng(lat, lon) && c.id != null)
+    ? `<button class="status-action-btn" style="background:#2a2a2a;" onclick="navigateToUtilityCompany('${escapeHtml(String(c.id))}', ${lat}, ${lon})">${t('navigatePinPopupBtn')}</button>`
+    : '';
   return `<div class="popup-inner popup-card">
     <div class="popup-header" style="background:#3a3a3a;">
       <span class="popup-header-title">${escapeHtml(c.name)}</span>
     </div>
     <div class="popup-body" style="padding:12px 14px;">${renderContactRows(c)}</div>
     <div class="status-action-row" style="border-top:none;padding-top:0;">
+      ${navigateBtnHtml}
       <button class="status-action-btn popup-close-btn" style="background:#3a3a3a;" onclick="map.closePopup();">${t('closeBtn')}</button>
     </div>
   </div>`;
+}
+
+// Backs the popup's Navigate button — only an id and plain numbers ever
+// travel through the onclick="" attribute (company names are free text an
+// admin can type, including quotes, so they never go directly into inline
+// JS); the label for the driving HUD is looked up from the registry here.
+function navigateToUtilityCompany(id, lat, lon) {
+  const c = utilityCompanyRegistry.get(String(id));
+  selectDestination(lat, lon, c ? c.name : '');
 }
 
 // Small popup card for the GPS/manual-pin marker — the floating badge above
@@ -6552,7 +6595,7 @@ function buildPopupHtml(report) {
     ${report.comment ? `<div class="popup-note">${escapeHtml(report.comment)}</div>` : ''}
     <div class="status-action-row" style="border-top:none;padding-top:0;">
       <button class="status-action-btn" style="background:#2a2a2a;" onclick="showReportDetailModal('${report.id}')">${t('detailsBtn')}</button>
-      <button class="status-action-btn popup-close-btn" style="background:#3a3a3a;flex:0 0 auto;min-width:0;width:36px;" onclick="map.closePopup();" aria-label="${t('closeBtn')}"><img class="icon-img icon-img-inline" src="icons/close.png" alt="close"></button>
+      <button class="status-action-btn popup-close-btn" style="background:#3a3a3a;" onclick="map.closePopup();">${t('closeBtn')}</button>
     </div>
     ${actionsHtml}
     ${noteActionHtml}
@@ -6736,11 +6779,12 @@ async function getReportContacts(report, muni) {
 // and buildCompanyPopupHtml() (map pin popup, where the name already lives
 // in the popup-header so repeating it in a nested card would be redundant).
 function renderContactRows(c) {
+  if (c && c.id != null) utilityCompanyRegistry.set(String(c.id), c);
   return `
       ${c.phone ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/phone.png" alt="phone"><a href="tel:${escapeHtml(c.phone)}">${escapeHtml(c.phone)}</a></div>` : ''}
       ${c.email ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/email.png" alt="email"><a href="mailto:${escapeHtml(c.email)}">${escapeHtml(c.email)}</a></div>` : ''}
       ${c.website ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/link.png" alt="link"><a href="${escapeHtml(c.website)}" target="_blank" rel="noopener">${escapeHtml(c.website)}</a></div>` : ''}
-      ${c.address ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/pin.png" alt="pin"><span>${escapeHtml(c.address)}</span></div>` : ''}
+      ${c.address && c.id != null ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/pin.png" alt="pin"><a href="javascript:void(0)" onclick="focusUtilityCompanyAddress('${escapeHtml(String(c.id))}')">${escapeHtml(c.address)}</a></div>` : c.address ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/pin.png" alt="pin"><span>${escapeHtml(c.address)}</span></div>` : ''}
       ${c.notes ? `<div class="contact-card-row contact-card-notes"><span>${escapeHtml(c.notes)}</span></div>` : ''}
   `;
 }
