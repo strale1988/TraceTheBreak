@@ -1830,6 +1830,32 @@ details[open] > summary .uc-group-chevron{ transform:rotate(90deg); }
   background:var(--bg-surface); color:var(--text-primary); font-size:13px; font-family:inherit;
   resize:vertical; min-height:44px;
 }
+/* Explicit accuracy sign-off, separate from the ordinary Save action.
+   Deliberately loud/red and full-width so it doesn't read as "just another
+   button" next to Cancel/Save — this is the gate that decides whether the
+   contact's details are ever shown to a reporter. */
+.uc-verify-btn{
+  width:100%; margin-top:2px; padding:13px 12px; border:none; border-radius:8px;
+  background:#c0392b; color:#fff; font-size:13px; font-weight:800; letter-spacing:.2px;
+  text-transform:uppercase; cursor:pointer;
+}
+.uc-verify-btn:active{ background:#a5301f; }
+.uc-verify-status{
+  font-size:11.5px; font-weight:600; text-align:center; padding:2px 0;
+}
+.uc-verify-status.is-verified{ color:#2e7d32; }
+.uc-verify-status.is-unverified{ color:var(--text-muted); }
+/* Small badge on each contact row in the admin list, so it's obvious at a
+   glance which contacts are actually live for reporters vs still hidden
+   pending review. */
+.uc-verified-chip{
+  font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.2px;
+  padding:2px 6px; border-radius:10px; color:#fff; background:#2e7d32;
+}
+.uc-unverified-chip{
+  font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.2px;
+  padding:2px 6px; border-radius:10px; color:#fff; background:#8a8a8a;
+}
 
 #dateRangePicker {
   cursor: pointer;
@@ -2257,6 +2283,8 @@ span.flatpickr-weekday {
           <button type="button" class="settings-btn" style="flex:1;" onclick="cancelUcForm()" id="ucCancelBtn">Cancel</button>
           <button type="button" style="background:#a67817;color:white;flex:1;" onclick="saveUtilityCompany()" id="ucSaveBtn">Save</button>
         </div>
+        <div class="uc-verify-status" id="ucVerifyStatus"></div>
+        <button type="button" class="uc-verify-btn" onclick="verifyUtilityCompany()" id="ucVerifyBtn">Admin has checked the data</button>
       </div>
     </div>
   </div>
@@ -2786,7 +2814,13 @@ const T = {
   ucNotesPH:         { en:'Notes (optional)',                     sr:'Napomena (opciono)' },
   ucValidationError: { en:'Choose a municipality, at least one category, and enter a company name.', sr:'Izaberite opštinu, bar jednu kategoriju i unesite naziv preduzeća.' },
   ucSaveError:       { en:'Could not save. Try again.',           sr:'Čuvanje nije uspelo. Pokušajte ponovo.' },
-  ucDeleteConfirm:   { en:'Delete this contact permanently?',     sr:'Trajno obrisati ovaj kontakt?' }
+  ucDeleteConfirm:   { en:'Delete this contact permanently?',     sr:'Trajno obrisati ovaj kontakt?' },
+  ucVerifyBtn:       { en:'Admin has checked the data',           sr:'Admin je proverio podatke' },
+  ucVerifyConfirm:   { en:'Confirm that this contact\'s details are accurate? It will only become visible to reporters once confirmed.', sr:'Potvrđujete da su podaci o ovom kontaktu tačni? Postaće vidljivi prijaviocima tek nakon potvrde.' },
+  ucVerifiedStatus:  { en:'✓ Verified — visible to reporters',    sr:'✓ Provereno — vidljivo prijaviocima' },
+  ucUnverifiedStatus:{ en:'Not verified yet — hidden from reporters', sr:'Još nije provereno — skriveno od prijavilaca' },
+  ucVerifiedChip:    { en:'Verified',                             sr:'Provereno' },
+  ucUnverifiedChip:  { en:'Unverified',                           sr:'Nije provereno' }
 };
 
 function t(k){ return T[k]?.[lang] ?? k; }
@@ -5734,6 +5768,8 @@ async function showMunicipalityBoundaryForPoint(lat, lon) {
 const UC_CATEGORIES = ['Water','Electricity','Sewage','Gas','Heating','Road','Streetlight','Waste','Walkways','BikeLanes','GreenSpaces','Other'];
 let ucCompaniesCache = [];
 let ucEditingId = null;
+let ucEditingVerified = false;   // verified state of the row currently open in the form
+let ucEditingVerifiedAt = null;
 
 function municipalityDisplayName(m) {
   if (!m) return '';
@@ -5779,6 +5815,24 @@ function applyUcFormTranslations() {
   if (addMuniBtn) addMuniBtn.textContent = t('ucAddMuniBtn');
   const hint = document.getElementById('ucNoMunicipalitiesHint');
   if (hint) hint.textContent = t('ucNoMunicipalitiesHint');
+  const verifyBtn = document.getElementById('ucVerifyBtn');
+  if (verifyBtn) verifyBtn.textContent = t('ucVerifyBtn');
+  renderUcVerifyStatus();
+}
+
+// Reflects the currently-loaded contact's verified state above the red
+// verify button. `ucEditingVerified`/`ucEditingVerifiedAt` are set in
+// resetUcForm()/editUtilityCompany() and kept in sync by save/verify calls.
+function renderUcVerifyStatus() {
+  const el = document.getElementById('ucVerifyStatus');
+  if (!el) return;
+  if (ucEditingVerified) {
+    el.textContent = t('ucVerifiedStatus') + (ucEditingVerifiedAt ? ' · ' + formatDate(ucEditingVerifiedAt) : '');
+    el.className = 'uc-verify-status is-verified';
+  } else {
+    el.textContent = t('ucUnverifiedStatus');
+    el.className = 'uc-verify-status is-unverified';
+  }
 }
 
 function populateUcMunicipalitySelect() {
@@ -5868,6 +5922,9 @@ function renderUcList() {
         const catsHtml = (c.categories || []).map(cat =>
           '<span class="uc-cat-chip" style="background:' + categoryColor(cat) + ';">' + translateCategory(cat) + '</span>'
         ).join('');
+        const verifiedChip = c.verified
+          ? '<span class="uc-verified-chip">' + t('ucVerifiedChip') + '</span>'
+          : '<span class="uc-unverified-chip">' + t('ucUnverifiedChip') + '</span>';
         return '<div class="uc-item">' +
           '<div class="uc-item-top">' +
             '<div>' +
@@ -5878,7 +5935,7 @@ function renderUcList() {
               '<button type="button" style="background:#7a1f1f;color:#fff;" onclick="deleteUtilityCompany(\'' + c.id + '\')">' + t('deleteBtn') + '</button>' +
             '</div>' +
           '</div>' +
-          '<div class="uc-item-cats">' + catsHtml + '</div>' +
+          '<div class="uc-item-cats">' + verifiedChip + catsHtml + '</div>' +
         '</div>';
       }).join('');
       return '<details class="uc-muni-group">' +
@@ -5907,6 +5964,8 @@ function toggleUcForm() {
 
 function resetUcForm() {
   ucEditingId = null;
+  ucEditingVerified = false;
+  ucEditingVerifiedAt = null;
   const editIdEl = document.getElementById('ucEditId');
   if (editIdEl) editIdEl.value = '';
   ['ucName', 'ucPhone', 'ucEmail', 'ucWebsite', 'ucAddress', 'ucNotes'].forEach(id => {
@@ -5930,6 +5989,8 @@ function editUtilityCompany(id) {
   if (!c) return;
   resetUcForm();
   ucEditingId = c.id;
+  ucEditingVerified = !!c.verified;
+  ucEditingVerifiedAt = c.verified_at || null;
   document.getElementById('ucEditId').value = c.id;
   const sel = document.getElementById('ucMunicipalitySelect');
   if (sel) sel.value = c.municipality_id;
@@ -5943,20 +6004,23 @@ function editUtilityCompany(id) {
     const cb = document.querySelector('#ucCatChecks input[value="' + cat + '"]');
     if (cb) cb.checked = true;
   });
+  renderUcVerifyStatus();
   const form = document.getElementById('ucForm');
   form.style.display = 'flex';
   form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
-async function saveUtilityCompany() {
+// Reads + validates the form fields shared by both the plain Save and the
+// verify action. Returns null (after alerting) if required fields are missing.
+function readUcFormRow() {
   const municipalityId = document.getElementById('ucMunicipalitySelect').value;
   const name = document.getElementById('ucName').value.trim();
   const categories = Array.from(document.querySelectorAll('#ucCatChecks input:checked')).map(cb => cb.value);
   if (!municipalityId || !name || !categories.length) {
     alert(t('ucValidationError'));
-    return;
+    return null;
   }
-  const row = {
+  return {
     municipality_id: municipalityId,
     name,
     categories,
@@ -5965,10 +6029,29 @@ async function saveUtilityCompany() {
     website: document.getElementById('ucWebsite').value.trim() || null,
     address: document.getElementById('ucAddress').value.trim() || null,
     notes:   document.getElementById('ucNotes').value.trim()   || null,
-    updated_at: new Date().toISOString()
   };
+}
+
+// Single insert/update path for the contact form. `verified` controls
+// whether the saved row is allowed to show its name/phone/email/etc. in a
+// reporter's report-detail contacts list (see showReportDetailModal):
+//  - Plain Save (verified=false) always clears verification — editing a
+//    previously-checked contact takes it off public view again until an
+//    admin explicitly re-confirms the new data.
+//  - The red "Admin has checked the data" button is the only path that can
+//    set verified=true.
+async function persistUcRow(verified) {
+  const row = readUcFormRow();
+  if (!row) return;
+  row.updated_at = new Date().toISOString();
+  row.verified = verified;
+  row.verified_at = verified ? new Date().toISOString() : null;
+  row.verified_by = verified ? (currentSession ? currentSession.user.id : null) : null;
+
   const saveBtn = document.getElementById('ucSaveBtn');
+  const verifyBtn = document.getElementById('ucVerifyBtn');
   if (saveBtn) saveBtn.disabled = true;
+  if (verifyBtn) verifyBtn.disabled = true;
   try {
     let error;
     if (ucEditingId) {
@@ -5985,7 +6068,19 @@ async function saveUtilityCompany() {
     alert(t('ucSaveError'));
   } finally {
     if (saveBtn) saveBtn.disabled = false;
+    if (verifyBtn) verifyBtn.disabled = false;
   }
+}
+
+function saveUtilityCompany() {
+  return persistUcRow(false);
+}
+
+// The big red button: requires an explicit confirm (mirrors deleteUtilityCompany's
+// confirm() pattern) since this is what flips a contact's details on for reporters.
+function verifyUtilityCompany() {
+  if (!confirm(t('ucVerifyConfirm'))) return;
+  return persistUcRow(true);
 }
 
 async function deleteUtilityCompany(id) {
@@ -6258,9 +6353,13 @@ async function showReportDetailModal(reportId) {
     return;
   }
   try {
+    // .eq('verified', true): only contacts an admin has explicitly checked
+    // are ever shown here — the municipality name/boundary above is
+    // resolved independently of this and is unaffected by verification.
     const { data, error } = await sb.from(UTILITY_COMPANIES_TABLE)
       .select('*')
       .eq('municipality_id', muni.id)
+      .eq('verified', true)
       .contains('categories', [report.category]);
     if (error) throw error;
     if (contactsEl) contactsEl.innerHTML = renderContactCards(data || []);
