@@ -1811,6 +1811,11 @@ details[open] > summary .uc-group-chevron{ transform:rotate(90deg); }
   display:flex; flex-direction:column; gap:8px; padding:0 10px 10px;
 }
 .uc-country-count{ font-weight:400; font-size:11px; color:var(--text-muted); margin-left:auto; }
+.uc-muni-add-btn{
+  flex-shrink:0; width:20px; height:20px; line-height:18px; padding:0;
+  border-radius:50%; border:none; background:#a67817; color:#fff;
+  font-size:14px; font-weight:700; cursor:pointer;
+}
 .uc-form{
   display:flex; flex-direction:column; gap:8px;
   background:var(--bg-surface-alt); border:1px solid var(--border-color); border-radius:10px; padding:12px;
@@ -2266,11 +2271,13 @@ span.flatpickr-weekday {
 
       <div class="uc-form" id="ucForm" style="display:none">
         <input type="hidden" id="ucEditId">
-        <div class="uc-form-row">
-          <select id="ucMunicipalitySelect" style="flex:1;"></select>
+        <div id="ucMuniPicker">
+          <div class="uc-form-row">
+            <select id="ucMunicipalitySelect" style="flex:1;"></select>
+          </div>
+          <button type="button" class="settings-btn" onclick="addMunicipalityFromMapCenter()" id="ucAddMuniBtn"><img class="icon-img icon-img-inline icon-tint-dark" src="icons/pin.png" alt="Pin"> Add municipality from map center</button>
+          <div id="ucNoMunicipalitiesHint" class="detail-empty" style="display:none;"></div>
         </div>
-        <button type="button" class="settings-btn" onclick="addMunicipalityFromMapCenter()" id="ucAddMuniBtn"><img class="icon-img icon-img-inline icon-tint-dark" src="icons/pin.png" alt="Pin"> Add municipality from map center</button>
-        <div id="ucNoMunicipalitiesHint" class="detail-empty" style="display:none;"></div>
         <div class="uc-cat-checks" id="ucCatChecks"></div>
         <input type="text" id="ucName" placeholder="Company name">
         <div class="uc-form-row">
@@ -6004,9 +6011,16 @@ function renderUcList() {
           '<div class="uc-item-cats">' + verifiedChip + catsHtml + '</div>' +
         '</div>';
       }).join('');
-      return '<details class="uc-muni-group">' +
+      // Add button only makes sense for a real municipality — the "Unknown"
+      // bucket (companies whose municipality_id doesn't resolve, or is
+      // missing) has nothing to pin a new contact to.
+      const addBtnHtml = muni
+        ? '<button type="button" class="uc-muni-add-btn" title="' + t('ucAddContactBtn') + '" ' +
+          'onclick="event.preventDefault(); event.stopPropagation(); addContactForMunicipality(\'' + muni.id + '\');">+</button>'
+        : '';
+      return '<details class="uc-muni-group" id="uc-muni-group-' + (muni ? muni.id : 'unknown') + '">' +
         '<summary><span class="uc-group-chevron">▶</span> ' + muniLabel +
-          ' <span class="uc-country-count">(' + companies.length + ')</span></summary>' +
+          ' <span class="uc-country-count">(' + companies.length + ')</span>' + addBtnHtml + '</summary>' +
         '<div class="uc-muni-items">' + itemsHtml + '</div>' +
       '</details>';
     }).join('');
@@ -6018,6 +6032,38 @@ function renderUcList() {
       muniHtml +
     '</details>';
   }).join('') + '</div>';
+}
+
+// Shows/hides the municipality <select> + "Add municipality from map center"
+// button + empty-state hint as one unit. Hidden when adding a contact via
+// the per-municipality + button (addContactForMunicipality), since the
+// municipality is already fixed by which + was clicked — nothing to pick,
+// and no reason to offer importing a *different* municipality's boundary
+// from the current map center in that flow. Shown again for the plain
+// "+ Add contact" flow and for editing an existing contact (where
+// reassigning municipality is still a legitimate thing to do).
+function setUcMuniPickerVisible(visible) {
+  const picker = document.getElementById('ucMuniPicker');
+  if (picker) picker.style.display = visible ? '' : 'none';
+}
+
+function addContactForMunicipality(municipalityId) {
+  resetUcForm();
+  setUcMuniPickerVisible(false);
+  const sel = document.getElementById('ucMunicipalitySelect');
+  if (sel) sel.value = municipalityId;
+
+  const form = document.getElementById('ucForm');
+  const detailsEl = document.getElementById('uc-muni-group-' + municipalityId);
+  if (detailsEl) {
+    detailsEl.open = true; // the + button suppresses the native toggle (see renderUcList), so force it open here
+    const itemsEl = detailsEl.querySelector('.uc-muni-items');
+    if (itemsEl && form) itemsEl.insertAdjacentElement('beforeend', form); // just below this municipality's existing contacts
+  }
+  if (form) {
+    form.style.display = 'flex';
+    form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
 }
 
 // The form is a single shared node that gets physically relocated in the
@@ -6041,6 +6087,7 @@ function toggleUcForm() {
   if (form.style.display !== 'none') { cancelUcForm(); return; }
   resetUcForm();
   moveUcFormToAnchor();
+  setUcMuniPickerVisible(true);
   form.style.display = 'flex';
 }
 
@@ -6064,6 +6111,7 @@ function cancelUcForm() {
   const form = document.getElementById('ucForm');
   if (form) form.style.display = 'none';
   moveUcFormToAnchor();
+  setUcMuniPickerVisible(true);
   resetUcForm();
 }
 
@@ -6071,6 +6119,7 @@ function editUtilityCompany(id) {
   const c = ucCompaniesCache.find(x => String(x.id) === String(id));
   if (!c) return;
   resetUcForm();
+  setUcMuniPickerVisible(true);
   ucEditingId = c.id;
   ucEditingVerified = !!c.verified;
   ucEditingVerifiedAt = c.verified_at || null;
@@ -6441,6 +6490,19 @@ async function showReportDetailModal(reportId) {
     if (contactsEl) contactsEl.innerHTML = `<div class="detail-empty">${t('detailNoMunicipality')}</div>`;
     return;
   }
+  // Once contacts have been resolved for this report/pin, they're cached
+  // directly on the report object (report.contacts) so reopening the same
+  // pin's detail view later in the session reuses them instead of re-querying
+  // Supabase every time. This mirrors the municipality_id backfill above —
+  // resolve once, keep it on the pin. Note: this is an in-memory, per-session
+  // cache only (cleared whenever loadPinsByWindow() re-fetches reports), so a
+  // contact an admin verifies mid-session won't retroactively appear on a
+  // pin whose contacts were already cached — reopening after a fresh map
+  // load picks up the change.
+  if (report.contacts) {
+    if (contactsEl) contactsEl.innerHTML = renderContactCards(report.contacts);
+    return;
+  }
   try {
     // .eq('verified', true): only contacts an admin has explicitly checked
     // are ever shown here — the municipality name/boundary above is
@@ -6451,7 +6513,8 @@ async function showReportDetailModal(reportId) {
       .eq('verified', true)
       .contains('categories', [report.category]);
     if (error) throw error;
-    if (contactsEl) contactsEl.innerHTML = renderContactCards(data || []);
+    report.contacts = data || [];
+    if (contactsEl) contactsEl.innerHTML = renderContactCards(report.contacts);
   } catch (err) {
     console.error('Failed to load utility contacts:', err.message);
     if (contactsEl) contactsEl.innerHTML = `<div class="detail-empty">${t('detailContactsError')}</div>`;
