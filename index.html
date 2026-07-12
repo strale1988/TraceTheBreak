@@ -1334,11 +1334,14 @@ body.driving-active #appPanel{
    these are provider identity buttons, not app chrome, so they should
    look the same in light/dark mode (standard OAuth-button practice). */
 /* --- OAuth sign-in buttons ---------------------------------------------
-   Styled like every other button/icon in the app rather than each
-   provider's own brand colors: light-mode surface background with
-   dark-gray tinted icons, dark-mode surface-alt background with
-   near-white tinted icons — same --bg-surface(-alt)/--icon-tint-filter
-   pattern used by .pin-map-btn etc. elsewhere in this file. */
+   One row per provider, each a full-width button with a small icon glyph.
+   Google/OSM use the app's own surface variables so they flip naturally
+   with light/dark mode. GitHub is conventionally a near-black
+   buttons in both themes (that's each provider's own brand guideline,
+   not our surface color) — in dark mode they're nudged to the app's
+   slightly-lighter surface-alt tone instead of pure black so they read
+   as part of the UI rather than a flat cutout, and a hairline border is
+   added so they don't disappear against the dark page background. */
 .oauth-btn{
   display:flex;
   align-items:center;
@@ -1356,8 +1359,13 @@ body.driving-active #appPanel{
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
 }
-html[data-theme="dark"] .oauth-btn{ background:var(--bg-surface-alt); }
-.oauth-btn img{ width:18px; height:18px; flex-shrink:0; filter:var(--icon-tint-filter); }
+.oauth-btn img{ width:18px; height:18px; flex-shrink:0; }
+.oauth-btn.oauth-github{ background:#171515; color:#fff; border-color:#171515; }
+.oauth-btn.oauth-osm{ background:var(--bg-surface); color:var(--text-primary); }
+html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt); border-color:var(--border-color-strong); }
+/* GitHub's glyph ships as black artwork; invert it to white so it stays
+   visible against this dark button in both themes. */
+.oauth-btn.oauth-github img{ filter:brightness(0) invert(1); }
 
 #chooseUsernamePanel{
   display:none;
@@ -2340,16 +2348,30 @@ function describeAuthError(err) {
 // Native Supabase OAuth providers. 'google' and 'github' must each be
 // enabled in Supabase Dashboard -> Authentication -> Providers, with their
 // client id/secret configured there — nothing else changes on our end.
+// Native Supabase OAuth providers. 'google' and 'github' must each be
+// enabled in Supabase Dashboard -> Authentication -> Providers, with their
+// client id/secret configured there — nothing else changes on our end.
 async function signInWithProvider(provider) {
   try {
+    // Inside the wrapped APK, Google/GitHub sign-in has to leave for the
+    // system browser (Google blocks completing OAuth inside any embedded
+    // WebView) and finds its way back via a custom tracehub:// deep link
+    // that MainActivity.java is listening for. In a normal browser (or
+    // while testing the webapp directly), there's no such deep link, so we
+    // keep redirecting back to this same page as before.
+    const inWrappedApp = navigator.userAgent.includes('TraceTheStuffApp');
+    const redirectTo = inWrappedApp
+      ? 'tracehub://auth-callback'
+      : window.location.origin + window.location.pathname;
+
     const { error } = await sb.auth.signInWithOAuth({
       provider,
-      // Deliberately origin+pathname, NOT window.location.href: Supabase
-      // appends its own "#access_token=..." onto whatever redirectTo we
+      // Deliberately origin+pathname (or the deep link), NOT window.location.href:
+      // Supabase appends its own "#access_token=..." onto whatever redirectTo we
       // pass, so if the address bar still had a leftover hash from a
       // previous sign-in, we'd end up with a broken "##access_token=...
       // #access_token=..." URL. A clean base every time avoids that.
-      options: { redirectTo: window.location.origin + window.location.pathname }
+      options: { redirectTo }
     });
     if (error) throw error;
     // Successful call redirects the whole page away to the provider; there's
