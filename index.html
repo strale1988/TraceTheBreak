@@ -1647,7 +1647,7 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   border-bottom:1px solid var(--border-color);
   flex-shrink:0;
 }
-.fullscreen-modal-header h2{ font-size:16px; font-weight:700; margin:0; }
+.fullscreen-modal-header h2{ font-size:16px; font-weight:700; margin:0; flex:1; min-width:0; }
 /* Report-detail header only: showReportDetailModal() sets this element's
    background to the report's status color (same colors as the #mapLegend
    status pills) and adds this class. Text/close-button colors are pinned
@@ -1657,12 +1657,13 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
    a theme token. */
 .fullscreen-modal-header.status-colored{ border-bottom-color:transparent; }
 .fullscreen-modal-header.status-colored h2{ color:#fff; }
-.fullscreen-modal-header.status-colored .fullscreen-modal-close{
+.fullscreen-modal-header.status-colored .fullscreen-modal-close,
+.fullscreen-modal-header.status-colored .fullscreen-modal-share{
   background:rgba(255,255,255,.22);
   border-color:rgba(255,255,255,.5);
   color:#fff;
 }
-.fullscreen-modal-close{
+.fullscreen-modal-close, .fullscreen-modal-share{
   background:var(--bg-surface-alt); color:var(--text-primary); border:1px solid var(--border-color-strong); border-radius:8px;
   width:36px; height:36px; flex-shrink:0;
   display:flex; align-items:center; justify-content:center;
@@ -1693,6 +1694,7 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 .contact-card-row a{ color:#4ea1ff; text-decoration:none; }
 .detail-empty{ font-size:12.5px; color:var(--text-secondary); font-style:italic; }
 .detail-loading{ font-size:12.5px; color:var(--text-muted); }
+.detail-export-hint{ font-size:12px; color:var(--text-secondary); margin:0 0 10px; line-height:1.4; }
 .detail-section-title-row{
   display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;
 }
@@ -1804,9 +1806,13 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 }
 .uc-muni-group > summary::-webkit-details-marker{ display:none; }
 .uc-group-chevron{
-  display:inline-block; transition:transform .15s ease; font-size:10px; color:var(--text-muted);
+  display:inline-flex; align-items:center; justify-content:center;
+  width:9px; height:9px; flex-shrink:0;
+  transition:transform .15s ease;
+  transform:rotate(90deg); /* arrow.png points up natively; rotate 90 to point right = "tap to expand" */
 }
-details[open] > summary .uc-group-chevron{ transform:rotate(90deg); }
+.uc-group-chevron img{ width:100%; height:100%; display:block; }
+details[open] > summary .uc-group-chevron{ transform:rotate(180deg); /* point down = "tap to collapse" */ }
 .uc-muni-items{
   display:flex; flex-direction:column; gap:8px; padding:0 10px 10px;
 }
@@ -2304,6 +2310,7 @@ span.flatpickr-weekday {
 <div id="reportDetailModal" class="fullscreen-modal-overlay" style="display:none">
   <div class="fullscreen-modal-header" id="reportDetailHeader">
     <h2 id="reportDetailTitle"></h2>
+    <button class="fullscreen-modal-share" id="reportDetailShareBtn" aria-label="Share">🔗</button>
     <button class="fullscreen-modal-close" id="reportDetailCloseBtn" onclick="hideReportDetailModal()" aria-label="Close">✕</button>
   </div>
   <div class="fullscreen-modal-body" id="reportDetailBody"></div>
@@ -2323,6 +2330,9 @@ span.flatpickr-weekday {
      tag at all), so it could serve a different build on every visit. -->
 <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/sr.js"></script>
+<!-- Used only by exportReportPdf() to build the downloadable/shareable report
+     PDF client-side — no server round trip needed for that. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 
 // =============================================================================
@@ -2805,6 +2815,17 @@ const T = {
   detailNoContacts:      { en:'No contacts registered yet for this type of break in this municipality.', sr:'Za ovu vrstu kvara u ovoj opštini još uvek nema unetih kontakata.' },
   detailContactsError:   { en:'Could not load contacts.',                  sr:'Kontakti nisu učitani.' },
 
+  detailExportTitle:     { en:'Export & share',                            sr:'Izvoz i deljenje' },
+  detailExportHint:      { en:'Save this report as a PDF and send it straight to the responsible utility, or share a link to it.', sr:'Sačuvajte ovaj prijavu kao PDF i pošaljite je direktno nadležnom preduzeću, ili podelite link ka njoj.' },
+  detailExportBtn:       { en:'Export PDF & email',                        sr:'Izvezi PDF i pošalji mejlom' },
+  detailExporting:       { en:'Preparing PDF…',                            sr:'Priprema PDF-a…' },
+  detailExportReady:     { en:'PDF downloaded — attach it to the email that just opened.', sr:'PDF je preuzet — otvoren je mejl, samo prikačite fajl.' },
+  detailExportFailed:    { en:'Could not create the PDF.',                 sr:'PDF nije mogao biti kreiran.' },
+  shareReportBtn:        { en:'Share',                                     sr:'Podeli' },
+  shareText:             { en:'Take a look at this reported issue: {category}', sr:'Pogledajte prijavljeni problem: {category}' },
+  shareLinkCopied:       { en:'Link copied to clipboard.',                 sr:'Link je kopiran.' },
+  shareReportNotFound:   { en:'That shared report could not be found.',    sr:'Deljena prijava nije pronađena.' },
+
   // --- Admin: utility company contacts panel (Settings) ---
   ucSectionTitle:    { en:'Utility company contacts',            sr:'Kontakti javnih preduzeća' },
   ucAddContactBtn:   { en:'+ Add contact',                       sr:'+ Dodaj kontakt' },
@@ -3279,6 +3300,21 @@ let mobilePopupOriginalParent = null;
 map.on('popupopen', e => {
   const popupEl = e.popup && e.popup._container;
   if (popupEl) rotatePopupElement(popupEl);
+  // Center the map on the report this popup belongs to. The popup itself no
+  // longer lives over the pin (it's reparented into #mobilePopupOverlay, see
+  // below), so without this the map could be left panned somewhere the
+  // tapped pin isn't visible at all — e.g. after tapping a marker near the
+  // edge of the screen, or one inside a cluster that had to spiderfy out.
+  // Zoom is left untouched on purpose: this should feel like "bring it to
+  // the middle", not "jump to a fixed zoom level".
+  const source = e.popup && e.popup._source;
+  const reportId = source && source._reportId;
+  if (reportId != null) {
+    const report = globalActiveData.find(r => r.id === reportId);
+    if (report && isValidLatLng(report.latitude, report.longitude)) {
+      map.panTo([report.latitude, report.longitude], { animate: true });
+    }
+  }
   // Always physically move the popup out of Leaflet's panes and into
   // #mobilePopupOverlay — a plain fixed, full-viewport element living
   // directly under <body>. This has to be a real reparent rather than
@@ -6019,14 +6055,14 @@ function renderUcList() {
           'onclick="event.preventDefault(); event.stopPropagation(); addContactForMunicipality(\'' + muni.id + '\');">+</button>'
         : '';
       return '<details class="uc-muni-group" id="uc-muni-group-' + (muni ? muni.id : 'unknown') + '">' +
-        '<summary><span class="uc-group-chevron">▶</span> ' + muniLabel +
+        '<summary><span class="uc-group-chevron"><img src="icons/arrow.png" alt=""></span> ' + muniLabel +
           ' <span class="uc-country-count">(' + companies.length + ')</span>' + addBtnHtml + '</summary>' +
         '<div class="uc-muni-items">' + itemsHtml + '</div>' +
       '</details>';
     }).join('');
 
     return '<details class="uc-country-group">' +
-      '<summary><span class="uc-group-chevron">▶</span> ' + escapeHtml(countryDisplayName(countryCode)) +
+      '<summary><span class="uc-group-chevron"><img src="icons/arrow.png" alt=""></span> ' + escapeHtml(countryDisplayName(countryCode)) +
         (countryCode ? ' (' + escapeHtml(countryCode) + ')' : '') +
         ' <span class="uc-country-count">(' + countryTotal + ')</span></summary>' +
       muniHtml +
@@ -6423,6 +6459,7 @@ async function showReportDetailModal(reportId) {
   const body = document.getElementById('reportDetailBody');
   const titleEl = document.getElementById('reportDetailTitle');
   const headerEl = document.getElementById('reportDetailHeader');
+  const shareBtn = document.getElementById('reportDetailShareBtn');
   const headerTitle = report.subcategory
     ? `${translateCategory(report.category)} / ${subcategoryLabel(report.category, report.subcategory)}`
     : translateCategory(report.category);
@@ -6435,6 +6472,10 @@ async function showReportDetailModal(reportId) {
     headerEl.style.background = statusColor(report.status);
     headerEl.classList.add('status-colored');
   }
+  // The header shell is static (not rebuilt per-report like the body below),
+  // so the share button's handler is bound fresh each time the modal opens
+  // rather than baked into the HTML with a report id.
+  if (shareBtn) shareBtn.onclick = () => shareReport(report.id);
 
   const reporterName = report.owner_username || (lang === 'sr' ? 'Nepoznato' : 'Unknown');
   body.innerHTML = `
@@ -6451,6 +6492,11 @@ async function showReportDetailModal(reportId) {
     <div class="detail-section">
       <div class="detail-section-title">${t('detailContactsTitle')}</div>
       <div id="detailContactsContainer"><div class="detail-loading">${t('detailLoading')}</div></div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-title">${t('detailExportTitle')}</div>
+      <p class="detail-export-hint">${t('detailExportHint')}</p>
+      <button type="button" class="settings-btn" style="width:100%;" onclick="exportReportPdf('${report.id}')" id="reportDetailExportBtn">📄 ${t('detailExportBtn')}</button>
     </div>
   `;
 
@@ -6490,19 +6536,25 @@ async function showReportDetailModal(reportId) {
     if (contactsEl) contactsEl.innerHTML = `<div class="detail-empty">${t('detailNoMunicipality')}</div>`;
     return;
   }
-  // Once contacts have been resolved for this report/pin, they're cached
-  // directly on the report object (report.contacts) so reopening the same
-  // pin's detail view later in the session reuses them instead of re-querying
-  // Supabase every time. This mirrors the municipality_id backfill above —
-  // resolve once, keep it on the pin. Note: this is an in-memory, per-session
-  // cache only (cleared whenever loadPinsByWindow() re-fetches reports), so a
-  // contact an admin verifies mid-session won't retroactively appear on a
-  // pin whose contacts were already cached — reopening after a fresh map
-  // load picks up the change.
-  if (report.contacts) {
-    if (contactsEl) contactsEl.innerHTML = renderContactCards(report.contacts);
-    return;
-  }
+  const contacts = await getReportContacts(report, muni);
+  if (contactsEl) contactsEl.innerHTML = renderContactCards(contacts);
+}
+
+// Shared by showReportDetailModal and exportReportPdf so both always agree
+// on exactly which contacts count (verified + matching category) — resolving
+// this two different ways in two places would risk them drifting apart.
+// Once resolved for a report/pin, contacts are cached directly on the report
+// object (report.contacts) so reopening the same pin later in the session —
+// or exporting right after viewing it — reuses them instead of re-querying
+// Supabase every time. This mirrors the municipality_id backfill elsewhere:
+// resolve once, keep it on the pin. Note: this is an in-memory, per-session
+// cache only (cleared whenever loadPinsByWindow() re-fetches reports), so a
+// contact an admin verifies mid-session won't retroactively appear on a pin
+// whose contacts were already cached — reopening after a fresh map load
+// picks up the change.
+async function getReportContacts(report, muni) {
+  if (report.contacts) return report.contacts;
+  if (!muni || muni.id == null) { report.contacts = []; return report.contacts; }
   try {
     // .eq('verified', true): only contacts an admin has explicitly checked
     // are ever shown here — the municipality name/boundary above is
@@ -6514,11 +6566,11 @@ async function showReportDetailModal(reportId) {
       .contains('categories', [report.category]);
     if (error) throw error;
     report.contacts = data || [];
-    if (contactsEl) contactsEl.innerHTML = renderContactCards(report.contacts);
   } catch (err) {
     console.error('Failed to load utility contacts:', err.message);
-    if (contactsEl) contactsEl.innerHTML = `<div class="detail-empty">${t('detailContactsError')}</div>`;
+    report.contacts = [];
   }
+  return report.contacts;
 }
 
 function renderContactCards(companies) {
