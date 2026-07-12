@@ -6575,16 +6575,27 @@ async function persistUcRow(verified) {
       ({ error } = await sb.from(UTILITY_COMPANIES_TABLE).insert(row));
     }
     if (error) throw error;
+    const wasEditingId = ucEditingId;
     // Unlike cancelUcForm(), we don't hide the form here — after a save the
     // admin is often about to add/edit another contact right away, so we
-    // just reset it back to a blank "add" state and keep it open. We do
-    // still need to move it back to its default anchor (out of whichever
-    // uc-item/uc-muni-items it was living in) before loadUtilityCompaniesAdmin()
-    // rebuilds #ucList's innerHTML, or the form node itself would be wiped out.
+    // keep it open. We do still need to move it back to its default anchor
+    // (out of whichever uc-item/uc-muni-items it was living in) before
+    // loadUtilityCompaniesAdmin() rebuilds #ucList's innerHTML, or the form
+    // node itself would be wiped out along with the old list markup.
     moveUcFormToAnchor();
-    resetUcForm();
-    setUcMuniPickerVisible(true);
     await loadUtilityCompaniesAdmin();
+    if (wasEditingId) {
+      // This was an edit, not a fresh add — reopen the form right back
+      // under that same row, pre-filled with the freshly-saved data, so the
+      // admin can immediately hit "Admin has checked the data" to confirm
+      // it, instead of having to find and click Edit on the row again.
+      editUtilityCompany(wasEditingId);
+    } else {
+      // A brand-new contact: reset to a blank "add" state and keep the
+      // form open, ready for the next one.
+      resetUcForm();
+      setUcMuniPickerVisible(true);
+    }
   } catch (err) {
     console.error('Failed to save utility company:', err.message);
     alert(t('ucSaveError'));
