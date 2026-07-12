@@ -1697,6 +1697,10 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 .contact-card-row:not(:last-child){ border-bottom:1px solid var(--border-color); }
 .contact-card-row a{ color:#4ea1ff; text-decoration:none; }
 .contact-card-icon{ width:15px; height:15px; flex-shrink:0; filter:var(--icon-tint-filter); }
+.company-marker-icon{
+  width:26px; height:31px; object-fit:contain;
+  filter:var(--icon-tint-filter) drop-shadow(0 3px 6px rgba(0,0,0,.45));
+}
 .contact-card-row.contact-card-notes{ color:var(--text-muted); font-style:italic; }
 .detail-empty{ font-size:12.5px; color:var(--text-secondary); font-style:italic; }
 .detail-loading{ font-size:12.5px; color:var(--text-muted); }
@@ -3143,10 +3147,9 @@ function removeReportLayer(layer) {
   else map.removeLayer(layer);
 }
 
-// Holds the auto-shown pins for verified public utility companies in
-// whichever municipality is currently "active" (GPS fix, manual pin, or an
-// open report's municipality) — see showCompanyMarkersForMunicipality()
-// near renderMunicipalityBoundary() below.
+// Holds the pins for every verified public utility company that has an
+// address on file — see loadAllCompanyMarkers() near renderMunicipalityBoundary()
+// below, called once at STARTUP.
 const companyMarkersLayer = L.layerGroup().addTo(map);
 
 // Reparents Leaflet's internal map-pane (tiles + markers + lines + popups)
@@ -5862,39 +5865,33 @@ function hideMunicipalityLabel() {
 function renderMunicipalityBoundary(muni) {
   if (!muni) {
     hideMunicipalityLabel();
-    showCompanyMarkersForMunicipality(null);
     return;
   }
   showMunicipalityLabel(muni);
-  // Fire-and-forget: pins are added to the map one by one as each address
-  // finishes geocoding, rather than blocking the badge on the whole batch.
-  showCompanyMarkersForMunicipality(muni);
 }
 
 // =============================================================================
-// PUBLIC UTILITY COMPANY PINS — automatically shown on the map for
-// whichever municipality is currently "active" (see renderMunicipalityBoundary
-// above: GPS fix, a manually-dropped pin, or an open report's municipality).
-// Company addresses are free text entered by an admin, so there's no
-// lat/lon on file for them — each address is forward-geocoded via
-// Nominatim the first time its municipality comes up in a session and
-// cached in memory afterwards, so revisiting the same municipality later
-// never re-geocodes anything.
+// PUBLIC UTILITY COMPANY PINS — shown on the map alongside report pins for
+// every verified company that has an address on file, regardless of which
+// municipality is currently active. Company addresses are free text
+// entered by an admin, so there's no lat/lon on file for them — each one is
+// forward-geocoded via Nominatim once at startup (see loadAllCompanyMarkers,
+// called near STARTUP below) and cached in memory so a given address is
+// never re-geocoded twice in the same session.
 // =============================================================================
-let companyMarkersMuniId = null;          // municipality these pins currently belong to
-const companyGeocodeCache = {};           // "query|countrycode" -> {lat,lon} | null
+const companyGeocodeCache = {}; // "query|countrycode" -> {lat,lon} | null
 
 function buildCompanyMarkerHtml() {
-  // Same pin artwork as a manually-dropped pin, tinted blue so it reads as
-  // "a place" rather than "a reported break" (report pins use category
-  // colors) at a glance.
-  return '<img src="icons/pin.png" alt="" style="width:26px;height:31px;' +
-    'object-fit:contain;filter:drop-shadow(0 3px 6px rgba(0,0,0,.45)) hue-rotate(190deg) saturate(2.2) brightness(1.05);">';
+  // Same pin proportions as a manually-dropped pin, but its own icon so it
+  // reads as "a place" rather than "a reported break" at a glance, tinted
+  // to match the current theme like every other icon glyph in the app.
+  return '<img src="icons/public.png" alt="" class="company-marker-icon">';
 }
 
-// Forward-geocodes one free-text address via Nominatim. Never called
-// concurrently by showCompanyMarkersForMunicipality below, so this alone is
-// enough to keep to Nominatim's usage-policy limit of ~1 request/second.
+// Forward-geocodes one free-text address via Nominatim. Only ever called
+// sequentially (one at a time, awaited) by loadAllCompanyMarkers below, so
+// that alone is enough to keep to Nominatim's usage-policy limit of
+// ~1 request/second without any extra queueing here.
 async function geocodeAddress(address, muniName, countryCode) {
   const query = [address, muniName].filter(Boolean).join(', ');
   const cacheKey = `${query}|${countryCode || ''}`;
@@ -5914,27 +5911,16 @@ async function geocodeAddress(address, muniName, countryCode) {
   return result;
 }
 
-// Loads every verified utility company with an address on file for `muni`,
-// geocodes each address one at a time, and drops a pin for it. Skips the
-// whole thing when `muni` is the same one already shown (this is called
-// every time the GPS puck or manual pin is (re)placed, not just when the
-// municipality actually changes), and bails out mid-batch if the active
-// municipality moves on again before it finishes.
-async function showCompanyMarkersForMunicipality(muni) {
-  if (!muni) {
-    companyMarkersMuniId = null;
-    companyMarkersLayer.clearLayers();
-    return;
-  }
-  if (muni.id === companyMarkersMuniId) return;
-  companyMarkersMuniId = muni.id;
-  companyMarkersLayer.clearLayers();
-
+// Loads every verified utility company with an address on file (across all
+// municipalities), geocodes each address one at a time, and drops a pin
+// for it as soon as it resolves — pins appear on the map progressively
+// rather than all at once. Called once at STARTUP; nothing else needs to
+// trigger it since these pins aren't tied to the user's current location.
+async function loadAllCompanyMarkers() {
   let companies;
   try {
     const { data, error } = await sb.from(UTILITY_COMPANIES_TABLE)
       .select('*')
-      .eq('municipality_id', muni.id)
       .eq('verified', true)
       .not('address', 'is', null);
     if (error) throw error;
@@ -5943,13 +5929,13 @@ async function showCompanyMarkersForMunicipality(muni) {
     console.error('Failed to load utility companies for map pins:', err.message);
     return;
   }
+  if (!companies.length) return;
 
-  const muniName = municipalityDisplayName(muni);
+  await loadMunicipalityCache();
   for (const c of companies) {
     if (!c.address) continue;
-    if (companyMarkersMuniId !== muni.id) return; // active municipality changed mid-batch
-    const pos = await geocodeAddress(c.address, muniName, muni.country_code);
-    if (companyMarkersMuniId !== muni.id) return; // changed again while awaiting the geocode
+    const muni = getMunicipalityById(c.municipality_id);
+    const pos = await geocodeAddress(c.address, muni ? municipalityDisplayName(muni) : '', muni ? muni.country_code : null);
     if (!pos || !isValidLatLng(pos.lat, pos.lon)) continue;
     const marker = L.marker([pos.lat, pos.lon], {
       icon: L.divIcon({ className: '', html: buildCompanyMarkerHtml(), iconSize: [26, 31], iconAnchor: [13, 29] }),
@@ -6654,8 +6640,15 @@ async function showReportDetailModal(reportId) {
   fetchAddressForPoint(report.latitude, report.longitude).then(addr => {
     const streetEl = document.getElementById('detailStreetValue');
     const areaEl   = document.getElementById('detailAreaValue');
-    if (streetEl) streetEl.textContent = (addr && addr.street) ? addr.street : t('detailUnknown');
-    if (areaEl)   areaEl.textContent   = (addr && addr.area)   ? addr.area   : t('detailUnknown');
+    if (streetEl) {
+      // Clickable when we actually have a street to show — re-centers our
+      // own map on this report's exact location rather than linking out to
+      // a third-party maps app.
+      streetEl.innerHTML = (addr && addr.street)
+        ? `<a href="javascript:void(0)" onclick="viewLocationOnMap(${report.latitude}, ${report.longitude})">${escapeHtml(addr.street)}</a>`
+        : escapeHtml(t('detailUnknown'));
+    }
+    if (areaEl) areaEl.textContent = (addr && addr.area) ? addr.area : t('detailUnknown');
   });
 
   // Resolves by stored municipality_id when present (source of truth);
@@ -6735,6 +6728,17 @@ function renderContactCards(companies) {
 
 function hideReportDetailModal() {
   document.getElementById('reportDetailModal').style.display = 'none';
+}
+
+// Closes the detail modal and re-centers/zooms the app's own map on a
+// given point — used by the clickable street address in the Location
+// section so "view on map" stays inside TraceTheBreak instead of handing
+// off to a third-party maps app.
+function viewLocationOnMap(lat, lon) {
+  if (!isValidLatLng(lat, lon)) return;
+  hideReportDetailModal();
+  map.closePopup();
+  map.setView([lat, lon], Math.max(map.getZoom(), 17), { animate: true });
 }
 
 // =============================================================================
@@ -6834,7 +6838,6 @@ async function emailReport(reportId) {
     const headerTitle = report.subcategory
       ? `${translateCategory(report.category)} / ${subcategoryLabel(report.category, report.subcategory)}`
       : translateCategory(report.category);
-    const reporterName = report.owner_username || (lang === 'sr' ? 'Nepoznato' : 'Unknown');
 
     // Street/area/municipality were already resolved for the open detail
     // modal — read straight from its DOM rather than re-querying, so the
@@ -6856,16 +6859,15 @@ async function emailReport(reportId) {
         ? `Prijavljen je sledeći problem: ${headerTitle}.`
         : `The following issue has been reported: ${headerTitle}.`,
       '',
-      `${t('popupStatus')}: ${statusLabel(report.status)}`,
-      `${t('priorityLabel')}: ${priorityLabelText(report.priority)}`,
-      `${t('reportedByLabel')}: ${reporterName}`,
-      `${lang === 'sr' ? 'Prijavljeno' : 'Reported on'}: ${formatDate(report.created_at)}`,
+      `${boldText(t('popupStatus'))}: ${statusLabel(report.status)}`,
+      `${boldText(t('priorityLabel'))}: ${priorityLabelText(report.priority)}`,
+      `${boldText(lang === 'sr' ? 'Prijavljeno' : 'Reported on')}: ${formatDate(report.created_at)}`,
       '',
-      `${t('detailStreetLabel')}: ${street}`,
-      `${t('detailAreaLabel')}: ${area}`,
-      `${t('detailMunicipalityLabel')}: ${muniText}`,
-      `${t('detailCoordsLabel')}: ${report.latitude.toFixed(6)}, ${report.longitude.toFixed(6)}`,
-      ...(report.comment ? ['', `${lang === 'sr' ? 'Opis' : 'Description'}: ${report.comment}`] : []),
+      `${boldText(t('detailStreetLabel'))}: ${street}`,
+      `${boldText(t('detailAreaLabel'))}: ${area}`,
+      `${boldText(t('detailMunicipalityLabel'))}: ${muniText}`,
+      `${boldText(t('detailCoordsLabel'))}: ${report.latitude.toFixed(6)}, ${report.longitude.toFixed(6)}`,
+      ...(report.comment ? ['', `${boldText(lang === 'sr' ? 'Opis' : 'Description')}: ${report.comment}`] : []),
       '',
       lang === 'sr' ? `Detaljan izveštaj i mapa: ${shareUrl}` : `Full report and map: ${shareUrl}`,
       '',
@@ -7164,6 +7166,29 @@ function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
+}
+
+// =============================================================================
+// PLAIN-TEXT "BOLD" — mailto: bodies are plain text (RFC 6068), so there's
+// no HTML/CSS available to bold a field label like "Status" the way the
+// rest of the app would with font-weight. Unicode's Mathematical Bold
+// letters/digits (U+1D400 range) are genuinely distinct code points rather
+// than a style, so swapping plain ASCII for their bold look-alikes reads as
+// bold in any mail client without needing any markup at all. Only used on
+// our own hardcoded field-name words (all plain ASCII), never on
+// user-entered values, which may contain characters outside A-Z/a-z/0-9.
+// =============================================================================
+const BOLD_UNICODE_MAP = (() => {
+  const map = {};
+  for (let i = 0; i < 26; i++) {
+    map[String.fromCharCode(65 + i)] = String.fromCodePoint(0x1D400 + i); // A-Z
+    map[String.fromCharCode(97 + i)] = String.fromCodePoint(0x1D41A + i); // a-z
+  }
+  for (let i = 0; i <= 9; i++) map[String(i)] = String.fromCodePoint(0x1D7CE + i); // 0-9
+  return map;
+})();
+function boldText(str) {
+  return String(str).replace(/[A-Za-z0-9]/g, ch => BOLD_UNICODE_MAP[ch] ?? ch);
 }
 
 // =============================================================================
@@ -7674,6 +7699,7 @@ applyLang();
 loadPinsByWindow();
 openSharedReportFromUrl();
 loadMunicipalityCache(); // fire-and-forget warmup — see loadMunicipalityCache for why
+loadAllCompanyMarkers(); // fire-and-forget — pins appear on the map as each address is geocoded
 // Help modal should greet first-time/logged-out visitors, but not talk
 // over a returning, already-signed-in user every time they open the app.
 // initAuth() resolves the session check first, then we decide.
