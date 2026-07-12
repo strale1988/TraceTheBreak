@@ -2398,8 +2398,18 @@ async function signInWithProvider(provider) {
 // performs the OSM OAuth2 handshake server-side, then hands the browser a
 // real Supabase session via a magic-link redirect. See the SQL/deployment
 // notes for that function; this button just kicks off the redirect.
+//
+// Deliberately origin+pathname, NOT window.location.href (same reasoning as
+// signInWithProvider above): if the address bar still has a leftover
+// "#access_token=..." (or even just a bare "#") from a previous sign-in, an
+// unsanitized window.location.href here gets URL-encoded whole and sent to
+// the edge function as the `redirect_to`/`state` value — which is exactly
+// what was causing the osm-login function to 500 (it was receiving
+// state=https://.../TraceTheBreak/# instead of a clean URL). A clean base
+// every time avoids that regardless of what's currently in the hash.
 function signInWithOsm() {
-  const redirectTo = encodeURIComponent(window.location.href);
+  const cleanUrl = window.location.origin + window.location.pathname;
+  const redirectTo = encodeURIComponent(cleanUrl);
   window.location.href = `${SUPABASE_URL}/functions/v1/osm-login?redirect_to=${redirectTo}`;
 }
 
@@ -2458,6 +2468,27 @@ async function loadProfile() {
 
     if (data) {
       currentProfile = data;
+    } else {
+      // No profile row exists for this signed-in user. Normally the
+      // on_auth_user_created DB trigger creates this row automatically on
+      // sign-up — but if that trigger doesn't fire (seen in practice: a
+      // trigger that looks enabled but is silently skipped by Supabase
+      // Auth's own insert path), the person would otherwise be stuck
+      // looking "logged out" forever despite a valid session. Self-heal by
+      // creating the row here instead. Requires an INSERT policy on
+      // profiles allowing auth.uid() = id.
+      const meta = currentSession.user.user_metadata || {};
+      const { data: created, error: insertError } = await sb.from(PROFILES_TABLE)
+        .insert({
+          id: currentSession.user.id,
+          username: null,
+          avatar_url: meta.avatar_url || null,
+          provider: (currentSession.user.app_metadata && currentSession.user.app_metadata.provider) || 'unknown'
+        })
+        .select('*')
+        .maybeSingle();
+      if (insertError) throw insertError;
+      currentProfile = created;
     }
     updateAuthUI();
   } catch (err) {
