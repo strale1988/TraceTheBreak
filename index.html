@@ -2124,8 +2124,8 @@ span.flatpickr-weekday {
 <div id="navigatePanel" class="navigate-panel">
   <div class="navigate-row">
     <input type="text" id="navigateSearchInput" placeholder="Search destination..."
+           oninput="handleNavigateSearchInput()"
            onkeydown="if(event.key==='Enter'){event.preventDefault();searchDestination();}">
-    <div class="navigate-search-btn" onclick="searchDestination()"><img class="icon-img" src="icons/search.png" alt="Search"></div>
     <div class="navigate-search-btn" id="navigatePinBtn" onclick="toggleNavPinMode()" title="Place destination pin manually"><img class="icon-img" src="icons/pin.png" alt="Pin"></div>
     <div class="navigate-close-btn" onclick="closeNavigatePanel()">✕</div>
   </div>
@@ -3976,6 +3976,7 @@ function toggleNavigatePanel() {
 }
 
 function closeNavigatePanel() {
+  clearTimeout(navigateSearchDebounceTimer);
   navPanelOpen = false;
   document.getElementById('navigatePanel').style.display = 'none';
   document.body.classList.remove('nav-panel-open');
@@ -3999,6 +4000,22 @@ function toggleNavPinMode() {
   const hint = document.getElementById('navigatePinHint');
   if (btn) btn.classList.toggle('active', navPinMode);
   if (hint) hint.style.display = navPinMode ? 'block' : 'none';
+}
+
+// Debounces the results list forming as the user types, instead of making
+// them press a separate search button — Nominatim's ~1 req/sec usage policy
+// means we can't fire on every keystroke, so this waits for a short pause
+// in typing before actually searching. Enter still searches immediately
+// (see the input's onkeydown) for anyone who types fast and hits it right away.
+let navigateSearchDebounceTimer = null;
+function handleNavigateSearchInput() {
+  clearTimeout(navigateSearchDebounceTimer);
+  const q = document.getElementById('navigateSearchInput').value.trim();
+  if (!q) {
+    document.getElementById('navigateResults').innerHTML = '';
+    return;
+  }
+  navigateSearchDebounceTimer = setTimeout(searchDestination, 450);
 }
 
 async function searchDestination() {
@@ -5975,6 +5992,15 @@ async function loadAllCompanyMarkers() {
     });
     marker._utilityCompany = { c, lat: pos.lat, lon: pos.lon };
     marker.bindPopup(buildCompanyPopupHtml(c, pos.lat, pos.lon), { autoPan: false, closeButton: false });
+    // bindPopup() above wires its own default "click opens the popup"
+    // handler; strip it so we can decide per-tap instead — while driving,
+    // tapping the pin should go straight into routing/navigation rather
+    // than showing the contact-card popup with a Navigate button inside it.
+    marker.off('click');
+    marker.on('click', () => {
+      if (drivingMode) navigateToUtilityCompany(String(c.id), pos.lat, pos.lon);
+      else marker.openPopup();
+    });
     marker.addTo(companyMarkersLayer);
     // Nominatim's usage policy caps unauthenticated requests at ~1/second.
     await new Promise(res => setTimeout(res, 1100));
