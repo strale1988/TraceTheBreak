@@ -3026,7 +3026,9 @@ map.on('zoomstart', () => mapContainerEl.classList.add('map-zooming'));
 map.on('zoomend',   () => mapContainerEl.classList.remove('map-zooming'));
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-  attribution:'© OpenStreetMap'
+  attribution:'© OpenStreetMap',
+  maxZoom: 22,
+  maxNativeZoom: 19
 }).addTo(map);
 
 // --- Pin clustering -------------------------------------------------------
