@@ -5669,20 +5669,81 @@ async function resolveMunicipality(lat, lon) {
   return findMunicipalityInCache(lat, lon);
 }
 
+// --- Name-match fallback (no boundary storage required) ---------------------
+// Bulk-imported municipalities (see import_rs_municipalities.sql) carry no
+// boundary polygon at all — on purpose, to avoid pulling hundreds of KB of
+// GeoJSON per municipality into every visitor's loadMunicipalityCache().
+// So point-in-polygon can never match them. This is the alternative: a
+// single lightweight Nominatim reverse call (addressdetails only, no
+// polygon_geojson — much smaller/faster than fetchMunicipalityFromNominatim
+// above) to find out what municipality/city/town this point is *named*,
+// then match that name against municipalities we already have. It never
+// fetches geometry and never writes a new row — only ever attaches an
+// EXISTING municipality's id to a report.
+function normalizeMuniNameForMatch(s) {
+  if (!s) return '';
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')  // strip diacritics (č/ć/š/ž/đ etc.)
+    .replace(/\s*\([^)]*\)\s*/g, ' ')                          // drop parenthetical qualifiers, e.g. "Beograd (Central)" -> "Beograd"
+    .toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
+async function reverseGeocodeMunicipalityCandidates(lat, lon) {
+  const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=10&addressdetails=1`;
+  try {
+    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    if (!res.ok) return { candidates: [], countryCode: null };
+    const json = await res.json();
+    if (!json || json.error) return { candidates: [], countryCode: null };
+    const addr = json.address || {};
+    // Ordered most-specific first; address breakdown includes the full
+    // admin hierarchy regardless of which level `zoom` targets, so one
+    // request is enough — no need to retry across zoom levels here the
+    // way fetchMunicipalityFromNominatim does for boundary imports.
+    const candidates = [addr.city_district, addr.municipality, addr.town, addr.city, addr.county, json.name].filter(Boolean);
+    return { candidates, countryCode: (addr.country_code || '').toUpperCase() || null };
+  } catch (err) {
+    console.warn('Reverse-geocode for municipality name-match failed:', err.message);
+    return { candidates: [], countryCode: null };
+  }
+}
+
+function findMunicipalityByNameMatch(candidateNames, countryCode) {
+  const pool = countryCode
+    ? municipalityCache.filter(m => (m.country_code || '').toUpperCase() === countryCode)
+    : municipalityCache;
+  for (const raw of candidateNames) {
+    const norm = normalizeMuniNameForMatch(raw);
+    if (!norm) continue;
+    const hit = pool.find(m => normalizeMuniNameForMatch(m.name) === norm || normalizeMuniNameForMatch(m.name_en) === norm);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+async function resolveMunicipalityViaGeocode(lat, lon) {
+  if (!isValidLatLng(lat, lon)) return null;
+  await loadMunicipalityCache();
+  const { candidates, countryCode } = await reverseGeocodeMunicipalityCandidates(lat, lon);
+  if (!candidates.length) return null;
+  return findMunicipalityByNameMatch(candidates, countryCode);
+}
+
 // Report-specific resolver: municipality_id, once stored on a report, is
 // the source of truth (see design note at top of file) — so this looks it
 // up directly by id instead of re-running point-in-polygon every time the
-// report is opened. Only falls back to the point-in-polygon lookup for
-// reports that don't have a municipality_id yet (older reports created
-// before this field existed, or a point not covered by any import at
-// submission time), and backfills the id onto the report once found so
-// this only ever happens the one time per report.
+// report is opened. Falls back to the point-in-polygon lookup, then to the
+// name-match geocode fallback above, for reports that don't have a
+// municipality_id yet (older reports created before this field existed, a
+// point not covered by any real boundary, or one of the boundary-less
+// bulk-imported municipalities) — and backfills the id onto the report once
+// found so this only ever happens the one time per report.
 async function resolveReportMunicipality(report) {
   await loadMunicipalityCache();
   if (report.municipality_id != null) {
     return getMunicipalityById(report.municipality_id);
   }
-  const muni = findMunicipalityInCache(report.latitude, report.longitude);
+  let muni = findMunicipalityInCache(report.latitude, report.longitude);
+  if (!muni) muni = await resolveMunicipalityViaGeocode(report.latitude, report.longitude);
   if (muni && muni.id != null) {
     sb.from(TABLE).update({ municipality_id: muni.id }).eq('id', report.id)
       .then(({ error }) => { if (!error) report.municipality_id = muni.id; });
@@ -5691,16 +5752,20 @@ async function resolveReportMunicipality(report) {
 }
 
 // Fire-and-forget: called right after a report is inserted so submission
-// itself never has to wait on this lookup (it's local/instant in practice,
-// but kept async-and-detached for safety). Silently does nothing if a
-// municipality can't be resolved for this point yet.
+// itself never has to wait on this lookup (the cache hit is local/instant
+// in practice; the name-match geocode fallback below does add a real
+// network round-trip, but this is still detached from the submit flow so
+// it never blocks it). Silently does nothing if a municipality can't be
+// resolved for this point at all.
 function resolveAndAttachMunicipality(reportId, lat, lon) {
-  resolveMunicipality(lat, lon).then(muni => {
+  resolveMunicipality(lat, lon).then(async muni => {
+    if (!muni) muni = await resolveMunicipalityViaGeocode(lat, lon);
     if (!muni || muni.id == null || !reportId) return;
     sb.from(TABLE).update({ municipality_id: muni.id }).eq('id', reportId)
       .then(({ error }) => { if (error) console.error('Failed to attach municipality to report:', error.message); });
   }).catch(err => console.error('resolveAndAttachMunicipality error:', err.message));
 }
+
 
 // Shared renderer: draws (or clears) the boundary + floating name pill for
 // a given resolved municipality (or null). Used by both the live-location
