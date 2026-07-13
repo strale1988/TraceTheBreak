@@ -1951,8 +1951,17 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   padding:2px 6px; border-radius:10px; color:white;
 }
 .uc-item-actions{ display:flex; gap:6px; flex-shrink:0; }
-.uc-item-actions button{
-  padding:5px 9px; font-size:11px; border-radius:6px;
+/* Shared small-action-button look for every admin card in the Settings
+   modal (utility company rows, photo review queue, flagged reports) — these
+   used to each hardcode their own padding/font-size (5px 9px @11px vs 7px
+   10px @12px) even though it's visually the same control in every queue.
+   One shared class keeps them in sync going forward instead of drifting
+   again the next time one queue gets tweaked. */
+.admin-action-btn{
+  border:none; border-radius:6px; padding:7px 10px; font-size:12px; font-weight:600; cursor:pointer;
+}
+.uc-item-actions button, .photo-review-actions button{
+  border:none; border-radius:6px; padding:7px 10px; font-size:12px; font-weight:600; cursor:pointer;
 }
 /* Collapsible Country -> Municipality grouping for the admin contacts list.
    Two nested <details> levels; native disclosure triangle is suppressed in
@@ -1991,9 +2000,9 @@ details[open] > summary .uc-group-chevron{ transform:rotate(180deg); /* point do
 }
 .uc-country-count{ font-weight:400; font-size:11px; color:var(--text-muted); margin-left:auto; }
 .uc-muni-add-btn{
-  flex-shrink:0; width:20px; height:20px; line-height:18px; padding:0;
+  flex-shrink:0; width:24px; height:24px; line-height:22px; padding:0;
   border-radius:50%; border:none; background:#a67817; color:#fff;
-  font-size:14px; font-weight:700; cursor:pointer;
+  font-size:15px; font-weight:700; cursor:pointer;
 }
 .uc-form{
   display:flex; flex-direction:column; gap:8px;
@@ -2110,9 +2119,6 @@ details[open] > summary .uc-group-chevron{ transform:rotate(180deg); /* point do
 .photo-review-title{ font-size:13px; font-weight:700; color:var(--text-primary); }
 .photo-review-sub{ font-size:11.5px; color:var(--text-secondary); margin-top:2px; }
 .photo-review-actions{ display:flex; gap:6px; flex-wrap:wrap; }
-.photo-review-actions button{
-  border:none; border-radius:6px; padding:7px 10px; font-size:12px; cursor:pointer;
-}
 
 /* --- Inline "add photo later" camera button — sits to the right of the
    comment/note in both the map popup and the report detail modal, so a
@@ -2286,6 +2292,7 @@ span.flatpickr-weekday {
   <span class="legend-item"><span class="legend-dot" style="background:#9c8570"></span><span class="leg" data-en="Walkways" data-sr="Pešačke staze">Pešačke staze</span></span>
   <span class="legend-item"><span class="legend-dot" style="background:#14b8a6"></span><span class="leg" data-en="Bike Lanes" data-sr="Biciklističke staze">Biciklističke staze</span></span>
   <span class="legend-item"><span class="legend-dot" style="background:#3fa34d"></span><span class="leg" data-en="Green Spaces" data-sr="Zelene površine">Zelene površine</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#5c6bc0"></span><span class="leg" data-en="Parking Violations" data-sr="Nepropisno parkiranje">Nepropisno parkiranje</span></span>
   <span class="legend-item"><span class="legend-dot" style="background:#8342a1"></span><span class="leg" data-en="Other" data-sr="Ostalo">Ostalo</span></span>
 </div>
 
@@ -2306,6 +2313,7 @@ span.flatpickr-weekday {
       <option value="Walkways" data-sr="Pešačke staze">Pešačke staze</option>
       <option value="BikeLanes" data-sr="Biciklističke staze">Biciklističke staze</option>
       <option value="GreenSpaces" data-sr="Zelene površine">Zelene površine</option>
+      <option value="Parking" data-sr="Nepropisno parkiranje">Nepropisno parkiranje</option>
       <option value="Other" data-sr="Ostalo">Ostalo</option>
     </select>
     <select id="priority" onchange="checkFormReady()" style="flex:1 1 130px;">
@@ -6286,6 +6294,7 @@ const CATEGORY_COLORS = {
   'Walkways':     '#9c8570',
   'BikeLanes':    '#14b8a6',
   'GreenSpaces':  '#3fa34d',
+  'Parking':      '#5c6bc0',
   'Other':        '#8342a1',
 };
 // Filenames inside icons/ (see the icon-set screenshot). Used to render the
@@ -6304,6 +6313,7 @@ const CATEGORY_ICONS = {
   'Walkways':     'walkways.png',
   'BikeLanes':    'bicycle.png',
   'GreenSpaces':  'green.png',
+  'Parking':      'no-parking.png',
   'Other':        'warning-symbol.png',
 };
 const SUBCATEGORIES = {
@@ -6367,6 +6377,10 @@ const SUBCATEGORIES = {
     { key:'overgrown_grass',  en:'Overgrown grass',        sr:'Nepokošena trava' },
     { key:'illegal_dumping',  en:'Illegal dumping / litter',sr:'Nelegalno odlaganje otpada / smeće' }
   ],
+  // No subcategories on purpose — "Parking" itself already describes a
+  // single, specific violation type (frequent/illegal parking), unlike the
+  // other categories which cover several distinct fault types each.
+  Parking: [],
   Other: []
 };
 const STATUS_COLORS = {
@@ -6423,8 +6437,8 @@ function statusLabel(s) {
   return t('statusReported');
 }
 function translateCategory(cat) {
-  const labelsEn = { Water:'Water', Electricity:'Electricity', Sewage:'Sewage', Gas:'Gas', Heating:'Heating', Road:'Road', Streetlight:'Streetlight', Waste:'Waste', Walkways:'Walkways', BikeLanes:'Bike Lanes', GreenSpaces:'Green Spaces', Other:'Other' };
-  const labelsSr = { Water:'Voda', Electricity:'Struja', Sewage:'Kanalizacija', Gas:'Gas', Heating:'Grejanje', Road:'Put', Streetlight:'Ulična rasveta', Waste:'Otpad', Walkways:'Pešačke staze', BikeLanes:'Biciklističke staze', GreenSpaces:'Zelene površine', Other:'Ostalo' };
+  const labelsEn = { Water:'Water', Electricity:'Electricity', Sewage:'Sewage', Gas:'Gas', Heating:'Heating', Road:'Road', Streetlight:'Streetlight', Waste:'Waste', Walkways:'Walkways', BikeLanes:'Bike Lanes', GreenSpaces:'Green Spaces', Parking:'Parking Violations', Other:'Other' };
+  const labelsSr = { Water:'Voda', Electricity:'Struja', Sewage:'Kanalizacija', Gas:'Gas', Heating:'Grejanje', Road:'Put', Streetlight:'Ulična rasveta', Waste:'Otpad', Walkways:'Pešačke staze', BikeLanes:'Biciklističke staze', GreenSpaces:'Zelene površine', Parking:'Nepropisno parkiranje', Other:'Ostalo' };
   return (lang === 'sr' ? labelsSr[cat] : labelsEn[cat]) || cat;
 }
 
@@ -7660,7 +7674,7 @@ async function showMunicipalityBoundaryForPoint(lat, lon, marker) {
 // =============================================================================
 // ADMIN: UTILITY COMPANY CONTACTS PANEL (Settings modal, admins only)
 // =============================================================================
-const UC_CATEGORIES = ['Water','Electricity','Sewage','Gas','Heating','Road','Streetlight','Waste','Walkways','BikeLanes','GreenSpaces','Other'];
+const UC_CATEGORIES = ['Water','Electricity','Sewage','Gas','Heating','Road','Streetlight','Waste','Walkways','BikeLanes','GreenSpaces','Parking','Other'];
 let ucCompaniesCache = [];
 let ucEditingId = null;
 let ucEditingVerified = false;   // verified state of the row currently open in the form
@@ -8942,7 +8956,7 @@ function buildDetailStatusReadonlyHtml(report, reporterName) {
 // Editable Status section: category/subcategory/status/priority/comment,
 // all at once, with Save/Cancel at the bottom.
 function buildDetailEditFieldsHtml(report) {
-  const cats = ['Water','Electricity','Sewage','Gas','Heating','Road','Streetlight','Waste','Walkways','BikeLanes','GreenSpaces','Other'];
+  const cats = ['Water','Electricity','Sewage','Gas','Heating','Road','Streetlight','Waste','Walkways','BikeLanes','GreenSpaces','Parking','Other'];
   const catOptions = cats.map(c => `<option value="${c}" ${c === report.category ? 'selected' : ''}>${translateCategory(c)}</option>`).join('');
   const statuses = [
     { key:'reported', label: statusLabel('reported') },
