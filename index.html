@@ -96,6 +96,10 @@
                                      that edge case is accepted
                                      rather than solved with a
                                      portal.)
+     10001  .portrait-lock-overlay  absolute topmost — a phone turned
+                                     sideways should block literally
+                                     everything else, including the
+                                     lang menu above
    ============================================================ */
 
 /* ============================================================
@@ -1762,6 +1766,25 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 }
 .generic-modal-close:active{ background:var(--border-color-strong); }
 
+/* --- Portrait-only lock ---
+   Scoped with an (max-height:500px) ceiling alongside orientation:landscape
+   so this only ever matches an actual phone turned sideways (phones in
+   landscape are reliably under ~500px tall) — a desktop browser window or a
+   tablet in landscape never trips it. Pure CSS, no JS: both the show and
+   the hide are driven entirely by the media query re-evaluating on rotate,
+   so there's no orientationchange listener to miss/race. z-index 10001 —
+   see Z-INDEX SCALE at the top of this stylesheet — deliberately above
+   even .lang-dd-menu (10000) since nothing should be usable while sideways. */
+.portrait-lock-overlay{ display:none !important; z-index:10001; }
+@media (orientation:landscape) and (max-height:500px){
+  .portrait-lock-overlay{ display:flex !important; }
+}
+.portrait-lock-icon{
+  font-size:48px; line-height:1; margin-bottom:14px; display:inline-block;
+  animation:portraitLockRotate 1.6s ease-in-out infinite;
+}
+@keyframes portraitLockRotate{ 0%,100%{ transform:rotate(90deg); } 50%{ transform:rotate(0deg); } }
+
 /* --- Fullscreen report detail modal ------------------------------------
    Opened from the "Detalji" row inside a pin popup. Unlike .generic-modal
    (a centered card, capped at 340-380px), this genuinely covers the whole
@@ -2293,6 +2316,7 @@ span.flatpickr-weekday {
   <span class="legend-item"><span class="legend-dot" style="background:#14b8a6"></span><span class="leg" data-en="Bike Lanes" data-sr="Biciklističke staze">Biciklističke staze</span></span>
   <span class="legend-item"><span class="legend-dot" style="background:#3fa34d"></span><span class="leg" data-en="Green Spaces" data-sr="Zelene površine">Zelene površine</span></span>
   <span class="legend-item"><span class="legend-dot" style="background:#5c6bc0"></span><span class="leg" data-en="Parking Violations" data-sr="Nepropisno parkiranje">Nepropisno parkiranje</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#26a69a"></span><span class="leg" data-en="Suggest an Improvement" data-sr="Predlog za poboljšanje">Predlog za poboljšanje</span></span>
   <span class="legend-item"><span class="legend-dot" style="background:#8342a1"></span><span class="leg" data-en="Other" data-sr="Ostalo">Ostalo</span></span>
 </div>
 
@@ -2314,6 +2338,7 @@ span.flatpickr-weekday {
       <option value="BikeLanes" data-sr="Biciklističke staze">Biciklističke staze</option>
       <option value="GreenSpaces" data-sr="Zelene površine">Zelene površine</option>
       <option value="Parking" data-sr="Nepropisno parkiranje">Nepropisno parkiranje</option>
+      <option value="Suggestion" data-sr="Predlog za poboljšanje">Predlog za poboljšanje</option>
       <option value="Other" data-sr="Ostalo">Ostalo</option>
     </select>
     <select id="priority" onchange="checkFormReady()" style="flex:1 1 130px;">
@@ -2337,7 +2362,7 @@ span.flatpickr-weekday {
   </div>
 
   <div class="row report-comment-row">
-    <input id="comment" type="text" placeholder="Optional notes...">
+    <input id="comment" type="text" placeholder="Optional notes..." oninput="checkFormReady()">
     <div class="photo-choice-dropdown" id="reportPhotoDropdown">
       <button type="button" class="icon-only-btn" id="reportPhotoAddBtn" title="Add photo (optional)" aria-label="Add photo (optional)" onclick="toggleReportPhotoMenu()">
         <img class="icon-img" src="icons/camera.png" alt="">
@@ -2538,6 +2563,22 @@ span.flatpickr-weekday {
     <p id="gpsModalBody">Location access is turned off. To report a break at your location, enable it in your settings.</p>
     <p id="gpsModalAlt" style="font-size:12px;color:#999;margin-bottom:16px;">Or use the <img class="icon-img icon-img-inline" src="icons/pin.png" alt="pin"> button on the map to drop a pin manually.</p>
     <button class="generic-modal-close" onclick="hideGpsModal()" id="gpsModalBtn">Got it</button>
+  </div>
+</div>
+
+<!-- Portrait-only lock. The Screen Orientation Lock API isn't usable here —
+     it requires the page to be in fullscreen first and iOS Safari doesn't
+     implement it at all — so this is a plain blocking overlay instead:
+     shown/hidden purely by CSS media query (see .portrait-lock-overlay
+     below), no JS needed to react to rotation. It only ever matches on an
+     actual phone/tablet in landscape (media query is scoped with a height
+     ceiling — see CSS) so a wide desktop browser window is never affected.
+     No close button on purpose: the only way out is to rotate back. -->
+<div id="portraitLockOverlay" class="generic-modal-overlay portrait-lock-overlay">
+  <div class="generic-modal">
+    <div class="portrait-lock-icon" aria-hidden="true">📱</div>
+    <h2 id="portraitLockTitle">Please Rotate to Portrait</h2>
+    <p id="portraitLockBody" style="text-align:center;">This app is designed for portrait use only. Please rotate your device back to continue.</p>
   </div>
 </div>
 
@@ -3407,6 +3448,8 @@ const T = {
   reportBtn:    { en:'REPORT BREAK',                     sr:'PRIJAVI KVAR' },
   csvLabel:     { en:'CSV',                              sr:'CSV' },
   commentPH:    { en:'Optional notes...',                sr:'Opciona napomena...' },
+  commentPHRequired: { en:'Describe your suggestion... (required)', sr:'Opišite svoj predlog... (obavezno)' },
+  suggestionCommentRequired: { en:'Please describe your suggestion in the notes field.', sr:'Opišite svoj predlog u polju za napomenu.' },
   waitGps:      { en:'Waiting for GPS...',               sr:'Čekanje GPS-a...' },
   submitted:    { en:'Report submitted.',                sr:'Prijava uspešna.' },
   reportRateLimitedPrefix: { en:'You\'re submitting reports quickly — try again in ', sr:'Prebrzo šaljete prijave — pokušajte ponovo za ' },
@@ -3425,6 +3468,8 @@ const T = {
   gpsBody:      { en:'Location access is turned off. To report a break at your location, enable it in your settings.', sr:'Pristup lokaciji je isključen. Da biste prijavili kvar, omogućite ga u podešavanjima.' },
   gpsAlt:       { en:'Or use the <img class="icon-img icon-img-inline" src="icons/pin.png" alt="pin"> button on the map to drop a pin manually.', sr:'Ili koristite dugme <img class="icon-img icon-img-inline" src="icons/pin.png" alt="pin"> na karti da ručno postavite pin.' },
   gpsBtn:       { en:'Got it',                           sr:'Razumem' },
+  portraitLockTitle: { en:'Please Rotate to Portrait',   sr:'Okrenite telefon uspravno' },
+  portraitLockBody:  { en:'This app is designed for portrait use only. Please rotate your device back to continue.', sr:'Aplikacija je namenjena za uspravnu upotrebu. Okrenite uređaj nazad da biste nastavili.' },
   noReports:    { en:'No reports in current map view.',  sr:'Nema prijava u vidljivoj oblasti.' },
   calendarPH:   { en:'Select date range...',             sr:'Izaberi vremenski opseg...' },
   helpTitle:    { en:'How to use TraceTheBreak',         sr:'Kako se koristi TraceTheBreak' },
@@ -3671,7 +3716,11 @@ function applyLang(){
   document.getElementById('themeBtnDark').textContent = t('themeDark');
   document.getElementById('themeBtnAuto').textContent = t('themeAuto');
   document.getElementById('mainMapCompass').title = t('mainCompassTitle');
-  document.getElementById('comment').placeholder          = t('commentPH');
+  const portraitTitleEl = document.getElementById('portraitLockTitle');
+  if (portraitTitleEl) portraitTitleEl.textContent = t('portraitLockTitle');
+  const portraitBodyEl = document.getElementById('portraitLockBody');
+  if (portraitBodyEl) portraitBodyEl.textContent = t('portraitLockBody');
+  updateCommentPlaceholder();
   document.getElementById('dateRangePicker').placeholder  = t('calendarPH');
   document.getElementById('category').options[0].text     = t('catPH');
 
@@ -6058,24 +6107,47 @@ function startWatching() {
 
 function initGps() {
   if (!navigator.geolocation) { enableManualPinMode(); return; }
-  navigator.permissions.query({ name: 'geolocation' }).then(result => {
-    if (result.state === 'denied') { showGpsModal(); enableManualPinMode(); }
-    else { startWatching(); }
+  // Safari — especially iOS Safari — either has no navigator.permissions at
+  // all on older versions, or throws a synchronous TypeError when querying
+  // the 'geolocation' permission name specifically (WebKit has never fully
+  // supported it the way Chrome/Firefox do). That throw happens at the
+  // .query() call site itself, before any Promise even exists, so a
+  // trailing .catch() on the chain below can NOT catch it — it's a
+  // synchronous exception, not a rejection. Left unguarded, that silently
+  // aborted initGps() on iPhones before it ever reached startWatching(),
+  // which looked exactly like "GPS doesn't work on iPhone" with no error
+  // shown anywhere. Guarding both the API's existence AND wrapping the
+  // call in try/catch covers every Safari version; on any device where the
+  // pre-check isn't usable, we just skip straight to startWatching() and
+  // let getCurrentPosition/watchPosition's own permission prompt (and the
+  // PERMISSION_DENIED branch in its error callback) handle it instead.
+  if (!navigator.permissions || typeof navigator.permissions.query !== 'function') {
+    startWatching();
+    return;
+  }
+  try {
+    navigator.permissions.query({ name: 'geolocation' }).then(result => {
+      if (result.state === 'denied') { showGpsModal(); enableManualPinMode(); }
+      else { startWatching(); }
 
-    // Listen for the permission itself flipping (e.g. the user turns
-    // location services back on in their device settings, or grants the
-    // browser prompt) so the app transitions out of the "GPS Not Enabled"
-    // screen and starts watching immediately — no page reload needed.
-    result.onchange = () => {
-      if (result.state === 'denied') {
-        showGpsModal();
-      } else {
-        hideGpsModal();
-        stopGpsRetryLoop();
-        startWatching();
-      }
-    };
-  }).catch(() => { startWatching(); });
+      // Listen for the permission itself flipping (e.g. the user turns
+      // location services back on in their device settings, or grants the
+      // browser prompt) so the app transitions out of the "GPS Not Enabled"
+      // screen and starts watching immediately — no page reload needed.
+      result.onchange = () => {
+        if (result.state === 'denied') {
+          showGpsModal();
+        } else {
+          hideGpsModal();
+          stopGpsRetryLoop();
+          startWatching();
+        }
+      };
+    }).catch(() => { startWatching(); });
+  } catch (err) {
+    // Synchronous throw path (older iOS Safari) — same fallback as above.
+    startWatching();
+  }
 }
 initGps();
 
@@ -6295,6 +6367,7 @@ const CATEGORY_COLORS = {
   'BikeLanes':    '#14b8a6',
   'GreenSpaces':  '#3fa34d',
   'Parking':      '#5c6bc0',
+  'Suggestion':   '#26a69a',
   'Other':        '#8342a1',
 };
 // Filenames inside icons/ (see the icon-set screenshot). Used to render the
@@ -6314,6 +6387,7 @@ const CATEGORY_ICONS = {
   'BikeLanes':    'bicycle.png',
   'GreenSpaces':  'green.png',
   'Parking':      'no-parking.png',
+  'Suggestion':   'suggest.png',
   'Other':        'warning-symbol.png',
 };
 const SUBCATEGORIES = {
@@ -6381,8 +6455,21 @@ const SUBCATEGORIES = {
   // single, specific violation type (frequent/illegal parking), unlike the
   // other categories which cover several distinct fault types each.
   Parking: [],
+  // Not a fault report at all — a free-form improvement suggestion, so a
+  // fixed subcategory list doesn't make sense here either. See
+  // CATEGORIES_REQUIRING_COMMENT below: unlike every other category, the
+  // comment field is mandatory for this one since it IS the whole report.
+  Suggestion: [],
   Other: []
 };
+// Categories where the optional notes field becomes mandatory instead —
+// checked in checkFormReady() (gates the submit button) and again in
+// reportBreak() (defense in depth against any path that bypasses the form,
+// same pattern as every other guard in reportBreak()). Currently just
+// "Suggest an Improvement": unlike a fault report, there's no location-only
+// signal that's useful on its own — without the comment there'd be nothing
+// to actually act on.
+const CATEGORIES_REQUIRING_COMMENT = new Set(['Suggestion']);
 const STATUS_COLORS = {
   'reported':    '#ff4b4b',
   'in_progress': '#f5a623',
@@ -6428,7 +6515,20 @@ function onCategoryChange() {
   const subRow = document.getElementById('subcategoryRow');
   const hasSubs = populateSubcategoryOptions(subSelect, cat, null);
   subRow.style.display = hasSubs ? 'flex' : 'none';
+  updateCommentPlaceholder();
   checkFormReady();
+}
+// Swaps the notes placeholder to make it clear a comment is mandatory for
+// categories in CATEGORIES_REQUIRING_COMMENT (currently just "Suggest an
+// Improvement") — shared by onCategoryChange() (category just changed) and
+// applyLang() (language switched while that category is still selected;
+// without sharing this, applyLang()'s own placeholder assignment would
+// stomp the "(required)" variant right back to the plain one on every
+// language toggle).
+function updateCommentPlaceholder() {
+  const cat = document.getElementById('category').value;
+  const el = document.getElementById('comment');
+  if (el) el.placeholder = CATEGORIES_REQUIRING_COMMENT.has(cat) ? t('commentPHRequired') : t('commentPH');
 }
 function statusColor(s)     { return STATUS_COLORS[s] || '#aaaaaa'; }
 function statusLabel(s) {
@@ -6437,8 +6537,8 @@ function statusLabel(s) {
   return t('statusReported');
 }
 function translateCategory(cat) {
-  const labelsEn = { Water:'Water', Electricity:'Electricity', Sewage:'Sewage', Gas:'Gas', Heating:'Heating', Road:'Road', Streetlight:'Streetlight', Waste:'Waste', Walkways:'Walkways', BikeLanes:'Bike Lanes', GreenSpaces:'Green Spaces', Parking:'Parking Violations', Other:'Other' };
-  const labelsSr = { Water:'Voda', Electricity:'Struja', Sewage:'Kanalizacija', Gas:'Gas', Heating:'Grejanje', Road:'Put', Streetlight:'Ulična rasveta', Waste:'Otpad', Walkways:'Pešačke staze', BikeLanes:'Biciklističke staze', GreenSpaces:'Zelene površine', Parking:'Nepropisno parkiranje', Other:'Ostalo' };
+  const labelsEn = { Water:'Water', Electricity:'Electricity', Sewage:'Sewage', Gas:'Gas', Heating:'Heating', Road:'Road', Streetlight:'Streetlight', Waste:'Waste', Walkways:'Walkways', BikeLanes:'Bike Lanes', GreenSpaces:'Green Spaces', Parking:'Parking Violations', Suggestion:'Suggest an Improvement', Other:'Other' };
+  const labelsSr = { Water:'Voda', Electricity:'Struja', Sewage:'Kanalizacija', Gas:'Gas', Heating:'Grejanje', Road:'Put', Streetlight:'Ulična rasveta', Waste:'Otpad', Walkways:'Pešačke staze', BikeLanes:'Biciklističke staze', GreenSpaces:'Zelene površine', Parking:'Nepropisno parkiranje', Suggestion:'Predlog za poboljšanje', Other:'Ostalo' };
   return (lang === 'sr' ? labelsSr[cat] : labelsEn[cat]) || cat;
 }
 
@@ -6447,7 +6547,8 @@ function checkFormReady() {
   const priority = document.getElementById('priority').value;
   const hasLoc = !!(userCoords || manualCoords);
   const isAuthed = !!(currentSession && currentProfile);
-  document.getElementById('reportBtn').disabled = !(category && priority && hasLoc && isAuthed);
+  const commentOk = !CATEGORIES_REQUIRING_COMMENT.has(category) || document.getElementById('comment').value.trim().length > 0;
+  document.getElementById('reportBtn').disabled = !(category && priority && hasLoc && isAuthed && commentOk);
 }
 
 // =============================================================================
@@ -6792,6 +6893,15 @@ async function reportBreak(){
   const subcategory = document.getElementById('subcategory').value || null;
   const priority     = document.getElementById('priority').value || 'normal';
   const comment      = cyrillicToLatin(document.getElementById('comment').value);
+
+  // Defense in depth, same reasoning as every other guard here — the
+  // button is already disabled without a comment for these categories
+  // (see checkFormReady), this just covers anyone who reaches reportBreak()
+  // some other way.
+  if (CATEGORIES_REQUIRING_COMMENT.has(category) && !comment.trim()) {
+    toast(t('suggestionCommentRequired'), 'error');
+    return;
+  }
 
   reportSubmissionInFlight = true;
   const reportBtn = document.getElementById('reportBtn');
@@ -8956,7 +9066,7 @@ function buildDetailStatusReadonlyHtml(report, reporterName) {
 // Editable Status section: category/subcategory/status/priority/comment,
 // all at once, with Save/Cancel at the bottom.
 function buildDetailEditFieldsHtml(report) {
-  const cats = ['Water','Electricity','Sewage','Gas','Heating','Road','Streetlight','Waste','Walkways','BikeLanes','GreenSpaces','Parking','Other'];
+  const cats = ['Water','Electricity','Sewage','Gas','Heating','Road','Streetlight','Waste','Walkways','BikeLanes','GreenSpaces','Parking','Suggestion','Other'];
   const catOptions = cats.map(c => `<option value="${c}" ${c === report.category ? 'selected' : ''}>${translateCategory(c)}</option>`).join('');
   const statuses = [
     { key:'reported', label: statusLabel('reported') },
