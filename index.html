@@ -2548,6 +2548,7 @@ span.flatpickr-weekday {
       <div class="admin-section-title detail-section-title" id="ucSectionTitle">Utility company contacts</div>
       <div class="uc-list" id="ucList"></div>
       <button type="button" class="settings-btn" onclick="toggleUcForm()" id="ucAddToggleBtn">+ Add contact</button>
+      <button type="button" class="settings-btn" onclick="backfillUcCoordinates()" id="ucGeocodeBackfillBtn">Geocode missing addresses</button>
       <div id="ucFormAnchor"></div>
 
       <div class="uc-form" id="ucForm" style="display:none">
@@ -3449,6 +3450,10 @@ const T = {
   // --- Admin: utility company contacts panel (Settings) ---
   ucSectionTitle:    { en:'Utility company contacts',            sr:'Kontakti javnih preduzeća' },
   ucAddContactBtn:   { en:'+ Add contact',                       sr:'+ Dodaj kontakt' },
+  ucGeocodeBackfillBtn:      { en:'Geocode missing addresses',    sr:'Geokodiraj adrese bez koordinata' },
+  ucGeocodeBackfillRunning:  { en:'Geocoding {current}/{total}…', sr:'Geokodiranje {current}/{total}…' },
+  ucGeocodeBackfillDone:     { en:'Done — {found}/{total} addresses geocoded.', sr:'Gotovo — {found}/{total} adresa geokodirano.' },
+  ucGeocodeBackfillNone:     { en:'Every contact with an address already has coordinates.', sr:'Svi kontakti sa adresom već imaju koordinate.' },
   ucNoContacts:      { en:'No utility companies added yet.',     sr:'Još uvek nema unetih javnih preduzeća.' },
   ucSelectMunicipality: { en:'— Select municipality —',          sr:'— Izaberi opštinu —' },
   ucNoMunicipalitiesHint: { en:'No municipalities cached yet. Move the map to the desired area and tap "Add municipality from map center".', sr:'Još nema keširanih opština. Pomerite mapu na željeno mesto i pritisnite "Dodaj opštinu sa centra mape".' },
@@ -7325,30 +7330,38 @@ async function geocodeAddress(address, muniName, countryCode) {
 }
 
 // Backs the clickable address in a utility company's contact row (map
-// popup or the detail modal's contacts list) — geocodes it (reusing
-// loadAllCompanyMarkers' cache, so this is usually instant) and re-centers
-// the map on it, same as clicking a report's own street address does.
+// popup or the detail modal's contacts list) — uses the coordinates
+// stored on the row (see persistUcRow) if present, so this is normally
+// instant with no network call at all; only falls back to a live,
+// one-off geocode for an older row that predates stored coordinates.
 async function focusUtilityCompanyAddress(id) {
   const c = utilityCompanyRegistry.get(String(id));
   if (!c || !c.address) return;
+  if (isValidLatLng(c.lat, c.lon)) { viewLocationOnMap(c.lat, c.lon); return; }
   const muni = getMunicipalityById(c.municipality_id);
   const pos = await geocodeAddress(c.address, muni ? municipalityDisplayName(muni) : '', muni ? muni.country_code : null);
   if (!pos || !isValidLatLng(pos.lat, pos.lon)) return;
   viewLocationOnMap(pos.lat, pos.lon);
 }
 
-// Loads every verified utility company with an address on file (across all
-// municipalities), geocodes each address one at a time, and drops a pin
-// for it as soon as it resolves — pins appear on the map progressively
-// rather than all at once. Called once at STARTUP; nothing else needs to
-// trigger it since these pins aren't tied to the user's current location.
+// Loads every verified utility company that already has stored coordinates
+// (see persistUcRow, which geocodes once at save time) and drops a pin for
+// each. Called once at STARTUP for every visitor — this deliberately never
+// calls Nominatim itself anymore: doing that here, for every company, on
+// every single page load, for every visitor, was bulk geocoding against
+// Nominatim's usage policy and is what caused persistent 429s regardless of
+// how carefully individual requests were throttled. A company with an
+// address but no coordinates yet (an older row saved before this existed)
+// simply has no pin until an admin runs "Geocode missing addresses" in the
+// Settings contacts panel (see backfillUcCoordinates) or re-saves it.
 async function loadAllCompanyMarkers() {
   let companies;
   try {
     const { data, error } = await sb.from(UTILITY_COMPANIES_TABLE)
       .select('*')
       .eq('verified', true)
-      .not('address', 'is', null);
+      .not('lat', 'is', null)
+      .not('lon', 'is', null);
     if (error) throw error;
     companies = data || [];
   } catch (err) {
@@ -7357,31 +7370,68 @@ async function loadAllCompanyMarkers() {
   }
   if (!companies.length) return;
 
-  await loadMunicipalityCache();
   for (const c of companies) {
-    if (!c.address) continue;
-    const muni = getMunicipalityById(c.municipality_id);
-    const pos = await geocodeAddress(c.address, muni ? municipalityDisplayName(muni) : '', muni ? muni.country_code : null);
-    if (!pos || !isValidLatLng(pos.lat, pos.lon)) continue;
-    const marker = L.marker([pos.lat, pos.lon], {
+    if (!isValidLatLng(c.lat, c.lon)) continue;
+    const marker = L.marker([c.lat, c.lon], {
       icon: L.divIcon({ className: '', html: buildCompanyMarkerHtml(), iconSize: [26, 31], iconAnchor: [13, 29] }),
       zIndexOffset: 200
     });
-    marker._utilityCompany = { c, lat: pos.lat, lon: pos.lon };
-    marker.bindPopup(buildCompanyPopupHtml(c, pos.lat, pos.lon), { autoPan: false, closeButton: false });
+    marker._utilityCompany = { c, lat: c.lat, lon: c.lon };
+    marker.bindPopup(buildCompanyPopupHtml(c, c.lat, c.lon), { autoPan: false, closeButton: false });
     // bindPopup() above wires its own default "click opens the popup"
     // handler; strip it so we can decide per-tap instead — while driving,
     // tapping the pin should go straight into routing/navigation rather
     // than showing the contact-card popup with a Navigate button inside it.
     marker.off('click');
     marker.on('click', () => {
-      if (drivingMode) navigateToUtilityCompany(String(c.id), pos.lat, pos.lon);
+      if (drivingMode) navigateToUtilityCompany(String(c.id), c.lat, c.lon);
       else marker.openPopup();
     });
     marker.addTo(companyMarkersLayer);
-    // Nominatim's usage policy caps unauthenticated requests at ~1/second.
-    await new Promise(res => setTimeout(res, 1100));
   }
+}
+
+// ADMIN TOOL — one-time, explicitly-triggered backfill for contacts that
+// were saved before persistUcRow started geocoding+storing coordinates at
+// save time. Geocodes each missing address one at a time (through the
+// shared nominatimFetch queue, so it's still properly throttled) and
+// writes the result straight to the row. Meant to be run once after
+// upgrading, or whenever an older, address-only row is noticed missing its
+// pin — not something that runs automatically for visitors.
+async function backfillUcCoordinates() {
+  if (!currentProfile || !currentProfile.is_admin) return;
+  const btn = document.getElementById('ucGeocodeBackfillBtn');
+  const candidates = ucCompaniesCache.filter(c => c.address && !isValidLatLng(c.lat, c.lon));
+  if (!candidates.length) {
+    if (btn) btn.textContent = t('ucGeocodeBackfillNone');
+    setTimeout(() => { if (btn) btn.textContent = t('ucGeocodeBackfillBtn'); }, 3000);
+    return;
+  }
+  if (btn) btn.disabled = true;
+  let found = 0;
+  for (let i = 0; i < candidates.length; i++) {
+    const c = candidates[i];
+    if (btn) btn.textContent = t('ucGeocodeBackfillRunning').replace('{current}', String(i + 1)).replace('{total}', String(candidates.length));
+    const muni = getMunicipalityById(c.municipality_id);
+    const pos = await geocodeAddress(c.address, muni ? municipalityDisplayName(muni) : '', muni ? muni.country_code : null);
+    if (pos && isValidLatLng(pos.lat, pos.lon)) {
+      try {
+        const { error } = await sb.from(UTILITY_COMPANIES_TABLE).update({ lat: pos.lat, lon: pos.lon }).eq('id', c.id);
+        if (error) throw error;
+        c.lat = pos.lat;
+        c.lon = pos.lon;
+        found++;
+      } catch (err) {
+        console.error('Failed to save backfilled coordinates for', c.name, ':', err.message);
+      }
+    }
+  }
+  if (btn) {
+    btn.textContent = t('ucGeocodeBackfillDone').replace('{found}', String(found)).replace('{total}', String(candidates.length));
+    btn.disabled = false;
+    setTimeout(() => { btn.textContent = t('ucGeocodeBackfillBtn'); }, 4000);
+  }
+  loadAllCompanyMarkers();
 }
 
 // Popup for a utility-company map pin — matches the report pin popup's
@@ -7508,6 +7558,8 @@ async function loadUtilityCompaniesAdmin() {
   if (titleEl) titleEl.textContent = t('ucSectionTitle');
   const addBtn = document.getElementById('ucAddToggleBtn');
   if (addBtn) addBtn.textContent = t('ucAddContactBtn');
+  const backfillBtn = document.getElementById('ucGeocodeBackfillBtn');
+  if (backfillBtn && !backfillBtn.disabled) backfillBtn.textContent = t('ucGeocodeBackfillBtn');
 
   await loadMunicipalityCache();
   populateUcMunicipalitySelect();
@@ -8049,6 +8101,28 @@ async function persistUcRow(verified) {
   row.verified = verified;
   row.verified_at = verified ? new Date().toISOString() : null;
   row.verified_by = verified ? (currentSession ? currentSession.user.id : null) : null;
+
+  // Geocode the address once here, at save time, and store the result —
+  // loadAllCompanyMarkers (map pins, run for every visitor on every load)
+  // now only ever reads these stored coordinates and never calls Nominatim
+  // itself; re-geocoding on every page load for every visitor was bulk
+  // geocoding against Nominatim's usage policy and is what caused the
+  // persistent 429s. Skipped when the address hasn't actually changed from
+  // what's already on file, so re-saving other fields doesn't cost an
+  // extra geocode call.
+  const existing = ucEditingId ? ucCompaniesCache.find(c => String(c.id) === String(ucEditingId)) : null;
+  if (!row.address) {
+    row.lat = null;
+    row.lon = null;
+  } else if (existing && existing.address === row.address && existing.lat != null) {
+    row.lat = existing.lat;
+    row.lon = existing.lon;
+  } else {
+    const muni = getMunicipalityById(row.municipality_id);
+    const pos = await geocodeAddress(row.address, muni ? municipalityDisplayName(muni) : '', muni ? muni.country_code : null);
+    row.lat = pos ? pos.lat : null;
+    row.lon = pos ? pos.lon : null;
+  }
 
   const saveBtn = document.getElementById('ucSaveBtn');
   const verifyBtn = document.getElementById('ucVerifyBtn');
