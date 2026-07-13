@@ -120,6 +120,14 @@
   --text-muted:#999;
   --accent:#a67817;
   --accent-contrast:#ffffff;
+  /* Shared height for text inputs / selects / the report-form icon
+     button. Deriving the button's size from this fixed value (rather
+     than stretching it to match its sibling's *rendered* height via
+     flexbox) avoids a circular-sizing blow-up: the row's height would
+     depend on the button, and the button's height:100% would depend
+     on the row, which browsers can resolve very badly (see the
+     oversized camera icon bug). */
+  --form-control-h: 40px;
   /* Icons ship as light/white glyphs — this filter tints them to
      read correctly against the current theme's surfaces. */
   --icon-tint-filter: brightness(0) invert(32%);
@@ -360,6 +368,7 @@ header p{ font-size:11px; opacity:.7; margin-top:2px; }
 
 select{
   flex:1;
+  height:var(--form-control-h);
   padding:11px 10px;
   border:none;
   border-radius:8px;
@@ -390,6 +399,7 @@ select option{
 
 input[type="text"], input[type="password"]{
   width:100%;
+  height:var(--form-control-h);
   padding:11px 10px;
   border:none;
   border-radius:8px;
@@ -2006,7 +2016,7 @@ details[open] > summary .uc-group-chevron{ transform:rotate(180deg); /* point do
 }
 
 /* --- Report photo evidence: picker + preview in the report form --- */
-.report-comment-row{ display:flex; align-items:stretch; gap:8px; }
+.report-comment-row{ display:flex; align-items:center; gap:8px; }
 .report-comment-row #comment{ flex:1 1 auto; min-width:0; }
 /* Camera icon + its "Take Photo / Choose from Library" popover, sitting
    right next to the optional-notes input in the report form — see
@@ -2097,19 +2107,19 @@ details[open] > summary .uc-group-chevron{ transform:rotate(180deg); /* point do
 .icon-only-btn:hover{ background:var(--bg-surface-alt); }
 
 /* The camera button next to the report comment field specifically —
-   overrides .icon-only-btn's fixed 28px square so it instead fills the
-   stretched .report-comment-row (i.e. matches #comment's own rendered
-   height, whatever that ends up being) while staying 1:1 via aspect-ratio.
-   height:100% needs .report-comment-row/.photo-choice-dropdown to
-   actually be stretched (align-items:stretch), otherwise there's no
-   definite height to inherit and it collapses to the icon's own
-   intrinsic size — which is what made it look oversized before.
+   overrides .icon-only-btn's fixed 28px square so it instead matches
+   #comment's height exactly: same --form-control-h variable, applied
+   directly (not stretched via flexbox). An earlier version tried
+   height:100% + aspect-ratio inside a stretched row, but that made the
+   button's size and the row's size depend on each other — a circular
+   flex calculation that some browsers resolve by falling back to the
+   icon's raw intrinsic size, making the button balloon to fill the
+   whole panel. A fixed shared height sidesteps that entirely.
    Scoped to this id only — the unrelated camera button in the report
    detail modal (no id, plain .icon-only-btn) is untouched. */
 #reportPhotoAddBtn{
-  width:auto;
-  height:100%;
-  aspect-ratio:1/1;
+  width:var(--form-control-h);
+  height:var(--form-control-h);
 }
 #reportPhotoAddBtn .icon-img{ width:55%; height:55%; }
 
