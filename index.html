@@ -4770,7 +4770,7 @@ async function searchDestination() {
 
   try {
     const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=5&q=' + encodeURIComponent(q);
-    const res = await fetch(url, { headers: { 'Accept-Language': lang } });
+    const res = await nominatimFetch(url, { headers: { 'Accept-Language': lang } });
     const data = await res.json();
 
     if (!data || !data.length) {
@@ -6842,6 +6842,56 @@ function getMunicipalityBySlug(slug) {
   return municipalityCache.find(m => m.slug === slug) || null;
 }
 
+// =============================================================================
+// SHARED NOMINATIM REQUEST QUEUE
+// Nominatim's usage policy caps the public API at roughly 1 request/second.
+// This app has several independent features that each call it (destination
+// search, municipality boundary import, municipality name-match, utility-
+// company address geocoding, street/area lookup for the report-detail
+// modal) — each one individually reasonable, but with no coordination
+// between them a burst of activity (e.g. opening several report pins in a
+// row while a search is also in flight) can add up to well over 1 req/s
+// and trip the rate limit, anywhere in the world, not just in any one
+// region. When Nominatim does 429 a request, the response frequently comes
+// back with no CORS header at all, which the browser then misreports as a
+// CORS failure instead of a rate-limit one (see the "blocked by CORS
+// policy" + 429 pair in devtools — same underlying cause).
+// Every Nominatim call in the app now goes through nominatimFetch() below
+// instead of calling fetch() directly, so no matter how many features are
+// active at once, requests are always serialized with a safe gap between
+// them, and a 429 is retried with backoff instead of just failing.
+let _nominatimChain = Promise.resolve();
+let _nominatimLastCallAt = 0;
+const NOMINATIM_MIN_GAP_MS = 1100; // just over the 1 req/s ceiling
+const NOMINATIM_MAX_RETRIES = 3;
+
+async function _nominatimFetchOnce(url, options) {
+  const wait = NOMINATIM_MIN_GAP_MS - (Date.now() - _nominatimLastCallAt);
+  if (wait > 0) await new Promise(r => setTimeout(r, wait));
+  _nominatimLastCallAt = Date.now();
+  return fetch(url, options);
+}
+
+function nominatimFetch(url, options) {
+  const task = _nominatimChain.then(async () => {
+    let res = await _nominatimFetchOnce(url, options);
+    let attempt = 0;
+    while (res.status === 429 && attempt < NOMINATIM_MAX_RETRIES) {
+      const retryAfter = Number(res.headers.get('Retry-After')) || (2 * (attempt + 1));
+      console.warn(`Nominatim rate-limited (429) — retrying in ${retryAfter}s (attempt ${attempt + 1}/${NOMINATIM_MAX_RETRIES})`);
+      await new Promise(r => setTimeout(r, retryAfter * 1000));
+      res = await _nominatimFetchOnce(url, options);
+      attempt++;
+    }
+    return res;
+  });
+  // The chain must keep moving even if this particular call ends up
+  // throwing/rejecting — otherwise one failed request would permanently
+  // wedge every Nominatim call queued after it.
+  _nominatimChain = task.catch(() => {});
+  return task;
+}
+
 // Reverse-geocodes a point to its enclosing municipality/administrative
 // area using Nominatim (https://nominatim.openstreetmap.org/reverse),
 // requesting polygon_geojson=1 so the exact boundary comes back in the
@@ -6876,7 +6926,7 @@ async function fetchMunicipalityFromNominatim(lat, lon) {
     const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=${zoom}&addressdetails=1&polygon_geojson=1&${NOMINATIM_LATIN_LANG}`;
     let json;
     try {
-      const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+      const res = await nominatimFetch(url, { headers: { 'Accept': 'application/json' } });
       if (!res.ok) {
         console.warn(`Nominatim reverse failed at zoom ${zoom}: HTTP ${res.status}`);
         continue;
@@ -6992,16 +7042,27 @@ function normalizeMuniNameForMatch(s) {
     .toLowerCase().trim().replace(/\s+/g, ' ');
 }
 
+// Successful lookups are cached per ~111m grid cell (3 decimal places is
+// plenty of precision for a municipality-level result) so opening several
+// pins in the same town — or the badge re-resolving as a marker nudges
+// slightly — doesn't re-hit Nominatim for something already known this
+// session. Failures are deliberately NOT cached, so a transient rate-limit
+// or network hiccup gets a clean retry next time instead of being stuck.
+const _muniGeocodeCache = new Map();
 async function reverseGeocodeMunicipalityCandidates(lat, lon) {
+  const cacheKey = lat.toFixed(3) + ',' + lon.toFixed(3);
+  if (_muniGeocodeCache.has(cacheKey)) return _muniGeocodeCache.get(cacheKey);
+
   const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=10&addressdetails=1&${NOMINATIM_LATIN_LANG}`;
+  let result;
   try {
-    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    const res = await nominatimFetch(url, { headers: { 'Accept': 'application/json' } });
     if (!res.ok) {
       console.warn(`Reverse-geocode for municipality name-match failed: HTTP ${res.status}`);
-      return { candidates: [], countryCode: null, bestName: null, bestNameEn: null };
+      return { candidates: [], countryCode: null, bestName: null };
     }
     const json = await res.json();
-    if (!json || json.error) return { candidates: [], countryCode: null, bestName: null, bestNameEn: null };
+    if (!json || json.error) return { candidates: [], countryCode: null, bestName: null };
     const addr = json.address || {};
     // Ordered most-specific first; address breakdown includes the full
     // admin hierarchy regardless of which level `zoom` targets, so one
@@ -7013,7 +7074,7 @@ async function reverseGeocodeMunicipalityCandidates(lat, lon) {
     // neighborhood/borough rather than a real municipality-level place, so
     // an unimported town doesn't get registered under one of its districts.
     const bestName = addr.municipality || addr.city || addr.town || addr.county || json.name || null;
-    return {
+    result = {
       candidates,
       countryCode: (addr.country_code || '').toUpperCase() || null,
       bestName: bestName ? cyrillicToLatin(bestName) : null
@@ -7022,6 +7083,8 @@ async function reverseGeocodeMunicipalityCandidates(lat, lon) {
     console.warn('Reverse-geocode for municipality name-match failed:', err.message);
     return { candidates: [], countryCode: null, bestName: null };
   }
+  if (result.candidates.length) _muniGeocodeCache.set(cacheKey, result);
+  return result;
 }
 
 // Tracks candidate/pool mismatches we've already logged once, same pattern
@@ -7235,10 +7298,13 @@ function buildCompanyMarkerHtml() {
   return '<div class="company-marker-icon"></div>';
 }
 
-// Forward-geocodes one free-text address via Nominatim. Only ever called
-// sequentially (one at a time, awaited) by loadAllCompanyMarkers below, so
-// that alone is enough to keep to Nominatim's usage-policy limit of
-// ~1 request/second without any extra queueing here.
+// Forward-geocodes one free-text address via Nominatim. Used to only ever
+// be called sequentially by loadAllCompanyMarkers, which alone was enough
+// to respect Nominatim's ~1 request/second limit — but that assumption
+// breaks the moment any other feature (a pin's municipality lookup, the
+// destination search box) is also active, so this now goes through the
+// same shared nominatimFetch queue as everything else instead of relying
+// on this being the only caller.
 async function geocodeAddress(address, muniName, countryCode) {
   const query = [address, muniName].filter(Boolean).join(', ');
   const cacheKey = `${query}|${countryCode || ''}`;
@@ -7247,7 +7313,7 @@ async function geocodeAddress(address, muniName, countryCode) {
   try {
     const params = new URLSearchParams({ format: 'jsonv2', q: query, limit: '1' });
     if (countryCode) params.set('countrycodes', countryCode.toLowerCase());
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, { headers: { 'Accept': 'application/json' } });
+    const res = await nominatimFetch(`https://nominatim.openstreetmap.org/search?${params}`, { headers: { 'Accept': 'application/json' } });
     const json = res.ok ? await res.json() : [];
     const hit = Array.isArray(json) && json[0];
     if (hit) result = { lat: parseFloat(hit.lat), lon: parseFloat(hit.lon) };
@@ -8225,7 +8291,7 @@ async function fetchAddressForPoint(lat, lon) {
   if (!isValidLatLng(lat, lon)) return null;
   try {
     const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`;
-    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    const res = await nominatimFetch(url, { headers: { 'Accept': 'application/json' } });
     if (!res.ok) return null;
     const json = await res.json();
     if (!json || json.error) return null;
