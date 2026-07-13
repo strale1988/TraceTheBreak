@@ -1291,6 +1291,17 @@ body.driving-active #appPanel{
   letter-spacing:.3px;
 }
 .tier-pill.tier-trusted{ background:#123a26; color:#5ec98a; }
+/* --- User levels — six-tier civic ladder replacing the old flat
+   New/Trusted pill. Colors run cool -> warm -> purple as the level rises,
+   so a glance at the pill alone gives a rough sense of standing even
+   before reading the name. Reused on the header pill, the profile modal,
+   and the Settings dashboard (see .dashboard-level-pill below, which
+   just enlarges the same classes). */
+.tier-pill.tier-level-1{ background:#1f2937; color:#93c5fd; }
+.tier-pill.tier-level-2{ background:#0f3b36; color:#5eead4; }
+.tier-pill.tier-level-3{ background:#123a26; color:#5ec98a; }
+.tier-pill.tier-level-4{ background:#3a2a0f; color:#f0b429; }
+.tier-pill.tier-level-5{ background:#2a1245; color:#c084fc; }
 .profile-tier-row{ display:flex; justify-content:center; margin-top:2px; }
 .profile-tier-row .tier-pill{ font-size:11px; padding:4px 10px; border-radius:20px; }
 .profile-progress-track{
@@ -1300,6 +1311,56 @@ body.driving-active #appPanel{
 .profile-progress-fill{
   height:100%; background:#a67817; border-radius:4px;
   transition:width .25s ease; width:0%;
+}
+
+/* --- Settings > My Dashboard ------------------------------------------
+   Own section (not .admin-section — visible to any signed-in non-admin
+   user, admins skip the ladder entirely same as the header pill does).
+   Reuses .profile-progress-track/.fill for the bar so the visual language
+   matches the profile modal's smaller version of the same progress bar. */
+.dashboard-section{ display:flex; flex-direction:column; gap:10px; }
+.dashboard-level-row{ display:flex; align-items:center; gap:10px; }
+.dashboard-level-pill{ font-size:13px; padding:6px 12px; border-radius:20px; }
+.dashboard-level-name{ font-size:14px; font-weight:700; color:var(--text-primary); }
+.dashboard-progress-text{ font-size:11.5px; color:var(--text-muted); margin-top:2px; }
+.dashboard-stats-grid{
+  display:grid; grid-template-columns:1fr 1fr; gap:8px;
+}
+.dashboard-stat-box{
+  background:var(--bg-surface-alt); border-radius:8px; padding:8px 10px;
+}
+.dashboard-stat-value{ font-size:17px; font-weight:800; color:var(--text-primary); }
+.dashboard-stat-label{ font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.3px; margin-top:2px; }
+.dashboard-ladder{ display:flex; flex-direction:column; gap:5px; margin-top:4px; }
+.dashboard-ladder-row{
+  display:flex; align-items:center; gap:8px; font-size:11.5px;
+  padding:4px 2px; border-radius:6px; color:var(--text-muted);
+}
+.dashboard-ladder-row.achieved{ color:var(--text-primary); font-weight:600; }
+.dashboard-ladder-row .ladder-dot{
+  width:8px; height:8px; border-radius:50%; flex-shrink:0; background:var(--border-color, #555);
+}
+.dashboard-ladder-row.achieved .ladder-dot{ background:#5ec98a; }
+.dashboard-signed-out-hint{ font-size:12px; color:var(--text-muted); text-align:center; padding:8px 0; }
+
+/* --- Proximity-to-report indicator --------------------------------------
+   Shown only while a non-admin has a manually-dropped report pin active
+   (see togglePinMode / the map click handler) — live-GPS reports are
+   inherently "at" the person's own location, so there's nothing to
+   measure there. Mirrors the dashed map ring drawn around the dropped
+   pin (see updateProximityRing) with matching red/green coloring. */
+.proximity-indicator{
+  display:flex; align-items:center; gap:7px;
+  background:var(--bg-surface-alt); border-radius:8px;
+  padding:7px 10px; font-size:12px; font-weight:600; color:var(--text-primary);
+}
+.proximity-dot{
+  width:9px; height:9px; border-radius:50%; flex-shrink:0;
+  box-shadow:0 0 0 3px rgba(255,75,75,.18);
+  background:#ff4b4b; transition:background .2s ease, box-shadow .2s ease;
+}
+.proximity-dot.near{
+  background:#3ecf6e; box-shadow:0 0 0 3px rgba(62,207,110,.2);
 }
 
 .locked-panel{
@@ -2119,6 +2180,14 @@ span.flatpickr-weekday {
     <select id="subcategory" onchange="checkFormReady()"></select>
   </div>
 
+  <!-- Only shown to non-admins once a manual pin has been dropped (see
+       updateProximityUi) — live-GPS reports need no such indicator since
+       the report location already IS wherever the person is standing. -->
+  <div class="proximity-indicator" id="proximityIndicator" style="display:none">
+    <span class="proximity-dot" id="proximityDot"></span>
+    <span id="proximityText"></span>
+  </div>
+
   <input id="comment" type="text" placeholder="Optional notes...">
 
   <div class="report-photo-row">
@@ -2138,6 +2207,14 @@ span.flatpickr-weekday {
   </div>
 </div>
 
+
+<!-- Shown instead of #reportFormPanel to a signed-in non-admin on a
+     non-mobile device (see isMobileDevice/updateAuthUI) — reporting stays
+     mobile-only for regular users so every report can plausibly be filed
+     on-site, which is also what makes the 10m proximity gate meaningful. -->
+<div class="panel locked-panel" id="desktopBlockedPanel" style="display:none">
+  <p id="desktopBlockedMsgText">Reporting is available on mobile only, so every report can be verified on-site.</p>
+</div>
 
 <div class="panel locked-panel" id="lockedFormPanel" style="display:flex">
   <p id="lockedMsgText">Sign in to secure your profile and reports.</p>
@@ -2343,6 +2420,34 @@ span.flatpickr-weekday {
         <button type="button" class="theme-segment-btn" onclick="setThemeMode('dark')" id="themeBtnDark">Dark</button>
         <button type="button" class="theme-segment-btn" onclick="setThemeMode('auto')" id="themeBtnAuto">Auto</button>
       </div>
+    </div>
+
+    <!-- My Dashboard: signed-in non-admin only (see renderUserDashboard,
+         called from showSettingsModal). Admins skip the ladder entirely,
+         same as the header pill. -->
+    <div class="detail-section dashboard-section" id="dashboardSection" style="display:none">
+      <div class="detail-section-title" id="dashboardSectionTitle">My Dashboard</div>
+      <div class="dashboard-level-row">
+        <span class="tier-pill dashboard-level-pill" id="dashboardLevelPill">1</span>
+        <span class="dashboard-level-name" id="dashboardLevelName"></span>
+      </div>
+      <div class="profile-progress-track"><div class="profile-progress-fill" id="dashboardProgressFill"></div></div>
+      <div class="dashboard-progress-text" id="dashboardProgressText"></div>
+      <div class="dashboard-stats-grid">
+        <div class="dashboard-stat-box">
+          <div class="dashboard-stat-value" id="dashboardStatPoints">0</div>
+          <div class="dashboard-stat-label" id="dashboardStatPointsLabel">Civic points</div>
+        </div>
+        <div class="dashboard-stat-box">
+          <div class="dashboard-stat-value" id="dashboardStatSuccessful">0</div>
+          <div class="dashboard-stat-label" id="dashboardStatSuccessfulLabel">Successful votes</div>
+        </div>
+        <div class="dashboard-stat-box">
+          <div class="dashboard-stat-value" id="dashboardStatWeight">x1</div>
+          <div class="dashboard-stat-label" id="dashboardStatWeightLabel">Your vote weight</div>
+        </div>
+      </div>
+      <div class="dashboard-ladder" id="dashboardLadder"></div>
     </div>
 
     <div class="detail-section" style="padding:0;overflow:hidden;">
@@ -2652,8 +2757,10 @@ async function loadProfile() {
 function updateAuthUI() {
   const userBadge = document.getElementById('userBadge');
   const reportFormPanel = document.getElementById('reportFormPanel');
+  const desktopBlockedPanel = document.getElementById('desktopBlockedPanel');
   const lockedFormPanel = document.getElementById('lockedFormPanel');
   const chooseUsernamePanel = document.getElementById('chooseUsernamePanel');
+  const pinBtn = document.getElementById('pinMapBtn');
 
   if (currentSession && currentProfile && currentProfile.username) {
     userBadge.style.display = 'flex';
@@ -2661,7 +2768,15 @@ function updateAuthUI() {
     document.getElementById('userBadgeAdmin').style.display = currentProfile.is_admin ? 'inline-block' : 'none';
     document.getElementById('settingsAdminSection').style.display = currentProfile.is_admin ? 'flex' : 'none';
     updateTierPill();
-    reportFormPanel.style.display = 'flex';
+
+    // Reporting is mobile-only for regular (non-admin) users — see
+    // isMobileDevice(). Admins keep full desktop access, same as every
+    // other admin tool in this app.
+    const canReportHere = !!currentProfile.is_admin || isMobileDevice();
+    reportFormPanel.style.display = canReportHere ? 'flex' : 'none';
+    desktopBlockedPanel.style.display = canReportHere ? 'none' : 'flex';
+    if (pinBtn) pinBtn.style.display = canReportHere ? 'flex' : 'none';
+
     lockedFormPanel.style.display = 'none';
     chooseUsernamePanel.style.display = 'none';
   } else if (currentSession && currentProfile && !currentProfile.username) {
@@ -2671,12 +2786,14 @@ function updateAuthUI() {
     // appropriate display name, so the person picks one here once.
     userBadge.style.display = 'none';
     reportFormPanel.style.display = 'none';
+    desktopBlockedPanel.style.display = 'none';
     lockedFormPanel.style.display = 'none';
     chooseUsernamePanel.style.display = 'flex';
     document.getElementById('settingsAdminSection').style.display = 'none';
   } else {
     userBadge.style.display = 'none';
     reportFormPanel.style.display = 'none';
+    desktopBlockedPanel.style.display = 'none';
     lockedFormPanel.style.display = 'flex';
     chooseUsernamePanel.style.display = 'none';
     document.getElementById('settingsAdminSection').style.display = 'none';
@@ -2685,44 +2802,100 @@ function updateAuthUI() {
   refreshRenderedPopups();
 }
 
-// --- Reputation tier pill + profile progress modal --------------------------
-// Admins don't have a reputation tier of their own (their vote already
-// overrides everything), so the pill only shows for regular/trusted users.
+// =============================================================================
+// USER LEVELS — six-tier civic engagement ladder, replacing the old flat
+// New/Trusted pill. Progress is driven by currentProfile.total_contributions
+// (reports submitted + votes cast, combined — already incremented
+// server-side for both actions) and .successful_contributions (votes that
+// matched the final community consensus). Admins are exempt from the
+// ladder entirely, same as the old tier system — their vote already
+// overrides everything, so a weight multiplier is meaningless for them.
+//
+// `weight` is the status-vote multiplier for each level. It climbs by a
+// smooth +0.5 per level (1x -> 3x) rather than repeating the same number
+// across levels, so every level-up is felt. The actual multiplier is
+// APPLIED server-side inside the cast_status_vote() Supabase function —
+// this client only reads it to show it on the dashboard/profile. If that
+// function currently only knows a flat 2x for the old 'trusted' tier, it
+// needs a matching update, e.g.:
+//   ... v_weight := CASE
+//         WHEN v_total >= 25 THEN 3
+//         WHEN v_total >= 15 THEN 2.5
+//         WHEN v_total >= 8  THEN 2
+//         WHEN v_total >= 3  THEN 1.5
+//         ELSE 1
+//       END;
+// (thresholds must match USER_LEVELS below).
+// =============================================================================
+const USER_LEVELS = [
+  { level:0, threshold:0,  weight:0,   nameEn:'Observer',             nameSr:'Posmatrač' },
+  { level:1, threshold:0,  weight:1,   nameEn:'Problem Solver',        nameSr:'Rešavač problema' },
+  { level:2, threshold:3,  weight:1.5, nameEn:'Change Agent',          nameSr:'Agent promene' },
+  { level:3, threshold:8,  weight:2,   nameEn:'Urban Hero',            nameSr:'Urbani heroj' },
+  { level:4, threshold:15, weight:2.5, nameEn:'Public Works Legend',   nameSr:'Legenda javnih radova' },
+  { level:5, threshold:25, weight:3,   nameEn:'Visionary',             nameSr:'Vizionar' },
+];
+
+function levelName(lvl) { return lang === 'sr' ? lvl.nameSr : lvl.nameEn; }
+function levelForPoints(points) {
+  let current = USER_LEVELS[0];
+  for (const lvl of USER_LEVELS) { if (points >= lvl.threshold) current = lvl; }
+  return current;
+}
+// Observer (level 0) for anyone signed out; any signed-in profile starts
+// at level 1 (Problem Solver) since both share threshold 0 and level 1
+// sorts later in USER_LEVELS above.
+function currentUserLevel() {
+  if (!currentSession || !currentProfile) return USER_LEVELS[0];
+  return levelForPoints(currentProfile.total_contributions || 0);
+}
+function nextUserLevel(lvl) {
+  return USER_LEVELS.find(l => l.level === lvl.level + 1) || null;
+}
+
+// --- Header level pill + profile progress modal ------------------------------
+// Admins don't climb the ladder (their vote already overrides everything),
+// so the pill only shows for regular users.
 function updateTierPill() {
   const pill = document.getElementById('userBadgeTier');
   if (!pill || !currentProfile || currentProfile.is_admin) {
     if (pill) pill.style.display = 'none';
     return;
   }
-  const isTrusted = currentProfile.reputation_tier === 'trusted';
-  pill.textContent = isTrusted ? t('tierTrusted') : t('tierNew');
-  pill.classList.toggle('tier-trusted', isTrusted);
+  const lvl = currentUserLevel();
+  pill.textContent = lvl.level + ' · ' + levelName(lvl);
+  pill.className = 'tier-pill tier-level-' + lvl.level;
   pill.style.display = 'inline-block';
 }
 
 function showProfileModal() {
   if (!currentProfile || currentProfile.is_admin) return;
-  const isTrusted = currentProfile.reputation_tier === 'trusted';
+  const points = currentProfile.total_contributions || 0;
   const successful = currentProfile.successful_contributions || 0;
-  const total = currentProfile.total_contributions || 0;
+  const lvl = currentUserLevel();
+  const next = nextUserLevel(lvl);
 
-  document.getElementById('profileModalTitle').textContent = isTrusted ? t('profileModalTitleTrusted') : t('profileModalTitleNew');
+  document.getElementById('profileModalTitle').textContent =
+    t('profileModalTitlePrefix') + lvl.level + ': ' + levelName(lvl);
   const pill = document.getElementById('profileModalTierPill');
-  pill.textContent = isTrusted ? t('tierTrusted') : t('tierNew');
-  pill.classList.toggle('tier-trusted', isTrusted);
+  pill.textContent = levelName(lvl);
+  pill.className = 'tier-pill tier-level-' + lvl.level;
 
   const progressEl = document.getElementById('profileModalProgress');
   const fillEl = document.getElementById('profileModalProgressFill');
-  if (isTrusted) {
-    progressEl.textContent = t('profileAlreadyTrusted');
+  if (!next) {
+    progressEl.textContent = t('profileMaxLevel');
     fillEl.style.width = '100%';
   } else {
-    const toward = Math.min(successful, 5);
-    progressEl.textContent = t('profileProgressToTrusted').replace('{x}', toward);
-    fillEl.style.width = (toward / 5 * 100) + '%';
+    const remaining = Math.max(0, next.threshold - points);
+    progressEl.textContent = t('profileProgressToNext')
+      .replace('{n}', remaining).replace('{level}', levelName(next));
+    const span = next.threshold - lvl.threshold;
+    const into = Math.max(0, points - lvl.threshold);
+    fillEl.style.width = (span > 0 ? Math.min(100, into / span * 100) : 100) + '%';
   }
-  document.getElementById('profileModalStats').textContent = total > 0
-    ? t('profileStats').replace('{s}', successful).replace('{t}', total)
+  document.getElementById('profileModalStats').textContent = points > 0
+    ? t('profileStats').replace('{s}', successful).replace('{t}', points)
     : '';
   document.getElementById('profileModalBtn').textContent = t('profileModalBtn');
   document.getElementById('profileModal').style.display = 'flex';
@@ -2730,6 +2903,60 @@ function showProfileModal() {
 
 function hideProfileModal() {
   document.getElementById('profileModal').style.display = 'none';
+}
+
+// --- Settings > My Dashboard --------------------------------------------------
+// Same underlying data as the profile modal, laid out as a fuller-page
+// summary: level, progress bar, a small stat grid, and the whole ladder
+// with achieved levels checked off. Shown to any signed-in non-admin;
+// hidden for admins (no ladder) and signed-out visitors (see
+// showSettingsModal, which calls this).
+function renderUserDashboard() {
+  const section = document.getElementById('dashboardSection');
+  if (!section) return;
+
+  if (!currentSession || !currentProfile || currentProfile.is_admin) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = 'flex';
+
+  const points = currentProfile.total_contributions || 0;
+  const successful = currentProfile.successful_contributions || 0;
+  const lvl = currentUserLevel();
+  const next = nextUserLevel(lvl);
+
+  const pill = document.getElementById('dashboardLevelPill');
+  pill.textContent = lvl.level;
+  pill.className = 'tier-pill dashboard-level-pill tier-level-' + lvl.level;
+  document.getElementById('dashboardLevelName').textContent = levelName(lvl);
+
+  const fillEl = document.getElementById('dashboardProgressFill');
+  const progressText = document.getElementById('dashboardProgressText');
+  if (!next) {
+    fillEl.style.width = '100%';
+    progressText.textContent = t('profileMaxLevel');
+  } else {
+    const remaining = Math.max(0, next.threshold - points);
+    const span = next.threshold - lvl.threshold;
+    const into = Math.max(0, points - lvl.threshold);
+    fillEl.style.width = (span > 0 ? Math.min(100, into / span * 100) : 100) + '%';
+    progressText.textContent = t('profileProgressToNext')
+      .replace('{n}', remaining).replace('{level}', levelName(next));
+  }
+
+  document.getElementById('dashboardStatPoints').textContent = points;
+  document.getElementById('dashboardStatSuccessful').textContent = successful;
+  document.getElementById('dashboardStatWeight').textContent = 'x' + lvl.weight;
+
+  const ladderEl = document.getElementById('dashboardLadder');
+  ladderEl.innerHTML = USER_LEVELS.filter(l => l.level > 0).map(l => {
+    const achieved = points >= l.threshold;
+    return `<div class="dashboard-ladder-row${achieved ? ' achieved' : ''}">
+      <span class="ladder-dot"></span>
+      <span>${l.level}. ${levelName(l)} — x${l.weight}</span>
+    </div>`;
+  }).join('');
 }
 
 async function initAuth() {
@@ -2841,14 +3068,20 @@ const T = {
   yourReport:    { en:'Your report',                               sr:'Vaša prijava' },
   updateFail:    { en:'Could not update status. Try again.',       sr:'Ažuriranje statusa nije uspelo. Pokušajte ponovo.' },
   adminBadge:    { en:'ADMIN',                                     sr:'ADMIN' },
-  tierNew:       { en:'New neighbor',                              sr:'Novi komšija' },
-  tierTrusted:   { en:'Trusted neighbor',                          sr:'Pouzdani komšija' },
-  profileModalTitleNew:     { en:'Status: New neighbor',           sr:'Status: Novi komšija' },
-  profileModalTitleTrusted: { en:'Status: Trusted neighbor',       sr:'Status: Pouzdani komšija' },
+  profileModalTitlePrefix:  { en:'Level ',                         sr:'Nivo ' },
   profileModalBtn:          { en:'Close',                          sr:'Zatvori' },
-  profileProgressToTrusted: { en:'To Trusted neighbor status: {x}/5 successful actions', sr:'Do statusa Pouzdanog komšije: {x}/5 uspešnih akcija' },
-  profileAlreadyTrusted:    { en:'You are a Trusted neighbor — your vote counts double.', sr:'Vi ste Pouzdani komšija — vaš glas vredi duplo.' },
-  profileStats:  { en:'{s} successful out of {t} total contributions', sr:'{s} uspešnih od ukupno {t} doprinosa' },
+  profileProgressToNext:    { en:'{n} points to {level}',          sr:'Još {n} poena do nivoa: {level}' },
+  profileMaxLevel:          { en:'You\u2019ve reached the top level — your vote counts as much as it can.', sr:'Dostigli ste najviši nivo — vaš glas vredi maksimalno.' },
+  profileStats:  { en:'{s} successful out of {t} civic points', sr:'{s} uspešnih od ukupno {t} poena' },
+  desktopBlockedMsg: { en:'Reporting is available on mobile only, so every report can be verified on-site.', sr:'Prijavljivanje je dostupno samo na mobilnom uređaju, kako bi svaka prijava mogla da se proveri na licu mesta.' },
+  mobileOnlyReport:  { en:'Reporting is available on mobile only.', sr:'Prijavljivanje je dostupno samo na mobilnom uređaju.' },
+  proximityInRange:  { en:'\u2713 Close enough to report', sr:'\u2713 Dovoljno blizu za prijavu' },
+  proximityTooFar:   { en:'{d}m away — get closer to report', sr:'{d}m udaljenosti — priđite bliže da prijavite' },
+  tooFarToReport:    { en:'You must be within 10m of the pin to report it ({d}m away).', sr:'Morate biti u krugu od 10m od pina da biste prijavili (udaljenost {d}m).' },
+  dashboardSectionTitle:     { en:'My Dashboard',        sr:'Moja tabla' },
+  dashboardStatPoints:       { en:'Civic points',        sr:'Građanski poeni' },
+  dashboardStatSuccessful:   { en:'Successful votes',    sr:'Uspešni glasovi' },
+  dashboardStatWeight:       { en:'Your vote weight',    sr:'Težina vašeg glasa' },
   tooFarToVote:  { en:'You must be on-site (within 50m) to vote for a status change.', sr:'Morate biti na licu mesta (u krugu od 50m) da biste glasali za izmenu statusa.' },
   voteRecorded:  { en:'Vote recorded.',                            sr:'Glas je zabeležen.' },
   voteResolved:  { en:'Status updated by community vote!',         sr:'Status je promenjen glasanjem zajednice!' },
@@ -3116,6 +3349,20 @@ function applyLang(){
   document.getElementById('navigatePinBtn').title = t('navigatePinBtnTitle');
   document.getElementById('navigatePinHint').textContent = t('navigatePinHint');
   updateNavStatusText();
+
+  updateTierPill();
+  const desktopBlockedEl = document.getElementById('desktopBlockedMsgText');
+  if (desktopBlockedEl) desktopBlockedEl.textContent = t('desktopBlockedMsg');
+  const dashTitleEl = document.getElementById('dashboardSectionTitle');
+  if (dashTitleEl) dashTitleEl.textContent = t('dashboardSectionTitle');
+  const dashPtsLabel = document.getElementById('dashboardStatPointsLabel');
+  if (dashPtsLabel) dashPtsLabel.textContent = t('dashboardStatPoints');
+  const dashSuccLabel = document.getElementById('dashboardStatSuccessfulLabel');
+  if (dashSuccLabel) dashSuccLabel.textContent = t('dashboardStatSuccessful');
+  const dashWeightLabel = document.getElementById('dashboardStatWeightLabel');
+  if (dashWeightLabel) dashWeightLabel.textContent = t('dashboardStatWeight');
+  if (document.getElementById('settingsModal').style.display !== 'none') renderUserDashboard();
+  updateProximityUi();
 }
 
 function showHelpModal() {
@@ -3128,6 +3375,7 @@ function hideHelpModal() {
 function showSettingsModal() {
   document.getElementById('settingsModalTitle').textContent = t('settingsModalTitle');
   document.getElementById('settingsModal').style.display = 'flex';
+  renderUserDashboard();
   if (currentProfile && currentProfile.is_admin) {
     cancelUcForm();
     loadUtilityCompaniesAdmin();
@@ -3150,6 +3398,12 @@ function buildHelpModalContent() {
       <p><strong><img class="icon-img icon-img-inline" src="icons/car.png" alt="car"></strong> ${lang === 'sr'
         ? 'Režim vožnje prikazuje dugmad za prijavu problema na putu na dnu ekrana. Dodirnite jedno da odmah prijavite problem na trenutnoj lokaciji. Da obeležite ceo loš deo puta, pritisnite "Počni prijavu deonice", provozite se preko problematičnog dela, pa pritisnite dugme opet da zaustavite snimanje — zatim dodirnite jedno od istih dugmadi da izaberete vrstu problema i sačuvate deonicu.'
         : 'Driving mode shows road-report buttons along the bottom of the screen. Tap one to instantly log a problem at your current location. To mark a whole stretch of bad road, tap "Start Section Report", drive over it, then tap the button again to stop recording — tapping one of the same buttons then picks a type and saves the section.'}</p>
+      <p><strong>${lang === 'sr' ? 'Nivoi' : 'Levels'}</strong> ${lang === 'sr'
+        ? 'Svaka prijava i svaki glas vam donose poene i podižu vas kroz šest nivoa, od Rešavača problema do Vizionara — viši nivo znači da vaš glas za status prijave vredi više. Pogledajte svoj napredak u Podešavanja → Moja tabla.'
+        : 'Every report and every vote earns points and climbs you through six levels, from Problem Solver up to Visionary — a higher level means your status vote counts for more. Check your progress in Settings → My Dashboard.'}</p>
+      <p><strong>${lang === 'sr' ? 'Prijavljivanje na licu mesta' : 'On-site reporting'}</strong> ${lang === 'sr'
+        ? 'Prijavljivanje je dostupno samo na mobilnom uređaju, a ako ručno postavite pin na mapu, morate biti u krugu od 10 metara od njega da biste ga prijavili — mala isprekidana kružnica na mapi pokazuje koliko ste blizu.'
+        : 'Reporting is available on mobile only, and if you drop a pin manually, you need to be within 10 meters of it to submit — a small dashed ring on the map shows how close you are.'}</p>
     </div>
   `;
 }
@@ -3779,6 +4033,38 @@ function distMeters(a, b) {
   const s = Math.sin(dLat/2)**2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon/2)**2;
   return 2 * R * Math.asin(Math.sqrt(s));
 }
+
+// =============================================================================
+// MOBILE-DEVICE DETECTION — regular (non-admin) users can only file reports
+// from a phone, so every report can plausibly be verified on-site; this is
+// also what makes the 10m proximity gate below meaningful in the first
+// place (on a desktop, "your location" isn't a real GPS fix to begin with).
+// Admins are exempt everywhere this is checked. Three signals, any one of
+// which is enough:
+//   1. Running inside the wrapped Android app (TraceTheStuffApp WebView) —
+//      always a phone, no further checking needed.
+//   2. A mobile-flavored User-Agent string.
+//   3. A coarse (touch) primary pointer, which catches mobile browsers
+//      whose UA string has been altered/stripped by a privacy extension.
+// Client-side only, like the rate limiter above it — real enforcement
+// against someone hitting the Supabase API directly needs a server-side
+// check too (see the proximity note on REPORT_PROXIMITY_MAX_M below).
+// =============================================================================
+function isMobileDevice() {
+  if (navigator.userAgent.includes('TraceTheStuffApp')) return true;
+  if (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)) return true;
+  return !!(window.matchMedia && window.matchMedia('(pointer:coarse)').matches);
+}
+
+// A non-admin's manually-dropped report pin (see togglePinMode) must be
+// within this many meters of their live GPS fix to submit — the reporting
+// equivalent of the existing 50m vote proximity gate (see castStatusVote).
+// Live-GPS reports (the default flow, quick tiles, section recording)
+// never need this check since their coordinates ARE the live fix.
+// NOTE: enforced client-side here for instant feedback (see
+// updateProximityUi/reportBreak); like the vote gate, real enforcement
+// against direct API calls needs a matching check on the Supabase side.
+const REPORT_PROXIMITY_MAX_M = 10;
 
 // Moves a {lat, lon} point `meters` in the direction `bearingDeg` (clockwise
 // from true north). Flat-earth approximation — plenty accurate at the
@@ -4796,6 +5082,7 @@ function handleTileTap(subcategoryKey) {
 // Skips the normal form entirely so it can be used safely with a single glance.
 async function quickReportRoad(subcategoryKey) {
   if (!currentSession || !currentProfile) { toast(t('signInFirst') || 'Sign in first', 'error'); return; }
+  if (!currentProfile.is_admin && !isMobileDevice()) { toast(t('mobileOnlyReport'), 'error'); return; }
   if (!userCoords) { toast(t('waitGps'), 'error'); return; }
   if (!isValidCoordObj(userCoords)) { toast(t('invalidLocation'), 'error'); return; }
   if (shouldBlockReportSubmission()) return;
@@ -4870,6 +5157,7 @@ function cancelPendingSection() {
 // report, just operating on the traced path instead of a single point.
 async function finalizeSectionReport(subcategoryKey) {
   if (!currentSession || !currentProfile) { toast(t('signInFirst') || 'Sign in first', 'error'); return; }
+  if (!currentProfile.is_admin && !isMobileDevice()) { toast(t('mobileOnlyReport'), 'error'); return; }
   if (sectionPoints.length < 2) {
     sectionAwaitingCategory = false;
     updateSectionButtonUI();
@@ -5182,6 +5470,7 @@ function startWatching() {
       hideGpsModal();
       stopGpsRetryLoop();
       updateDrivingGpsStatus();
+      updateProximityUi();
       if (!userMarker) {
         userMarker = L.marker([userCoords.lat, userCoords.lon], {
           icon: L.divIcon({
@@ -5408,6 +5697,52 @@ const NavigatePanelControl = L.Control.extend({
 });
 new NavigatePanelControl().addTo(map);
 
+// =============================================================================
+// PROXIMITY-TO-REPORT UI — the dashed map ring + the panel's distance
+// readout, both driven off the same manualCoords/userCoords pair used by
+// reportBreak()'s actual gate below. Two separate render targets (a
+// Leaflet layer + a DOM badge) so the "get closer" feedback is visible
+// whether the person is looking at the map or at the form.
+// Skipped entirely for admins (no gate applies to them) and whenever
+// there's no manual pin to measure from — see REPORT_PROXIMITY_MAX_M.
+// =============================================================================
+let proximityCircle = null;
+
+function updateProximityUi() {
+  const isAdmin = !!(currentProfile && currentProfile.is_admin);
+  const indicator = document.getElementById('proximityIndicator');
+  const active = !isAdmin && pinMode && manualCoords;
+
+  if (!active) {
+    if (proximityCircle) { map.removeLayer(proximityCircle); proximityCircle = null; }
+    if (indicator) indicator.style.display = 'none';
+    return;
+  }
+
+  const near = !!userCoords && distMeters(userCoords, manualCoords) <= REPORT_PROXIMITY_MAX_M;
+  const color = near ? '#3ecf6e' : '#ff4b4b';
+
+  if (!proximityCircle) {
+    proximityCircle = L.circle([manualCoords.lat, manualCoords.lon], {
+      radius: REPORT_PROXIMITY_MAX_M, color, weight: 2, dashArray: '6 6',
+      fillColor: color, fillOpacity: 0.12, interactive: false
+    }).addTo(map);
+  } else {
+    proximityCircle.setLatLng([manualCoords.lat, manualCoords.lon]);
+    proximityCircle.setStyle({ color, fillColor: color });
+  }
+
+  if (indicator) {
+    indicator.style.display = 'flex';
+    document.getElementById('proximityDot').classList.toggle('near', near);
+    document.getElementById('proximityText').textContent = !userCoords
+      ? t('waitGps')
+      : near
+        ? t('proximityInRange')
+        : t('proximityTooFar').replace('{d}', Math.round(distMeters(userCoords, manualCoords)));
+  }
+}
+
 function togglePinMode() {
   pinMode = !pinMode;
   const btn = document.getElementById('pinMapBtn');
@@ -5426,6 +5761,7 @@ function togglePinMode() {
     if (userCoords) showMunicipalityBoundaryForPoint(userCoords.lat, userCoords.lon, userMarker);
     else renderMunicipalityBoundary(null);
   }
+  updateProximityUi();
   checkFormReady();
 }
 
@@ -5468,6 +5804,7 @@ map.on('click', function(e) {
   // happens to be. Reverted back to the GPS municipality in togglePinMode()
   // once pin mode is switched off.
   showMunicipalityBoundaryForPoint(manualCoords.lat, manualCoords.lon, manualMarker);
+  updateProximityUi();
   checkFormReady();
 });
 
@@ -5885,13 +6222,33 @@ function resetReportingForm() {
   }
   if (manualMarker) { map.removeLayer(manualMarker); manualMarker = null; }
   manualCoords = null;
+  updateProximityUi();
 }
 
 async function reportBreak(){
   if (!currentSession || !currentProfile) { updateAuthUI(); return; }
 
+  const isAdmin = !!currentProfile.is_admin;
+  // Defense in depth — the UI already hides this whole form on desktop
+  // for non-admins (see updateAuthUI), this just covers anyone who got
+  // here anyway (e.g. a stale tab left open after switching devices).
+  if (!isAdmin && !isMobileDevice()) { alert(t('mobileOnlyReport')); return; }
+
   const coords = pinMode && manualCoords ? manualCoords : userCoords;
   if (!coords) { alert(t('waitGps')); return; }
+
+  // Non-admins must be standing within REPORT_PROXIMITY_MAX_M of a
+  // manually-dropped pin to file against it — see updateProximityUi for
+  // the matching live ring/text feedback. A live-GPS report (pinMode off)
+  // never hits this: coords IS userCoords already, distance is always 0.
+  if (!isAdmin && pinMode && manualCoords) {
+    if (!userCoords) { alert(t('waitGps')); return; }
+    const dist = distMeters(userCoords, manualCoords);
+    if (dist > REPORT_PROXIMITY_MAX_M) {
+      alert(t('tooFarToReport').replace('{d}', Math.round(dist)));
+      return;
+    }
+  }
 
   const lat = toFiniteNumber(coords.lat);
   const lon = toFiniteNumber(coords.lon);
