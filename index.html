@@ -4394,7 +4394,7 @@ function isMobileDevice() {
 // NOTE: enforced client-side here for instant feedback (see
 // updateProximityUi/reportBreak); like the vote gate, real enforcement
 // against direct API calls needs a matching check on the Supabase side.
-const REPORT_PROXIMITY_MAX_M = 10;
+const REPORT_PROXIMITY_MAX_M = 50;
 
 // The "on-site" gate for a community status vote (see castStatusVote) —
 // also reused as the threshold for an out-of-domain admin's on-site
