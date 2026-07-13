@@ -2947,7 +2947,10 @@ function nextUserLevel(lvl) {
 // Expected Supabase schema additions on `profiles` (not present in this
 // client-only file, mirroring the note on USER_LEVELS' weight CASE above):
 //   admin_level            smallint  -- 1, 2, or 3; null/0 for non-admins
-//   admin_municipality_id  uuid      -- required for level 1
+//   admin_municipality_id  bigint    -- required for level 1; matches a row's
+//                                        id in the municipalities table (the
+//                                        same id stored in a report's
+//                                        municipality_id) — NOT the slug.
 //   admin_country_code     text      -- required for level 2
 // `is_admin` stays as the simple "is this any kind of admin" flag used
 // throughout the app (settings section visibility, photo review, utility
@@ -2988,7 +2991,7 @@ function currentAdminTag() {
   if (lvl >= 3) return t('adminTagGlobal');
   if (lvl === 2) return currentProfile.admin_country_code ? countryDisplayName(currentProfile.admin_country_code) : t('adminTagUnset');
   const muni = currentProfile.admin_municipality_id != null
-    ? getMunicipalityBySlug(currentProfile.admin_municipality_id) : null;
+    ? getMunicipalityById(currentProfile.admin_municipality_id) : null;
   return muni ? municipalityDisplayName(muni) : t('adminTagUnset');
 }
 
@@ -3007,9 +3010,10 @@ function isMunicipalityInAdminDomain(muni) {
   if (lvl === 2) {
     return !!(currentProfile.admin_country_code && muni.country_code === currentProfile.admin_country_code);
   }
-  // lvl === 1 — admin_municipality_id stores the municipality's slug (not
-  // its bigint id), so compare through that.
-  return !!(currentProfile.admin_municipality_id != null && muni.slug === currentProfile.admin_municipality_id);
+  // lvl === 1 — admin_municipality_id stores the municipality's own id
+  // (the same value shown in the municipalities table and used everywhere
+  // else in this file, e.g. municipality_id on a report) — compare directly.
+  return !!(currentProfile.admin_municipality_id != null && String(muni.id) === String(currentProfile.admin_municipality_id));
 }
 
 // True if this report falls inside the signed-in admin's OWN assigned
@@ -6778,9 +6782,11 @@ function getMunicipalityById(id) {
   return municipalityCache.find(m => String(m.id) === String(id)) || null;
 }
 
-// Lookup by slug — used for admin_municipality_id, which stores the
-// random unique slug (see municipalities.slug) rather than the bigint id,
-// so a plain getMunicipalityById() lookup against it never matches.
+// Lookup by slug — not currently used for admin domain matching (see
+// isMunicipalityInAdminDomain, which now compares admin_municipality_id
+// against a plain municipality id via getMunicipalityById above). Kept
+// around as a general-purpose lookup in case a slug-based URL/lookup is
+// added later.
 function getMunicipalityBySlug(slug) {
   if (slug == null) return null;
   return municipalityCache.find(m => m.slug === slug) || null;
