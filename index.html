@@ -2006,7 +2006,7 @@ details[open] > summary .uc-group-chevron{ transform:rotate(180deg); /* point do
 }
 
 /* --- Report photo evidence: picker + preview in the report form --- */
-.report-comment-row{ display:flex; align-items:center; gap:8px; }
+.report-comment-row{ display:flex; align-items:stretch; gap:8px; }
 .report-comment-row #comment{ flex:1 1 auto; min-width:0; }
 /* Camera icon + its "Take Photo / Choose from Library" popover, sitting
    right next to the optional-notes input in the report form — see
@@ -2100,11 +2100,15 @@ details[open] > summary .uc-group-chevron{ transform:rotate(180deg); /* point do
    overrides .icon-only-btn's fixed 28px square so it instead fills the
    stretched .report-comment-row (i.e. matches #comment's own rendered
    height, whatever that ends up being) while staying 1:1 via aspect-ratio.
+   height:100% needs .report-comment-row/.photo-choice-dropdown to
+   actually be stretched (align-items:stretch), otherwise there's no
+   definite height to inherit and it collapses to the icon's own
+   intrinsic size — which is what made it look oversized before.
    Scoped to this id only — the unrelated camera button in the report
    detail modal (no id, plain .icon-only-btn) is untouched. */
 #reportPhotoAddBtn{
   width:auto;
-  height:auto;
+  height:100%;
   aspect-ratio:1/1;
 }
 #reportPhotoAddBtn .icon-img{ width:55%; height:55%; }
