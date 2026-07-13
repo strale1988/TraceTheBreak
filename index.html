@@ -2450,6 +2450,25 @@ span.flatpickr-weekday {
       <div class="dashboard-ladder" id="dashboardLadder"></div>
     </div>
 
+    <!-- My Admin Role: signed-in admin only (see renderAdminDashboard,
+         called from showSettingsModal/updateAuthUI). Mirrors the non-admin
+         "My Dashboard" ladder above, but shows admin level + domain tag
+         instead — see the 3-tier ADMIN_LEVELS design near currentAdminLevel(). -->
+    <div class="detail-section dashboard-section" id="adminDashboardSection" style="display:none">
+      <div class="detail-section-title" id="adminDashboardSectionTitle">My Admin Role</div>
+      <div class="dashboard-level-row">
+        <span class="tier-pill dashboard-level-pill" id="adminDashboardLevelPill">1</span>
+        <span class="dashboard-level-name" id="adminDashboardLevelName"></span>
+      </div>
+      <div class="dashboard-stats-grid" style="grid-template-columns:1fr;">
+        <div class="dashboard-stat-box">
+          <div class="dashboard-stat-value" id="adminDashboardTagValue" style="font-size:14px;">—</div>
+          <div class="dashboard-stat-label" id="adminDashboardTagLabel">Responsible for</div>
+        </div>
+      </div>
+      <div class="dashboard-progress-text" id="adminDashboardScopeNote"></div>
+    </div>
+
     <div class="detail-section" style="padding:0;overflow:hidden;">
       <div class="filter-label-row" style="border-radius:0;">
         <span class="filter-title" id="filterTitleLabel">Time Window Filter</span>
@@ -2765,7 +2784,11 @@ function updateAuthUI() {
   if (currentSession && currentProfile && currentProfile.username) {
     userBadge.style.display = 'flex';
     document.getElementById('userBadgeName').textContent = currentProfile.username;
-    document.getElementById('userBadgeAdmin').style.display = currentProfile.is_admin ? 'inline-block' : 'none';
+    const adminBadgeEl = document.getElementById('userBadgeAdmin');
+    adminBadgeEl.style.display = currentProfile.is_admin ? 'inline-block' : 'none';
+    if (currentProfile.is_admin) {
+      adminBadgeEl.title = adminLevelName(currentAdminLevel()) + ' · ' + currentAdminTag();
+    }
     document.getElementById('settingsAdminSection').style.display = currentProfile.is_admin ? 'flex' : 'none';
     updateTierPill();
 
@@ -2851,6 +2874,105 @@ function currentUserLevel() {
 }
 function nextUserLevel(lvl) {
   return USER_LEVELS.find(l => l.level === lvl.level + 1) || null;
+}
+
+// =============================================================================
+// ADMIN LEVELS — three tiers of admin, each carrying a "tag" that says what
+// they're responsible for:
+//   1 · Municipal Controller — full power only inside their own assigned
+//       municipality (currentProfile.admin_municipality_id). Tag = that
+//       municipality's name.
+//   2 · Regional Director    — full power inside their own assigned country
+//       (currentProfile.admin_country_code), i.e. every municipality in it.
+//       Tag = that country.
+//   3 · Global Overseer      — full power everywhere. Tag = "Global".
+//
+// Expected Supabase schema additions on `profiles` (not present in this
+// client-only file, mirroring the note on USER_LEVELS' weight CASE above):
+//   admin_level            smallint  -- 1, 2, or 3; null/0 for non-admins
+//   admin_municipality_id  uuid      -- required for level 1
+//   admin_country_code     text      -- required for level 2
+// `is_admin` stays as the simple "is this any kind of admin" flag used
+// throughout the app (settings section visibility, photo review, utility
+// contacts, etc.) — admin_level only refines what happens once we already
+// know they're an admin AND it's about a specific report's status.
+//
+// Any existing admin row that predates this feature (is_admin = true but no
+// admin_level set) is treated as a Global Overseer for backward
+// compatibility — see ADMIN_DEFAULT_LEVEL below — so nobody's access
+// silently shrinks just because this shipped.
+// =============================================================================
+const ADMIN_LEVELS = [
+  { level:1, nameEn:'Municipal Controller', nameSr:'Opštinski kontrolor' },
+  { level:2, nameEn:'Regional Director',     nameSr:'Regionalni direktor' },
+  { level:3, nameEn:'Global Overseer',       nameSr:'Globalni nadzornik' },
+];
+const ADMIN_DEFAULT_LEVEL = 3; // legacy admins with no admin_level on file
+
+function adminLevelInfo(lvl) { return ADMIN_LEVELS.find(a => a.level === lvl) || null; }
+function adminLevelName(lvl) {
+  const info = adminLevelInfo(lvl);
+  if (!info) return '';
+  return lang === 'sr' ? info.nameSr : info.nameEn;
+}
+
+// The signed-in admin's own level (1/2/3), defaulting legacy rows to Global.
+function currentAdminLevel() {
+  if (!currentProfile || !currentProfile.is_admin) return 0;
+  return currentProfile.admin_level || ADMIN_DEFAULT_LEVEL;
+}
+
+// A short human-readable tag describing what the signed-in admin is
+// responsible for — a municipality name, a country, or "Global". Shown in
+// the header badge tooltip and in the Settings admin dashboard.
+function currentAdminTag() {
+  const lvl = currentAdminLevel();
+  if (!lvl) return '';
+  if (lvl >= 3) return t('adminTagGlobal');
+  if (lvl === 2) return currentProfile.admin_country_code || t('adminTagUnset');
+  const muni = currentProfile.admin_municipality_id != null
+    ? getMunicipalityById(currentProfile.admin_municipality_id) : null;
+  return muni ? municipalityDisplayName(muni) : t('adminTagUnset');
+}
+
+// True if this report falls inside the signed-in admin's OWN assigned
+// domain — home municipality for a Controller, home country for a
+// Director, anywhere for an Overseer — in which case they have full,
+// unconditional power over it regardless of where they're currently
+// standing (same as a plain admin always has today).
+function isReportInAdminDomain(report) {
+  const lvl = currentAdminLevel();
+  if (!lvl) return false;
+  if (lvl >= 3) return true;
+  if (!report) return false;
+  if (lvl === 2) {
+    const muni = report.municipality_id != null ? getMunicipalityById(report.municipality_id) : null;
+    return !!(muni && currentProfile.admin_country_code && muni.country_code === currentProfile.admin_country_code);
+  }
+  // lvl === 1
+  return currentProfile.admin_municipality_id != null
+    && String(report.municipality_id) === String(currentProfile.admin_municipality_id);
+}
+
+// True if the signed-in admin is currently standing within on-site range of
+// this report — the same proximity gate used for a regular community vote
+// (see VOTE_PROXIMITY_MAX_M / castStatusVote). Used to let an admin who is
+// OUT of their own domain still take full control of a report they've
+// physically gone to check on.
+function isAdminOnSiteOf(report) {
+  if (!userCoords || !report || !isValidLatLng(report.latitude, report.longitude)) return false;
+  return distMeters(userCoords, { lat: report.latitude, lon: report.longitude }) <= VOTE_PROXIMITY_MAX_M;
+}
+
+// The single gate that decides whether the signed-in admin gets full,
+// instant edit/delete power over THIS report: either it's inside their own
+// domain (always), or they're physically on-site with it right now (an
+// out-of-domain override). Everywhere else, they fall back to voting —
+// see castStatusVote, which gives an out-of-domain admin's vote the
+// strongest possible weight instead (server-side, in cast_status_vote()).
+function hasFullPowerOverReport(report) {
+  if (!currentProfile || !currentProfile.is_admin) return false;
+  return isReportInAdminDomain(report) || isAdminOnSiteOf(report);
 }
 
 // --- Header level pill + profile progress modal ------------------------------
@@ -2957,6 +3079,36 @@ function renderUserDashboard() {
       <span>${l.level}. ${levelName(l)} — x${l.weight}</span>
     </div>`;
   }).join('');
+}
+
+// --- Settings > My Admin Role -------------------------------------------------
+// Admin-only counterpart to renderUserDashboard above: shows the signed-in
+// admin's level (Municipal Controller / Regional Director / Global
+// Overseer) and their tag — the municipality, country, or "Global" they're
+// responsible for — plus a one-line reminder of what that means for their
+// power outside that domain. Hidden entirely for non-admins and signed-out
+// visitors.
+function renderAdminDashboard() {
+  const section = document.getElementById('adminDashboardSection');
+  if (!section) return;
+
+  if (!currentSession || !currentProfile || !currentProfile.is_admin) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = 'flex';
+
+  const lvl = currentAdminLevel();
+  const tag = currentAdminTag();
+
+  const pill = document.getElementById('adminDashboardLevelPill');
+  pill.textContent = lvl;
+  pill.className = 'tier-pill dashboard-level-pill tier-level-' + lvl;
+  document.getElementById('adminDashboardLevelName').textContent = adminLevelName(lvl);
+  document.getElementById('adminDashboardTagValue').textContent = tag;
+
+  const noteKey = lvl === 1 ? 'adminDashboardScopeNote1' : lvl === 2 ? 'adminDashboardScopeNote2' : 'adminDashboardScopeNote3';
+  document.getElementById('adminDashboardScopeNote').textContent = t(noteKey);
 }
 
 async function initAuth() {
@@ -3068,6 +3220,14 @@ const T = {
   yourReport:    { en:'Your report',                               sr:'Vaša prijava' },
   updateFail:    { en:'Could not update status. Try again.',       sr:'Ažuriranje statusa nije uspelo. Pokušajte ponovo.' },
   adminBadge:    { en:'ADMIN',                                     sr:'ADMIN' },
+  adminTagGlobal:   { en:'Global',                                 sr:'Globalno' },
+  adminTagUnset:    { en:'Unassigned',                             sr:'Nedodeljeno' },
+  adminDashboardSectionTitle: { en:'My Admin Role',                sr:'Moja administratorska uloga' },
+  adminDashboardLevelLabel:   { en:'Level',                        sr:'Nivo' },
+  adminDashboardTagLabel:     { en:'Responsible for',              sr:'Odgovoran za' },
+  adminDashboardScopeNote1:   { en:'Full power inside this municipality. Elsewhere, your vote carries the strongest weight — unless you\u2019re physically on-site, where you can still take full control.', sr:'Puna ovlašćenja unutar ove opštine. Van nje, vaš glas ima najveću težinu — osim ako se ne nalazite fizički na licu mesta, gde i dalje imate punu kontrolu.' },
+  adminDashboardScopeNote2:   { en:'Full power inside this country. Elsewhere, your vote carries the strongest weight — unless you\u2019re physically on-site, where you can still take full control.', sr:'Puna ovlašćenja unutar ove zemlje. Van nje, vaš glas ima najveću težinu — osim ako se ne nalazite fizički na licu mesta, gde i dalje imate punu kontrolu.' },
+  adminDashboardScopeNote3:   { en:'Full power everywhere, all the time.', sr:'Puna ovlašćenja svuda, u svakom trenutku.' },
   profileModalTitlePrefix:  { en:'Level ',                         sr:'Nivo ' },
   profileModalBtn:          { en:'Close',                          sr:'Zatvori' },
   profileProgressToNext:    { en:'{n} points to {level}',          sr:'Još {n} poena do nivoa: {level}' },
@@ -3361,7 +3521,11 @@ function applyLang(){
   if (dashSuccLabel) dashSuccLabel.textContent = t('dashboardStatSuccessful');
   const dashWeightLabel = document.getElementById('dashboardStatWeightLabel');
   if (dashWeightLabel) dashWeightLabel.textContent = t('dashboardStatWeight');
-  if (document.getElementById('settingsModal').style.display !== 'none') renderUserDashboard();
+  const adminDashTitleEl = document.getElementById('adminDashboardSectionTitle');
+  if (adminDashTitleEl) adminDashTitleEl.textContent = t('adminDashboardSectionTitle');
+  const adminDashTagLabel = document.getElementById('adminDashboardTagLabel');
+  if (adminDashTagLabel) adminDashTagLabel.textContent = t('adminDashboardTagLabel');
+  if (document.getElementById('settingsModal').style.display !== 'none') { renderUserDashboard(); renderAdminDashboard(); }
   updateProximityUi();
 }
 
@@ -3376,6 +3540,7 @@ function showSettingsModal() {
   document.getElementById('settingsModalTitle').textContent = t('settingsModalTitle');
   document.getElementById('settingsModal').style.display = 'flex';
   renderUserDashboard();
+  renderAdminDashboard();
   if (currentProfile && currentProfile.is_admin) {
     cancelUcForm();
     loadUtilityCompaniesAdmin();
@@ -3536,8 +3701,32 @@ function removeReportLayer(layer) {
 
 // Holds the pins for every verified public utility company that has an
 // address on file — see loadAllCompanyMarkers() near renderMunicipalityBoundary()
-// below, called once at STARTUP.
-const companyMarkersLayer = L.layerGroup().addTo(map);
+// below, called once at STARTUP. These "public" pins get their own
+// clustering group, entirely separate from pinCluster above, so a bunch of
+// utility-company pins sitting near a bunch of report pins never merge into
+// one mixed bubble — each layer only ever clusters with its own kind, and
+// the bubble color/shape tells you at a glance which kind you're looking at.
+function makePublicClusterIcon(cluster) {
+  const count = cluster.getChildCount();
+  let size = 32, fontSize = 12;
+  if (count >= 10 && count < 100) { size = 40; fontSize = 13; }
+  else if (count >= 100) { size = 48; fontSize = 14; }
+  return L.divIcon({
+    html: `<div style="width:${size}px;height:${size}px;box-sizing:border-box;border-radius:14px;` +
+      `background:#2f8f5b;border:3px solid var(--accent-contrast);` +
+      `display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.5);` +
+      `color:var(--accent-contrast);font-weight:700;font-size:${fontSize}px;">${count}</div>`,
+    className: '',
+    iconSize: [size, size]
+  });
+}
+const companyMarkersLayer = L.markerClusterGroup({
+  maxClusterRadius: 50,
+  disableClusteringAtZoom: 17,
+  spiderfyOnMaxZoom: true,
+  showCoverageOnHover: false,
+  iconCreateFunction: makePublicClusterIcon
+}).addTo(map);
 
 // Reparents Leaflet's internal map-pane (tiles + markers + lines + popups)
 // inside a plain div we control, so that div can be CSS-rotated for
@@ -4065,6 +4254,11 @@ function isMobileDevice() {
 // updateProximityUi/reportBreak); like the vote gate, real enforcement
 // against direct API calls needs a matching check on the Supabase side.
 const REPORT_PROXIMITY_MAX_M = 10;
+
+// The "on-site" gate for a community status vote (see castStatusVote) —
+// also reused as the threshold for an out-of-domain admin's on-site
+// override (see isAdminOnSiteOf/hasFullPowerOverReport).
+const VOTE_PROXIMITY_MAX_M = 50;
 
 // Moves a {lat, lon} point `meters` in the direction `bearingDeg` (clockwise
 // from true north). Flat-earth approximation — plenty accurate at the
@@ -7568,12 +7762,15 @@ function buildPopupHtml(report) {
     ? `${translateCategory(report.category)} / ${subcategoryLabel(report.category, report.subcategory)}`
     : translateCategory(report.category);
 
+  const hasFullPower = hasFullPowerOverReport(report);
   let actionsHtml = '';
-  if (isAdmin) {
-    // Admins get a quick status jump right in the popup for fast triage;
-    // full editing (category/subcategory/priority/comment) and delete now
-    // live in the report detail modal (see showReportDetailModal) instead
-    // of a separate cramped popup edit form.
+  if (hasFullPower) {
+    // Full-power admins (home domain, or physically on-site with a report
+    // outside it — see hasFullPowerOverReport) get a quick status jump
+    // right in the popup for fast triage; full editing (category/
+    // subcategory/priority/comment) and delete now live in the report
+    // detail modal (see showReportDetailModal) instead of a separate
+    // cramped popup edit form.
     const statuses = [
       { key: 'reported',    label: t('markReported'),   bg: STATUS_COLORS.reported },
       { key: 'in_progress', label: t('markInProgress'), bg: STATUS_COLORS.in_progress },
@@ -7583,11 +7780,14 @@ function buildPopupHtml(report) {
       ${statuses.map(s => `<button class="status-action-btn" style="background:${s.bg};" onclick="updateReportStatus('${report.id}','${s.key}')">${s.label}</button>`).join('')}
     </div>`;
   } else if (currentSession && report.status !== 'fixed') {
-    // Everyone else (including the reporter) suggests a status by voting —
-    // no more direct overwrites. A vote only takes effect once it, and
-    // others agreeing with it, reach the 3-point threshold (see
-    // cast_status_vote() in Supabase), and only while standing within 50m
-    // of the pin (checked server-side at cast time).
+    // Everyone else — including a regular reporter, and an admin who is
+    // both outside their own domain and not standing on-site right now —
+    // suggests a status by voting instead of a direct overwrite. A
+    // regular vote only takes effect once it, and others agreeing with it,
+    // reach the 3-point threshold, and only while standing within 50m of
+    // the pin; an admin's vote here skips that on-site requirement and
+    // carries the strongest possible weight instead (see castStatusVote
+    // and cast_status_vote() in Supabase).
     const statuses = [
       { key: 'reported',    label: t('markReported'),   bg: STATUS_COLORS.reported },
       { key: 'in_progress', label: t('markInProgress'), bg: STATUS_COLORS.in_progress },
@@ -8075,6 +8275,7 @@ async function emailReport(reportId) {
 // same section into buildDetailEditFieldsHtml below.
 function buildDetailStatusReadonlyHtml(report, reporterName) {
   const isAdmin = !!(currentProfile && currentProfile.is_admin);
+  const hasFullPower = hasFullPowerOverReport(report);
   const isOwner = !!(currentSession && report.owner_id === currentSession.user.id);
   // Same eligibility rule as the map popup (buildPopupHtml) — kept in sync
   // there so the button doesn't appear in one view but not the other.
@@ -8091,7 +8292,7 @@ function buildDetailStatusReadonlyHtml(report, reporterName) {
   return `
     <div class="detail-section-title-row">
       <div class="detail-section-title">${t('popupStatus')}</div>
-      ${isAdmin ? `<div class="detail-edit-actions">
+      ${hasFullPower ? `<div class="detail-edit-actions">
         <button type="button" class="detail-edit-btn" onclick="enterReportDetailEditMode('${report.id}')">${t('editBtn')}</button>
         <button type="button" class="detail-delete-btn" onclick="deleteReport('${report.id}')">${t('deleteBtn')}</button>
       </div>` : ''}
@@ -8307,20 +8508,30 @@ async function updateReportStatus(reportId, newStatus) {
   }
 }
 
-// Community-verification vote for a non-admin user. The 50m proximity gate
-// and the weighted-points tally both happen server-side in cast_status_vote()
-// (see the Supabase SQL) so a client can't fake either — this only does a
-// quick client-side distance check first purely so a user standing nowhere
-// near the pin gets the friendly Serbian message instantly, before even
-// making the round trip.
+// Community-verification vote. The proximity gate and the weighted-points
+// tally both happen server-side in cast_status_vote() (see the Supabase
+// SQL) so a client can't fake either — this only does a quick client-side
+// distance check first purely so someone standing nowhere near the pin
+// gets the friendly message instantly, before even making the round trip.
+//
+// An admin only ever reaches this function for a report OUTSIDE their own
+// domain that they're not currently standing next to either (see
+// hasFullPowerOverReport / buildPopupHtml) — in that situation they still
+// get to vote same as anyone, just skipping the on-site requirement, since
+// "elsewhere has the strongest voting power" per the 3-tier admin design.
+// NOTE: cast_status_vote() needs a matching server-side update so it (a)
+// skips its own on-site check for an admin voting outside their domain, and
+// (b) gives that vote the strongest possible weight (e.g. enough to resolve
+// on its own) rather than the normal tier-based multiplier.
 async function castStatusVote(reportId, suggestedStatus) {
   if (!currentSession || !currentProfile) { toast(t('signInFirst'), 'error'); return; }
   if (!userCoords) { toast(t('waitGps'), 'error'); return; }
 
   const report = globalActiveData.find(r => r.id === reportId);
-  if (report && isValidLatLng(report.latitude, report.longitude)) {
+  const isAdmin = !!(currentProfile.is_admin);
+  if (!isAdmin && report && isValidLatLng(report.latitude, report.longitude)) {
     const dist = distMeters(userCoords, { lat: report.latitude, lon: report.longitude });
-    if (dist > 50) { toast(t('tooFarToVote'), 'error'); return; }
+    if (dist > VOTE_PROXIMITY_MAX_M) { toast(t('tooFarToVote'), 'error'); return; }
   }
 
   try {
