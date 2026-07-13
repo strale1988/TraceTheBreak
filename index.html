@@ -3162,7 +3162,7 @@ function renderUserDashboard() {
 // responsible for — plus a one-line reminder of what that means for their
 // power outside that domain. Hidden entirely for non-admins and signed-out
 // visitors.
-function renderAdminDashboard() {
+async function renderAdminDashboard() {
   const section = document.getElementById('adminDashboardSection');
   if (!section) return;
 
@@ -3171,6 +3171,16 @@ function renderAdminDashboard() {
     return;
   }
   section.style.display = 'flex';
+
+  // A level-1 tag depends on municipalityCache being loaded — await it
+  // here so this is correct no matter when renderAdminDashboard happens to
+  // be called (e.g. right after sign-in, before the startup warmup fetch
+  // has landed), instead of silently reading an empty cache and showing
+  // "Unassigned".
+  if (currentAdminLevel() === 1) await loadMunicipalityCache();
+  // The admin could have signed out (or the panel closed) while the await
+  // above was in flight — bail rather than write into a stale/hidden panel.
+  if (!currentSession || !currentProfile || !currentProfile.is_admin) return;
 
   const lvl = currentAdminLevel();
   const tag = currentAdminTag();
@@ -6889,10 +6899,22 @@ async function fetchMunicipalityFromNominatim(lat, lon) {
 // findMunicipalityInCache above). Never touches Overpass or Nominatim.
 // Returns null if no imported boundary covers this point yet; an admin
 // needs to import it first via "Add municipality from map center".
+// General-purpose resolver used for the live GPS badge and the manual-pin
+// badge/domain-check (see showMunicipalityBoundaryForPoint below): tries
+// the fast point-in-polygon lookup first, then falls back to the
+// name-match geocode for municipalities that don't have a boundary polygon
+// on file — which, per the note above, is every bulk-imported municipality
+// except the handful an admin has separately imported with a real boundary
+// via "Add municipality from map center". Without this fallback, a manual
+// pin (or an admin's own home municipality, for the admin-domain check)
+// would show "unknown" everywhere except those few imported boundaries —
+// which is exactly the symptom this fixes.
 async function resolveMunicipality(lat, lon) {
   if (!isValidLatLng(lat, lon)) return null;
   await loadMunicipalityCache();
-  return findMunicipalityInCache(lat, lon);
+  let muni = findMunicipalityInCache(lat, lon);
+  if (!muni) muni = await resolveMunicipalityViaGeocode(lat, lon);
+  return muni;
 }
 
 // --- Name-match fallback (no boundary storage required) ---------------------
@@ -6984,8 +7006,7 @@ async function resolveReportMunicipality(report) {
 // it never blocks it). Silently does nothing if a municipality can't be
 // resolved for this point at all.
 function resolveAndAttachMunicipality(reportId, lat, lon) {
-  resolveMunicipality(lat, lon).then(async muni => {
-    if (!muni) muni = await resolveMunicipalityViaGeocode(lat, lon);
+  resolveMunicipality(lat, lon).then(muni => {
     if (!muni || muni.id == null || !reportId) return;
     sb.from(TABLE).update({ municipality_id: muni.id }).eq('id', reportId)
       .then(({ error }) => { if (error) console.error('Failed to attach municipality to report:', error.message); });
@@ -9278,7 +9299,17 @@ applyLang();
 // alongside loadPinsByWindow() rather than waiting for it to finish.
 loadPinsByWindow();
 openSharedReportFromUrl();
-loadMunicipalityCache(); // fire-and-forget warmup — see loadMunicipalityCache for why
+// fire-and-forget warmup — see loadMunicipalityCache for why. Also, once
+// it resolves, re-render anything that reads an admin's municipality tag
+// (header badge tooltip, Settings > My Admin Role) — those can run right
+// after sign-in, well before this network fetch has actually landed, and
+// wouldn't otherwise ever refresh themselves once it does.
+loadMunicipalityCache().then(() => {
+  if (currentProfile && currentProfile.is_admin) {
+    updateAuthUI();
+    renderAdminDashboard();
+  }
+});
 loadAllCompanyMarkers(); // fire-and-forget — pins appear on the map as each address is geocoded
 // Help modal should greet first-time/logged-out visitors, but not talk
 // over a returning, already-signed-in user every time they open the app.
