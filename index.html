@@ -2982,6 +2982,45 @@ function currentAdminLevel() {
   return currentProfile.admin_level || ADMIN_DEFAULT_LEVEL;
 }
 
+// Resolves a level-1 admin's admin_municipality_id to a municipality row,
+// tolerant of whichever identifier actually ended up in that column (its
+// own id, its slug, or its raw OSM id have all been used at different
+// points while this admin_municipality_id) — tries each in turn instead of
+// assuming one specific convention.
+//
+// Logs a console warning (once per distinct bad value) if none of them
+// match anything in municipalityCache, listing what IS available, so a
+// mismatch can be diagnosed straight from devtools instead of guessing.
+const _adminMuniLookupWarned = new Set();
+function getMunicipalityForAdminAssignment(value) {
+  if (value == null) return null;
+  const byId = municipalityCache.find(m => String(m.id) === String(value));
+  if (byId) return byId;
+  const bySlug = municipalityCache.find(m => m.slug === value);
+  if (bySlug) return bySlug;
+  const byOsmId = municipalityCache.find(m => String(m.osm_id) === String(value));
+  if (byOsmId) return byOsmId;
+  // Tolerate a plain municipality name typed straight into the column
+  // (e.g. "Subotica" or "Суботица") — case/diacritic/script-insensitive,
+  // via the same normalizer used for the reverse-geocode name match above.
+  // This is what most people reach for when hand-editing this column in
+  // the Supabase table editor, so it should just work instead of silently
+  // producing "Unassigned" with every contact hidden.
+  const byName = municipalityCache.find(m =>
+    normalizeMuniNameForMatch(m.name) === normalizeMuniNameForMatch(value) ||
+    normalizeMuniNameForMatch(m.name_en) === normalizeMuniNameForMatch(value));
+  if (byName) return byName;
+  if (!_adminMuniLookupWarned.has(String(value)) && municipalityCacheLoaded) {
+    _adminMuniLookupWarned.add(String(value));
+    console.warn(
+      `admin_municipality_id "${value}" does not match any cached municipality's id, slug, or osm_id.`,
+      'Available municipalities (id | slug | name):',
+      municipalityCache.map(m => `${m.id} | ${m.slug || '—'} | ${m.name_en || m.name}`)
+    );
+  }
+  return null;
+}
+
 // A short human-readable tag describing what the signed-in admin is
 // responsible for — a municipality name, a country, or "Global". Shown in
 // the header badge tooltip and in the Settings admin dashboard.
@@ -2991,7 +3030,7 @@ function currentAdminTag() {
   if (lvl >= 3) return t('adminTagGlobal');
   if (lvl === 2) return currentProfile.admin_country_code ? countryDisplayName(currentProfile.admin_country_code) : t('adminTagUnset');
   const muni = currentProfile.admin_municipality_id != null
-    ? getMunicipalityById(currentProfile.admin_municipality_id) : null;
+    ? getMunicipalityForAdminAssignment(currentProfile.admin_municipality_id) : null;
   return muni ? municipalityDisplayName(muni) : t('adminTagUnset');
 }
 
@@ -3010,10 +3049,11 @@ function isMunicipalityInAdminDomain(muni) {
   if (lvl === 2) {
     return !!(currentProfile.admin_country_code && muni.country_code === currentProfile.admin_country_code);
   }
-  // lvl === 1 — admin_municipality_id stores the municipality's own id
-  // (the same value shown in the municipalities table and used everywhere
-  // else in this file, e.g. municipality_id on a report) — compare directly.
-  return !!(currentProfile.admin_municipality_id != null && String(muni.id) === String(currentProfile.admin_municipality_id));
+  // lvl === 1 — see getMunicipalityForAdminAssignment above for why this
+  // isn't a plain id comparison.
+  if (currentProfile.admin_municipality_id == null) return false;
+  const ownMuni = getMunicipalityForAdminAssignment(currentProfile.admin_municipality_id);
+  return !!(ownMuni && String(ownMuni.id) === String(muni.id));
 }
 
 // True if this report falls inside the signed-in admin's OWN assigned
@@ -6833,7 +6873,7 @@ const NOMINATIM_MUNICIPALITY_ZOOM_LEVELS = [10, 8, 12, 6];
 // Called from addMunicipalityFromMapCenter, gated behind the admin panel.
 async function fetchMunicipalityFromNominatim(lat, lon) {
   for (const zoom of NOMINATIM_MUNICIPALITY_ZOOM_LEVELS) {
-    const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=${zoom}&addressdetails=1&polygon_geojson=1`;
+    const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=${zoom}&addressdetails=1&polygon_geojson=1&${NOMINATIM_LATIN_LANG}`;
     let json;
     try {
       const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
@@ -6928,18 +6968,38 @@ async function resolveMunicipality(lat, lon) {
 // then match that name against municipalities we already have. It never
 // fetches geometry and never writes a new row — only ever attaches an
 // EXISTING municipality's id to a report.
+// Nominatim's default reply language follows the *local* tagging of
+// whatever OSM feature matched — for Vojvodina towns that's often Serbian
+// Cyrillic (e.g. addr.city = "Сомбор") even when a neighboring town's OSM
+// data happens to carry a Latin name tag instead (e.g. "Subotica"). That
+// inconsistency, not a real difference in behavior, is why some towns
+// resolved fine while others (Sombor) came back "Unknown" — the bulk-
+// imported municipality rows are all stored in Latin script, so a Cyrillic
+// reply could never match. Requesting `accept-language=sr-Latn,en` makes
+// Nominatim transliterate/localize its reply to Latin script consistently.
+const NOMINATIM_LATIN_LANG = 'accept-language=sr-Latn,en';
+
+// Belt-and-suspenders: even with accept-language above, a handful of OSM
+// address fields (particularly addr.county) are only ever tagged in
+// Cyrillic and aren't covered by Nominatim's localization. cyrillicToLatin()
+// (defined further down, near CYRILLIC_TO_LATIN_MAP — hoisted, so safe to
+// call from here) handles that before the diacritic-stripping pass below;
+// it's a no-op on strings that are already Latin.
 function normalizeMuniNameForMatch(s) {
   if (!s) return '';
-  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')  // strip diacritics (č/ć/š/ž/đ etc.)
+  return cyrillicToLatin(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '')  // strip diacritics (č/ć/š/ž/đ etc.)
     .replace(/\s*\([^)]*\)\s*/g, ' ')                          // drop parenthetical qualifiers, e.g. "Beograd (Central)" -> "Beograd"
     .toLowerCase().trim().replace(/\s+/g, ' ');
 }
 
 async function reverseGeocodeMunicipalityCandidates(lat, lon) {
-  const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=10&addressdetails=1`;
+  const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=10&addressdetails=1&${NOMINATIM_LATIN_LANG}`;
   try {
     const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
-    if (!res.ok) return { candidates: [], countryCode: null };
+    if (!res.ok) {
+      console.warn(`Reverse-geocode for municipality name-match failed: HTTP ${res.status}`);
+      return { candidates: [], countryCode: null };
+    }
     const json = await res.json();
     if (!json || json.error) return { candidates: [], countryCode: null };
     const addr = json.address || {};
@@ -6955,6 +7015,11 @@ async function reverseGeocodeMunicipalityCandidates(lat, lon) {
   }
 }
 
+// Tracks candidate/pool mismatches we've already logged once, same pattern
+// as _adminMuniLookupWarned above, so a spot with no matching municipality
+// (e.g. a point outside Serbia entirely) doesn't spam the console every
+// time its pin/badge is viewed again.
+const _muniNameMatchWarned = new Set();
 function findMunicipalityByNameMatch(candidateNames, countryCode) {
   const pool = countryCode
     ? municipalityCache.filter(m => (m.country_code || '').toUpperCase() === countryCode)
@@ -6964,6 +7029,15 @@ function findMunicipalityByNameMatch(candidateNames, countryCode) {
     if (!norm) continue;
     const hit = pool.find(m => normalizeMuniNameForMatch(m.name) === norm || normalizeMuniNameForMatch(m.name_en) === norm);
     if (hit) return hit;
+  }
+  const warnKey = countryCode + '|' + candidateNames.join(',');
+  if (!_muniNameMatchWarned.has(warnKey)) {
+    _muniNameMatchWarned.add(warnKey);
+    console.warn(
+      'No cached municipality matched any reverse-geocode candidate.',
+      'Candidates:', candidateNames, '| countryCode:', countryCode,
+      '| Cached names in this country:', pool.map(m => m.name_en || m.name)
+    );
   }
   return null;
 }
