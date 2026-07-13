@@ -1772,9 +1772,21 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
    actually mis-centered, it was just wider than the box doing the centering. */
 .contact-card-row > *:last-child{ min-width:0; overflow-wrap:anywhere; word-break:break-word; }
 .contact-card-icon{ width:15px; height:15px; flex-shrink:0; filter:var(--icon-tint-filter); margin-top:1px; }
+/* Public utility-company pins get a fixed green fill — matching
+   makePublicClusterIcon's #2f8f5b bubble color exactly, so a pin looks the
+   same whether it's standing alone or has just un-clustered — rather than
+   the usual light/dark theme tint every other glyph gets (see
+   --icon-tint-filter above). A plain filter can't turn an arbitrary glyph
+   green, so instead of drop-shadow-and-tint like the other icons, this
+   masks a solid-green box with the glyph's own shape (icons/public.png
+   must be a solid glyph on a transparent background, same as every other
+   icon in this app, for the mask to read its silhouette correctly). */
 .company-marker-icon{
-  width:26px; height:31px; object-fit:contain;
-  filter:var(--icon-tint-filter) drop-shadow(0 3px 6px rgba(0,0,0,.45));
+  width:26px; height:31px;
+  background-color:#2f8f5b;
+  -webkit-mask:url(icons/public.png) center/contain no-repeat;
+  mask:url(icons/public.png) center/contain no-repeat;
+  filter:drop-shadow(0 3px 6px rgba(0,0,0,.45));
 }
 .contact-card-row.contact-card-notes{ color:var(--text-muted); font-style:italic; }
 .detail-empty{ font-size:12.5px; color:var(--text-secondary); font-style:italic; }
@@ -1954,7 +1966,38 @@ details[open] > summary .uc-group-chevron{ transform:rotate(180deg); /* point do
 }
 
 /* --- Report photo evidence: picker + preview in the report form --- */
-.report-photo-row{ display:flex; align-items:center; }
+.report-comment-row{ display:flex; align-items:center; gap:8px; }
+.report-comment-row #comment{ flex:1 1 auto; min-width:0; }
+/* Camera icon + its "Take Photo / Choose from Library" popover, sitting
+   right next to the optional-notes input in the report form — see
+   toggleReportPhotoMenu(). Visually the same pattern as .lang-dd-menu in
+   the header, just anchored to open upward (bottom:calc(100% + 6px))
+   since this control sits low in the panel rather than up in the header. */
+.photo-choice-dropdown{ position:relative; flex:0 0 auto; }
+.photo-choice-menu{
+  display:none;
+  position:absolute;
+  bottom:calc(100% + 6px);
+  right:0;
+  flex-direction:column;
+  gap:2px;
+  background:var(--bg-surface);
+  border:1px solid var(--border-color-strong);
+  border-radius:8px;
+  padding:4px;
+  min-width:180px;
+  box-shadow:0 6px 20px var(--floating-shadow);
+  z-index:20;
+}
+.photo-choice-menu.open{ display:flex; }
+.photo-choice-item{
+  display:flex; align-items:center; gap:8px;
+  width:100%; border:none; background:transparent; color:var(--text-primary);
+  border-radius:6px; padding:8px 10px; font-size:13px; font-weight:600;
+  cursor:pointer; text-align:left; -webkit-tap-highlight-color:transparent;
+}
+.photo-choice-item:hover{ background:var(--bg-surface-alt); }
+.photo-choice-item .icon-img{ width:16px; height:16px; filter:var(--icon-tint-filter); }
 .report-photo-preview{
   position:relative; display:flex; width:100%;
 }
@@ -2188,15 +2231,29 @@ span.flatpickr-weekday {
     <span id="proximityText"></span>
   </div>
 
-  <input id="comment" type="text" placeholder="Optional notes...">
-
-  <div class="report-photo-row">
-    <button type="button" class="settings-btn" id="reportPhotoAddBtn" onclick="document.getElementById('reportPhotoInput').click()">📷 <span id="reportPhotoAddBtnLabel">Add photo (optional)</span></button>
-    <input type="file" accept="image/*" id="reportPhotoInput" style="display:none" onchange="onReportPhotoSelected(this)">
-    <div class="report-photo-preview" id="reportPhotoPreview" style="display:none">
-      <img id="reportPhotoPreviewImg" alt="">
-      <button type="button" class="report-photo-remove" onclick="removePendingReportPhoto()" aria-label="Remove photo">✕</button>
+  <div class="row report-comment-row">
+    <input id="comment" type="text" placeholder="Optional notes...">
+    <div class="photo-choice-dropdown" id="reportPhotoDropdown">
+      <button type="button" class="icon-only-btn" id="reportPhotoAddBtn" title="Add photo (optional)" aria-label="Add photo (optional)" onclick="toggleReportPhotoMenu()">
+        <img class="icon-img" src="icons/camera.png" alt="">
+      </button>
+      <div class="photo-choice-menu" id="reportPhotoMenu">
+        <button type="button" class="photo-choice-item" onclick="triggerReportPhotoPick('camera')">📷 <span id="reportPhotoTakeLabel">Take photo</span></button>
+        <button type="button" class="photo-choice-item" onclick="triggerReportPhotoPick('library')">🖼️ <span id="reportPhotoLibraryLabel">Choose from library</span></button>
+      </div>
     </div>
+    <!-- capture="environment" forces the device camera to open directly
+         (skipping the OS chooser) on phones that support it; the plain
+         input has no capture attribute so it always opens the normal
+         file/photo picker (library, Files app, etc.) instead. Both feed
+         the same handler. -->
+    <input type="file" accept="image/*" capture="environment" id="reportPhotoInputCamera" style="display:none" onchange="onReportPhotoSelected(this)">
+    <input type="file" accept="image/*" id="reportPhotoInputLibrary" style="display:none" onchange="onReportPhotoSelected(this)">
+  </div>
+
+  <div class="report-photo-preview" id="reportPhotoPreview" style="display:none">
+    <img id="reportPhotoPreviewImg" alt="">
+    <button type="button" class="report-photo-remove" onclick="removePendingReportPhoto()" aria-label="Remove photo">✕</button>
   </div>
 
   <div class="row" style="align-items:stretch;">
@@ -3349,6 +3406,8 @@ const T = {
 
   // --- Report photo evidence (form, detail view, admin review) ---
   reportPhotoAddBtn:      { en:'Add photo (optional)',                        sr:'Dodaj fotografiju (opciono)' },
+  reportPhotoTakeBtn:     { en:'Take photo',                                  sr:'Slikaj' },
+  reportPhotoLibraryBtn:  { en:'Choose from library',                         sr:'Izaberi iz galerije' },
   reportPhotoInvalid:     { en:'Could not use that photo. Try a different image.', sr:'Fotografija nije mogla biti korišćena. Probajte drugu sliku.' },
   reportPhotoUploadFailed:{ en:'Report submitted, but the photo failed to upload.', sr:'Prijava je poslata, ali fotografija nije uspela da se otpremi.' },
   detailPhotoTitle:       { en:'Photo',                                       sr:'Fotografija' },
@@ -3417,7 +3476,10 @@ function setLang(l){
 function applyLang(){
   document.getElementById('subtitle').textContent         = t('subtitle');
   document.getElementById('reportBtnLabel').textContent   = t('reportBtn');
-  document.getElementById('reportPhotoAddBtnLabel').textContent = t('reportPhotoAddBtn');
+  document.getElementById('reportPhotoAddBtn').title       = t('reportPhotoAddBtn');
+  document.getElementById('reportPhotoAddBtn').setAttribute('aria-label', t('reportPhotoAddBtn'));
+  document.getElementById('reportPhotoTakeLabel').textContent    = t('reportPhotoTakeBtn');
+  document.getElementById('reportPhotoLibraryLabel').textContent = t('reportPhotoLibraryBtn');
   document.getElementById('csvLabel').textContent         = t('csvLabel');
   document.getElementById('filterTitleLabel').textContent = t('timeFilter');
   document.getElementById('settingsBtn').title = t('settingsBtnTitle');
@@ -6226,6 +6288,29 @@ function compressReportPhoto(file) {
   });
 }
 
+// --- Report form: camera icon's "Take Photo / Choose from Library" menu ---
+// Same open/close pattern as the header's language dropdown (toggleLangDropdown)
+// — see the matching outside-click listener below.
+function toggleReportPhotoMenu() {
+  document.getElementById('reportPhotoMenu').classList.toggle('open');
+}
+function closeReportPhotoMenu() {
+  document.getElementById('reportPhotoMenu').classList.remove('open');
+}
+document.addEventListener('click', (e) => {
+  const dd = document.getElementById('reportPhotoDropdown');
+  if (dd && !dd.contains(e.target)) closeReportPhotoMenu();
+});
+
+// mode: 'camera' opens the device camera directly (capture="environment"
+// input); 'library' opens the normal file/photo picker. Both feed the same
+// onReportPhotoSelected handler below.
+function triggerReportPhotoPick(mode) {
+  closeReportPhotoMenu();
+  const inputId = mode === 'camera' ? 'reportPhotoInputCamera' : 'reportPhotoInputLibrary';
+  document.getElementById(inputId).click();
+}
+
 async function onReportPhotoSelected(inputEl) {
   const file = inputEl.files && inputEl.files[0];
   inputEl.value = ''; // lets the same file be picked again later (e.g. after removing it)
@@ -6245,10 +6330,10 @@ function setPendingReportPhoto(blob) {
   pendingReportPhotoPreviewUrl = URL.createObjectURL(blob);
   const img = document.getElementById('reportPhotoPreviewImg');
   const preview = document.getElementById('reportPhotoPreview');
-  const addBtn = document.getElementById('reportPhotoAddBtn');
+  const dropdown = document.getElementById('reportPhotoDropdown');
   if (img) img.src = pendingReportPhotoPreviewUrl;
   if (preview) preview.style.display = 'flex';
-  if (addBtn) addBtn.style.display = 'none';
+  if (dropdown) dropdown.style.display = 'none';
 }
 
 function clearPendingReportPhotoPreviewUrl() {
@@ -6262,9 +6347,9 @@ function removePendingReportPhoto() {
   clearPendingReportPhotoPreviewUrl();
   pendingReportPhotoBlob = null;
   const preview = document.getElementById('reportPhotoPreview');
-  const addBtn = document.getElementById('reportPhotoAddBtn');
+  const dropdown = document.getElementById('reportPhotoDropdown');
   if (preview) preview.style.display = 'none';
-  if (addBtn) addBtn.style.display = '';
+  if (dropdown) dropdown.style.display = '';
 }
 
 // Uploads the already-compressed photo for a just-created report and
@@ -6918,10 +7003,12 @@ const companyGeocodeCache = {}; // "query|countrycode" -> {lat,lon} | null
 const utilityCompanyRegistry = new Map();
 
 function buildCompanyMarkerHtml() {
-  // Same pin proportions as a manually-dropped pin, but its own icon so it
-  // reads as "a place" rather than "a reported break" at a glance, tinted
-  // to match the current theme like every other icon glyph in the app.
-  return '<img src="icons/public.png" alt="" class="company-marker-icon">';
+  // Same pin proportions as a manually-dropped pin, but its own icon (fixed
+  // green, see .company-marker-icon) so it reads as "a place" rather than
+  // "a reported break" at a glance. A plain <div> here, not an <img> — the
+  // green fill comes from a CSS mask, which needs a background-color
+  // element to recolor rather than an image with its own baked-in pixels.
+  return '<div class="company-marker-icon"></div>';
 }
 
 // Forward-geocodes one free-text address via Nominatim. Only ever called
@@ -7810,18 +7897,8 @@ function buildPopupHtml(report) {
     </div>`;
   }
 
-  // Camera icon to add/replace a photo after the fact: the reporter gets it
-  // while they don't yet have one (or theirs was rejected and they want to
-  // retry); an admin always gets it, on any report — see addPhotoToReport.
-  const canAddPhotoInline = !!currentSession && (
-    (isOwner && (!report.photo_path || report.photo_status === 'rejected')) ||
-    isAdmin
-  );
-  const addPhotoBtnHtml = canAddPhotoInline
-    ? `<button type="button" class="icon-only-btn" onclick="addPhotoToReport('${report.id}')" aria-label="${t('addPhotoTooltip')}" title="${t('addPhotoTooltip')}"><img class="icon-img" src="icons/camera.png" alt=""></button>`
-    : '';
-  const noteRowHtml = (report.comment || canAddPhotoInline)
-    ? `<div class="popup-note-row">${report.comment ? `<div class="popup-note">${escapeHtml(report.comment)}</div>` : '<div style="flex:1 1 auto;"></div>'}${addPhotoBtnHtml}</div>`
+  const noteRowHtml = report.comment
+    ? `<div class="popup-note-row"><div class="popup-note">${escapeHtml(report.comment)}</div></div>`
     : '';
 
   return `<div class="popup-inner popup-card">
