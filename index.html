@@ -870,7 +870,15 @@ body.driving-active #drivingTopFade{ display:block; }
 }
 @keyframes map-loading-spin{ to{ transform:rotate(360deg); } }
 
-/* --- Toasts --- */
+/* --- Toasts ---
+   Restyled to match the rest of the app's floating-widget language (the
+   same frosted var(--floating-bg)/var(--floating-border) surface used by
+   the driving HUD and map controls) instead of a hardcoded dark box, so it
+   respects Light/Dark/Auto instead of always looking like dark mode. Each
+   toast is an icon + message row; the icon and left accent bar carry the
+   success/error color (reusing STATUS_COLORS' green/red so it matches the
+   pin-status palette elsewhere), while the text stays var(--text-primary)
+   for contrast in the current theme. */
 #toastContainer{
   position:fixed;
   top:calc(10px + env(safe-area-inset-top, 0px));
@@ -879,29 +887,47 @@ body.driving-active #drivingTopFade{ display:block; }
   z-index:4000; /* see Z-INDEX SCALE above — above header + driving HUD */
   display:flex;
   flex-direction:column;
-  gap:6px;
+  gap:8px;
   align-items:center;
   pointer-events:none;
   width:90%;
   max-width:360px;
 }
 .toast{
-  background:rgba(24,24,24,.95);
-  border:1px solid #3a3a3a;
-  color:white;
-  padding:10px 16px;
-  border-radius:10px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  background:var(--floating-bg);
+  backdrop-filter:blur(10px);
+  -webkit-backdrop-filter:blur(10px);
+  border:1px solid var(--floating-border);
+  border-left:3px solid var(--text-muted);
+  color:var(--text-primary);
+  padding:11px 16px;
+  border-radius:12px;
   font-size:13px;
   font-weight:600;
-  box-shadow:0 4px 14px rgba(0,0,0,.5);
+  line-height:1.35;
+  box-shadow:0 8px 24px var(--floating-shadow);
   opacity:0;
   transform:translateY(-8px);
   transition:opacity .2s ease, transform .2s ease;
-  text-align:center;
+  text-align:left;
 }
+.toast-icon{
+  flex:0 0 auto;
+  width:18px; height:18px;
+  border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-size:12px; font-weight:800;
+  color:#fff;
+}
+.toast-msg{ flex:1 1 auto; }
 .toast.toast-show{ opacity:1; transform:translateY(0); }
-.toast.toast-error{ border-color:#7a1f1f; background:rgba(60,20,20,.95); }
-.toast.toast-success{ border-color:#1f7a3f; background:rgba(20,45,28,.95); }
+.toast.toast-error{ border-left-color:#ff4b4b; }
+.toast.toast-error .toast-icon{ background:#ff4b4b; }
+.toast.toast-success{ border-left-color:#2ecc71; }
+.toast.toast-success .toast-icon{ background:#2ecc71; }
 
 /* --- Driving mode ---
    Map-first redesign: nothing permanently covers the map. Speed, GPS
@@ -4529,7 +4555,10 @@ function toast(msg, kind) {
   if (!container) { alert(msg); return; }
   const el = document.createElement('div');
   el.className = 'toast' + (kind ? ' toast-' + kind : '');
-  el.textContent = msg;
+  const iconGlyph = kind === 'error' ? '✕' : kind === 'success' ? '✓' : '';
+  el.innerHTML = (iconGlyph ? `<span class="toast-icon">${iconGlyph}</span>` : '') +
+                 `<span class="toast-msg"></span>`;
+  el.querySelector('.toast-msg').textContent = msg; // textContent, not innerHTML, so msg can never inject markup
   container.appendChild(el);
   requestAnimationFrame(() => el.classList.add('toast-show'));
   setTimeout(() => {
@@ -6432,6 +6461,12 @@ let pendingReportPhotoPreviewUrl = null; // object URL backing the on-screen thu
 
 // Downscales + re-encodes a picked photo in the browser via <canvas>, so a
 // multi-MB camera original never gets uploaded as-is.
+// This re-encode is also what strips ALL metadata from the photo: EXIF data
+// (GPS coordinates, camera make/model, capture timestamp, etc.) lives in the
+// original file's binary container, not in the decoded pixel data — drawing
+// the decoded image onto a <canvas> and re-encoding via toBlob() produces a
+// brand-new JPEG with nothing but pixels in it, so none of that metadata
+// survives the round-trip. Nothing else needs to explicitly scrub it.
 function compressReportPhoto(file) {
   return new Promise((resolve, reject) => {
     if (!file.type || !file.type.startsWith('image/')) { reject(new Error('not-an-image')); return; }
