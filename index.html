@@ -2205,6 +2205,37 @@ span.flatpickr-weekday {
 </head>
 <body>
 
+<!-- --- Splash screen: brief themed cover shown on first load, before the
+     app underneath is visible. Logo fades in with a slight zoom/pop, holds
+     briefly, then the whole overlay fades out and removes itself from the
+     DOM. Purely time-based (not tied to map/tile load), background uses
+     --accent so it automatically matches light/dark theme (already
+     resolved synchronously above, before first paint — see the inline
+     theme script in <head> — so there's no flash of the wrong color here
+     either). Self-removing: the script right after it deletes the node
+     once the fade-out animation finishes, so it can't linger and block
+     input. --- -->
+<div id="splashScreen" class="splash-screen" role="presentation" aria-hidden="true">
+  <img class="splash-logo" src="icons/TraceTheBreak.png" alt="">
+</div>
+<script>
+(function(){
+  var el = document.getElementById('splashScreen');
+  if (!el) return;
+  el.addEventListener('animationend', function(e){
+    // The logo's own zoom-in animation also fires animationend and can
+    // bubble up to this listener — only act on the overlay's own
+    // fade-out finishing, not the child's.
+    if (e.target !== el) return;
+    el.remove();
+  });
+  // Fallback in case the animationend event never fires (e.g. tab was
+  // backgrounded mid-animation and the browser throttled it) — makes
+  // sure the splash can never get stuck covering the app.
+  setTimeout(function(){ if (el && el.parentNode) el.remove(); }, 4000);
+})();
+</script>
+
 <header>
   <div class="header-top">
     <div>
