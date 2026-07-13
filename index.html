@@ -3366,6 +3366,7 @@ const T = {
   sectionTooShort:   { en:'Not enough movement recorded — section discarded.', sr:'Nema dovoljno kretanja — deonica je odbačena.' },
   sectionDiscarded:  { en:'Section discarded',           sr:'Deonica odbačena' },
   signInFirst:       { en:'Please sign in first',        sr:'Prijavite se prvo' },
+  sessionExpiredReauth: { en:'Your session expired. Please sign in again and retry.', sr:'Sesija je istekla. Prijavite se ponovo i pokušajte opet.' },
   followTitle:       { en:'Follow my location',          sr:'Prati moju lokaciju' },
   drivingBtnTitle:   { en:'Driving mode',                sr:'Režim vožnje' },
   reportCount1: { en:'Report',                           sr:'Prijava' },
@@ -5584,6 +5585,10 @@ async function finalizeSectionReport(subcategoryKey) {
     return;
   }
   if (shouldBlockReportSubmission()) return;
+
+  const freshSession = await ensureFreshSession();
+  if (!freshSession) { discardSectionDraft(); sectionAwaitingCategory = false; updateSectionButtonUI(); return; }
+
   const mid = pathJson[Math.floor(pathJson.length / 2)];
 
   reportSubmissionInFlight = true;
@@ -6671,8 +6676,34 @@ function resetReportingForm() {
   updateProximityUi();
 }
 
+// Re-validates the session immediately before a write that depends on
+// auth.uid() matching owner_id (RLS: reports_insert_own). A backgrounded
+// mobile tab can miss the token auto-refresh entirely (throttled timers),
+// leaving currentSession pointing at a stale/expired JWT while the UI still
+// shows the person as signed in — the write then silently gets rejected by
+// Postgres with "42501 row-level security policy violation" because
+// auth.uid() resolves to null/mismatched for the actual request. Calling
+// sb.auth.getSession() here forces supabase-js to check expiry and refresh
+// if needed (or return null if the refresh token itself is dead), so we
+// either submit with a genuinely valid session or tell the person to sign
+// in again — instead of a confusing RLS error with no clear next step.
+async function ensureFreshSession() {
+  const { data: { session }, error } = await sb.auth.getSession();
+  if (error || !session) {
+    currentSession = null;
+    updateAuthUI();
+    toast(t('sessionExpiredReauth'), 'error');
+    return null;
+  }
+  currentSession = session;
+  return session;
+}
+
 async function reportBreak(){
   if (!currentSession || !currentProfile) { updateAuthUI(); return; }
+
+  const freshSession = await ensureFreshSession();
+  if (!freshSession) return;
 
   const isAdmin = !!currentProfile.is_admin;
   // Defense in depth — the UI already hides this whole form on desktop
