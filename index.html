@@ -6998,20 +6998,29 @@ async function reverseGeocodeMunicipalityCandidates(lat, lon) {
     const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
     if (!res.ok) {
       console.warn(`Reverse-geocode for municipality name-match failed: HTTP ${res.status}`);
-      return { candidates: [], countryCode: null };
+      return { candidates: [], countryCode: null, bestName: null, bestNameEn: null };
     }
     const json = await res.json();
-    if (!json || json.error) return { candidates: [], countryCode: null };
+    if (!json || json.error) return { candidates: [], countryCode: null, bestName: null, bestNameEn: null };
     const addr = json.address || {};
     // Ordered most-specific first; address breakdown includes the full
     // admin hierarchy regardless of which level `zoom` targets, so one
     // request is enough — no need to retry across zoom levels here the
     // way fetchMunicipalityFromNominatim does for boundary imports.
     const candidates = [addr.city_district, addr.municipality, addr.town, addr.city, addr.county, json.name].filter(Boolean);
-    return { candidates, countryCode: (addr.country_code || '').toUpperCase() || null };
+    // Separate "best name" for auto-registration (see autoRegisterMunicipality
+    // below) — deliberately skips city_district, which is usually a
+    // neighborhood/borough rather than a real municipality-level place, so
+    // an unimported town doesn't get registered under one of its districts.
+    const bestName = addr.municipality || addr.city || addr.town || addr.county || json.name || null;
+    return {
+      candidates,
+      countryCode: (addr.country_code || '').toUpperCase() || null,
+      bestName: bestName ? cyrillicToLatin(bestName) : null
+    };
   } catch (err) {
     console.warn('Reverse-geocode for municipality name-match failed:', err.message);
-    return { candidates: [], countryCode: null };
+    return { candidates: [], countryCode: null, bestName: null };
   }
 }
 
@@ -7034,7 +7043,7 @@ function findMunicipalityByNameMatch(candidateNames, countryCode) {
   if (!_muniNameMatchWarned.has(warnKey)) {
     _muniNameMatchWarned.add(warnKey);
     console.warn(
-      'No cached municipality matched any reverse-geocode candidate.',
+      'No cached municipality matched any reverse-geocode candidate — auto-registering instead.',
       'Candidates:', candidateNames, '| countryCode:', countryCode,
       '| Cached names in this country:', pool.map(m => m.name_en || m.name)
     );
@@ -7042,12 +7051,76 @@ function findMunicipalityByNameMatch(candidateNames, countryCode) {
   return null;
 }
 
+// Guards against firing two auto-registration inserts for the same place
+// at once (e.g. the municipality badge and a report-detail modal both
+// resolving the same unimported point within a few hundred ms of each
+// other) — keyed by normalized name + country so a second caller just
+// awaits the first one's in-flight insert instead of racing it.
+const _autoRegisterInFlight = new Map();
+
+// Creates a lightweight municipality row on the spot — name and centroid
+// only, no boundary polygon (that requires the heavier polygon_geojson
+// Nominatim call reserved for the admin "Add municipality from map center"
+// tool) — the first time a pin resolves to a place with no cached row.
+// This is what makes a brand-new town show its real name immediately
+// instead of "Unknown", and removes the need to hand-import every
+// municipality before its pins mean anything: the boundary/point-in-polygon
+// lookup stays empty for it, but the name-match fallback above will find
+// this row on every future lookup for the same place, and once it exists
+// an admin can attach utility contacts to it like any other municipality.
+//
+// Note this INSERT runs as whichever user triggered the lookup (not
+// necessarily an admin) — if the municipalities table's RLS only allows
+// admin writes, this will fail for regular users and fall back to a
+// session-only, unpersisted row (still shown correctly this session, just
+// not saved for next time or other users). Loosen that INSERT policy if
+// you want auto-registration to persist regardless of who triggers it
+// first.
+async function autoRegisterMunicipality(name, countryCode, lat, lon) {
+  if (!name) return null;
+  const key = normalizeMuniNameForMatch(name) + '|' + (countryCode || '');
+  if (_autoRegisterInFlight.has(key)) return _autoRegisterInFlight.get(key);
+
+  const promise = (async () => {
+    const row = {
+      osm_type: null,
+      osm_id: null,
+      admin_level: null,
+      name,
+      name_en: null,
+      country_code: countryCode || null,
+      centroid_lat: lat,
+      centroid_lon: lon,
+      boundary: null,
+      bbox: null
+    };
+    try {
+      const { data, error } = await sb.from(MUNICIPALITIES_TABLE).insert(row).select().single();
+      if (error) throw error;
+      municipalityCache.push(data);
+      writeMunicipalityCacheToStorage(municipalityCache);
+      return data;
+    } catch (err) {
+      console.error('Failed to auto-register municipality (showing it for this session only):', err.message);
+      return row; // still usable this session even if the DB write failed
+    }
+  })();
+  _autoRegisterInFlight.set(key, promise);
+  try {
+    return await promise;
+  } finally {
+    _autoRegisterInFlight.delete(key);
+  }
+}
+
 async function resolveMunicipalityViaGeocode(lat, lon) {
   if (!isValidLatLng(lat, lon)) return null;
   await loadMunicipalityCache();
-  const { candidates, countryCode } = await reverseGeocodeMunicipalityCandidates(lat, lon);
+  const { candidates, countryCode, bestName } = await reverseGeocodeMunicipalityCandidates(lat, lon);
   if (!candidates.length) return null;
-  return findMunicipalityByNameMatch(candidates, countryCode);
+  const hit = findMunicipalityByNameMatch(candidates, countryCode);
+  if (hit) return hit;
+  return autoRegisterMunicipality(bestName, countryCode, lat, lon);
 }
 
 // Report-specific resolver: municipality_id, once stored on a report, is
