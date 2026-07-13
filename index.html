@@ -2986,9 +2986,9 @@ function currentAdminTag() {
   const lvl = currentAdminLevel();
   if (!lvl) return '';
   if (lvl >= 3) return t('adminTagGlobal');
-  if (lvl === 2) return currentProfile.admin_country_code || t('adminTagUnset');
+  if (lvl === 2) return currentProfile.admin_country_code ? countryDisplayName(currentProfile.admin_country_code) : t('adminTagUnset');
   const muni = currentProfile.admin_municipality_id != null
-    ? getMunicipalityById(currentProfile.admin_municipality_id) : null;
+    ? getMunicipalityBySlug(currentProfile.admin_municipality_id) : null;
   return muni ? municipalityDisplayName(muni) : t('adminTagUnset');
 }
 
@@ -3006,9 +3006,11 @@ function isReportInAdminDomain(report) {
     const muni = report.municipality_id != null ? getMunicipalityById(report.municipality_id) : null;
     return !!(muni && currentProfile.admin_country_code && muni.country_code === currentProfile.admin_country_code);
   }
-  // lvl === 1
-  return currentProfile.admin_municipality_id != null
-    && String(report.municipality_id) === String(currentProfile.admin_municipality_id);
+  // lvl === 1 — report.municipality_id is the bigint id; admin_municipality_id
+  // stores the slug, so compare through the resolved municipality's slug.
+  if (currentProfile.admin_municipality_id == null) return false;
+  const ownMuni = report.municipality_id != null ? getMunicipalityById(report.municipality_id) : null;
+  return !!(ownMuni && ownMuni.slug === currentProfile.admin_municipality_id);
 }
 
 // True if the signed-in admin is currently standing within on-site range of
@@ -6734,6 +6736,14 @@ function findMunicipalityInCache(lat, lon) {
 function getMunicipalityById(id) {
   if (id == null) return null;
   return municipalityCache.find(m => String(m.id) === String(id)) || null;
+}
+
+// Lookup by slug — used for admin_municipality_id, which stores the
+// random unique slug (see municipalities.slug) rather than the bigint id,
+// so a plain getMunicipalityById() lookup against it never matches.
+function getMunicipalityBySlug(slug) {
+  if (slug == null) return null;
+  return municipalityCache.find(m => m.slug === slug) || null;
 }
 
 // Reverse-geocodes a point to its enclosing municipality/administrative
