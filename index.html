@@ -2992,25 +2992,36 @@ function currentAdminTag() {
   return muni ? municipalityDisplayName(muni) : t('adminTagUnset');
 }
 
-// True if this report falls inside the signed-in admin's OWN assigned
-// domain — home municipality for a Controller, home country for a
-// Director, anywhere for an Overseer — in which case they have full,
-// unconditional power over it regardless of where they're currently
-// standing (same as a plain admin always has today).
-function isReportInAdminDomain(report) {
+// True if the given municipality (a row from municipalityCache, or null)
+// falls inside the signed-in admin's OWN assigned domain — home
+// municipality for a Controller, every municipality in the home country for
+// a Director, anywhere for an Overseer. This is the single source of truth
+// for "is this place mine" — used for reports, for the utility-contacts
+// admin panel, and for the manual-pin proximity gate, so all three always
+// agree with each other.
+function isMunicipalityInAdminDomain(muni) {
   const lvl = currentAdminLevel();
   if (!lvl) return false;
   if (lvl >= 3) return true;
-  if (!report) return false;
+  if (!muni) return false;
   if (lvl === 2) {
-    const muni = report.municipality_id != null ? getMunicipalityById(report.municipality_id) : null;
-    return !!(muni && currentProfile.admin_country_code && muni.country_code === currentProfile.admin_country_code);
+    return !!(currentProfile.admin_country_code && muni.country_code === currentProfile.admin_country_code);
   }
-  // lvl === 1 — report.municipality_id is the bigint id; admin_municipality_id
-  // stores the slug, so compare through the resolved municipality's slug.
-  if (currentProfile.admin_municipality_id == null) return false;
-  const ownMuni = report.municipality_id != null ? getMunicipalityById(report.municipality_id) : null;
-  return !!(ownMuni && ownMuni.slug === currentProfile.admin_municipality_id);
+  // lvl === 1 — admin_municipality_id stores the municipality's slug (not
+  // its bigint id), so compare through that.
+  return !!(currentProfile.admin_municipality_id != null && muni.slug === currentProfile.admin_municipality_id);
+}
+
+// True if this report falls inside the signed-in admin's OWN assigned
+// domain, in which case they have full, unconditional power over it
+// regardless of where they're currently standing (same as a plain admin
+// always has today).
+function isReportInAdminDomain(report) {
+  if (!currentAdminLevel()) return false;
+  if (currentAdminLevel() >= 3) return true;
+  if (!report) return false;
+  const muni = report.municipality_id != null ? getMunicipalityById(report.municipality_id) : null;
+  return isMunicipalityInAdminDomain(muni);
 }
 
 // True if the signed-in admin is currently standing within on-site range of
@@ -3397,6 +3408,7 @@ const T = {
   ucAddressPH:       { en:'Address',                              sr:'Adresa' },
   ucNotesPH:         { en:'Notes (optional)',                     sr:'Napomena (opciono)' },
   ucValidationError: { en:'Choose a municipality, at least one category, and enter a company name.', sr:'Izaberite opštinu, bar jednu kategoriju i unesite naziv preduzeća.' },
+  ucOutOfDomainError: { en:'You can only manage contacts within your assigned area of responsibility.', sr:'Možete upravljati samo kontaktima u okviru vaše dodeljene oblasti odgovornosti.' },
   ucSaveError:       { en:'Could not save. Try again.',           sr:'Čuvanje nije uspelo. Pokušajte ponovo.' },
   ucDeleteConfirm:   { en:'Delete this contact permanently?',     sr:'Trajno obrisati ovaj kontakt?' },
   ucVerifyBtn:       { en:'Admin has checked the data',           sr:'Admin je proverio podatke' },
@@ -3816,6 +3828,12 @@ let dateRangeOnlyData = []; // raw results for the selected date range (used for
 let pinMode       = false;
 let manualCoords  = null;
 let manualMarker  = null;
+// The municipality the current manual pin resolves to — resolved async
+// (see the map click handler below) right after manualCoords is set, then
+// used to decide whether an admin is dropping this pin inside their own
+// domain (no GPS gate) or outside it (falls back to the normal proximity
+// rule, same as any regular user). Cleared any time manualCoords is.
+let manualPinMunicipality = null;
 let navPinMode    = false; // true while waiting for a map tap to drop a manual destination pin
 
 // --- Navigation / driving mode state ---
@@ -5961,15 +5979,20 @@ new NavigatePanelControl().addTo(map);
 // reportBreak()'s actual gate below. Two separate render targets (a
 // Leaflet layer + a DOM badge) so the "get closer" feedback is visible
 // whether the person is looking at the map or at the form.
-// Skipped entirely for admins (no gate applies to them) and whenever
-// there's no manual pin to measure from — see REPORT_PROXIMITY_MAX_M.
+// Skipped for an admin dropping a pin inside their OWN domain (own
+// municipality/country/everywhere — see isMunicipalityInAdminDomain) and
+// whenever there's no manual pin to measure from — see
+// REPORT_PROXIMITY_MAX_M. An admin dropping a pin OUTSIDE their domain (or
+// a plain user, always) is held to the same GPS proximity rule as anyone
+// else.
 // =============================================================================
 let proximityCircle = null;
 
 function updateProximityUi() {
   const isAdmin = !!(currentProfile && currentProfile.is_admin);
+  const inOwnDomain = isAdmin && isMunicipalityInAdminDomain(manualPinMunicipality);
   const indicator = document.getElementById('proximityIndicator');
-  const active = !isAdmin && pinMode && manualCoords;
+  const active = !inOwnDomain && pinMode && manualCoords;
 
   if (!active) {
     if (proximityCircle) { map.removeLayer(proximityCircle); proximityCircle = null; }
@@ -6011,6 +6034,7 @@ function togglePinMode() {
   } else {
     if (manualMarker) { map.removeLayer(manualMarker); manualMarker = null; }
     manualCoords = null;
+    manualPinMunicipality = null;
     loadPinsByWindow();
     // The manual pin (if one was dropped) may have overridden the
     // municipality badge/boundary — see the map click handler below.
@@ -6060,8 +6084,15 @@ map.on('click', function(e) {
   // A manually-dropped pin is a deliberate override of GPS — resolve and
   // show the municipality for the pin's location, not wherever the GPS fix
   // happens to be. Reverted back to the GPS municipality in togglePinMode()
-  // once pin mode is switched off.
-  showMunicipalityBoundaryForPoint(manualCoords.lat, manualCoords.lon, manualMarker);
+  // once pin mode is switched off. Also feeds manualPinMunicipality (see
+  // its declaration above) so the admin domain check in updateProximityUi/
+  // reportBreak has something to compare against; re-run the proximity gate
+  // once that resolution lands, in case it flips whether the GPS rule
+  // applies to this admin at this spot.
+  manualPinMunicipality = null;
+  showMunicipalityBoundaryForPoint(manualCoords.lat, manualCoords.lon, manualMarker)
+    .then(muni => { manualPinMunicipality = muni; updateProximityUi(); })
+    .catch(() => {});
   updateProximityUi();
   checkFormReady();
 });
@@ -6503,6 +6534,7 @@ function resetReportingForm() {
   }
   if (manualMarker) { map.removeLayer(manualMarker); manualMarker = null; }
   manualCoords = null;
+  manualPinMunicipality = null;
   updateProximityUi();
 }
 
@@ -6518,11 +6550,14 @@ async function reportBreak(){
   const coords = pinMode && manualCoords ? manualCoords : userCoords;
   if (!coords) { alert(t('waitGps')); return; }
 
-  // Non-admins must be standing within REPORT_PROXIMITY_MAX_M of a
+  // Non-admins, and admins dropping a pin OUTSIDE their own assigned
+  // domain, must be standing within REPORT_PROXIMITY_MAX_M of a
   // manually-dropped pin to file against it — see updateProximityUi for
-  // the matching live ring/text feedback. A live-GPS report (pinMode off)
-  // never hits this: coords IS userCoords already, distance is always 0.
-  if (!isAdmin && pinMode && manualCoords) {
+  // the matching live ring/text feedback. An admin inside their own domain
+  // is exempt, same as before. A live-GPS report (pinMode off) never hits
+  // this: coords IS userCoords already, distance is always 0.
+  const inOwnDomain = isAdmin && isMunicipalityInAdminDomain(manualPinMunicipality);
+  if (!inOwnDomain && pinMode && manualCoords) {
     if (!userCoords) { alert(t('waitGps')); return; }
     const dist = distMeters(userCoords, manualCoords);
     if (dist > REPORT_PROXIMITY_MAX_M) {
@@ -6630,7 +6665,12 @@ let municipalityCacheLoaded = false;
 // Wrapped in try/catch throughout since localStorage can throw (private
 // browsing, quota, disabled storage) — none of that should ever block
 // municipality resolution, it should just fall back to a plain fetch.
-const MUNICIPALITY_CACHE_STORAGE_KEY = 'ttb_municipality_cache_v1';
+// Bumped to v2 because rows cached under v1 (before `slug` was added to the
+// select() below) are missing that field entirely — serving them as-is
+// would silently break every admin_municipality_id / getMunicipalityBySlug
+// lookup until the background network refresh landed. Bumping the key
+// forces every existing browser to skip straight to a fresh fetch once.
+const MUNICIPALITY_CACHE_STORAGE_KEY = 'ttb_municipality_cache_v2';
 
 function readMunicipalityCacheFromStorage() {
   try {
@@ -6671,7 +6711,7 @@ async function loadMunicipalityCache() {
     }
     try {
       const { data, error } = await sb.from(MUNICIPALITIES_TABLE)
-        .select('id,osm_type,osm_id,admin_level,name,name_en,country_code,centroid_lat,centroid_lon,boundary,bbox');
+        .select('id,slug,osm_type,osm_id,admin_level,name,name_en,country_code,centroid_lat,centroid_lon,boundary,bbox');
       if (error) throw error;
       municipalityCache = data || [];
       municipalityCacheLoaded = true;
@@ -7201,6 +7241,28 @@ function municipalityDisplayName(m) {
   return (lang === 'sr' ? m.name : (m.name_en || m.name)) || m.name;
 }
 
+// True if the signed-in admin is allowed to view/add/edit/delete utility
+// contacts for the given municipality — same domain rule as reports (own
+// municipality for a Controller, every municipality in the own country for
+// a Director, everywhere for an Overseer — see isMunicipalityInAdminDomain).
+// Unlike reports there's no "physically on-site" override here: an admin
+// isn't expected to travel to a utility company's office just to fix its
+// phone number, so contacts management is domain-only, always.
+//
+// Note this is a client-side gate only (this file has no server-side
+// component). It correctly hides/blocks the UI for a well-behaved client,
+// but a determined user could still call the Supabase REST API directly —
+// real enforcement of "a level-1 admin can only touch their own
+// municipality's contacts" needs a matching Row Level Security policy on
+// the utility_companies table in Supabase, keyed off the same
+// admin_level/admin_municipality_id/admin_country_code columns.
+function canManageContactsForMunicipality(municipalityId) {
+  if (!currentProfile || !currentProfile.is_admin) return false;
+  if (currentAdminLevel() >= 3) return true;
+  const muni = municipalityId != null ? getMunicipalityById(municipalityId) : null;
+  return isMunicipalityInAdminDomain(muni);
+}
+
 async function loadUtilityCompaniesAdmin() {
   const titleEl = document.getElementById('ucSectionTitle');
   if (titleEl) titleEl.textContent = t('ucSectionTitle');
@@ -7215,7 +7277,11 @@ async function loadUtilityCompaniesAdmin() {
   try {
     const { data, error } = await sb.from(UTILITY_COMPANIES_TABLE).select('*').order('name');
     if (error) throw error;
-    ucCompaniesCache = data || [];
+    // Scope the visible list down to the admin's own domain — a Municipal
+    // Controller sees only their municipality's contacts, a Regional
+    // Director sees every municipality in their country, and a Global
+    // Overseer (or a legacy admin with no admin_level set) sees everything.
+    ucCompaniesCache = (data || []).filter(c => canManageContactsForMunicipality(c.municipality_id));
   } catch (err) {
     console.error('Failed to load utility companies:', err.message);
     ucCompaniesCache = [];
@@ -7429,7 +7495,13 @@ function populateUcMunicipalitySelect() {
   const sel = document.getElementById('ucMunicipalitySelect');
   if (!sel) return;
   const prevValue = sel.value;
-  const sorted = [...municipalityCache].sort((a, b) =>
+  // Only offer municipalities the signed-in admin is actually allowed to
+  // manage contacts for — own municipality / own country / everywhere,
+  // same rule as canManageContactsForMunicipality above.
+  const selectable = currentAdminLevel() >= 3
+    ? municipalityCache
+    : municipalityCache.filter(m => isMunicipalityInAdminDomain(m));
+  const sorted = [...selectable].sort((a, b) =>
     municipalityDisplayName(a).localeCompare(municipalityDisplayName(b)));
   const placeholder = '<option value="" disabled>' + t('ucSelectMunicipality') + '</option>';
   sel.innerHTML = placeholder + sorted.map(m =>
@@ -7584,6 +7656,10 @@ function setUcMuniPickerVisible(visible) {
 }
 
 function addContactForMunicipality(municipalityId) {
+  if (!canManageContactsForMunicipality(municipalityId)) {
+    toast(t('ucOutOfDomainError'), 'error');
+    return;
+  }
   resetUcForm();
   setUcMuniPickerVisible(false);
   const sel = document.getElementById('ucMunicipalitySelect');
@@ -7656,6 +7732,10 @@ function cancelUcForm() {
 function editUtilityCompany(id) {
   const c = ucCompaniesCache.find(x => String(x.id) === String(id));
   if (!c) return;
+  if (!canManageContactsForMunicipality(c.municipality_id)) {
+    toast(t('ucOutOfDomainError'), 'error');
+    return;
+  }
   resetUcForm();
   setUcMuniPickerVisible(true);
   ucEditingId = c.id;
@@ -7721,6 +7801,10 @@ function readUcFormRow() {
 async function persistUcRow(verified) {
   const row = readUcFormRow();
   if (!row) return;
+  if (!canManageContactsForMunicipality(row.municipality_id)) {
+    toast(t('ucOutOfDomainError'), 'error');
+    return;
+  }
   row.updated_at = new Date().toISOString();
   row.verified = verified;
   row.verified_at = verified ? new Date().toISOString() : null;
@@ -7781,6 +7865,11 @@ function verifyUtilityCompany() {
 }
 
 async function deleteUtilityCompany(id) {
+  const c = ucCompaniesCache.find(x => String(x.id) === String(id));
+  if (!c || !canManageContactsForMunicipality(c.municipality_id)) {
+    toast(t('ucOutOfDomainError'), 'error');
+    return;
+  }
   if (!confirm(t('ucDeleteConfirm'))) return;
   try {
     const { error } = await sb.from(UTILITY_COMPANIES_TABLE).delete().eq('id', id);
