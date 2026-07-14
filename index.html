@@ -471,6 +471,42 @@ button{
   margin-bottom:4px;
 }
 
+/* Heatmap toggle button (bottomright stack, same look/size as the other
+   .pin-map-btn floating buttons) and the small category-filter popover it
+   opens above itself. Unlike .map-legend-pill (informational, pointer-
+   events:none), this panel is interactive — checkboxes — so pointer
+   events are explicitly re-enabled on it and its children. */
+.pin-map-btn.heatmap-btn{ position:relative; }
+.pin-map-btn.heatmap-btn.active{ background:#e74c3c; border-color:#e74c3c; }
+.pin-map-btn.heatmap-btn.active .icon-img{ filter:none; }
+.heatmap-panel{
+  position:absolute;
+  bottom:100%;
+  right:0;
+  margin-bottom:8px;
+  background:var(--floating-bg);
+  backdrop-filter:blur(4px);
+  -webkit-backdrop-filter:blur(4px);
+  border-radius:10px;
+  border:1px solid var(--floating-border);
+  box-shadow:0 2px 10px var(--floating-shadow);
+  padding:8px 10px;
+  display:none;
+  flex-direction:column;
+  gap:5px;
+  width:190px;
+  max-height:60vh;
+  overflow-y:auto;
+  pointer-events:auto;
+  z-index:1;
+}
+.heatmap-panel.open{ display:flex; }
+.heatmap-panel-title{ font-size:11px; font-weight:700; color:var(--text-secondary); text-transform:uppercase; letter-spacing:.03em; margin-bottom:2px; }
+.heatmap-panel-row{ display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-primary); cursor:pointer; }
+.heatmap-panel-row input{ margin:0; flex-shrink:0; }
+.heatmap-panel-dot{ width:9px; height:9px; border-radius:50%; display:inline-block; flex-shrink:0; }
+.heatmap-panel-sep{ height:1px; background:var(--border-color); margin:3px 0; }
+
 .leaflet-popup-content-wrapper{
   border-radius:10px !important;
   padding:0 !important;
@@ -1308,6 +1344,7 @@ body.driving-active #followLocationBtn,
 body.driving-active #panelToggleBtn,
 body.driving-active #pinMapBtn,
 body.driving-active #drivingModeBtn,
+body.driving-active #heatmapBtn,
 body.driving-active #mainMapCompass{
   display:none !important;
 }
@@ -1420,6 +1457,14 @@ body.driving-active #appPanel{
 }
 .dashboard-stat-value{ font-size:17px; font-weight:800; color:var(--text-primary); }
 .dashboard-stat-label{ font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.3px; margin-top:2px; }
+.dashboard-badges-title{ font-size:12px; font-weight:700; color:var(--text-secondary); text-transform:uppercase; letter-spacing:.03em; margin-top:16px; }
+.badge-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(68px,1fr)); gap:12px 6px; margin-top:8px; }
+.badge-tile{ display:flex; flex-direction:column; align-items:center; gap:5px; text-align:center; opacity:.4; }
+.badge-tile.earned{ opacity:1; }
+.badge-tile-circle{ width:42px; height:42px; border-radius:50%; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,.35); flex-shrink:0; }
+.badge-tile-glyph{ width:20px; height:20px; display:inline-block; }
+.badge-tile-name{ font-size:10px; line-height:1.2; color:var(--text-secondary); }
+.badge-tile.earned .badge-tile-name{ color:var(--text-primary); font-weight:600; }
 .dashboard-ladder{ display:flex; flex-direction:column; gap:5px; margin-top:4px; }
 .dashboard-ladder-row{
   display:flex; align-items:center; gap:8px; font-size:11.5px;
@@ -2574,6 +2619,21 @@ span.flatpickr-weekday {
 <div id="followLocationBtn" class="pin-map-btn" style="display:none" title="Follow my location" onclick="toggleFollowMode()"><img class="icon-img" src="icons/target.png" alt="Recenter"></div>
 <div id="pinMapBtn" class="pin-map-btn" style="display:none" title="Set location manually" onclick="togglePinMode()"><img class="icon-img" src="icons/pin.png" alt="Pin"></div>
 <div id="drivingModeBtn" class="pin-map-btn" style="display:none" title="Driving mode" onclick="toggleDrivingMode()"><img class="icon-img" src="icons/car.png" alt="Driving mode"></div>
+<!-- Heatmap toggle: swaps the pin/cluster layers for a density blob built
+     from globalActiveData (see toggleHeatmap/buildHeatLayer near
+     syncMarkers). The popover panel lets a person narrow the heatmap down
+     to just the categories they care about (potholes live under Road,
+     broken lights under Streetlight, water leaks under Water, trash under
+     Waste, etc.) — same category set/colors as #categoryLegend. -->
+<div id="heatmapBtn" class="pin-map-btn heatmap-btn" style="display:none" title="Heatmap" onclick="toggleHeatmap()">
+  <img class="icon-img" src="icons/heatmap.png" alt="Heatmap">
+  <div class="heatmap-panel" id="heatmapPanel" onclick="event.stopPropagation()">
+    <div class="heatmap-panel-title" id="heatmapPanelTitle">Show on heatmap</div>
+    <label class="heatmap-panel-row"><input type="checkbox" id="heatmapCatAll" checked onchange="onHeatmapAllToggle(this.checked)"><span id="heatmapCatAllLabel">All categories</span></label>
+    <div class="heatmap-panel-sep"></div>
+    <div id="heatmapCategoryList"></div>
+  </div>
+</div>
 <!-- Main-screen counterpart of the driving-mode compass (#mapCompass below):
      same widget, same tap-to-toggle heading-up behavior, just for walking/
      browsing instead of driving. Lives in its own Leaflet control (see
@@ -2782,6 +2842,8 @@ span.flatpickr-weekday {
         </div>
       </div>
       <div class="dashboard-ladder" id="dashboardLadder"></div>
+      <div class="dashboard-badges-title" id="dashboardBadgesTitle">Badges</div>
+      <div class="badge-grid" id="dashboardBadgeGrid"></div>
     </div>
 
     <!-- My Admin Role: signed-in admin only (see renderAdminDashboard,
@@ -2929,6 +2991,11 @@ span.flatpickr-weekday {
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<!-- Leaflet.heat — powers the heatmap toggle (see heatmapBtn / toggleHeatmap
+     near syncMarkers below). Renders density as a canvas heat blob instead
+     of individual pins, so "where are the problems" reads at a glance
+     without counting dots. -->
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 <!-- Pinned to an exact release, not a floating "@2" tag: an unpinned major-version
      tag re-resolves to whatever supabase-js has shipped THAT DAY on every page
      load. supabase-js has had at least one real regression that specifically
@@ -3241,11 +3308,11 @@ function updateAuthUI() {
 // =============================================================================
 const USER_LEVELS = [
   { level:0, threshold:0,  weight:0,   nameEn:'Observer',             nameSr:'Posmatrač' },
-  { level:1, threshold:0,  weight:1,   nameEn:'Problem Solver',        nameSr:'Rešavač problema' },
-  { level:2, threshold:3,  weight:1.5, nameEn:'Change Agent',          nameSr:'Agent promene' },
-  { level:3, threshold:8,  weight:2,   nameEn:'Urban Hero',            nameSr:'Urbani heroj' },
-  { level:4, threshold:15, weight:2.5, nameEn:'Public Works Legend',   nameSr:'Legenda javnih radova' },
-  { level:5, threshold:25, weight:3,   nameEn:'Visionary',             nameSr:'Vizionar' },
+  { level:1, threshold:0,  weight:1,   nameEn:'Citizen',               nameSr:'Građanin' },
+  { level:2, threshold:3,  weight:1.5, nameEn:'Reporter',              nameSr:'Reporter' },
+  { level:3, threshold:8,  weight:2,   nameEn:'Inspector',             nameSr:'Inspektor' },
+  { level:4, threshold:15, weight:2.5, nameEn:'Guardian',              nameSr:'Čuvar' },
+  { level:5, threshold:25, weight:3,   nameEn:'Community Hero',        nameSr:'Heroj zajednice' },
 ];
 
 function levelName(lvl) { return lang === 'sr' ? lvl.nameSr : lvl.nameEn; }
@@ -3255,14 +3322,69 @@ function levelForPoints(points) {
   return current;
 }
 // Observer (level 0) for anyone signed out; any signed-in profile starts
-// at level 1 (Problem Solver) since both share threshold 0 and level 1
-// sorts later in USER_LEVELS above.
+// at level 1 (Citizen) since both share threshold 0 and level 1 sorts
+// later in USER_LEVELS above.
 function currentUserLevel() {
   if (!currentSession || !currentProfile) return USER_LEVELS[0];
   return levelForPoints(currentProfile.total_contributions || 0);
 }
 function nextUserLevel(lvl) {
   return USER_LEVELS.find(l => l.level === lvl.level + 1) || null;
+}
+
+// =============================================================================
+// BADGES — unlockable icons shown on the "My Dashboard" panel, layered on
+// top of the level ladder above. The first five mirror USER_LEVELS 1-5
+// (Citizen through Community Hero) one-for-one, so "leveling up" always
+// also means "a new badge lit up"; the last two reward reports that
+// actually got *fixed* (successful_contributions), which points alone
+// don't capture — someone can rack up civic points just by reporting a
+// lot, but a fix badge means the reports were real and got resolved.
+// Icon files are expected at icons/badges/<icon> as flat white glyphs on
+// a transparent background (same convention as icons/*.png used for
+// category pins) — buildBadgeIconHtml() below masks them the same way
+// buildPinIconHtml() masks category glyphs, so any theme/accent color
+// works automatically without shipping multiple icon colors.
+const BADGES = [
+  { id:'citizen',        icon:'badge-citizen.png',        nameEn:'Citizen',        nameSr:'Građanin',
+    descEn:'Create your profile and join TraceTheBreak.',            descSr:'Napravite profil i pridružite se TraceTheBreak-u.',
+    check: p => !!p },
+  { id:'reporter',       icon:'badge-reporter.png',       nameEn:'Reporter',       nameSr:'Reporter',
+    descEn:'Reach Level 2 — earn 3 civic points.',                    descSr:'Dostignite Nivo 2 — osvojite 3 građanska poena.',
+    check: p => (p && p.total_contributions || 0) >= 3 },
+  { id:'inspector',      icon:'badge-inspector.png',      nameEn:'Inspector',      nameSr:'Inspektor',
+    descEn:'Reach Level 3 — earn 8 civic points.',                    descSr:'Dostignite Nivo 3 — osvojite 8 građanskih poena.',
+    check: p => (p && p.total_contributions || 0) >= 8 },
+  { id:'guardian',       icon:'badge-guardian.png',       nameEn:'Guardian',       nameSr:'Čuvar',
+    descEn:'Reach Level 4 — earn 15 civic points.',                   descSr:'Dostignite Nivo 4 — osvojite 15 građanskih poena.',
+    check: p => (p && p.total_contributions || 0) >= 15 },
+  { id:'community_hero', icon:'badge-community-hero.png', nameEn:'Community Hero', nameSr:'Heroj zajednice',
+    descEn:'Reach Level 5 — earn 25 civic points.',                   descSr:'Dostignite Nivo 5 — osvojite 25 građanskih poena.',
+    check: p => (p && p.total_contributions || 0) >= 25 },
+  { id:'first_fix',      icon:'badge-first-fix.png',      nameEn:'First Fix',      nameSr:'Prva popravka',
+    descEn:'Have one of your reports confirmed fixed.',               descSr:'Neka vam jedna prijava bude potvrđeno rešena.',
+    check: p => (p && p.successful_contributions || 0) >= 1 },
+  { id:'problem_solver', icon:'badge-problem-solver.png', nameEn:'Problem Solver', nameSr:'Rešavač problema',
+    descEn:'Have 10 of your reports confirmed fixed.',                descSr:'Neka vam 10 prijava bude potvrđeno rešeno.',
+    check: p => (p && p.successful_contributions || 0) >= 10 },
+];
+function badgeName(b) { return lang === 'sr' ? b.nameSr : b.nameEn; }
+function badgeDesc(b) { return lang === 'sr' ? b.descSr : b.descEn; }
+function isBadgeEarned(badge, profile) { return !!badge.check(profile); }
+// Renders one badge tile: a colored circle (accent when earned, muted
+// surface color when locked) with the glyph masked on top, same
+// mask-on-a-colored-circle technique as buildPinIconHtml() uses for
+// category pins — see the comment on BADGES above.
+function buildBadgeIconHtml(badge, earned) {
+  const iconSrc = `icons/badges/${badge.icon}`;
+  const bg    = earned ? 'var(--accent)' : 'var(--bg-surface-alt)';
+  const glyph = earned ? 'var(--accent-contrast)' : 'var(--text-secondary)';
+  return `<div class="badge-tile${earned ? ' earned' : ''}" title="${escapeHtml(badgeName(badge))} — ${escapeHtml(badgeDesc(badge))}">
+    <div class="badge-tile-circle" style="background:${bg};">
+      <span class="badge-tile-glyph" style="background-color:${glyph};-webkit-mask:url('${iconSrc}') center / contain no-repeat;mask:url('${iconSrc}') center / contain no-repeat;"></span>
+    </div>
+    <div class="badge-tile-name">${escapeHtml(badgeName(badge))}</div>
+  </div>`;
 }
 
 // =============================================================================
@@ -3666,6 +3788,11 @@ function renderUserDashboard() {
       <span>${l.level}. ${levelName(l)} — x${l.weight}</span>
     </div>`;
   }).join('');
+
+  const badgeGrid = document.getElementById('dashboardBadgeGrid');
+  if (badgeGrid) {
+    badgeGrid.innerHTML = BADGES.map(b => buildBadgeIconHtml(b, isBadgeEarned(b, currentProfile))).join('');
+  }
 }
 
 // --- Settings > My Admin Role -------------------------------------------------
@@ -3846,6 +3973,10 @@ const T = {
   proximityTooFar:   { en:'{d}m away — get closer to report', sr:'{d}m udaljenosti — priđite bliže da prijavite' },
   tooFarToReport:    { en:'You must be within 50m of the pin to report it ({d}m away).', sr:'Morate biti u krugu od 50m od pina da biste prijavili (udaljenost {d}m).' },
   dashboardSectionTitle:     { en:'My Dashboard',        sr:'Moja tabla' },
+  dashboardBadgesTitle:      { en:'Badges',              sr:'Značke' },
+  heatmapBtnTitle:           { en:'Heatmap',             sr:'Toplotna mapa' },
+  heatmapPanelTitle:         { en:'Show on heatmap',     sr:'Prikaži na toplotnoj mapi' },
+  heatmapCatAllLabel:        { en:'All categories',      sr:'Sve kategorije' },
   dashboardStatPoints:       { en:'Civic points',        sr:'Građanski poeni' },
   dashboardStatSuccessful:   { en:'Successful votes',    sr:'Uspešni glasovi' },
   dashboardStatWeight:       { en:'Your vote weight',    sr:'Težina vašeg glasa' },
@@ -4224,6 +4355,16 @@ function applyLang(){
   if (dashSuccLabel) dashSuccLabel.textContent = t('dashboardStatSuccessful');
   const dashWeightLabel = document.getElementById('dashboardStatWeightLabel');
   if (dashWeightLabel) dashWeightLabel.textContent = t('dashboardStatWeight');
+  const dashBadgesTitleEl = document.getElementById('dashboardBadgesTitle');
+  if (dashBadgesTitleEl) dashBadgesTitleEl.textContent = t('dashboardBadgesTitle');
+  renderUserDashboard();
+  const heatmapBtnEl = document.getElementById('heatmapBtn');
+  if (heatmapBtnEl) heatmapBtnEl.title = t('heatmapBtnTitle');
+  const heatmapPanelTitleEl = document.getElementById('heatmapPanelTitle');
+  if (heatmapPanelTitleEl) heatmapPanelTitleEl.textContent = t('heatmapPanelTitle');
+  const heatmapCatAllLabelEl = document.getElementById('heatmapCatAllLabel');
+  if (heatmapCatAllLabelEl) heatmapCatAllLabelEl.textContent = t('heatmapCatAllLabel');
+  populateHeatmapCategoryList();
   const adminDashTitleEl = document.getElementById('adminDashboardSectionTitle');
   if (adminDashTitleEl) adminDashTitleEl.textContent = t('adminDashboardSectionTitle');
   const adminDashTagLabel = document.getElementById('adminDashboardTagLabel');
@@ -4274,8 +4415,8 @@ function buildHelpModalContent() {
         ? 'Režim vožnje prikazuje dugmad za prijavu problema na putu na dnu ekrana. Dodirnite jedno da odmah prijavite problem na trenutnoj lokaciji. Da obeležite ceo loš deo puta, pritisnite "Počni prijavu deonice", provozite se preko problematičnog dela, pa pritisnite dugme opet da zaustavite snimanje — zatim dodirnite jedno od istih dugmadi da izaberete vrstu problema i sačuvate deonicu.'
         : 'Driving mode shows road-report buttons along the bottom of the screen. Tap one to instantly log a problem at your current location. To mark a whole stretch of bad road, tap "Start Section Report", drive over it, then tap the button again to stop recording — tapping one of the same buttons then picks a type and saves the section.'}</p>
       <p><strong>${lang === 'sr' ? 'Nivoi' : 'Levels'}</strong> ${lang === 'sr'
-        ? 'Svaka prijava i svaki glas vam donose poene i podižu vas kroz šest nivoa, od Rešavača problema do Vizionara — viši nivo znači da vaš glas za status prijave vredi više. Pogledajte svoj napredak u Podešavanja → Moja tabla.'
-        : 'Every report and every vote earns points and climbs you through six levels, from Problem Solver up to Visionary — a higher level means your status vote counts for more. Check your progress in Settings → My Dashboard.'}</p>
+        ? 'Svaka prijava i svaki glas vam donose poene i podižu vas kroz pet nivoa, od Građanina do Heroja zajednice — viši nivo znači da vaš glas za status prijave vredi više. Usput otključavate i značke. Pogledajte svoj napredak u Podešavanja → Moja tabla.'
+        : 'Every report and every vote earns points and climbs you through five levels, from Citizen up to Community Hero — a higher level means your status vote counts for more, and you unlock badges along the way. Check your progress in Settings → My Dashboard.'}</p>
       <p><strong>${lang === 'sr' ? 'Prijavljivanje na licu mesta' : 'On-site reporting'}</strong> ${lang === 'sr'
         ? 'Prijavljivanje je dostupno samo na mobilnom uređaju, a ako ručno postavite pin na mapu, morate biti u krugu od 50 metara od njega da biste ga prijavili — mala isprekidana kružnica na mapi pokazuje koliko ste blizu.'
         : 'Reporting is available on mobile only, and if you drop a pin manually, you need to be within 50 meters of it to submit — a small dashed ring on the map shows how close you are.'}</p>
@@ -6674,6 +6815,18 @@ const DrivingControl = L.Control.extend({
 new DrivingControl().addTo(map);
 document.getElementById('drivingModeBtn').style.display = 'flex';
 
+const HeatmapControl = L.Control.extend({
+  options:{ position:'bottomright' },
+  onAdd(){
+    const btn = document.getElementById('heatmapBtn');
+    L.DomEvent.disableClickPropagation(btn);
+    return btn;
+  }
+});
+new HeatmapControl().addTo(map);
+document.getElementById('heatmapBtn').style.display = 'flex';
+populateHeatmapCategoryList();
+
 const MainCompassControl = L.Control.extend({
   options:{ position:'bottomright' },
   onAdd(){
@@ -6978,6 +7131,110 @@ function priorityLabelText(p) {
 }
 function categoryColor(cat) { return CATEGORY_COLORS[cat] || '#aaaaaa'; }
 function categoryIcon(cat)  { return CATEGORY_ICONS[cat] || CATEGORY_ICONS.Other; }
+
+// =============================================================================
+// HEATMAP — toggled by #heatmapBtn (bottomright control, see the
+// HeatmapControl registration near the other floating buttons). Swaps the
+// normal pin/cluster layers for a Leaflet.heat density layer built from
+// globalActiveData, the same dataset already driving the pins (so the
+// heatmap always matches whatever date range is currently loaded). The
+// popover panel lets a person restrict the heatmap to specific categories
+// — e.g. just "Road" to see where the pothole reports cluster, or just
+// "Streetlight"/"Water"/"Waste" for broken lights/water leaks/trash —
+// instead of one undifferentiated blob of every report type at once.
+let heatmapActive = false;
+let heatLayer = null;
+// null = no per-category restriction (every category counts); once the
+// person unchecks anything it becomes a Set of the categories left checked.
+let heatmapCategoryFilter = null;
+
+function heatmapCategoryList() { return Object.keys(CATEGORY_COLORS); }
+
+function populateHeatmapCategoryList() {
+  const el = document.getElementById('heatmapCategoryList');
+  if (!el) return;
+  el.innerHTML = heatmapCategoryList().map(cat => {
+    const checked = heatmapCategoryFilter === null || heatmapCategoryFilter.has(cat);
+    return `
+    <label class="heatmap-panel-row">
+      <input type="checkbox" ${checked ? 'checked' : ''} data-cat="${cat}" onchange="onHeatmapCategoryToggle('${cat}', this.checked)">
+      <span class="heatmap-panel-dot" style="background:${categoryColor(cat)}"></span>
+      <span>${escapeHtml(translateCategory(cat))}</span>
+    </label>`;
+  }).join('');
+  const allBox = document.getElementById('heatmapCatAll');
+  if (allBox) allBox.checked = heatmapCategoryFilter === null;
+}
+
+function onHeatmapAllToggle(checked) {
+  heatmapCategoryFilter = checked ? null : new Set();
+  document.querySelectorAll('#heatmapCategoryList input[type=checkbox]').forEach(cb => { cb.checked = checked; });
+  refreshHeatLayer();
+}
+
+function onHeatmapCategoryToggle(cat, checked) {
+  // Lazily materialize the filter set from "currently checked" the first
+  // time any single box is touched, so unchecking one category out of an
+  // "All" state doesn't have to know the full category list up front.
+  if (heatmapCategoryFilter === null) heatmapCategoryFilter = new Set(heatmapCategoryList());
+  if (checked) heatmapCategoryFilter.add(cat); else heatmapCategoryFilter.delete(cat);
+  const allBox = document.getElementById('heatmapCatAll');
+  if (allBox) allBox.checked = heatmapCategoryFilter.size === heatmapCategoryList().length;
+  refreshHeatLayer();
+}
+
+// Point weight is intentionally uniform (every report counts the same) —
+// this is a "where do problems concentrate" view, not a severity map.
+// Section reports (drawn as spline paths, not single pins — see
+// isSectionReport) contribute every vertex along their traced path at a
+// lighter weight, so a long traced road segment reads as a warm line
+// rather than one single hotspot at its start point.
+function getHeatPoints() {
+  const pts = [];
+  globalActiveData.forEach(r => {
+    if (heatmapCategoryFilter && !heatmapCategoryFilter.has(r.category)) return;
+    if (isSectionReport(r)) {
+      sanitizePath(r.path).forEach(([lat, lon]) => pts.push([lat, lon, 0.45]));
+    } else if (isValidLatLng(r.latitude, r.longitude)) {
+      pts.push([r.latitude, r.longitude, 1]);
+    }
+  });
+  return pts;
+}
+
+function buildHeatLayer() {
+  return L.heatLayer(getHeatPoints(), {
+    radius: 26, blur: 20, maxZoom: 17, minOpacity: 0.35,
+    gradient: { 0.2:'#1e90ff', 0.4:'#2ecc71', 0.6:'#f5d33f', 0.8:'#f5a623', 1.0:'#e74c3c' }
+  });
+}
+
+// Called after any data reload (see loadPinsByWindow) so the heatmap stays
+// live even while it's the active layer; a no-op while heatmap mode is off.
+function refreshHeatLayer() {
+  if (!heatmapActive) return;
+  if (heatLayer) map.removeLayer(heatLayer);
+  heatLayer = buildHeatLayer().addTo(map);
+}
+
+function toggleHeatmap() {
+  heatmapActive = !heatmapActive;
+  const btn = document.getElementById('heatmapBtn');
+  const panel = document.getElementById('heatmapPanel');
+  if (heatmapActive) {
+    if (map.hasLayer(pinCluster)) map.removeLayer(pinCluster);
+    if (map.hasLayer(companyMarkersLayer)) map.removeLayer(companyMarkersLayer);
+    heatLayer = buildHeatLayer().addTo(map);
+    btn.classList.add('active');
+    if (panel) panel.classList.add('open');
+  } else {
+    if (heatLayer) { map.removeLayer(heatLayer); heatLayer = null; }
+    if (!map.hasLayer(pinCluster)) map.addLayer(pinCluster);
+    if (!map.hasLayer(companyMarkersLayer)) map.addLayer(companyMarkersLayer);
+    btn.classList.remove('active');
+    if (panel) panel.classList.remove('open');
+  }
+}
 function subcategoryLabel(cat, subKey) {
   if (!subKey) return '';
   const list = SUBCATEGORIES[cat] || [];
@@ -10712,6 +10969,7 @@ async function loadPinsByWindow() {
 
     syncMarkers(true);
     updateReportCount();
+    refreshHeatLayer();
   } catch (err) {
     console.error('Failed to load reports:', err.message);
     toast(t('loadFailed'), 'error');
