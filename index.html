@@ -3313,6 +3313,18 @@ function isReportInAdminDomain(report) {
   if (currentAdminLevel() >= 3) return true;
   if (!report) return false;
   const muni = report.municipality_id != null ? getMunicipalityById(report.municipality_id) : null;
+  // A report whose municipality can't be determined at all (see the "Could
+  // not determine the municipality for this location" message in the
+  // detail modal) isn't inside anyone's specific assigned domain — there's
+  // no municipality/country to check it against in the first place. Rather
+  // than silently locking every admin below Global Overseer out of Edit/
+  // Delete for it (unless they happen to be standing on-site right now via
+  // isAdminOnSiteOf below), treat it as fair game for any admin, the same
+  // way a Global Overseer already treats everything. A report that DOES
+  // resolve to a real municipality still goes through the normal domain
+  // check below — a level-1/2 admin still can't touch a report confirmed
+  // to belong to someone else's municipality/country.
+  if (!muni) return true;
   return isMunicipalityInAdminDomain(muni);
 }
 
