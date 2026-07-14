@@ -2206,6 +2206,29 @@ details[open] > summary .uc-group-chevron{ transform:rotate(180deg); /* point do
 .icon-only-btn .icon-img{ width:16px; height:16px; filter:var(--icon-tint-filter); }
 .icon-only-btn:hover{ background:var(--bg-surface-alt); }
 
+/* --- POI (utility-company) popup: icon-only contact row -----------------
+   Replaces the old written-out phone/email/website text in the popup body
+   itself — that detail now lives one tap away in the company's own
+   fullscreen "Detalji" view (see showCompanyDetailModal), same pattern as
+   a report pin's popup already uses. The popup only needs to answer "can I
+   act on this right now" (call / email / open site), not show every field.
+   Fixed light colors rather than theme vars — same reasoning as
+   .popup-edit-form above: popup-inner's card is always the light/white
+   card look regardless of the app's current theme, so these buttons are
+   styled to match that fixed card rather than the app surface tokens. */
+.poi-contact-icons{
+  display:flex; gap:8px; padding:2px 0 4px 0;
+}
+.poi-contact-icon-btn{
+  flex:0 0 auto; width:36px; height:36px; border-radius:50%;
+  border:1px solid #ddd; background:#f5f5f5;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer; text-decoration:none;
+  -webkit-tap-highlight-color:transparent; touch-action:manipulation;
+}
+.poi-contact-icon-btn img{ width:17px; height:17px; filter:brightness(0); opacity:.75; }
+.poi-contact-icon-btn:active{ background:#e8e8e8; }
+
 /* The camera button next to the report comment field specifically —
    overrides .icon-only-btn's fixed 28px square so it instead matches
    #comment's height exactly: same --form-control-h variable, applied
@@ -2804,6 +2827,20 @@ span.flatpickr-weekday {
     <button class="fullscreen-modal-close" id="reportDetailCloseBtn" onclick="hideReportDetailModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
   </div>
   <div class="fullscreen-modal-body" id="reportDetailBody"></div>
+</div>
+
+<!-- Fullscreen utility-company (POI) detail view — same shell/pattern as
+     #reportDetailModal above, opened from the "Detalji" button in a public
+     utility-company pin's popup (see buildCompanyPopupHtml /
+     showCompanyDetailModal). Holds the full written contact info (phone,
+     email, website, address, notes) that the popup itself no longer shows
+     directly — the popup now only has icon-only quick-action buttons. -->
+<div id="companyDetailModal" class="fullscreen-modal-overlay" style="display:none">
+  <div class="fullscreen-modal-header" id="companyDetailHeader">
+    <h2 id="companyDetailTitle"></h2>
+    <button class="fullscreen-modal-close" id="companyDetailCloseBtn" onclick="hideCompanyDetailModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
+  </div>
+  <div class="fullscreen-modal-body" id="companyDetailBody"></div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -7883,11 +7920,12 @@ async function backfillUcCoordinates() {
 // same popup-card/popup-header/popup-body/status-action-row classes, and
 // now the header is colored by the company's own category the same way a
 // report pin's header is colored by its category, instead of a flat grey.
-// Below the contact details (loaded straight from the utility_companies
-// "contacts" admin panel) sits the same Reports/Fixed/Average repair/
-// Response rate grid as the municipality centroid pin, for whichever
-// municipality this company belongs to — so tapping a service pin answers
-// both "how do I reach them" and "how are they actually doing".
+// Contact info itself isn't spelled out here anymore — just icon-only
+// quick-action buttons (call / email / open site), same "glance, then
+// tap through for more" shape as a report pin's popup. Everything else
+// (address, notes, and the Reports/Fixed/Average repair/Response rate
+// stats grid) lives one tap away in the company's own fullscreen "Detalji"
+// view — see showCompanyDetailModal.
 function buildCompanyPopupHtml(c, lat, lon) {
   // Only offered while actively driving — browsing pins on the regular map
   // already has "Details"-style ways to look at a place; drive mode is
@@ -7900,28 +7938,98 @@ function buildCompanyPopupHtml(c, lat, lon) {
     ? `<div class="uc-item-cats" style="margin-bottom:8px;">${c.categories.map(cat =>
         `<span class="uc-cat-chip" style="background:${categoryColor(cat)};">${escapeHtml(translateCategory(cat))}</span>`).join('')}</div>`
     : '';
-  const stats = c.municipality_id != null ? municipalityStatsCache.get(c.municipality_id) : null;
-  const statsHtml = buildMuniStatsGridHtml(stats);
-  const statsSectionHtml = statsHtml
-    ? `<div class="popup-row" style="border-top:1px solid var(--border-color);padding-top:10px;margin-top:2px;">
-         <span class="popup-row-label">${t('muniStatsSectionLabel')}</span>
-       </div>${statsHtml}`
-    : '';
+  // Icon-only quick actions — only rendered for whichever of phone/email/
+  // website this company actually has on file, so the row is never left
+  // with empty gaps. Registers the row into utilityCompanyRegistry the
+  // same way renderContactRows() used to, so the Details button (and
+  // anything else keyed by id) can still look this company back up.
+  if (c && c.id != null) utilityCompanyRegistry.set(String(c.id), c);
+  const iconBtnsHtml = [
+    c.phone   ? `<a class="poi-contact-icon-btn" href="tel:${escapeHtml(c.phone)}" title="${escapeHtml(c.phone)}"><img src="icons/phone.png" alt="phone"></a>` : '',
+    c.email   ? `<a class="poi-contact-icon-btn" href="mailto:${escapeHtml(c.email)}" title="${escapeHtml(c.email)}"><img src="icons/email.png" alt="email"></a>` : '',
+    c.website ? `<a class="poi-contact-icon-btn" href="${escapeHtml(c.website)}" target="_blank" rel="noopener" title="${escapeHtml(c.website)}"><img src="icons/link.png" alt="website"></a>` : ''
+  ].filter(Boolean).join('');
+  const iconRowHtml = iconBtnsHtml ? `<div class="poi-contact-icons">${iconBtnsHtml}</div>` : '';
   return `<div class="popup-inner popup-card">
     <div class="popup-header" style="background:${headerColor};">
       <span class="popup-header-title">${escapeHtml(c.name)}</span>
     </div>
     <div class="popup-body" style="padding:12px 14px;">
       ${catsHtml}
-      ${renderContactRows(c)}
-      ${statsSectionHtml}
+      ${iconRowHtml}
     </div>
     <div class="status-action-row" style="border-top:none;padding-top:0;">
       ${navigateBtnHtml}
-      <button class="status-action-btn popup-close-btn" style="background:#3a3a3a;" onclick="map.closePopup();">${t('closeBtn')}</button>
+      <button class="status-action-btn" style="background:#2a2a2a;" onclick="showCompanyDetailModal('${escapeHtml(String(c.id))}')">${t('detailsBtn')}</button>
+      <button class="status-action-btn popup-close-btn" style="background:#ff4b4b;" onclick="map.closePopup();">${t('closeBtn')}</button>
     </div>
   </div>`;
 }
+
+// Fullscreen "Detalji" view for a utility-company (POI) pin — same shell/
+// pattern as showReportDetailModal(), opened by the Details button in
+// buildCompanyPopupHtml above. Holds everything the popup itself no longer
+// spells out: full contact rows (phone/email/website/address/notes) plus
+// the municipality this company belongs to and its Reports/Fixed/Average
+// repair/Response rate stats grid.
+function hideCompanyDetailModal() {
+  const modal = document.getElementById('companyDetailModal');
+  if (modal) modal.style.display = 'none';
+}
+
+function showCompanyDetailModal(id) {
+  const c = utilityCompanyRegistry.get(String(id));
+  if (!c) return;
+  const modal = document.getElementById('companyDetailModal');
+  const body = document.getElementById('companyDetailBody');
+  const titleEl = document.getElementById('companyDetailTitle');
+  const headerEl = document.getElementById('companyDetailHeader');
+  if (!modal || !body || !titleEl) return;
+
+  titleEl.textContent = c.name;
+  // Same "status-colored" header treatment as the report detail modal —
+  // filled with this company's own category color (its first category,
+  // same convention as the popup header above) rather than a flat grey, so
+  // this reads as the same family of fullscreen view as a report's.
+  if (headerEl) {
+    headerEl.style.background = (c.categories && c.categories[0]) ? categoryColor(c.categories[0]) : '#3a3a3a';
+    headerEl.classList.add('status-colored');
+  }
+
+  const catsHtml = (c.categories || []).length
+    ? `<div class="uc-item-cats" style="margin-bottom:2px;">${c.categories.map(cat =>
+        `<span class="uc-cat-chip" style="background:${categoryColor(cat)};">${escapeHtml(translateCategory(cat))}</span>`).join('')}</div>`
+    : '';
+
+  const muni = c.municipality_id != null ? getMunicipalityById(c.municipality_id) : null;
+  const muniSectionHtml = muni
+    ? `<div class="detail-section">
+        <div class="detail-row"><span class="detail-row-label"><img class="detail-row-icon" src="icons/pin.png" alt="">${t('detailMunicipalityLabel')}</span><span class="detail-row-value">${escapeHtml(municipalityDisplayName(muni))}</span></div>
+      </div>`
+    : '';
+
+  const stats = c.municipality_id != null ? municipalityStatsCache.get(c.municipality_id) : null;
+  const statsHtml = buildMuniStatsGridHtml(stats);
+  const statsSectionHtml = statsHtml
+    ? `<div class="detail-section">
+        <div class="detail-section-title">${t('muniStatsSectionLabel')}</div>
+        ${statsHtml}
+      </div>`
+    : '';
+
+  body.innerHTML = `
+    <div class="detail-section">
+      <div class="detail-section-title">${t('detailContactsTitle')}</div>
+      ${catsHtml}
+      ${renderContactRows(c)}
+    </div>
+    ${muniSectionHtml}
+    ${statsSectionHtml}
+  `;
+
+  modal.style.display = 'flex';
+}
+
 
 // Backs the popup's Navigate button — only an id and plain numbers ever
 // travel through the onclick="" attribute (company names are free text an
@@ -8988,7 +9096,7 @@ function buildPopupHtml(report) {
     ${noteRowHtml}
     <div class="status-action-row" style="border-top:none;padding-top:0;">
       <button class="status-action-btn" style="background:#2a2a2a;" onclick="showReportDetailModal('${report.id}')">${t('detailsBtn')}</button>
-      <button class="status-action-btn popup-close-btn" style="background:#3a3a3a;" onclick="map.closePopup();">${t('closeBtn')}</button>
+      <button class="status-action-btn popup-close-btn" style="background:#ff4b4b;" onclick="map.closePopup();">${t('closeBtn')}</button>
     </div>
     ${actionsHtml}
     ${noteActionHtml}
