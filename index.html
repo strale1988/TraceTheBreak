@@ -2143,6 +2143,29 @@ details[open] > summary .uc-group-chevron{ transform:rotate(180deg); /* point do
 .photo-review-sub{ font-size:11.5px; color:var(--text-secondary); margin-top:2px; }
 .photo-review-actions{ display:flex; gap:6px; flex-wrap:wrap; }
 
+/* --- Report detail: "Flag for review" form --- */
+.flag-report-form{
+  display:flex; flex-direction:column; gap:8px;
+  background:var(--bg-surface-alt); border:1px solid var(--border-color); border-radius:10px; padding:12px;
+  margin-top:8px;
+}
+.flag-report-form textarea{
+  width:100%; padding:11px 10px; border:none; border-radius:8px;
+  background:var(--bg-surface); color:var(--text-primary); font-size:13px; font-family:inherit;
+  resize:vertical; min-height:60px; box-sizing:border-box;
+}
+.flag-report-form-row{ display:flex; gap:8px; }
+.flag-report-note{
+  font-size:12px; color:var(--text-secondary); background:var(--bg-surface-alt);
+  border-radius:8px; padding:10px; margin-top:8px;
+}
+/* --- Admin: report-flags queue history list --- */
+.report-flag-history{ display:flex; flex-direction:column; gap:6px; margin-top:6px; width:100%; }
+.report-flag-history-item{
+  font-size:12px; background:var(--bg-surface); border-radius:6px; padding:6px 8px;
+}
+.report-flag-history-meta{ color:var(--text-muted); font-size:11px; margin-top:2px; }
+
 /* --- Inline "add photo later" camera button — sits to the right of the
    comment/note in both the map popup and the report detail modal, so a
    report can pick up a photo after the fact (owner: if it doesn't have one
@@ -2729,6 +2752,14 @@ span.flatpickr-weekday {
       <div class="admin-section-title detail-section-title" id="allReportsSectionTitle" style="margin-top:18px;">All reports</div>
       <input type="text" id="allReportsSearchInput" oninput="onAllReportsSearchInput()" placeholder="Search reports…" style="width:100%;box-sizing:border-box;margin-bottom:10px;">
       <div id="allReportsList"></div>
+
+      <!-- Admin: reports a logged-in user (other than the reporter) has
+           flagged with a required comment explaining what's wrong — see
+           submitReportFlag() / loadReportFlagsAdmin(). Distinct from the
+           Flagged reports queue below, which is specifically about rejected
+           photos. -->
+      <div class="admin-section-title detail-section-title" id="reportFlagsSectionTitle" style="margin-top:18px;">Reported by users</div>
+      <div id="reportFlagsList"></div>
 
       <!-- Admin: reports whose attached photo is waiting for approval
            before it's shown to anyone but the reporter/admins. -->
@@ -3671,6 +3702,26 @@ const T = {
   photoRejected:          { en:'Photo rejected.',                             sr:'Fotografija odbijena.' },
   photoActionFailed:      { en:'Could not save that. Try again.',            sr:'Nije sačuvano. Pokušajte ponovo.' },
 
+  flagReportTitle:        { en:'Something wrong with this report?',           sr:'Nešto nije u redu sa ovom prijavom?' },
+  flagReportBtn:          { en:'Flag for review',                             sr:'Označi za proveru' },
+  flagReportPH:           { en:'Explain what\'s wrong with this report…',     sr:'Objasnite šta nije u redu sa ovom prijavom…' },
+  flagReportSubmitBtn:    { en:'Submit',                                      sr:'Pošalji' },
+  flagReportCancelBtn:    { en:'Cancel',                                      sr:'Otkaži' },
+  flagReportValidationError: { en:'Please describe what\'s wrong.',           sr:'Molimo opišite šta nije u redu.' },
+  flagReportLoginRequired:{ en:'Sign in to flag a report.',                   sr:'Prijavite se da biste označili prijavu.' },
+  flagReportOwnReport:    { en:'You can\'t flag your own report.',            sr:'Ne možete označiti sopstvenu prijavu.' },
+  flagReportSubmitted:    { en:'Flagged — an admin will review it.',          sr:'Označeno — administrator će pregledati.' },
+  flagReportAlreadyFlagged:{ en:'You already flagged this report.',          sr:'Već ste označili ovu prijavu.' },
+  flagReportAlreadyFlaggedNote: { en:'You flagged this on {date}:',           sr:'Označili ste ovo {date}:' },
+  flagReportError:        { en:'Could not submit. Try again.',                sr:'Slanje nije uspelo. Pokušajte ponovo.' },
+
+  reportFlagsSectionTitle:{ en:'Reported by users',                          sr:'Prijavili korisnici' },
+  reportFlagsEmpty:       { en:'No user-flagged reports right now.',        sr:'Trenutno nema prijava koje su korisnici označili.' },
+  reportFlagsHistoryLabel:{ en:'Flag history',                              sr:'Istorija označavanja' },
+  reportFlagResolveBtn:   { en:'Resolve',                                    sr:'Reši' },
+  reportFlagResolved:     { en:'Marked as resolved.',                       sr:'Označeno kao rešeno.' },
+  reportFlagActionFailed: { en:'Could not save that. Try again.',           sr:'Nije sačuvano. Pokušajte ponovo.' },
+
   flaggedReportsSectionTitle: { en:'Flagged reports',                        sr:'Označene prijave' },
   flaggedReportsEmpty:    { en:'No flagged reports right now.',              sr:'Trenutno nema označenih prijava.' },
   queueFilterNoResults:   { en:'No items match this filter.',                sr:'Nema stavki koje odgovaraju filteru.' },
@@ -3803,11 +3854,14 @@ function applyLang(){
     if (prTitleEl) prTitleEl.textContent = t('photoReviewSectionTitle');
     const prSearchEl = document.getElementById('photoReviewSearchInput');
     if (prSearchEl) prSearchEl.placeholder = t('queueFilterPH');
+    const rfTitleEl = document.getElementById('reportFlagsSectionTitle');
+    if (rfTitleEl) rfTitleEl.textContent = t('reportFlagsSectionTitle');
     const frTitleEl = document.getElementById('flaggedReportsSectionTitle');
     if (frTitleEl) frTitleEl.textContent = t('flaggedReportsSectionTitle');
     const frSearchEl = document.getElementById('flaggedReportsSearchInput');
     if (frSearchEl) frSearchEl.placeholder = t('queueFilterPH');
     renderPhotoReviewList();
+    renderReportFlagsList();
     renderFlaggedReportsList();
     if (arSearchEl && arSearchEl.value.trim()) searchAllReportsAdmin();
   }
@@ -3868,6 +3922,7 @@ function showSettingsModal() {
     cancelUcForm();
     loadUtilityCompaniesAdmin();
     loadPhotoReviewAdmin();
+    loadReportFlagsAdmin();
     resetAllReportsSearch();
     const arTitleEl = document.getElementById('allReportsSectionTitle');
     if (arTitleEl) arTitleEl.textContent = t('allReportsSectionTitle');
@@ -7937,6 +7992,91 @@ async function loadPhotoReviewAdmin() {
   renderFlaggedReportsList();
 }
 
+// =============================================================================
+// ADMIN: reports flagged by users (Settings) — distinct from the rejected-
+// photo queue above. Groups every open (unresolved) report_flags row by
+// report, so a report flagged by several people shows as one card with a
+// full history — visible only to admins, per RLS (see report_flags_select).
+// Jurisdiction is enforced both server-side (admin_can_manage_municipality
+// in the RLS policy) and re-checked here client-side for consistency with
+// the rest of the admin panel.
+// =============================================================================
+let reportFlagsCache = []; // [{ report, flags: [...] }]
+
+async function loadReportFlagsAdmin() {
+  const titleEl = document.getElementById('reportFlagsSectionTitle');
+  if (titleEl) titleEl.textContent = t('reportFlagsSectionTitle');
+  try {
+    const { data, error } = await sb.from('report_flags')
+      .select('*, brake_reports(*), profiles!report_flags_flagged_by_fkey(username)')
+      .eq('resolved', false)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    const groups = new Map();
+    (data || []).forEach(row => {
+      const report = row.brake_reports;
+      if (!report || !isReportInAdminDomain(report)) return;
+      if (!groups.has(report.id)) groups.set(report.id, { report, flags: [] });
+      groups.get(report.id).flags.push(row);
+    });
+    reportFlagsCache = Array.from(groups.values());
+  } catch (err) {
+    console.error('Failed to load report flags:', err.message);
+    reportFlagsCache = [];
+  }
+  renderReportFlagsList();
+}
+
+function renderReportFlagsList() {
+  const listEl = document.getElementById('reportFlagsList');
+  if (!listEl) return;
+  if (!reportFlagsCache.length) {
+    listEl.innerHTML = `<div class="detail-empty">${t('reportFlagsEmpty')}</div>`;
+    return;
+  }
+  listEl.innerHTML = reportFlagsCache.map(({ report, flags }) => {
+    const historyHtml = flags.map(f => `
+      <div class="report-flag-history-item">
+        "${escapeHtml(f.reason)}"
+        <div class="report-flag-history-meta">${escapeHtml((f.profiles && f.profiles.username) || t('detailUnknown'))} · ${formatDate(f.created_at)}</div>
+      </div>`).join('');
+    return `
+    <div class="flagged-report-card">
+      <div class="photo-review-meta">
+        <div class="photo-review-title">${escapeHtml(reportSummaryTitle(report))}
+          <span class="photo-status-badge" style="background:${statusColor(report.status)};">${escapeHtml(statusLabel(report.status))}</span>
+        </div>
+        <div class="photo-review-sub">${escapeHtml(report.owner_username || t('detailUnknown'))} · ${formatDate(report.created_at)}</div>
+        <div class="report-flag-history">
+          <div class="report-flag-history-meta">${t('reportFlagsHistoryLabel')} (${flags.length})</div>
+          ${historyHtml}
+        </div>
+      </div>
+      <div class="photo-review-actions">
+        <button type="button" class="settings-btn" onclick="viewReportFromAdminQueue('${report.id}')">${t('detailsBtn')}</button>
+        <button type="button" style="background:#2e7d32;color:#fff;" onclick="resolveReportFlags('${report.id}')">${t('reportFlagResolveBtn')}</button>
+        <button type="button" style="background:#7a1f1f;color:#fff;" onclick="deleteReport('${report.id}')">${t('deleteBtn')}</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function resolveReportFlags(reportId) {
+  try {
+    const { error } = await sb.from('report_flags').update({
+      resolved: true,
+      resolved_at: new Date().toISOString(),
+      resolved_by: currentSession ? currentSession.user.id : null
+    }).eq('report_id', reportId).eq('resolved', false);
+    if (error) throw error;
+    toast(t('reportFlagResolved'), 'success');
+    await loadReportFlagsAdmin();
+  } catch (err) {
+    console.error('Failed to resolve report flags:', err.message);
+    toast(t('reportFlagActionFailed'), 'error');
+  }
+}
+
 function reportSummaryTitle(r) {
   return r.subcategory
     ? `${translateCategory(r.category)} / ${subcategoryLabel(r.category, r.subcategory)}`
@@ -8891,6 +9031,18 @@ async function showReportDetailModal(reportId) {
     </div>`;
   }
 
+  // "Flag for review" — any logged-in user except the report's own owner.
+  // Not shown to guests (login required to flag) or to the reporter
+  // themselves (can't flag your own report). The actual "already flagged?"
+  // state is resolved asynchronously below (loadReportFlagSection), since
+  // it needs a DB round-trip; this just decides whether the section exists.
+  const canFlagReport = !!(currentSession && !isOwner);
+  const flagSectionHtml = canFlagReport ? `
+    <div class="detail-section" id="reportFlagSection">
+      <div class="detail-section-title">${t('flagReportTitle')}</div>
+      <div id="reportFlagContent"><div class="detail-loading">${t('detailLoading')}</div></div>
+    </div>` : '';
+
   body.innerHTML = `
     <div class="detail-section">
       <div class="detail-section-title">${t('detailLocationTitle')}</div>
@@ -8907,6 +9059,7 @@ async function showReportDetailModal(reportId) {
       <div class="detail-section-title">${t('detailContactsTitle')}</div>
       <div id="detailContactsContainer"><div class="detail-loading">${t('detailLoading')}</div></div>
     </div>
+    ${flagSectionHtml}
     <div class="detail-section">
       <div class="detail-section-title">${t('detailExportTitle')}</div>
       <p class="detail-export-hint">${t('detailExportHint')}</p>
@@ -8919,6 +9072,8 @@ async function showReportDetailModal(reportId) {
 
   modal.style.display = 'flex';
   modal.dataset.openReportId = report.id;
+
+  if (canFlagReport) loadReportFlagSection(report.id);
 
   if (showPhotoImage) {
     getReportPhotoSignedUrl(report.photo_path).then(url => {
@@ -8973,6 +9128,92 @@ async function showReportDetailModal(reportId) {
   }
   const contacts = await getReportContacts(report, muni);
   if (contactsEl) contactsEl.innerHTML = renderContactCards(contacts);
+}
+
+// =============================================================================
+// REPORT DETAIL: "Flag for review" (user-submitted, distinct from the
+// admin-only rejected-photo flag on brake_reports.flagged_for_review).
+// One flag per user per report, enforced by a unique constraint on
+// report_flags(report_id, flagged_by) — see the Supabase migration. Only the
+// flagger's own row is readable by them (RLS), so "already flagged?" is
+// resolved with a direct row lookup rather than any local/session state.
+// =============================================================================
+async function loadReportFlagSection(reportId) {
+  const contentEl = document.getElementById('reportFlagContent');
+  if (!contentEl || !currentSession) return;
+  try {
+    const { data, error } = await sb.from('report_flags').select('*')
+      .eq('report_id', reportId).eq('flagged_by', currentSession.user.id).maybeSingle();
+    if (error) throw error;
+    renderReportFlagSection(reportId, data || null);
+  } catch (err) {
+    console.error('Failed to load flag status:', err.message);
+    // Fail open to the "not yet flagged" button rather than leaving a
+    // permanent spinner — worst case a duplicate insert attempt is still
+    // safely rejected by the unique constraint.
+    renderReportFlagSection(reportId, null);
+  }
+}
+
+function renderReportFlagSection(reportId, existingFlag) {
+  const contentEl = document.getElementById('reportFlagContent');
+  if (!contentEl) return;
+  if (existingFlag) {
+    contentEl.innerHTML = `<div class="flag-report-note">
+      ${t('flagReportAlreadyFlaggedNote').replace('{date}', formatDate(existingFlag.created_at))}<br>
+      "${escapeHtml(existingFlag.reason)}"
+    </div>`;
+    return;
+  }
+  contentEl.innerHTML = `<button type="button" class="settings-btn" id="flagReportToggleBtn" onclick="showFlagReportForm('${reportId}')">${t('flagReportBtn')}</button>`;
+}
+
+function showFlagReportForm(reportId) {
+  const contentEl = document.getElementById('reportFlagContent');
+  if (!contentEl) return;
+  contentEl.innerHTML = `
+    <div class="flag-report-form" id="flagReportForm">
+      <textarea id="flagReportReason" placeholder="${t('flagReportPH')}"></textarea>
+      <div class="flag-report-form-row">
+        <button type="button" class="settings-btn" style="flex:1;" onclick="renderReportFlagSection('${reportId}', null)">${t('flagReportCancelBtn')}</button>
+        <button type="button" style="background:#a67817;color:white;flex:1;" onclick="submitReportFlag('${reportId}')" id="flagReportSubmitBtn">${t('flagReportSubmitBtn')}</button>
+      </div>
+    </div>`;
+  const reasonEl = document.getElementById('flagReportReason');
+  if (reasonEl) reasonEl.focus();
+}
+
+async function submitReportFlag(reportId) {
+  if (!currentSession) { toast(t('flagReportLoginRequired'), 'error'); return; }
+  const reasonEl = document.getElementById('flagReportReason');
+  const reason = reasonEl ? reasonEl.value.trim() : '';
+  if (!reason) { toast(t('flagReportValidationError'), 'error'); return; }
+  const submitBtn = document.getElementById('flagReportSubmitBtn');
+  if (submitBtn) submitBtn.disabled = true;
+  try {
+    const { error } = await sb.from('report_flags').insert({
+      report_id: reportId,
+      flagged_by: currentSession.user.id,
+      reason: cyrillicToLatin(reason)
+    });
+    if (error) {
+      // Unique-violation — a second tab, a double-tap, or the earlier
+      // maybeSingle() lookup racing another insert. Either way the report
+      // is already flagged by this user, so just reflect that state.
+      if (error.code === '23505') {
+        toast(t('flagReportAlreadyFlagged'), 'error');
+        loadReportFlagSection(reportId);
+        return;
+      }
+      throw error;
+    }
+    toast(t('flagReportSubmitted'), 'success');
+    loadReportFlagSection(reportId);
+  } catch (err) {
+    console.error('Failed to submit report flag:', err.message);
+    toast(t('flagReportError'), 'error');
+    if (submitBtn) submitBtn.disabled = false;
+  }
 }
 
 // Shared by showReportDetailModal and emailReport so both always agree
