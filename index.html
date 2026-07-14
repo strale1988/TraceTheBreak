@@ -1919,6 +1919,56 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 .detail-empty{ font-size:12.5px; color:var(--text-secondary); font-style:italic; }
 .detail-loading{ font-size:12.5px; color:var(--text-muted); }
 .detail-export-hint{ font-size:12px; color:var(--text-secondary); margin:0 0 10px; line-height:1.4; }
+
+/* --- Leaderboard ---------------------------------------------------------
+   Tab bar picks which get_leaderboard() window is loaded (see
+   switchLeaderboardTab/loadLeaderboardTab); rows below are shared markup
+   regardless of tab. Top 3 ranks get a medal-colored left edge + tinted
+   background so the podium reads at a glance; everyone else is a plain
+   numbered row. */
+.leaderboard-tabs{
+  display:flex; gap:6px; overflow-x:auto; -webkit-overflow-scrolling:touch;
+  padding-bottom:2px;
+}
+.leaderboard-tab{
+  flex:1 1 auto; white-space:nowrap;
+  background:var(--bg-surface-alt); color:var(--text-secondary);
+  border:1px solid var(--border-color-strong); border-radius:8px;
+  padding:8px 10px; font-size:12px; font-weight:700; cursor:pointer;
+  -webkit-tap-highlight-color:transparent; touch-action:manipulation;
+}
+.leaderboard-tab.active{ background:var(--accent); color:var(--accent-contrast); border-color:var(--accent); }
+.leaderboard-city-label{
+  font-size:11.5px; color:var(--text-muted); text-align:center; margin-top:-4px;
+}
+.leaderboard-row{
+  display:flex; align-items:center; gap:10px;
+  background:var(--bg-surface); border:1px solid var(--border-color); border-radius:12px;
+  padding:10px 12px; margin-bottom:8px;
+}
+.leaderboard-row.rank-1{ border-color:#f0b429; background:linear-gradient(90deg, rgba(240,180,41,.12), var(--bg-surface) 40%); }
+.leaderboard-row.rank-2{ border-color:#b8c0cc; background:linear-gradient(90deg, rgba(184,192,204,.14), var(--bg-surface) 40%); }
+.leaderboard-row.rank-3{ border-color:#c98a4b; background:linear-gradient(90deg, rgba(201,138,75,.12), var(--bg-surface) 40%); }
+.leaderboard-rank{
+  flex-shrink:0; width:26px; text-align:center; font-size:14px; font-weight:800; color:var(--text-muted);
+}
+.leaderboard-row.rank-1 .leaderboard-rank,
+.leaderboard-row.rank-2 .leaderboard-rank,
+.leaderboard-row.rank-3 .leaderboard-rank{ font-size:18px; }
+.leaderboard-avatar{
+  flex-shrink:0; width:34px; height:34px; border-radius:50%; object-fit:cover;
+  background:var(--bg-surface-alt); border:1px solid var(--border-color-strong);
+}
+.leaderboard-info{ flex:1 1 auto; min-width:0; }
+.leaderboard-name-row{ display:flex; align-items:center; gap:6px; }
+.leaderboard-name{
+  font-size:13.5px; font-weight:700; color:var(--text-primary);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.leaderboard-reliability{ font-size:11px; color:var(--text-muted); margin-top:2px; }
+.leaderboard-points{ flex-shrink:0; text-align:right; }
+.leaderboard-points-value{ font-size:15px; font-weight:800; color:var(--text-primary); }
+.leaderboard-points-label{ font-size:9px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.3px; }
 .detail-section-title-row{
   display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;
 }
@@ -2104,36 +2154,9 @@ details[open] > summary .uc-group-chevron{ transform:rotate(180deg); /* point do
 /* --- Report photo evidence: picker + preview in the report form --- */
 .report-comment-row{ display:flex; align-items:center; gap:8px; }
 .report-comment-row #comment{ flex:1 1 auto; min-width:0; }
-/* Camera icon + its "Take Photo / Choose from Library" popover, sitting
-   right next to the optional-notes input in the report form — see
-   toggleReportPhotoMenu(). Visually the same pattern as .lang-dd-menu in
-   the header, just anchored to open upward (bottom:calc(100% + 6px))
-   since this control sits low in the panel rather than up in the header. */
+/* Camera icon opens the OS's own Camera/Gallery chooser directly (see
+   triggerReportPhotoPick) — no custom popover needed. */
 .photo-choice-dropdown{ position:relative; flex:0 0 auto; }
-.photo-choice-menu{
-  display:none;
-  position:absolute;
-  bottom:calc(100% + 6px);
-  right:0;
-  flex-direction:column;
-  gap:2px;
-  background:var(--bg-surface);
-  border:1px solid var(--border-color-strong);
-  border-radius:8px;
-  padding:4px;
-  min-width:180px;
-  box-shadow:0 6px 20px var(--floating-shadow);
-  z-index:9999; /* see Z-INDEX SCALE above — same tier as modal overlays, so it clears the map legend/pin controls it sits over */
-}
-.photo-choice-menu.open{ display:flex; }
-.photo-choice-item{
-  display:flex; align-items:center; gap:8px;
-  width:100%; border:none; background:transparent; color:var(--text-primary);
-  border-radius:6px; padding:8px 10px; font-size:13px; font-weight:600;
-  cursor:pointer; text-align:left; -webkit-tap-highlight-color:transparent;
-}
-.photo-choice-item:hover{ background:var(--bg-surface-alt); }
-.photo-choice-item .icon-img{ width:16px; height:16px; filter:var(--icon-tint-filter); }
 .report-photo-preview{
   position:relative; display:flex; width:100%;
 }
@@ -2350,6 +2373,7 @@ span.flatpickr-weekday {
       <button class="help-icon-btn" id="settingsBtn" title="Settings" onclick="showSettingsModal()"><img class="icon-img" src="icons/settings.png" alt="Settings"></button>
       <button class="help-icon-btn" id="fullscreenBtn" title="Fullscreen / Preko celog ekrana" onclick="toggleFullscreen()"><img class="icon-img" id="fullscreenBtnIcon" src="icons/fullscreen-enter.png" alt="Fullscreen"></button>
       <button class="help-icon-btn" id="helpTopBtn" title="Help / Pomoć" onclick="showHelpModal()"><img class="icon-img" src="icons/help.png" alt="Help"></button>
+      <button class="help-icon-btn" id="leaderboardBtn" title="Leaderboard" onclick="showLeaderboardModal()"><span style="font-size:15px;line-height:1;">🏆</span></button>
       <div class="lang-dropdown" id="langDropdown">
         <button class="help-icon-btn" id="langDdBtn" title="Language / Jezik" onclick="toggleLangDropdown()">
           <span id="langDdFlag" style="font-size:15px;line-height:1;">🇷🇸</span>
@@ -2438,20 +2462,14 @@ span.flatpickr-weekday {
   <div class="row report-comment-row">
     <input id="comment" type="text" placeholder="Optional notes..." oninput="checkFormReady()">
     <div class="photo-choice-dropdown" id="reportPhotoDropdown">
-      <button type="button" class="icon-only-btn" id="reportPhotoAddBtn" title="Add photo (optional)" aria-label="Add photo (optional)" onclick="toggleReportPhotoMenu()">
+      <button type="button" class="icon-only-btn" id="reportPhotoAddBtn" title="Add photo (optional)" aria-label="Add photo (optional)" onclick="triggerReportPhotoPick()">
         <img class="icon-img" src="icons/camera.png" alt="">
       </button>
-      <div class="photo-choice-menu" id="reportPhotoMenu">
-        <button type="button" class="photo-choice-item" onclick="triggerReportPhotoPick('camera')"><span id="reportPhotoTakeLabel">Take photo</span></button>
-        <button type="button" class="photo-choice-item" onclick="triggerReportPhotoPick('library')"><span id="reportPhotoLibraryLabel">Choose from library</span></button>
-      </div>
     </div>
-    <!-- capture="environment" forces the device camera to open directly
-         (skipping the OS chooser) on phones that support it; the plain
-         input has no capture attribute so it always opens the normal
-         file/photo picker (library, Files app, etc.) instead. Both feed
-         the same handler. -->
-    <input type="file" accept="image/*" capture="environment" id="reportPhotoInputCamera" style="display:none" onchange="onReportPhotoSelected(this)">
+    <!-- No capture attribute — left as a plain file input so the OS shows
+         its own chooser (Camera / Gallery / Files) instead of us building
+         a custom menu for it, same as the later-add-photo flow
+         (addPhotoToReport) already does. -->
     <input type="file" accept="image/*" id="reportPhotoInputLibrary" style="display:none" onchange="onReportPhotoSelected(this)">
   </div>
 
@@ -2847,6 +2865,27 @@ span.flatpickr-weekday {
     <button class="fullscreen-modal-close" id="companyDetailCloseBtn" onclick="hideCompanyDetailModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
   </div>
   <div class="fullscreen-modal-body" id="companyDetailBody"></div>
+</div>
+
+<!-- Leaderboard — opened from the trophy button in the header (see
+     showLeaderboardModal). Four tabs (All Time / This Month / This Week /
+     This City) all render through the same list, just fed by a different
+     get_leaderboard() RPC call — see loadLeaderboardTab(). -->
+<div id="leaderboardModal" class="fullscreen-modal-overlay" style="display:none">
+  <div class="fullscreen-modal-header">
+    <h2 id="leaderboardModalTitle">🏆 Leaderboard</h2>
+    <button class="fullscreen-modal-close" onclick="hideLeaderboardModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
+  </div>
+  <div class="fullscreen-modal-body" style="gap:12px;">
+    <div class="leaderboard-tabs" id="leaderboardTabs">
+      <button type="button" class="leaderboard-tab active" data-tab="all"   onclick="switchLeaderboardTab('all')"><span id="lbTabAll">All Time</span></button>
+      <button type="button" class="leaderboard-tab"        data-tab="month" onclick="switchLeaderboardTab('month')"><span id="lbTabMonth">This Month</span></button>
+      <button type="button" class="leaderboard-tab"        data-tab="week"  onclick="switchLeaderboardTab('week')"><span id="lbTabWeek">This Week</span></button>
+      <button type="button" class="leaderboard-tab"        data-tab="city"  onclick="switchLeaderboardTab('city')"><span id="lbTabCity">This City</span></button>
+    </div>
+    <div id="leaderboardCityLabel" class="leaderboard-city-label" style="display:none"></div>
+    <div id="leaderboardList"><div class="detail-loading" id="lbLoadingText">Loading…</div></div>
+  </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -3395,6 +3434,151 @@ function hideProfileModal() {
   document.getElementById('profileModal').style.display = 'none';
 }
 
+// =============================================================================
+// LEADERBOARD — 🏆 button in the header. Four tabs (all/month/week/city) all
+// render the same row markup, just fed by a different get_leaderboard() RPC
+// call (see the Supabase migration add_get_leaderboard_rpc). "Points" shown
+// per row is that tab's window count (reports + votes in range); the level
+// badge and reliability % next to the name are always computed from the
+// user's true all-time totals (profiles.total_contributions /
+// successful_contributions, same fields the header pill/profile modal use)
+// so a level badge means the same thing here as everywhere else in the app.
+// Admins are excluded server-side (see the RPC), same as the level ladder.
+// =============================================================================
+let leaderboardTab = 'all';
+let leaderboardCityMuni = null; // resolved once per modal session, reused across tab switches
+
+function showLeaderboardModal() {
+  document.getElementById('leaderboardModalTitle').textContent = '\uD83C\uDFC6 ' + t('leaderboardTitle');
+  document.getElementById('leaderboardModal').style.display = 'flex';
+  leaderboardCityMuni = null;
+  switchLeaderboardTab(leaderboardTab);
+}
+function hideLeaderboardModal() {
+  document.getElementById('leaderboardModal').style.display = 'none';
+}
+
+function switchLeaderboardTab(tab) {
+  leaderboardTab = tab;
+  document.querySelectorAll('#leaderboardTabs .leaderboard-tab').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tab);
+  });
+  loadLeaderboardTab(tab);
+}
+
+// Resolves "This City" to a municipality: prefers a live GPS fix (same
+// resolver used for the on-map municipality badge), falls back to the
+// municipality of the signed-in person's most recent report if no fix is
+// available yet. Returns null if neither source has anything to go on.
+async function resolveLeaderboardCity() {
+  if (leaderboardCityMuni) return leaderboardCityMuni;
+  if (userCoords) {
+    try {
+      const muni = await resolveMunicipality(userCoords.lat, userCoords.lon);
+      if (muni) { leaderboardCityMuni = muni; return muni; }
+    } catch (err) { /* fall through to the report-based fallback below */ }
+  }
+  if (currentSession) {
+    try {
+      const { data } = await sb.from(TABLE).select('municipality_id')
+        .eq('owner_id', currentSession.user.id)
+        .not('municipality_id', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      const row = data && data[0];
+      if (row && row.municipality_id != null) {
+        const muni = getMunicipalityById(row.municipality_id);
+        if (muni) { leaderboardCityMuni = muni; return muni; }
+      }
+    } catch (err) { /* no reports yet, or lookup failed — treated as unresolved */ }
+  }
+  return null;
+}
+
+async function loadLeaderboardTab(tab) {
+  const listEl = document.getElementById('leaderboardList');
+  const cityLabelEl = document.getElementById('leaderboardCityLabel');
+  listEl.innerHTML = `<div class="detail-loading">${t('detailLoading')}</div>`;
+  cityLabelEl.style.display = 'none';
+
+  let since = null;
+  if (tab === 'month') since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  if (tab === 'week')  since = new Date(Date.now() -  7 * 24 * 60 * 60 * 1000).toISOString();
+
+  let municipalityId = null;
+  if (tab === 'city') {
+    const muni = await resolveLeaderboardCity();
+    if (!muni) {
+      listEl.innerHTML = `<div class="detail-empty">${t('leaderboardCityUnavailable')}</div>
+        <button type="button" class="settings-btn" style="margin-top:10px;width:100%;" onclick="retryLeaderboardCity()">${t('leaderboardEnableLocation')}</button>`;
+      return;
+    }
+    municipalityId = muni.id;
+    cityLabelEl.textContent = municipalityDisplayName(muni);
+    cityLabelEl.style.display = 'block';
+  }
+
+  try {
+    const { data, error } = await sb.rpc('get_leaderboard', {
+      p_since: since, p_municipality_id: municipalityId, p_limit: 50
+    });
+    if (error) throw error;
+    renderLeaderboardRows(data || []);
+  } catch (err) {
+    console.error('Leaderboard load failed:', err.message || err);
+    listEl.innerHTML = `<div class="detail-empty">${t('leaderboardLoadFailed')}</div>`;
+  }
+}
+
+// "Enable location" retry button shown in the This City empty state — kicks
+// the GPS watch (harmless/no-op if already watching) and gives the browser
+// a moment to hand back a fix before re-resolving the city.
+function retryLeaderboardCity() {
+  if (typeof startWatching === 'function') startWatching();
+  const listEl = document.getElementById('leaderboardList');
+  listEl.innerHTML = `<div class="detail-loading">${t('detailLoading')}</div>`;
+  setTimeout(() => { leaderboardCityMuni = null; loadLeaderboardTab('city'); }, 1500);
+}
+
+function renderLeaderboardRows(rows) {
+  const listEl = document.getElementById('leaderboardList');
+  if (!rows.length) {
+    listEl.innerHTML = `<div class="detail-empty">${t('leaderboardEmpty')}</div>`;
+    return;
+  }
+  listEl.innerHTML = rows.map((r, i) => {
+    const rank = i + 1;
+    const points = Number(r.window_points) || 0;
+    const totalPts = Number(r.total_contributions) || 0;
+    const successPts = Number(r.successful_contributions) || 0;
+    const lvl = levelForPoints(totalPts);
+    const reliabilityHtml = totalPts > 0
+      ? t('leaderboardReliability').replace('{p}', Math.round(successPts / totalPts * 100))
+      : t('leaderboardNewUser');
+    const initial = escapeHtml(((r.username || '?').trim().charAt(0) || '?').toUpperCase());
+    const avatarHtml = r.avatar_url
+      ? `<img class="leaderboard-avatar" src="${escapeHtml(r.avatar_url)}" alt="">`
+      : `<div class="leaderboard-avatar" style="display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--text-secondary);">${initial}</div>`;
+    const rankHtml = rank === 1 ? '\uD83E\uDD47' : rank === 2 ? '\uD83E\uDD48' : rank === 3 ? '\uD83E\uDD49' : String(rank);
+    return `
+    <div class="leaderboard-row${rank <= 3 ? ' rank-' + rank : ''}">
+      <div class="leaderboard-rank">${rankHtml}</div>
+      ${avatarHtml}
+      <div class="leaderboard-info">
+        <div class="leaderboard-name-row">
+          <span class="leaderboard-name">${escapeHtml(r.username || '\u2014')}</span>
+          <span class="tier-pill tier-level-${lvl.level}">${escapeHtml(levelName(lvl))}</span>
+        </div>
+        <div class="leaderboard-reliability">${reliabilityHtml}</div>
+      </div>
+      <div class="leaderboard-points">
+        <div class="leaderboard-points-value">${points}</div>
+        <div class="leaderboard-points-label">${t('leaderboardPointsLabel')}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
 // --- Settings > My Dashboard --------------------------------------------------
 // Same underlying data as the profile modal, laid out as a fuller-page
 // summary: level, progress bar, a small stat grid, and the whole ladder
@@ -3740,8 +3924,6 @@ const T = {
 
   // --- Report photo evidence (form, detail view, admin review) ---
   reportPhotoAddBtn:      { en:'Add photo (optional)',                        sr:'Dodaj fotografiju (opciono)' },
-  reportPhotoTakeBtn:     { en:'Take photo',                                  sr:'Slikaj' },
-  reportPhotoLibraryBtn:  { en:'Choose from library',                         sr:'Izaberi iz galerije' },
   reportPhotoInvalid:     { en:'Could not use that photo. Try a different image.', sr:'Fotografija nije mogla biti korišćena. Probajte drugu sliku.' },
   reportPhotoUploadFailed:{ en:'Report submitted, but the photo failed to upload.', sr:'Prijava je poslata, ali fotografija nije uspela da se otpremi.' },
   detailPhotoTitle:       { en:'Photo',                                       sr:'Fotografija' },
@@ -3807,7 +3989,21 @@ const T = {
   adminSearchPH:          { en:'Search reports, flags, photos…',      sr:'Pretraži prijave, oznake, fotografije…' },
   waitingListSectionTitle:{ en:'Waiting for review',                  sr:'Čeka na proveru' },
   waitingListEmpty:       { en:'Nothing waiting for review right now.', sr:'Trenutno nema ničega što čeka proveru.' },
-  queueTypePhoto:         { en:'Photo pending',                       sr:'Fotografija na čekanju' }
+  queueTypePhoto:         { en:'Photo pending',                       sr:'Fotografija na čekanju' },
+
+  leaderboardBtnTitle:     { en:'Leaderboard',                         sr:'Rang lista' },
+  leaderboardTitle:        { en:'Leaderboard',                         sr:'Rang lista' },
+  lbTabAll:                { en:'All Time',                            sr:'Ukupno' },
+  lbTabMonth:              { en:'This Month',                          sr:'Ovaj mesec' },
+  lbTabWeek:               { en:'This Week',                           sr:'Ova nedelja' },
+  lbTabCity:               { en:'This City',                           sr:'Ovaj grad' },
+  leaderboardPointsLabel:  { en:'points',                              sr:'poena' },
+  leaderboardReliability:  { en:'{p}% reliable',                       sr:'{p}% pouzdanosti' },
+  leaderboardNewUser:      { en:'New contributor',                     sr:'Novi doprinosilac' },
+  leaderboardEmpty:        { en:'Nobody has scored any points here yet.', sr:'Ovde još niko nije osvojio poene.' },
+  leaderboardLoadFailed:   { en:'Could not load the leaderboard. Try again.', sr:'Rang lista nije mogla da se učita. Pokušajte ponovo.' },
+  leaderboardCityUnavailable: { en:'We need your location (or a report from you) to show your city\\u2019s leaderboard.', sr:'Potrebna nam je vaša lokacija (ili prijava koju ste podneli) da bismo prikazali rang listu vašeg grada.' },
+  leaderboardEnableLocation: { en:'Enable location',                   sr:'Omogući lokaciju' }
 };
 
 function t(k){ return T[k]?.[lang] ?? k; }
@@ -3855,8 +4051,22 @@ function applyLang(){
   document.getElementById('reportBtnLabel').textContent   = t('reportBtn');
   document.getElementById('reportPhotoAddBtn').title       = t('reportPhotoAddBtn');
   document.getElementById('reportPhotoAddBtn').setAttribute('aria-label', t('reportPhotoAddBtn'));
-  document.getElementById('reportPhotoTakeLabel').textContent    = t('reportPhotoTakeBtn');
-  document.getElementById('reportPhotoLibraryLabel').textContent = t('reportPhotoLibraryBtn');
+
+  const lbBtn = document.getElementById('leaderboardBtn');
+  if (lbBtn) lbBtn.title = t('leaderboardBtnTitle');
+  const lbTitleEl = document.getElementById('leaderboardModalTitle');
+  if (lbTitleEl) lbTitleEl.textContent = '\uD83C\uDFC6 ' + t('leaderboardTitle');
+  const lbTabAllEl = document.getElementById('lbTabAll');
+  if (lbTabAllEl) lbTabAllEl.textContent = t('lbTabAll');
+  const lbTabMonthEl = document.getElementById('lbTabMonth');
+  if (lbTabMonthEl) lbTabMonthEl.textContent = t('lbTabMonth');
+  const lbTabWeekEl = document.getElementById('lbTabWeek');
+  if (lbTabWeekEl) lbTabWeekEl.textContent = t('lbTabWeek');
+  const lbTabCityEl = document.getElementById('lbTabCity');
+  if (lbTabCityEl) lbTabCityEl.textContent = t('lbTabCity');
+  if (document.getElementById('leaderboardModal').style.display !== 'none') {
+    loadLeaderboardTab(leaderboardTab);
+  }
   document.getElementById('csvLabel').textContent         = t('csvLabel');
   document.getElementById('filterTitleLabel').textContent = t('timeFilter');
   document.getElementById('settingsBtn').title = t('settingsBtnTitle');
@@ -6775,27 +6985,13 @@ function compressReportPhoto(file) {
   });
 }
 
-// --- Report form: camera icon's "Take Photo / Choose from Library" menu ---
-// Same open/close pattern as the header's language dropdown (toggleLangDropdown)
-// — see the matching outside-click listener below.
-function toggleReportPhotoMenu() {
-  document.getElementById('reportPhotoMenu').classList.toggle('open');
-}
-function closeReportPhotoMenu() {
-  document.getElementById('reportPhotoMenu').classList.remove('open');
-}
-document.addEventListener('click', (e) => {
-  const dd = document.getElementById('reportPhotoDropdown');
-  if (dd && !dd.contains(e.target)) closeReportPhotoMenu();
-});
-
-// mode: 'camera' opens the device camera directly (capture="environment"
-// input); 'library' opens the normal file/photo picker. Both feed the same
-// onReportPhotoSelected handler below.
-function triggerReportPhotoPick(mode) {
-  closeReportPhotoMenu();
-  const inputId = mode === 'camera' ? 'reportPhotoInputCamera' : 'reportPhotoInputLibrary';
-  document.getElementById(inputId).click();
+// --- Report form: camera icon opens the OS's own Camera/Gallery chooser ---
+// Used to be a custom "Take Photo / Choose from Library" popover; a plain
+// file input without a capture attribute already makes the browser show
+// that same choice natively, so there's no menu left to manage here (same
+// approach as addPhotoToReport's later-add-photo flow).
+function triggerReportPhotoPick() {
+  document.getElementById('reportPhotoInputLibrary').click();
 }
 
 async function onReportPhotoSelected(inputEl) {
