@@ -71,10 +71,6 @@
             .driving-left-stack
      2650   .turn-by-turn-card
      2700   .driving-nav-card       destination header bar
-     4000   #toastContainer         above every chrome/HUD layer
-                                     so "Waiting for GPS…" etc.
-                                     can never render underneath
-                                     something else
      9999   modal overlays          gpsModal / helpModal /
                                      profileModal / edit dialogs /
                                      #mobilePopupOverlay (ALL pin
@@ -100,6 +96,19 @@
                                      sideways should block literally
                                      everything else, including the
                                      lang menu above
+     10002  #toastContainer         ABOVE EVERYTHING, including
+                                     every modal overlay above. A
+                                     toast fired while a modal is
+                                     open (e.g. submitReportFlag()
+                                     inside the report-detail modal)
+                                     used to render at 4000 — behind
+                                     the 9999 modal overlay — and was
+                                     therefore invisible. Toasts are
+                                     transient, small, and centered
+                                     up top out of the way, so there's
+                                     no real downside to always
+                                     winning the stack, including
+                                     over the portrait-lock overlay.
    ============================================================ */
 
 /* ============================================================
@@ -888,7 +897,7 @@ body.driving-active #drivingTopFade{ display:block; }
   top:calc(10px + env(safe-area-inset-top, 0px));
   left:50%;
   transform:translateX(-50%);
-  z-index:4000; /* see Z-INDEX SCALE above — above header + driving HUD */
+  z-index:10002; /* see Z-INDEX SCALE above — above literally everything, including modals */
   display:flex;
   flex-direction:column;
   gap:8px;
@@ -1887,6 +1896,25 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   mask:url(icons/public.png) center/contain no-repeat;
   filter:drop-shadow(0 3px 6px rgba(0,0,0,.45));
 }
+/* Municipality "service" pins — one per municipality centroid, showing
+   aggregate report stats on click (see loadMunicipalityStatsMarkers).
+   Reuses the plain pin glyph but masks it in --nav-accent blue so it never
+   gets confused with a report pin (status-colored) or a utility-company
+   pin (fixed green, see .company-marker-icon above) at a glance. */
+.municipality-marker-icon{
+  width:26px; height:31px;
+  background-color:var(--nav-accent);
+  -webkit-mask:url(icons/pin.png) center/contain no-repeat;
+  mask:url(icons/pin.png) center/contain no-repeat;
+  filter:drop-shadow(0 3px 6px rgba(0,0,0,.45));
+}
+.muni-stats-grid{
+  display:grid; grid-template-columns:1fr 1fr; gap:8px 14px;
+  margin-top:2px;
+}
+.muni-stat{ display:flex; flex-direction:column; gap:1px; }
+.muni-stat-value{ font-size:16px; font-weight:800; color:var(--text-primary); }
+.muni-stat-label{ font-size:10px; font-weight:700; letter-spacing:.3px; text-transform:uppercase; color:var(--text-muted); }
 .contact-card-row.contact-card-notes{ color:var(--text-muted); font-style:italic; }
 .detail-empty{ font-size:12.5px; color:var(--text-secondary); font-style:italic; }
 .detail-loading{ font-size:12.5px; color:var(--text-muted); }
@@ -2814,6 +2842,11 @@ const TABLE = 'brake_reports';
 const PROFILES_TABLE = 'profiles';
 const MUNICIPALITIES_TABLE = 'municipalities';
 const UTILITY_COMPANIES_TABLE = 'utility_companies';
+// Read-only Postgres view (see migration add_municipality_report_stats_view)
+// that pre-aggregates per-municipality report counts/timings server-side —
+// see loadMunicipalityStatsMarkers() for why this is a view rather than
+// pulling every brake_reports row down and aggregating client-side.
+const MUNICIPALITY_STATS_TABLE = 'municipality_report_stats';
 
 // =============================================================================
 // UTILITIES — coordinate validation
@@ -3727,7 +3760,14 @@ const T = {
   queueFilterNoResults:   { en:'No items match this filter.',                sr:'Nema stavki koje odgovaraju filteru.' },
   flagReasonRejectedPhoto:{ en:'Flagged: rejected photo',                    sr:'Označeno: odbijena fotografija' },
   flagClearBtn:           { en:'Clear flag',                                 sr:'Ukloni oznaku' },
-  flagCleared:            { en:'Flag cleared.',                              sr:'Oznaka uklonjena.' }
+  flagCleared:            { en:'Flag cleared.',                              sr:'Oznaka uklonjena.' },
+
+  muniStatsReportsLabel:      { en:'Reports',            sr:'Prijave' },
+  muniStatsFixedLabel:        { en:'Fixed',              sr:'Rešeno' },
+  muniStatsAvgRepairLabel:    { en:'Average repair',     sr:'Prosečna popravka' },
+  muniStatsResponseRateLabel: { en:'Response rate',      sr:'Stopa odgovora' },
+  muniStatsDaysUnit:          { en:'{n} days',           sr:'{n} dana' },
+  muniStatsNoRepairData:      { en:'No repair data yet', sr:'Još nema podataka o popravkama' }
 };
 
 function t(k){ return T[k]?.[lang] ?? k; }
@@ -4113,6 +4153,32 @@ const companyMarkersLayer = L.markerClusterGroup({
   spiderfyOnMaxZoom: true,
   showCoverageOnHover: false,
   iconCreateFunction: makePublicClusterIcon
+}).addTo(map);
+
+// Holds one pin per municipality that has at least one report on file —
+// see loadMunicipalityStatsMarkers() near loadAllCompanyMarkers() below.
+// Own cluster group/color (blue, matching .municipality-marker-icon) so
+// these never merge into a report or utility-company cluster bubble.
+function makeMunicipalityClusterIcon(cluster) {
+  const count = cluster.getChildCount();
+  let size = 32, fontSize = 12;
+  if (count >= 10 && count < 100) { size = 40; fontSize = 13; }
+  else if (count >= 100) { size = 48; fontSize = 14; }
+  return L.divIcon({
+    html: `<div style="width:${size}px;height:${size}px;box-sizing:border-box;border-radius:50%;` +
+      `background:var(--nav-accent);border:3px solid var(--accent-contrast);` +
+      `display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.5);` +
+      `color:var(--accent-contrast);font-weight:700;font-size:${fontSize}px;">${count}</div>`,
+    className: '',
+    iconSize: [size, size]
+  });
+}
+const municipalityMarkersLayer = L.markerClusterGroup({
+  maxClusterRadius: 50,
+  disableClusteringAtZoom: 17,
+  spiderfyOnMaxZoom: true,
+  showCoverageOnHover: false,
+  iconCreateFunction: makeMunicipalityClusterIcon
 }).addTo(map);
 
 // Reparents Leaflet's internal map-pane (tiles + markers + lines + popups)
@@ -4705,7 +4771,7 @@ function toast(msg, kind) {
   el.innerHTML = (iconGlyph ? `<span class="toast-icon">${iconGlyph}</span>` : '') +
                  `<span class="toast-msg"></span>`;
   el.querySelector('.toast-msg').textContent = msg; // textContent, not innerHTML, so msg can never inject markup
-  container.appendChild(el);
+  container.prepend(el); // newest toast lands on top of the stack, not buried below older ones
   requestAnimationFrame(() => el.classList.add('toast-show'));
   setTimeout(() => {
     el.classList.remove('toast-show');
@@ -7753,6 +7819,80 @@ async function loadAllCompanyMarkers() {
   }
 }
 
+// Popup for a municipality's own map pin (distinct from buildMunicipalityPopupHtml
+// above, which is the small "you are here, in X" card bound to the GPS/manual
+// pin). This one sits at the municipality's own centroid and shows aggregate
+// stats for every report ever filed there — Reports / Fixed / Average repair
+// time / Response rate — pulled from the municipality_report_stats view.
+function buildMunicipalityStatsPopupHtml(muni, stats) {
+  const name = municipalityDisplayName(muni);
+  const avgRepair = stats.avg_repair_days != null
+    ? t('muniStatsDaysUnit').replace('{n}', String(Math.round(parseFloat(stats.avg_repair_days) * 10) / 10))
+    : t('muniStatsNoRepairData');
+  const responseRate = stats.response_rate_pct != null ? `${Math.round(parseFloat(stats.response_rate_pct))}%` : '—';
+  return `<div class="popup-inner popup-card">
+    <div class="popup-header" style="background:var(--nav-accent);">
+      <span class="popup-header-title">${escapeHtml(name)}</span>
+    </div>
+    <div class="popup-body" style="padding:12px 14px;">
+      <div class="muni-stats-grid">
+        <div class="muni-stat">
+          <span class="muni-stat-value">${Number(stats.total_reports || 0).toLocaleString()}</span>
+          <span class="muni-stat-label">${t('muniStatsReportsLabel')}</span>
+        </div>
+        <div class="muni-stat">
+          <span class="muni-stat-value">${Number(stats.fixed_reports || 0).toLocaleString()}</span>
+          <span class="muni-stat-label">${t('muniStatsFixedLabel')}</span>
+        </div>
+        <div class="muni-stat">
+          <span class="muni-stat-value">${escapeHtml(avgRepair)}</span>
+          <span class="muni-stat-label">${t('muniStatsAvgRepairLabel')}</span>
+        </div>
+        <div class="muni-stat">
+          <span class="muni-stat-value">${escapeHtml(responseRate)}</span>
+          <span class="muni-stat-label">${t('muniStatsResponseRateLabel')}</span>
+        </div>
+      </div>
+    </div>
+    <div class="status-action-row" style="border-top:none;padding-top:0;">
+      <button class="status-action-btn popup-close-btn" style="background:#3a3a3a;" onclick="map.closePopup();">${t('closeBtn')}</button>
+    </div>
+  </div>`;
+}
+
+// Loads one pin per municipality that has ever had a report filed in it,
+// dropped at the municipality's centroid, with tap-to-view aggregate stats
+// (see buildMunicipalityStatsPopupHtml). Aggregation happens server-side via
+// the municipality_report_stats view rather than pulling every brake_reports
+// row down and summing client-side — cheap now at a few hundred rows, but a
+// view scales the same way regardless of how large that table grows, and it
+// means this stays a single small query instead of one that grows with the
+// whole reports table. Municipalities with zero reports are skipped rather
+// than shown with all-zero stats, so the map isn't cluttered with 150+ pins
+// that have nothing to say yet.
+async function loadMunicipalityStatsMarkers() {
+  await loadMunicipalityCache();
+  let stats;
+  try {
+    const { data, error } = await sb.from(MUNICIPALITY_STATS_TABLE).select('*').gt('total_reports', 0);
+    if (error) throw error;
+    stats = data || [];
+  } catch (err) {
+    console.error('Failed to load municipality stats for map pins:', err.message);
+    return;
+  }
+  for (const row of stats) {
+    const muni = getMunicipalityById(row.municipality_id);
+    if (!muni || !isValidLatLng(muni.centroid_lat, muni.centroid_lon)) continue;
+    const marker = L.marker([muni.centroid_lat, muni.centroid_lon], {
+      icon: L.divIcon({ className: '', html: '<div class="municipality-marker-icon"></div>', iconSize: [26, 31], iconAnchor: [13, 29] }),
+      zIndexOffset: 100
+    });
+    marker.bindPopup(buildMunicipalityStatsPopupHtml(muni, row), { autoPan: false, closeButton: false });
+    marker.addTo(municipalityMarkersLayer);
+  }
+}
+
 // ADMIN TOOL — one-time, explicitly-triggered backfill for contacts that
 // were saved before persistUcRow started geocoding+storing coordinates at
 // save time. Geocodes each missing address one at a time (through the
@@ -10297,6 +10437,7 @@ loadMunicipalityCache().then(() => {
   }
 });
 loadAllCompanyMarkers(); // fire-and-forget — pins appear on the map as each address is geocoded
+loadMunicipalityStatsMarkers(); // fire-and-forget — municipality service pins with click-to-view stats
 // Help modal should greet first-time/logged-out visitors, but not talk
 // over a returning, already-signed-in user every time they open the app.
 // initAuth() resolves the session check first, then we decide.
