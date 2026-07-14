@@ -1951,10 +1951,9 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 .leaderboard-row.rank-3{ border-color:#c98a4b; background:linear-gradient(90deg, rgba(201,138,75,.12), var(--bg-surface) 40%); }
 .leaderboard-rank{
   flex-shrink:0; width:26px; text-align:center; font-size:14px; font-weight:800; color:var(--text-muted);
+  display:flex; align-items:center; justify-content:center;
 }
-.leaderboard-row.rank-1 .leaderboard-rank,
-.leaderboard-row.rank-2 .leaderboard-rank,
-.leaderboard-row.rank-3 .leaderboard-rank{ font-size:18px; }
+.leaderboard-medal{ width:24px; height:24px; object-fit:contain; }
 .leaderboard-avatar{
   flex-shrink:0; width:34px; height:34px; border-radius:50%; object-fit:cover;
   background:var(--bg-surface-alt); border:1px solid var(--border-color-strong);
@@ -2373,7 +2372,7 @@ span.flatpickr-weekday {
       <button class="help-icon-btn" id="settingsBtn" title="Settings" onclick="showSettingsModal()"><img class="icon-img" src="icons/settings.png" alt="Settings"></button>
       <button class="help-icon-btn" id="fullscreenBtn" title="Fullscreen / Preko celog ekrana" onclick="toggleFullscreen()"><img class="icon-img" id="fullscreenBtnIcon" src="icons/fullscreen-enter.png" alt="Fullscreen"></button>
       <button class="help-icon-btn" id="helpTopBtn" title="Help / Pomoć" onclick="showHelpModal()"><img class="icon-img" src="icons/help.png" alt="Help"></button>
-      <button class="help-icon-btn" id="leaderboardBtn" title="Leaderboard" onclick="showLeaderboardModal()"><span style="font-size:15px;line-height:1;">🏆</span></button>
+      <button class="help-icon-btn" id="leaderboardBtn" title="Leaderboard" onclick="showLeaderboardModal()"><img class="icon-img" src="icons/trophy.png" alt="Leaderboard"></button>
       <div class="lang-dropdown" id="langDropdown">
         <button class="help-icon-btn" id="langDdBtn" title="Language / Jezik" onclick="toggleLangDropdown()">
           <span id="langDdFlag" style="font-size:15px;line-height:1;">🇷🇸</span>
@@ -2873,7 +2872,7 @@ span.flatpickr-weekday {
      get_leaderboard() RPC call — see loadLeaderboardTab(). -->
 <div id="leaderboardModal" class="fullscreen-modal-overlay" style="display:none">
   <div class="fullscreen-modal-header">
-    <h2 id="leaderboardModalTitle">🏆 Leaderboard</h2>
+    <h2 id="leaderboardModalTitle"><img class="icon-img icon-img-inline" src="icons/trophy.png" alt=""> Leaderboard</h2>
     <button class="fullscreen-modal-close" onclick="hideLeaderboardModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
   </div>
   <div class="fullscreen-modal-body" style="gap:12px;">
@@ -3449,7 +3448,7 @@ let leaderboardTab = 'all';
 let leaderboardCityMuni = null; // resolved once per modal session, reused across tab switches
 
 function showLeaderboardModal() {
-  document.getElementById('leaderboardModalTitle').textContent = '\uD83C\uDFC6 ' + t('leaderboardTitle');
+  document.getElementById('leaderboardModalTitle').innerHTML = '<img class="icon-img icon-img-inline" src="icons/trophy.png" alt=""> ' + t('leaderboardTitle');
   document.getElementById('leaderboardModal').style.display = 'flex';
   leaderboardCityMuni = null;
   switchLeaderboardTab(leaderboardTab);
@@ -3559,7 +3558,10 @@ function renderLeaderboardRows(rows) {
     const avatarHtml = r.avatar_url
       ? `<img class="leaderboard-avatar" src="${escapeHtml(r.avatar_url)}" alt="">`
       : `<div class="leaderboard-avatar" style="display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--text-secondary);">${initial}</div>`;
-    const rankHtml = rank === 1 ? '\uD83E\uDD47' : rank === 2 ? '\uD83E\uDD48' : rank === 3 ? '\uD83E\uDD49' : String(rank);
+    const medalFile = rank === 1 ? 'medal-1.png' : rank === 2 ? 'medal-2.png' : rank === 3 ? 'medal-3.png' : null;
+    const rankHtml = medalFile
+      ? `<img class="leaderboard-medal" src="icons/${medalFile}" alt="#${rank}">`
+      : String(rank);
     return `
     <div class="leaderboard-row${rank <= 3 ? ' rank-' + rank : ''}">
       <div class="leaderboard-rank">${rankHtml}</div>
@@ -4055,7 +4057,7 @@ function applyLang(){
   const lbBtn = document.getElementById('leaderboardBtn');
   if (lbBtn) lbBtn.title = t('leaderboardBtnTitle');
   const lbTitleEl = document.getElementById('leaderboardModalTitle');
-  if (lbTitleEl) lbTitleEl.textContent = '\uD83C\uDFC6 ' + t('leaderboardTitle');
+  if (lbTitleEl) lbTitleEl.innerHTML = '<img class="icon-img icon-img-inline" src="icons/trophy.png" alt=""> ' + t('leaderboardTitle');
   const lbTabAllEl = document.getElementById('lbTabAll');
   if (lbTabAllEl) lbTabAllEl.textContent = t('lbTabAll');
   const lbTabMonthEl = document.getElementById('lbTabMonth');
