@@ -4364,7 +4364,80 @@ const mapContainerEl = map.getContainer();
 map.on('zoomstart', () => mapContainerEl.classList.add('map-zooming'));
 map.on('zoomend',   () => mapContainerEl.classList.remove('map-zooming'));
 
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+// =============================================================================
+// TILE CACHING — every OSM tile is now stored in the Cache Storage API the
+// first time it's actually drawn on screen, so revisiting an area already
+// seen this session (or on a previous visit, since Cache Storage persists
+// like IndexedDB) loads instantly from cache instead of the network. This
+// is what keeps the map at least partially usable if signal drops mid-
+// session — e.g. walking into a basement/tunnel after the surrounding
+// streets have already rendered once.
+//
+// Deliberately NOT doing: automatically prefetching the ring of tiles
+// around whatever's on screen. OpenStreetMap's own tile usage policy
+// explicitly prohibits "bulk downloading," which it defines as any
+// pre-emptive fetching of tiles other than ones a user is actively
+// viewing — and it calls out both "offer prefetch features" and "download
+// area for offline use" by name as things that get an app's traffic
+// blocked outright (see operations.osmfoundation.org/policies/tiles/,
+// under "Offline use is not permitted on tile.openstreetmap.org"). Getting
+// blocked would break the map for every user, not just speed it up for
+// one, so this only ever caches tiles Leaflet itself actually requests —
+// the visible viewport plus its own small built-in pan buffer, same as
+// before. If you want real "save this area for offline" behavior, that
+// needs a different tile source whose terms explicitly allow it (a paid
+// provider like MapTiler/Stadia/Thunderforest, or self-hosted tiles) —
+// happy to wire that up separately if you want to go that route.
+// =============================================================================
+const TILE_CACHE_NAME = 'ttb-osm-tiles-v1';
+
+// Cache-first: a hit returns immediately with no network request at all; a
+// miss fetches normally and stores a clone before handing back the
+// response, so the next time this exact tile is needed (this session or a
+// future one) it's already local.
+async function fetchTileCached(url) {
+  const cache = await caches.open(TILE_CACHE_NAME);
+  const cached = await cache.match(url);
+  if (cached) return cached;
+  const response = await fetch(url);
+  if (response && response.ok) {
+    cache.put(url, response.clone()).catch(() => {}); // best-effort; a full/blocked cache shouldn't break tiles
+  }
+  return response;
+}
+
+// Same tile source/options as the plain L.tileLayer this replaces, just
+// routing each tile through fetchTileCached() first. Falls back to a plain
+// <img src> (i.e. behaves exactly like the old uncached layer) if the
+// Cache Storage/fetch path fails for any reason — offline with nothing
+// cached yet, a browser without Cache Storage support, a CORS quirk on
+// this particular tile server, storage quota, etc. — so a caching hiccup
+// degrades gracefully instead of breaking the map.
+const CachedTileLayer = L.TileLayer.extend({
+  createTile(coords, done) {
+    const img = document.createElement('img');
+    img.setAttribute('role', 'presentation');
+    const url = this.getTileUrl(coords);
+    const fallbackToPlainImg = () => {
+      img.onload = () => done(null, img);
+      img.onerror = (e) => done(e, img);
+      img.src = url;
+    };
+    if (!('caches' in window)) { fallbackToPlainImg(); return img; }
+    fetchTileCached(url)
+      .then(res => { if (!res.ok) throw new Error('tile-http-' + res.status); return res.blob(); })
+      .then(blob => {
+        const objectUrl = URL.createObjectURL(blob);
+        img.onload = () => { URL.revokeObjectURL(objectUrl); done(null, img); };
+        img.onerror = (e) => { URL.revokeObjectURL(objectUrl); done(e, img); };
+        img.src = objectUrl;
+      })
+      .catch(fallbackToPlainImg);
+    return img;
+  }
+});
+
+new CachedTileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
   attribution:'© OpenStreetMap',
   maxZoom: 22,
   maxNativeZoom: 19
