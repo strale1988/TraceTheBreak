@@ -1366,31 +1366,6 @@ body.driving-active #appPanel{
    driving mode anyway. */
 
 /* --- Auth UI --- */
-.user-badge{
-  display:flex;
-  align-items:center;
-  gap:6px;
-  background:#1e2b2c;
-  border:1px solid #a67817;
-  color:#9be8ee;
-  border-radius:6px;
-  padding:5px 8px;
-  font-size:11px;
-  font-weight:600;
-  cursor:pointer;
-  max-width:min(70vw, 220px);
-  width:fit-content;
-  margin-top:6px;
-  -webkit-tap-highlight-color:transparent;
-  touch-action:manipulation;
-}
-.user-badge .username-text{
-  overflow:hidden;
-  text-overflow:ellipsis;
-  white-space:nowrap;
-  min-width:0;
-}
-.user-badge .admin-pill,
 .dashboard-identity-row .admin-pill{
   flex-shrink:0;
   background:#3a2a00;
@@ -1400,12 +1375,6 @@ body.driving-active #appPanel{
   font-size:9px;
   font-weight:800;
   letter-spacing:.3px;
-}
-.user-badge .signout-x{
-  flex-shrink:0;
-  opacity:.7;
-  font-size:13px;
-  line-height:1;
 }
 .tier-pill{
   flex-shrink:0;
@@ -2486,12 +2455,6 @@ span.flatpickr-weekday {
     <div>
       <h1>TraceTheBreak</h1>
       <p id="subtitle">Community Infrastructure Reporting Network</p>
-      <div class="user-badge" id="userBadge" style="display:none" onclick="showLeaderboardModal('dashboard')" title="My dashboard">
-        <span class="username-text" id="userBadgeName"></span>
-        <span class="admin-pill" id="userBadgeAdmin" style="display:none">★ ADMIN</span>
-        <span class="tier-pill" id="userBadgeTier" style="display:none"></span>
-        <span class="signout-x">›</span>
-      </div>
     </div>
     <div class="right-controls">
       <button class="help-icon-btn" id="settingsBtn" title="Settings" onclick="showSettingsModal()"><img class="icon-img" src="icons/settings.png" alt="Settings"></button>
@@ -3027,16 +2990,15 @@ span.flatpickr-weekday {
             <div class="dashboard-stat-label" id="dashboardStatWeightLabel">Your vote weight</div>
           </div>
         </div>
-        <div class="dashboard-ladder" id="dashboardLadder"></div>
         <div class="dashboard-badges-title" id="dashboardBadgesTitle">Badges</div>
         <div class="badge-grid" id="dashboardBadgeGrid"></div>
       </div>
 
       <!-- My Admin Role: signed-in admin only (see renderAdminDashboard).
-           Same visual language as "My Dashboard" above (level pill + stat
-           box + ladder) but built around admin_level instead of points: the
-           badge/pill/ladder colors are the exact tier-level-1/2/3 palette
-           also used on the Leaderboard > Admins tab, so an admin's own role
+           Same visual language as "My Dashboard" above (badge + level pill
+           + stat box) but built around admin_level instead of points: the
+           badge/pill colors are the exact tier-level-1/2/3 palette also
+           used on the Leaderboard > Admins tab, so an admin's own role
            reads the same way here as it does in that list. -->
       <div class="detail-section dashboard-section" id="adminDashboardSection" style="display:none">
         <div class="detail-section-title" id="adminDashboardSectionTitle">My Admin Role</div>
@@ -3054,8 +3016,6 @@ span.flatpickr-weekday {
           </div>
         </div>
         <div class="dashboard-progress-text" id="adminDashboardScopeNote"></div>
-        <div class="dashboard-badges-title" id="adminDashboardLadderTitle">Admin authority</div>
-        <div class="dashboard-ladder" id="adminDashboardLadder"></div>
       </div>
 
       <div class="dashboard-signed-out-hint" id="dashboardSignedOutHint" style="display:none">Sign in to see your dashboard.</div>
@@ -3249,14 +3209,13 @@ async function submitUsername() {
   }
 }
 
-// Sign-out action — now only reachable via the explicit "Sign out" button in
-// the Dashboard tab (see the Rankings modal's dashboard-identity-card).
-// Previously this fired on any tap of the whole header user-badge, which
-// doubled as both "view my status" (on the nested tier pill) and "sign out"
-// (everywhere else on the badge) — a confusing split. The badge now has one
-// job (open the dashboard — see showLeaderboardModal('dashboard') on
-// #userBadge), and sign-out lives with the rest of the account info instead
-// of being one accidental tap away.
+// Sign-out action — reachable via the explicit "Sign out" button in the
+// Dashboard tab (see the Rankings modal's dashboard-identity-card). The old
+// header user-badge (username + shortcut to the dashboard, which doubled as
+// a sign-out button before that) has been removed entirely — the trophy
+// button is now the only way into Rankings/Dashboard, and sign-out lives
+// with the rest of the account info there instead of being a stray tap
+// somewhere in the header.
 async function signOutUser() {
   if (!confirm(t('signOutConfirm'))) return;
   try {
@@ -3314,7 +3273,6 @@ async function loadProfile() {
 }
 
 function updateAuthUI() {
-  const userBadge = document.getElementById('userBadge');
   const reportFormPanel = document.getElementById('reportFormPanel');
   const desktopBlockedPanel = document.getElementById('desktopBlockedPanel');
   const lockedFormPanel = document.getElementById('lockedFormPanel');
@@ -3322,15 +3280,7 @@ function updateAuthUI() {
   const pinBtn = document.getElementById('pinMapBtn');
 
   if (currentSession && currentProfile && currentProfile.username) {
-    userBadge.style.display = 'flex';
-    document.getElementById('userBadgeName').textContent = currentProfile.username;
-    const adminBadgeEl = document.getElementById('userBadgeAdmin');
-    adminBadgeEl.style.display = currentProfile.is_admin ? 'inline-block' : 'none';
-    if (currentProfile.is_admin) {
-      adminBadgeEl.title = adminLevelName(currentAdminLevel()) + ' · ' + currentAdminTag();
-    }
     document.getElementById('settingsAdminSection').style.display = currentProfile.is_admin ? 'flex' : 'none';
-    updateTierPill();
 
     // Reporting is mobile-only for regular (non-admin) users — see
     // isMobileDevice(). Admins keep full desktop access, same as every
@@ -3347,14 +3297,12 @@ function updateAuthUI() {
     // (see the on_auth_user_created trigger) has no username yet — none of
     // Google/GitHub/OSM is guaranteed to give us a unique, public-
     // appropriate display name, so the person picks one here once.
-    userBadge.style.display = 'none';
     reportFormPanel.style.display = 'none';
     desktopBlockedPanel.style.display = 'none';
     lockedFormPanel.style.display = 'none';
     chooseUsernamePanel.style.display = 'flex';
     document.getElementById('settingsAdminSection').style.display = 'none';
   } else {
-    userBadge.style.display = 'none';
     reportFormPanel.style.display = 'none';
     desktopBlockedPanel.style.display = 'none';
     lockedFormPanel.style.display = 'flex';
@@ -3628,23 +3576,6 @@ function isAdminOnSiteOf(report) {
 function hasFullPowerOverReport(report) {
   if (!currentProfile || !currentProfile.is_admin) return false;
   return isReportInAdminDomain(report) || isAdminOnSiteOf(report);
-}
-
-// --- Header level pill ---------------------------------------------------
-// Admins don't climb the ladder (their vote already overrides everything),
-// so the pill only shows for regular users. Tapping anywhere on the header
-// badge (including this pill) opens the Dashboard tab of the Rankings
-// modal — see #userBadge's onclick — rather than a separate popup.
-function updateTierPill() {
-  const pill = document.getElementById('userBadgeTier');
-  if (!pill || !currentProfile || currentProfile.is_admin) {
-    if (pill) pill.style.display = 'none';
-    return;
-  }
-  const lvl = currentUserLevel();
-  pill.textContent = lvl.level + ' · ' + levelName(lvl);
-  pill.className = 'tier-pill tier-level-' + lvl.level;
-  pill.style.display = 'inline-block';
 }
 
 // =============================================================================
@@ -3946,15 +3877,6 @@ function renderUserDashboard() {
   document.getElementById('dashboardStatSuccessful').textContent = successful;
   document.getElementById('dashboardStatWeight').textContent = 'x' + lvl.weight;
 
-  const ladderEl = document.getElementById('dashboardLadder');
-  ladderEl.innerHTML = USER_LEVELS.filter(l => l.level > 0).map(l => {
-    const achieved = points >= l.threshold;
-    return `<div class="dashboard-ladder-row${achieved ? ' achieved' : ''}">
-      <span class="ladder-dot"></span>
-      <span>${l.level}. ${levelName(l)} — x${l.weight}</span>
-    </div>`;
-  }).join('');
-
   const badgeGrid = document.getElementById('dashboardBadgeGrid');
   if (badgeGrid) {
     badgeGrid.innerHTML = BADGES.map(b => buildBadgeIconHtml(b, isBadgeEarned(b, currentProfile))).join('');
@@ -3965,13 +3887,9 @@ function renderUserDashboard() {
 // Admin-only counterpart to renderUserDashboard above: level, a themeable
 // rank badge (same icons/admin-badge-N.png + tier-level-N ring used on the
 // Leaderboard > Admins tab, so an admin's own role card matches how they
-// appear in that list), the domain tag (municipality/country/"Global"), a
-// one-line reminder of what that means for their power outside that domain,
-// and an "authority ladder" mirroring the non-admin level ladder — except
-// here a tier isn't earned by points, so every level at-or-below the
-// admin's own is marked reached (a Global Overseer's authority already
-// encompasses what a Regional Director or Municipal Controller has).
-// Hidden entirely for non-admins and signed-out visitors.
+// appear in that list), the domain tag (municipality/country/"Global"), and
+// a one-line reminder of what that means for their power outside that
+// domain. Hidden entirely for non-admins and signed-out visitors.
 async function renderAdminDashboard() {
   const section = document.getElementById('adminDashboardSection');
   if (!section) return;
@@ -4014,17 +3932,6 @@ async function renderAdminDashboard() {
 
   const noteKey = lvl === 1 ? 'adminDashboardScopeNote1' : lvl === 2 ? 'adminDashboardScopeNote2' : 'adminDashboardScopeNote3';
   document.getElementById('adminDashboardScopeNote').textContent = t(noteKey);
-
-  const ladderEl = document.getElementById('adminDashboardLadder');
-  if (ladderEl) {
-    ladderEl.innerHTML = ADMIN_LEVELS.map(a => {
-      const reached = lvl >= a.level;
-      return `<div class="dashboard-ladder-row${reached ? ' achieved' : ''}">
-        <span class="ladder-dot"></span>
-        <span>${a.level}. ${adminLevelName(a.level)}</span>
-      </div>`;
-    }).join('');
-  }
 }
 
 // --- Rankings > Dashboard tab: identity card + orchestration ------------------
@@ -4511,7 +4418,6 @@ function applyLang(){
   const gm = document.getElementById('gpsModal');
   if (gm && gm.style.display !== 'none') updateGpsModalText();
 
-  document.getElementById('userBadgeAdmin').textContent   = '\u2605 ' + t('adminBadge');
   const dashIdAdminPillEl = document.getElementById('dashboardIdentityAdminPill');
   if (dashIdAdminPillEl) dashIdAdminPillEl.textContent = '\u2605 ' + t('adminBadge');
   const dashSignOutBtnEl = document.getElementById('dashboardSignOutBtn');
@@ -4576,7 +4482,6 @@ function applyLang(){
   document.getElementById('navigatePinHint').textContent = t('navigatePinHint');
   updateNavStatusText();
 
-  updateTierPill();
   const desktopBlockedEl = document.getElementById('desktopBlockedMsgText');
   if (desktopBlockedEl) desktopBlockedEl.textContent = t('desktopBlockedMsg');
   const dashTitleEl = document.getElementById('dashboardSectionTitle');
