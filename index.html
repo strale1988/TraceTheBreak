@@ -1452,6 +1452,29 @@ body.driving-active #appPanel{
   background:#3ecf6e; box-shadow:0 0 0 3px rgba(62,207,110,.2);
 }
 
+/* --- Offline report queue badge -----------------------------------------
+   Shown in the report form whenever one or more reports are sitting in the
+   local (IndexedDB) offline queue, waiting for connectivity to come back
+   — see the OFFLINE REPORT QUEUE section in the script below. Tapping it
+   triggers an immediate manual sync attempt instead of waiting for the
+   next automatic retry. */
+.offline-queue-badge{
+  display:flex; align-items:center; gap:7px;
+  background:var(--bg-surface-alt); border:1px solid var(--border-color-strong);
+  border-radius:8px; padding:7px 10px; font-size:12px; font-weight:600;
+  color:var(--text-primary); cursor:pointer;
+  -webkit-tap-highlight-color:transparent; touch-action:manipulation;
+}
+.offline-queue-dot{
+  width:9px; height:9px; border-radius:50%; flex-shrink:0; background:#f0a020;
+  box-shadow:0 0 0 3px rgba(240,160,32,.2);
+  animation:offlineQueuePulse 1.6s ease-in-out infinite;
+}
+@keyframes offlineQueuePulse{
+  0%,100%{ opacity:1; } 50%{ opacity:.35; }
+}
+.offline-queue-retry{ margin-left:auto; color:var(--accent); font-weight:700; flex-shrink:0; }
+
 .locked-panel{
   display:flex;
   flex-direction:column;
@@ -2466,7 +2489,7 @@ span.flatpickr-weekday {
         <img class="icon-img" src="icons/camera.png" alt="">
       </button>
       <button type="button" class="icon-only-btn" id="reportPhotoGalleryBtn" title="Choose from gallery" aria-label="Choose from gallery" onclick="triggerReportPhotoGallery()">
-        <svg class="icon-img" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="M21 15l-5-5L5 21"></path></svg>
+        <img class="icon-img" src="icons/gallery.png" alt="">
       </button>
     </div>
     <!-- Two separate inputs instead of one:
@@ -2484,6 +2507,14 @@ span.flatpickr-weekday {
   <div class="report-photo-preview" id="reportPhotoPreview" style="display:none">
     <img id="reportPhotoPreviewImg" alt="">
     <button type="button" class="report-photo-remove" onclick="removePendingReportPhoto()" aria-label="Remove photo">✕</button>
+  </div>
+
+  <!-- Hidden unless the offline queue has 1+ entries — see
+       updateOfflineQueueBadge() in the OFFLINE REPORT QUEUE section. -->
+  <div class="offline-queue-badge" id="offlineQueueBadge" style="display:none" onclick="syncOfflineQueue(true)" title="Tap to retry now">
+    <span class="offline-queue-dot"></span>
+    <span id="offlineQueueBadgeText"></span>
+    <span class="offline-queue-retry" id="offlineQueueRetryLabel">Retry</span>
   </div>
 
   <div class="row" style="align-items:stretch;">
@@ -3747,6 +3778,11 @@ const T = {
   suggestionCommentRequired: { en:'Please describe your suggestion in the notes field.', sr:'Opišite svoj predlog u polju za napomenu.' },
   waitGps:      { en:'Waiting for GPS...',               sr:'Čekanje GPS-a...' },
   submitted:    { en:'Report submitted.',                sr:'Prijava uspešna.' },
+  offlineQueued:      { en:'No signal — saved on your device. It\u2019ll submit automatically once you\u2019re back online.', sr:'Nema signala — sačuvano na uređaju. Biće poslato automatski čim se povežete.' },
+  offlineQueueBadge:  { en:'{n} report(s) waiting for signal', sr:'{n} prijava(e) čeka signal' },
+  offlineQueueRetry:  { en:'Retry',                       sr:'Pokušaj ponovo' },
+  offlineSynced:      { en:'\u2713 {n} queued report(s) submitted.', sr:'\u2713 {n} sačuvanih prijava poslato.' },
+  offlineStillOffline:{ en:'Still no signal — will keep trying automatically.', sr:'I dalje nema signala — pokušaćemo ponovo automatski.' },
   reportRateLimitedPrefix: { en:'You\'re submitting reports quickly — try again in ', sr:'Prebrzo šaljete prijave — pokušajte ponovo za ' },
   reportRateLimitedSuffix: { en:'s.',                    sr:'s.' },
   timeFilter:   { en:'Time Window Filter',               sr:'Filter vremenskog prozora' },
@@ -3927,7 +3963,8 @@ const T = {
   ucUnverifiedChip:  { en:'Unverified',                           sr:'Nije provereno' },
 
   // --- Report photo evidence (form, detail view, admin review) ---
-  reportPhotoAddBtn:      { en:'Add photo (optional)',                        sr:'Dodaj fotografiju (opciono)' },
+  reportPhotoAddBtn:      { en:'Take photo',                                  sr:'Uslikaj' },
+  reportPhotoGalleryBtn:  { en:'Choose from gallery',                         sr:'Izaberi iz galerije' },
   reportPhotoInvalid:     { en:'Could not use that photo. Try a different image.', sr:'Fotografija nije mogla biti korišćena. Probajte drugu sliku.' },
   reportPhotoUploadFailed:{ en:'Report submitted, but the photo failed to upload.', sr:'Prijava je poslata, ali fotografija nije uspela da se otpremi.' },
   detailPhotoTitle:       { en:'Photo',                                       sr:'Fotografija' },
@@ -4055,6 +4092,11 @@ function applyLang(){
   document.getElementById('reportBtnLabel').textContent   = t('reportBtn');
   document.getElementById('reportPhotoAddBtn').title       = t('reportPhotoAddBtn');
   document.getElementById('reportPhotoAddBtn').setAttribute('aria-label', t('reportPhotoAddBtn'));
+  document.getElementById('reportPhotoGalleryBtn').title   = t('reportPhotoGalleryBtn');
+  document.getElementById('reportPhotoGalleryBtn').setAttribute('aria-label', t('reportPhotoGalleryBtn'));
+  const offlineRetryEl = document.getElementById('offlineQueueRetryLabel');
+  if (offlineRetryEl) offlineRetryEl.textContent = t('offlineQueueRetry');
+  updateOfflineQueueBadge();
 
   const lbBtn = document.getElementById('leaderboardBtn');
   if (lbBtn) lbBtn.title = t('leaderboardBtnTitle');
@@ -7192,6 +7234,183 @@ function resetReportingForm() {
   updateProximityUi();
 }
 
+// =============================================================================
+// OFFLINE REPORT QUEUE — lets a report be filed with no signal at all (the
+// common case in basements, tunnels, underground parking, etc.) by saving
+// it locally first and submitting it automatically once connectivity
+// returns, instead of just failing the submission outright.
+//
+// Storage: IndexedDB, not localStorage — a queued entry can carry an actual
+// photo Blob (already downscaled/compressed by compressReportPhoto before
+// it ever gets here), and localStorage can't hold binary data without a
+// lossy/bloated base64 round-trip and is capped far lower (~5-10MB) than
+// what a handful of queued photos could need.
+//
+// Flow:
+//   1. reportBreak() tries the normal insert first, same as always.
+//   2. Only if that insert fails in a way that looks like a connectivity
+//      problem (see isNetworkFailure) — not an RLS violation, bad data, or
+//      any other real rejection — the payload + photo blob are handed to
+//      queueOfflineReport() instead, and the person sees an "offline,
+//      saved locally" toast rather than an error.
+//   3. syncOfflineQueue() drains the queue in submission order whenever
+//      the browser's 'online' event fires, the tab regains visibility, on
+//      a slow periodic fallback timer (since 'online' isn't always
+//      reliable — a phone can report "online" the instant wifi
+//      reconnects, well before it actually has a working route to
+//      Supabase), and whenever the person taps the queue badge in the
+//      report form to retry manually.
+// =============================================================================
+const OFFLINE_DB_NAME = 'ttb_offline_queue';
+const OFFLINE_DB_VERSION = 1;
+const OFFLINE_STORE = 'pending_reports';
+const OFFLINE_SYNC_POLL_MS = 30 * 1000; // periodic fallback, see note above
+
+function openOfflineDb() {
+  return new Promise((resolve, reject) => {
+    if (!('indexedDB' in window)) { reject(new Error('no-indexeddb')); return; }
+    const req = indexedDB.open(OFFLINE_DB_NAME, OFFLINE_DB_VERSION);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(OFFLINE_STORE)) {
+        db.createObjectStore(OFFLINE_STORE, { keyPath: 'localId' });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function idbReq(req) {
+  return new Promise((resolve, reject) => {
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+function idbTxDone(tx) {
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+  });
+}
+
+// Saves a not-yet-submitted report (its insert payload + optional already-
+// compressed photo Blob) locally. Returns the locally-generated id.
+async function queueOfflineReport(insertPayload, photoBlob) {
+  const db = await openOfflineDb();
+  const localId = (window.crypto && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : 'offline_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+  const entry = { localId, insertPayload, photoBlob: photoBlob || null, createdAt: Date.now() };
+  const tx = db.transaction(OFFLINE_STORE, 'readwrite');
+  tx.objectStore(OFFLINE_STORE).put(entry);
+  await idbTxDone(tx);
+  return localId;
+}
+
+async function getQueuedReports() {
+  try {
+    const db = await openOfflineDb();
+    const tx = db.transaction(OFFLINE_STORE, 'readonly');
+    const rows = await idbReq(tx.objectStore(OFFLINE_STORE).getAll());
+    await idbTxDone(tx);
+    return rows || [];
+  } catch (e) {
+    return []; // IndexedDB unavailable (e.g. private mode) — queue is simply a no-op
+  }
+}
+
+async function deleteQueuedReport(localId) {
+  try {
+    const db = await openOfflineDb();
+    const tx = db.transaction(OFFLINE_STORE, 'readwrite');
+    tx.objectStore(OFFLINE_STORE).delete(localId);
+    await idbTxDone(tx);
+  } catch (e) {}
+}
+
+// True if `err` looks like a connectivity failure rather than a genuine
+// rejection of the request itself (bad data, RLS, auth, etc.) — those
+// should still surface as real errors, not silently vanish into the queue.
+function isNetworkFailure(err) {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return true;
+  const msg = String((err && (err.message || err.error_description)) || err || '').toLowerCase();
+  return msg.includes('failed to fetch')
+      || msg.includes('networkerror')
+      || msg.includes('network request failed')
+      || msg.includes('load failed')
+      || msg.includes('the internet connection appears to be offline');
+}
+
+// Refreshes the small badge in the report form. Called after every queue/
+// sync operation and on language switch (see applyLang).
+async function updateOfflineQueueBadge() {
+  const badge = document.getElementById('offlineQueueBadge');
+  const textEl = document.getElementById('offlineQueueBadgeText');
+  if (!badge || !textEl) return;
+  const rows = await getQueuedReports();
+  if (!rows.length) { badge.style.display = 'none'; return; }
+  textEl.textContent = t('offlineQueueBadge').replace('{n}', rows.length);
+  badge.style.display = 'flex';
+}
+
+let offlineSyncInFlight = false;
+
+// Drains the offline queue in the order reports were originally filed.
+// Stops (rather than skipping ahead) the moment it hits another network
+// failure, so a still-flaky connection doesn't reorder submissions — the
+// next trigger (another 'online' event, the poll timer, or a manual tap)
+// picks up where this one left off. A non-network failure on a given
+// entry (e.g. the report's owner session no longer exists) drops just
+// that entry so one bad row can't jam the rest of the queue forever.
+async function syncOfflineQueue(manual) {
+  if (offlineSyncInFlight) return;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    if (manual) toast(t('offlineStillOffline'), 'error');
+    return;
+  }
+  if (!currentSession || !currentProfile) { await updateOfflineQueueBadge(); return; }
+
+  const rows = await getQueuedReports();
+  if (!rows.length) { await updateOfflineQueueBadge(); return; }
+
+  offlineSyncInFlight = true;
+  let syncedCount = 0;
+  try {
+    rows.sort((a, b) => a.createdAt - b.createdAt);
+    for (const row of rows) {
+      try {
+        const { data, error } = await sb.from(TABLE).insert([row.insertPayload]).select('id').single();
+        if (error) throw error;
+        resolveAndAttachMunicipality(data && data.id, row.insertPayload.latitude, row.insertPayload.longitude);
+        if (row.photoBlob && data && data.id) {
+          await uploadReportPhoto(data.id, row.photoBlob);
+        }
+        await deleteQueuedReport(row.localId);
+        syncedCount++;
+      } catch (err) {
+        if (isNetworkFailure(err)) break; // still no real connectivity — retry the rest later
+        console.error('Dropping unsendable offline report:', row.localId, err);
+        await deleteQueuedReport(row.localId);
+      }
+    }
+  } finally {
+    offlineSyncInFlight = false;
+    await updateOfflineQueueBadge();
+    if (syncedCount > 0) {
+      toast(t('offlineSynced').replace('{n}', syncedCount), 'success');
+      await loadPinsByWindow();
+    }
+  }
+}
+
+window.addEventListener('online', () => syncOfflineQueue(false));
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') syncOfflineQueue(false);
+});
+setInterval(() => syncOfflineQueue(false), OFFLINE_SYNC_POLL_MS);
+
 // Re-validates the session immediately before a write that depends on
 // auth.uid() matching owner_id (RLS: reports_insert_own). A backgrounded
 // mobile tab can miss the token auto-refresh entirely (throttled timers),
@@ -7204,15 +7423,30 @@ function resetReportingForm() {
 // either submit with a genuinely valid session or tell the person to sign
 // in again — instead of a confusing RLS error with no clear next step.
 async function ensureFreshSession() {
-  const { data: { session }, error } = await sb.auth.getSession();
-  if (error || !session) {
+  try {
+    const { data: { session }, error } = await sb.auth.getSession();
+    if (error) throw error;
+    if (!session) {
+      currentSession = null;
+      updateAuthUI();
+      toast(t('sessionExpiredReauth'), 'error');
+      return null;
+    }
+    currentSession = session;
+    return session;
+  } catch (err) {
+    // A network failure here (e.g. filing a report with no signal at all)
+    // isn't the same thing as an actually-expired session — don't force a
+    // sign-out over it. Fall back to whatever session is already in memory
+    // so an offline report can still be queued (see queueOfflineReport
+    // below); if the token really had expired, the eventual sync attempt
+    // once back online will fail with a genuine auth error instead.
+    if (isNetworkFailure(err) && currentSession) return currentSession;
     currentSession = null;
     updateAuthUI();
     toast(t('sessionExpiredReauth'), 'error');
     return null;
   }
-  currentSession = session;
-  return session;
 }
 
 async function reportBreak(){
@@ -7273,7 +7507,7 @@ async function reportBreak(){
   const reportBtn = document.getElementById('reportBtn');
   if (reportBtn) reportBtn.disabled = true;
   try {
-    const { data, error } = await sb.from(TABLE).insert([{
+    const insertPayload = {
       latitude:  lat,
       longitude: lon,
       category,
@@ -7284,8 +7518,30 @@ async function reportBreak(){
       created_at: new Date().toISOString(),
       owner_id: currentSession.user.id,
       owner_username: currentProfile.username
-    }]).select('id').single();
-    if (error) throw error;
+    };
+
+    let data;
+    try {
+      const result = await sb.from(TABLE).insert([insertPayload]).select('id').single();
+      if (result.error) throw result.error;
+      data = result.data;
+    } catch (err) {
+      // No signal at all (common in basements, tunnels, etc.) — save the
+      // report + its photo locally instead of losing it, and let
+      // syncOfflineQueue() submit it automatically once connectivity is
+      // back. A genuine rejection (bad data, RLS, auth) still surfaces as
+      // a real error below rather than silently disappearing into the queue.
+      if (isNetworkFailure(err)) {
+        await queueOfflineReport(insertPayload, pendingReportPhotoBlob);
+        recordReportSubmission();
+        toast('\ud83d\udcf6 ' + t('offlineQueued'), 'success');
+        resetReportingForm();
+        updateOfflineQueueBadge();
+        return;
+      }
+      throw err;
+    }
+
     recordReportSubmission();
     resolveAndAttachMunicipality(data && data.id, lat, lon);
 
@@ -10690,6 +10946,10 @@ loadMunicipalityStatsCache();
 // initAuth() resolves the session check first, then we decide.
 initAuth().then(() => {
   if (!currentSession) showHelpModal();
+  // Show any reports left over from a previous offline session immediately,
+  // and try to send them right away in case connectivity is already back.
+  updateOfflineQueueBadge();
+  syncOfflineQueue(false);
 });
 
 </script>
