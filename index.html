@@ -2692,6 +2692,7 @@ span.flatpickr-weekday {
          Visibility toggled in updateAuthUI() alongside the ADMIN badge. -->
     <div class="admin-section detail-section" id="settingsAdminSection" style="display:none">
       <div class="admin-section-title detail-section-title" id="ucSectionTitle">Utility company contacts</div>
+      <input type="text" id="ucSearchInput" oninput="renderUcList()" placeholder="Search contacts…" style="width:100%;box-sizing:border-box;margin-bottom:10px;">
       <div class="uc-list" id="ucList"></div>
       <button type="button" class="settings-btn" onclick="toggleUcForm()" id="ucAddToggleBtn">+ Add contact</button>
       <button type="button" class="settings-btn" onclick="backfillUcCoordinates()" id="ucGeocodeBackfillBtn">Geocode missing addresses</button>
@@ -2723,15 +2724,23 @@ span.flatpickr-weekday {
         <button type="button" class="uc-verify-btn" onclick="verifyUtilityCompany()" id="ucVerifyBtn">Admin has checked the data</button>
       </div>
 
+      <!-- Admin: free-text search across every report the signed-in admin
+           can manage (not limited to a queue) — see searchAllReportsAdmin(). -->
+      <div class="admin-section-title detail-section-title" id="allReportsSectionTitle" style="margin-top:18px;">All reports</div>
+      <input type="text" id="allReportsSearchInput" oninput="onAllReportsSearchInput()" placeholder="Search reports…" style="width:100%;box-sizing:border-box;margin-bottom:10px;">
+      <div id="allReportsList"></div>
+
       <!-- Admin: reports whose attached photo is waiting for approval
            before it's shown to anyone but the reporter/admins. -->
       <div class="admin-section-title detail-section-title" id="photoReviewSectionTitle" style="margin-top:18px;">Photo review</div>
+      <input type="text" id="photoReviewSearchInput" oninput="renderPhotoReviewList()" placeholder="Filter this list…" style="width:100%;box-sizing:border-box;margin-bottom:10px;">
       <div id="photoReviewList"></div>
 
       <!-- Admin: reports flagged for follow-up (currently just "photo was
            rejected" — see rejectReportPhoto). Lets an admin clear the flag
            once handled, or delete the report outright. -->
       <div class="admin-section-title detail-section-title" id="flaggedReportsSectionTitle" style="margin-top:18px;">Flagged reports</div>
+      <input type="text" id="flaggedReportsSearchInput" oninput="renderFlaggedReportsList()" placeholder="Filter this list…" style="width:100%;box-sizing:border-box;margin-bottom:10px;">
       <div id="flaggedReportsList"></div>
     </div>
   </div>
@@ -3601,6 +3610,8 @@ const T = {
 
   // --- Admin: utility company contacts panel (Settings) ---
   ucSectionTitle:    { en:'Utility company contacts',            sr:'Kontakti javnih preduzeća' },
+  ucSearchPH:        { en:'Search contacts (name, municipality, category)…', sr:'Pretraga kontakata (naziv, opština, kategorija)…' },
+  ucNoSearchResults: { en:'No contacts match your search.',      sr:'Nema kontakata koji odgovaraju pretrazi.' },
   ucAddContactBtn:   { en:'+ Add contact',                       sr:'+ Dodaj kontakt' },
   ucGeocodeBackfillBtn:      { en:'Geocode missing addresses',    sr:'Geokodiraj adrese bez koordinata' },
   ucGeocodeBackfillRunning:  { en:'Geocoding {current}/{total}…', sr:'Geokodiranje {current}/{total}…' },
@@ -3644,6 +3655,13 @@ const T = {
   photoAddedPending:      { en:'Photo added — waiting for admin review.',     sr:'Fotografija dodata — čeka proveru administratora.' },
   photoAddedApproved:     { en:'Photo added.',                                sr:'Fotografija dodata.' },
 
+  allReportsSectionTitle: { en:'All reports',                                 sr:'Sve prijave' },
+  allReportsSearchPH:     { en:'Search reports (comment, category, reporter, ID)…', sr:'Pretraga prijava (komentar, kategorija, korisnik, ID)…' },
+  allReportsSearchHint:   { en:'Type at least 2 characters to search.',       sr:'Ukucajte bar 2 karaktera za pretragu.' },
+  allReportsSearchError:  { en:'Search failed. Try again.',                   sr:'Pretraga nije uspela. Pokušajte ponovo.' },
+  allReportsNoResults:    { en:'No reports match your search.',               sr:'Nema prijava koje odgovaraju pretrazi.' },
+  queueFilterPH:          { en:'Filter this list…',                          sr:'Filtriraj ovu listu…' },
+
   photoReviewSectionTitle:{ en:'Photo review',                                sr:'Provera fotografija' },
   photoReviewEmpty:       { en:'No photos waiting for review.',               sr:'Nema fotografija koje čekaju proveru.' },
   photoApproveBtn:        { en:'Approve',                                     sr:'Odobri' },
@@ -3655,6 +3673,7 @@ const T = {
 
   flaggedReportsSectionTitle: { en:'Flagged reports',                        sr:'Označene prijave' },
   flaggedReportsEmpty:    { en:'No flagged reports right now.',              sr:'Trenutno nema označenih prijava.' },
+  queueFilterNoResults:   { en:'No items match this filter.',                sr:'Nema stavki koje odgovaraju filteru.' },
   flagReasonRejectedPhoto:{ en:'Flagged: rejected photo',                    sr:'Označeno: odbijena fotografija' },
   flagClearBtn:           { en:'Clear flag',                                 sr:'Ukloni oznaku' },
   flagCleared:            { en:'Flag cleared.',                              sr:'Oznaka uklonjena.' }
@@ -3770,16 +3789,27 @@ function applyLang(){
     if (titleEl) titleEl.textContent = t('ucSectionTitle');
     const addBtn = document.getElementById('ucAddToggleBtn');
     if (addBtn) addBtn.textContent = t('ucAddContactBtn');
+    const ucSearchEl = document.getElementById('ucSearchInput');
+    if (ucSearchEl) ucSearchEl.placeholder = t('ucSearchPH');
     populateUcMunicipalitySelect();
     populateUcCatChecks();
     applyUcFormTranslations();
     renderUcList();
+    const arTitleEl = document.getElementById('allReportsSectionTitle');
+    if (arTitleEl) arTitleEl.textContent = t('allReportsSectionTitle');
+    const arSearchEl = document.getElementById('allReportsSearchInput');
+    if (arSearchEl) arSearchEl.placeholder = t('allReportsSearchPH');
     const prTitleEl = document.getElementById('photoReviewSectionTitle');
     if (prTitleEl) prTitleEl.textContent = t('photoReviewSectionTitle');
+    const prSearchEl = document.getElementById('photoReviewSearchInput');
+    if (prSearchEl) prSearchEl.placeholder = t('queueFilterPH');
     const frTitleEl = document.getElementById('flaggedReportsSectionTitle');
     if (frTitleEl) frTitleEl.textContent = t('flaggedReportsSectionTitle');
+    const frSearchEl = document.getElementById('flaggedReportsSearchInput');
+    if (frSearchEl) frSearchEl.placeholder = t('queueFilterPH');
     renderPhotoReviewList();
     renderFlaggedReportsList();
+    if (arSearchEl && arSearchEl.value.trim()) searchAllReportsAdmin();
   }
 
   updateDrivingGpsStatus();
@@ -3838,6 +3868,15 @@ function showSettingsModal() {
     cancelUcForm();
     loadUtilityCompaniesAdmin();
     loadPhotoReviewAdmin();
+    resetAllReportsSearch();
+    const arTitleEl = document.getElementById('allReportsSectionTitle');
+    if (arTitleEl) arTitleEl.textContent = t('allReportsSectionTitle');
+    const arSearchEl = document.getElementById('allReportsSearchInput');
+    if (arSearchEl) arSearchEl.placeholder = t('allReportsSearchPH');
+    const prSearchEl = document.getElementById('photoReviewSearchInput');
+    if (prSearchEl) prSearchEl.placeholder = t('queueFilterPH');
+    const frSearchEl = document.getElementById('flaggedReportsSearchInput');
+    if (frSearchEl) frSearchEl.placeholder = t('queueFilterPH');
   }
 }
 function hideSettingsModal() {
@@ -4192,21 +4231,16 @@ map.on('popupopen', e => {
   if (uc) e.popup.setContent(buildCompanyPopupHtml(uc.c, uc.lat, uc.lon));
   const popupEl = e.popup && e.popup._container;
   if (popupEl) rotatePopupElement(popupEl);
-  // Center the map on the report this popup belongs to. The popup itself no
-  // longer lives over the pin (it's reparented into #mobilePopupOverlay, see
-  // below), so without this the map could be left panned somewhere the
-  // tapped pin isn't visible at all — e.g. after tapping a marker near the
-  // edge of the screen, or one inside a cluster that had to spiderfy out.
-  // Zoom is left untouched on purpose: this should feel like "bring it to
-  // the middle", not "jump to a fixed zoom level".
-  const source = e.popup && e.popup._source;
-  const reportId = source && source._reportId;
-  if (reportId != null) {
-    const report = globalActiveData.find(r => r.id === reportId);
-    if (report && isValidLatLng(report.latitude, report.longitude)) {
-      map.panTo([report.latitude, report.longitude], { animate: true });
-    }
-  }
+  // NOTE: this used to also map.panTo() the tapped pin's coordinates here,
+  // on the reasoning that the popup no longer visually sits over the pin
+  // (it's reparented into #mobilePopupOverlay, see below) so the map could
+  // be left panned somewhere the pin wasn't visible. In practice that just
+  // meant the map visibly shifted underneath the dimmed overlay every time
+  // a popup opened, which is unwanted — the overlay is a full-viewport,
+  // screen-centered dialog regardless of where the map is pointed, so
+  // there's nothing to gain by re-centering the pin under it. The popup is
+  // what should be centered on screen, not the pin on the map — and it
+  // already is, via the reparent below.
   // Always physically move the popup out of Leaflet's panes and into
   // #mobilePopupOverlay — a plain fixed, full-viewport element living
   // directly under <body>. This has to be a real reparent rather than
@@ -6542,6 +6576,15 @@ function translateCategory(cat) {
   return (lang === 'sr' ? labelsSr[cat] : labelsEn[cat]) || cat;
 }
 
+// Both-language label text for a category, e.g. "Frequent Parking
+// Violations Nepropisno parkiranje" — used by search filters so typing in
+// either language matches regardless of which one is currently displayed.
+function categorySearchText(cat) {
+  const labelsEn = { Water:'Water', Electricity:'Electricity', Sewage:'Sewage', Gas:'Gas', Heating:'Heating', Road:'Road', Streetlight:'Streetlight', Waste:'Waste', Walkways:'Walkways', BikeLanes:'Bike Lanes', GreenSpaces:'Green Spaces', Parking:'Frequent Parking Violations', Suggestion:'Suggest an Improvement', Other:'Other' };
+  const labelsSr = { Water:'Voda', Electricity:'Struja', Sewage:'Kanalizacija', Gas:'Gas', Heating:'Grejanje', Road:'Put', Streetlight:'Ulična rasveta', Waste:'Otpad', Walkways:'Pešačke staze', BikeLanes:'Biciklističke staze', GreenSpaces:'Zelene površine', Parking:'Nepropisno parkiranje', Suggestion:'Predlog za poboljšanje', Other:'Ostalo' };
+  return [labelsEn[cat], labelsSr[cat], cat].filter(Boolean).join(' ');
+}
+
 function checkFormReady() {
   const category = document.getElementById('category').value;
   const priority = document.getElementById('priority').value;
@@ -7822,6 +7865,8 @@ async function loadUtilityCompaniesAdmin() {
   if (titleEl) titleEl.textContent = t('ucSectionTitle');
   const addBtn = document.getElementById('ucAddToggleBtn');
   if (addBtn) addBtn.textContent = t('ucAddContactBtn');
+  const ucSearchEl = document.getElementById('ucSearchInput');
+  if (ucSearchEl) ucSearchEl.placeholder = t('ucSearchPH');
   const backfillBtn = document.getElementById('ucGeocodeBackfillBtn');
   if (backfillBtn && !backfillBtn.disabled) backfillBtn.textContent = t('ucGeocodeBackfillBtn');
 
@@ -7905,7 +7950,12 @@ function renderPhotoReviewList() {
     listEl.innerHTML = `<div class="detail-empty">${t('photoReviewEmpty')}</div>`;
     return;
   }
-  listEl.innerHTML = photoReviewCache.map(r => `
+  const filtered = filterReportQueueBySearch(photoReviewCache, 'photoReviewSearchInput');
+  if (!filtered.length) {
+    listEl.innerHTML = `<div class="detail-empty">${t('queueFilterNoResults')}</div>`;
+    return;
+  }
+  listEl.innerHTML = filtered.map(r => `
     <div class="photo-review-card">
       <div class="photo-review-thumb" id="photo-review-thumb-${r.id}"><div class="detail-loading">${t('detailLoading')}</div></div>
       <div class="photo-review-meta">
@@ -7920,7 +7970,7 @@ function renderPhotoReviewList() {
     </div>
   `).join('');
 
-  photoReviewCache.forEach(r => {
+  filtered.forEach(r => {
     getReportPhotoSignedUrl(r.photo_path).then(url => {
       const thumb = document.getElementById('photo-review-thumb-' + r.id);
       if (!thumb) return;
@@ -7938,7 +7988,12 @@ function renderFlaggedReportsList() {
     listEl.innerHTML = `<div class="detail-empty">${t('flaggedReportsEmpty')}</div>`;
     return;
   }
-  listEl.innerHTML = flaggedReportsCache.map(r => `
+  const filtered = filterReportQueueBySearch(flaggedReportsCache, 'flaggedReportsSearchInput');
+  if (!filtered.length) {
+    listEl.innerHTML = `<div class="detail-empty">${t('queueFilterNoResults')}</div>`;
+    return;
+  }
+  listEl.innerHTML = filtered.map(r => `
     <div class="flagged-report-card">
       <div class="photo-review-meta">
         <div class="photo-review-title">${escapeHtml(reportSummaryTitle(r))}</div>
@@ -7953,13 +8008,118 @@ function renderFlaggedReportsList() {
   `).join('');
 }
 
+// Client-side filter shared by the Photo review and Flagged reports
+// queues — both are already fully loaded in memory, so no need to re-query
+// Supabase, just narrow down what's rendered by comment/category/owner.
+function filterReportQueueBySearch(cache, inputId) {
+  const inputEl = document.getElementById(inputId);
+  const rawQuery = inputEl ? inputEl.value.trim() : '';
+  if (!rawQuery) return cache;
+  const query = normalizeMuniNameForMatch(rawQuery);
+  return cache.filter(r => {
+    const haystack = normalizeMuniNameForMatch([
+      r.comment, r.owner_username, categorySearchText(r.category),
+      r.subcategory ? subcategoryLabel(r.category, r.subcategory) : '', r.id
+    ].filter(Boolean).join(' '));
+    return haystack.includes(query);
+  });
+}
+
 // Both admin queues can include reports outside the current map window (and
 // so outside globalActiveData) — stash the cached row there first so
-// showReportDetailModal() has something to find.
+// showReportDetailModal() has something to find. Also checks the All
+// reports search results cache, for the same reason.
 function viewReportFromAdminQueue(reportId) {
-  const cached = photoReviewCache.find(r => r.id === reportId) || flaggedReportsCache.find(r => r.id === reportId);
+  const cached = photoReviewCache.find(r => r.id === reportId)
+    || flaggedReportsCache.find(r => r.id === reportId)
+    || allReportsSearchCache.find(r => r.id === reportId);
   if (cached && !globalActiveData.some(r => r.id === cached.id)) globalActiveData.push(cached);
   showReportDetailModal(reportId);
+}
+
+// =============================================================================
+// ADMIN: ALL-REPORTS SEARCH (Settings)
+// Unlike the two queues above (which are small, fully-preloaded lists),
+// this searches the entire brake_reports table live via Supabase — there's
+// no reason to load every report just to sit in memory unused. Debounced so
+// each keystroke doesn't fire its own request, and scoped to the signed-in
+// admin's own domain (isReportInAdminDomain) the same way the report list
+// and utility-contacts panel already are, so a Municipal Controller doesn't
+// see (or get tempted to delete) reports outside their own municipality.
+// =============================================================================
+let allReportsSearchCache = [];
+let allReportsSearchDebounceTimer = null;
+const ALL_REPORTS_SEARCH_MIN_CHARS = 2;
+
+function onAllReportsSearchInput() {
+  clearTimeout(allReportsSearchDebounceTimer);
+  allReportsSearchDebounceTimer = setTimeout(searchAllReportsAdmin, 350);
+}
+
+function resetAllReportsSearch() {
+  allReportsSearchCache = [];
+  const inputEl = document.getElementById('allReportsSearchInput');
+  if (inputEl) inputEl.value = '';
+  const listEl = document.getElementById('allReportsList');
+  if (listEl) listEl.innerHTML = '';
+}
+
+async function searchAllReportsAdmin() {
+  const inputEl = document.getElementById('allReportsSearchInput');
+  const listEl = document.getElementById('allReportsList');
+  if (!inputEl || !listEl) return;
+  const raw = inputEl.value.trim();
+  if (!raw) { listEl.innerHTML = ''; allReportsSearchCache = []; return; }
+  if (raw.length < ALL_REPORTS_SEARCH_MIN_CHARS) {
+    listEl.innerHTML = `<div class="detail-empty">${t('allReportsSearchHint')}</div>`;
+    return;
+  }
+  listEl.innerHTML = `<div class="detail-loading">${t('detailLoading')}</div>`;
+  const q = cyrillicToLatin(raw);
+  try {
+    const uuidRe = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+    let query = sb.from(TABLE).select('*').order('created_at', { ascending: false }).limit(30);
+    if (uuidRe.test(q)) {
+      query = query.eq('id', q);
+    } else {
+      const esc = q.replace(/[%_,()]/g, c => '\\' + c);
+      query = query.or(`comment.ilike.%${esc}%,owner_username.ilike.%${esc}%,category.ilike.%${esc}%,subcategory.ilike.%${esc}%`);
+    }
+    const { data, error } = await query;
+    if (error) throw error;
+    // Only re-check still current — a slow request for a stale keystroke
+    // shouldn't clobber results for what's in the box now.
+    if (inputEl.value.trim() !== raw) return;
+    const scoped = (data || []).filter(r => isReportInAdminDomain(r));
+    renderAllReportsResults(scoped);
+  } catch (err) {
+    console.error('All-reports search failed:', err.message);
+    listEl.innerHTML = `<div class="detail-empty">${t('allReportsSearchError')}</div>`;
+  }
+}
+
+function renderAllReportsResults(list) {
+  const listEl = document.getElementById('allReportsList');
+  if (!listEl) return;
+  allReportsSearchCache = list;
+  if (!list.length) {
+    listEl.innerHTML = `<div class="detail-empty">${t('allReportsNoResults')}</div>`;
+    return;
+  }
+  listEl.innerHTML = list.map(r => `
+    <div class="photo-review-card">
+      <div class="photo-review-meta">
+        <div class="photo-review-title">${escapeHtml(reportSummaryTitle(r))}
+          <span class="photo-status-badge" style="background:${statusColor(r.status)};">${escapeHtml(statusLabel(r.status))}</span>
+        </div>
+        <div class="photo-review-sub">${escapeHtml(r.owner_username || t('detailUnknown'))} · ${formatDate(r.created_at)}</div>
+      </div>
+      <div class="photo-review-actions">
+        <button type="button" class="settings-btn" onclick="viewReportFromAdminQueue('${r.id}')">${t('detailsBtn')}</button>
+        <button type="button" style="background:#7a1f1f;color:#fff;" onclick="deleteReport('${r.id}')">${t('deleteBtn')}</button>
+      </div>
+    </div>
+  `).join('');
 }
 
 async function approveReportPhoto(reportId) {
@@ -8125,11 +8285,33 @@ function renderUcList() {
     return;
   }
 
+  // Search filter — matches on company name, municipality name (either
+  // language), and category (either language). Diacritic/Cyrillic-insensitive
+  // via normalizeMuniNameForMatch, same normalizer used for municipality
+  // name matching elsewhere.
+  const searchEl = document.getElementById('ucSearchInput');
+  const rawQuery = searchEl ? searchEl.value.trim() : '';
+  const query = rawQuery ? normalizeMuniNameForMatch(rawQuery) : '';
+  const visibleCompanies = !query ? ucCompaniesCache : ucCompaniesCache.filter(c => {
+    const muni = municipalityCache.find(m => String(m.id) === String(c.municipality_id));
+    const haystack = normalizeMuniNameForMatch([
+      c.name,
+      muni ? muni.name : '',
+      muni ? muni.name_en : '',
+      ...(c.categories || []).map(categorySearchText)
+    ].filter(Boolean).join(' '));
+    return haystack.includes(query);
+  });
+  if (!visibleCompanies.length) {
+    listEl.innerHTML = '<div class="detail-empty">' + t('ucNoSearchResults') + '</div>';
+    return;
+  }
+
   // Group: country_code -> municipality_id -> [companies]. Companies whose
   // municipality isn't in the cache (or has no municipality_id at all) fall
   // under an "Unknown" country/municipality bucket rather than disappearing.
   const countryGroups = new Map();
-  ucCompaniesCache.forEach(c => {
+  visibleCompanies.forEach(c => {
     const muni = municipalityCache.find(m => String(m.id) === String(c.municipality_id)) || null;
     const countryCode = (muni && muni.country_code) || '';
     if (!countryGroups.has(countryCode)) countryGroups.set(countryCode, new Map());
