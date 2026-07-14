@@ -1880,33 +1880,27 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
    actually mis-centered, it was just wider than the box doing the centering. */
 .contact-card-row > *:last-child{ min-width:0; overflow-wrap:anywhere; word-break:break-word; }
 .contact-card-icon{ width:15px; height:15px; flex-shrink:0; filter:var(--icon-tint-filter); margin-top:1px; }
-/* Public utility-company pins get a fixed green fill — matching
-   makePublicClusterIcon's #2f8f5b bubble color exactly, so a pin looks the
-   same whether it's standing alone or has just un-clustered — rather than
-   the usual light/dark theme tint every other glyph gets (see
-   --icon-tint-filter above). A plain filter can't turn an arbitrary glyph
-   green, so instead of drop-shadow-and-tint like the other icons, this
-   masks a solid-green box with the glyph's own shape (icons/public.png
-   must be a solid glyph on a transparent background, same as every other
-   icon in this app, for the mask to read its silhouette correctly). */
+/* Public utility-company POIs — same visual language as a report pin
+   (buildPinIconHtml): a solid circle with a centered glyph, so a utility
+   service reads as "the same kind of thing as a report pin, just a
+   different category" rather than a whole different visual language.
+   Fixed green background (not status/category-colored like a report,
+   since a service contact doesn't have a status) with the public.png
+   glyph masked in --accent-contrast so it stays visible against the green
+   regardless of theme. Matches makePublicClusterIcon's #2f8f5b bubble
+   color exactly, so a POI looks the same whether it's standing alone or
+   has just un-clustered. */
+.company-marker-icon-wrap{
+  width:26px; height:26px; box-sizing:border-box; border-radius:50%;
+  background:#2f8f5b; border:3px solid var(--accent-contrast);
+  box-shadow:0 2px 6px rgba(0,0,0,.5);
+  display:flex; align-items:center; justify-content:center;
+}
 .company-marker-icon{
-  width:26px; height:31px;
-  background-color:#2f8f5b;
+  width:14px; height:14px; display:inline-block;
+  background-color:var(--accent-contrast);
   -webkit-mask:url(icons/public.png) center/contain no-repeat;
   mask:url(icons/public.png) center/contain no-repeat;
-  filter:drop-shadow(0 3px 6px rgba(0,0,0,.45));
-}
-/* Municipality "service" pins — one per municipality centroid, showing
-   aggregate report stats on click (see loadMunicipalityStatsMarkers).
-   Reuses the plain pin glyph but masks it in --nav-accent blue so it never
-   gets confused with a report pin (status-colored) or a utility-company
-   pin (fixed green, see .company-marker-icon above) at a glance. */
-.municipality-marker-icon{
-  width:26px; height:31px;
-  background-color:var(--nav-accent);
-  -webkit-mask:url(icons/pin.png) center/contain no-repeat;
-  mask:url(icons/pin.png) center/contain no-repeat;
-  filter:drop-shadow(0 3px 6px rgba(0,0,0,.45));
 }
 .muni-stats-grid{
   display:grid; grid-template-columns:1fr 1fr; gap:8px 14px;
@@ -2775,32 +2769,28 @@ span.flatpickr-weekday {
         <button type="button" class="uc-verify-btn" onclick="verifyUtilityCompany()" id="ucVerifyBtn">Admin has checked the data</button>
       </div>
 
+      <!-- Admin: ONE search box that filters everything below it — the
+           oldest-first Waiting list (flagged reports + photos pending
+           approval, merged — see loadWaitingListAdmin()) as well as the
+           free-text All reports search further down (searchAllReportsAdmin).
+           Used to be three separate boxes, one per queue; onAdminSearchInput()
+           now drives both at once from a single field. -->
+      <input type="text" id="adminSearchInput" oninput="onAdminSearchInput()" placeholder="Search reports, flags, photos…" style="width:100%;box-sizing:border-box;margin-bottom:10px;margin-top:18px;">
+
+      <!-- Admin: everything currently needing attention — a report a user
+           flagged with a comment (submitReportFlag), a rejected-photo
+           follow-up (rejectReportPhoto), or a photo waiting for approval —
+           merged into one list, oldest "waiting since" first, so nothing
+           quietly sits at the bottom of a separate tab. See
+           loadWaitingListAdmin() / renderWaitingList(). -->
+      <div class="admin-section-title detail-section-title" id="waitingListSectionTitle">Waiting for review</div>
+      <div id="waitingList"></div>
+
       <!-- Admin: free-text search across every report the signed-in admin
-           can manage (not limited to a queue) — see searchAllReportsAdmin(). -->
+           can manage (not limited to the Waiting list above) — same search
+           box as above, see searchAllReportsAdmin(). -->
       <div class="admin-section-title detail-section-title" id="allReportsSectionTitle" style="margin-top:18px;">All reports</div>
-      <input type="text" id="allReportsSearchInput" oninput="onAllReportsSearchInput()" placeholder="Search reports…" style="width:100%;box-sizing:border-box;margin-bottom:10px;">
       <div id="allReportsList"></div>
-
-      <!-- Admin: reports a logged-in user (other than the reporter) has
-           flagged with a required comment explaining what's wrong — see
-           submitReportFlag() / loadReportFlagsAdmin(). Distinct from the
-           Flagged reports queue below, which is specifically about rejected
-           photos. -->
-      <div class="admin-section-title detail-section-title" id="reportFlagsSectionTitle" style="margin-top:18px;">Reported by users</div>
-      <div id="reportFlagsList"></div>
-
-      <!-- Admin: reports whose attached photo is waiting for approval
-           before it's shown to anyone but the reporter/admins. -->
-      <div class="admin-section-title detail-section-title" id="photoReviewSectionTitle" style="margin-top:18px;">Photo review</div>
-      <input type="text" id="photoReviewSearchInput" oninput="renderPhotoReviewList()" placeholder="Filter this list…" style="width:100%;box-sizing:border-box;margin-bottom:10px;">
-      <div id="photoReviewList"></div>
-
-      <!-- Admin: reports flagged for follow-up (currently just "photo was
-           rejected" — see rejectReportPhoto). Lets an admin clear the flag
-           once handled, or delete the report outright. -->
-      <div class="admin-section-title detail-section-title" id="flaggedReportsSectionTitle" style="margin-top:18px;">Flagged reports</div>
-      <input type="text" id="flaggedReportsSearchInput" oninput="renderFlaggedReportsList()" placeholder="Filter this list…" style="width:100%;box-sizing:border-box;margin-bottom:10px;">
-      <div id="flaggedReportsList"></div>
     </div>
   </div>
 </div>
@@ -2844,7 +2834,8 @@ const MUNICIPALITIES_TABLE = 'municipalities';
 const UTILITY_COMPANIES_TABLE = 'utility_companies';
 // Read-only Postgres view (see migration add_municipality_report_stats_view)
 // that pre-aggregates per-municipality report counts/timings server-side —
-// see loadMunicipalityStatsMarkers() for why this is a view rather than
+// used by the utility-company POI popup (buildCompanyPopupHtml) to show a
+// company's municipality's stats alongside its contact info, without
 // pulling every brake_reports row down and aggregating client-side.
 const MUNICIPALITY_STATS_TABLE = 'municipality_report_stats';
 
@@ -3768,7 +3759,12 @@ const T = {
   muniStatsResponseRateLabel: { en:'Response rate',      sr:'Stopa odgovora' },
   muniStatsDaysUnit:          { en:'{n} days',           sr:'{n} dana' },
   muniStatsNoRepairData:      { en:'No repair data yet', sr:'Još nema podataka o popravkama' },
-  muniStatsSectionLabel:      { en:'Municipality stats', sr:'Statistika opštine' }
+  muniStatsSectionLabel:      { en:'Municipality stats', sr:'Statistika opštine' },
+
+  adminSearchPH:          { en:'Search reports, flags, photos…',      sr:'Pretraži prijave, oznake, fotografije…' },
+  waitingListSectionTitle:{ en:'Waiting for review',                  sr:'Čeka na proveru' },
+  waitingListEmpty:       { en:'Nothing waiting for review right now.', sr:'Trenutno nema ničega što čeka proveru.' },
+  queueTypePhoto:         { en:'Photo pending',                       sr:'Fotografija na čekanju' }
 };
 
 function t(k){ return T[k]?.[lang] ?? k; }
@@ -3889,22 +3885,12 @@ function applyLang(){
     renderUcList();
     const arTitleEl = document.getElementById('allReportsSectionTitle');
     if (arTitleEl) arTitleEl.textContent = t('allReportsSectionTitle');
-    const arSearchEl = document.getElementById('allReportsSearchInput');
-    if (arSearchEl) arSearchEl.placeholder = t('allReportsSearchPH');
-    const prTitleEl = document.getElementById('photoReviewSectionTitle');
-    if (prTitleEl) prTitleEl.textContent = t('photoReviewSectionTitle');
-    const prSearchEl = document.getElementById('photoReviewSearchInput');
-    if (prSearchEl) prSearchEl.placeholder = t('queueFilterPH');
-    const rfTitleEl = document.getElementById('reportFlagsSectionTitle');
-    if (rfTitleEl) rfTitleEl.textContent = t('reportFlagsSectionTitle');
-    const frTitleEl = document.getElementById('flaggedReportsSectionTitle');
-    if (frTitleEl) frTitleEl.textContent = t('flaggedReportsSectionTitle');
-    const frSearchEl = document.getElementById('flaggedReportsSearchInput');
-    if (frSearchEl) frSearchEl.placeholder = t('queueFilterPH');
-    renderPhotoReviewList();
-    renderReportFlagsList();
-    renderFlaggedReportsList();
-    if (arSearchEl && arSearchEl.value.trim()) searchAllReportsAdmin();
+    const adminSearchEl = document.getElementById('adminSearchInput');
+    if (adminSearchEl) adminSearchEl.placeholder = t('adminSearchPH');
+    const wlTitleEl = document.getElementById('waitingListSectionTitle');
+    if (wlTitleEl) wlTitleEl.textContent = t('waitingListSectionTitle');
+    renderWaitingList();
+    if (adminSearchEl && adminSearchEl.value.trim()) searchAllReportsAdmin();
   }
 
   updateDrivingGpsStatus();
@@ -3962,17 +3948,14 @@ function showSettingsModal() {
   if (currentProfile && currentProfile.is_admin) {
     cancelUcForm();
     loadUtilityCompaniesAdmin();
-    loadPhotoReviewAdmin();
-    loadReportFlagsAdmin();
-    resetAllReportsSearch();
+    loadWaitingListAdmin();
+    resetAdminSearch();
     const arTitleEl = document.getElementById('allReportsSectionTitle');
     if (arTitleEl) arTitleEl.textContent = t('allReportsSectionTitle');
-    const arSearchEl = document.getElementById('allReportsSearchInput');
-    if (arSearchEl) arSearchEl.placeholder = t('allReportsSearchPH');
-    const prSearchEl = document.getElementById('photoReviewSearchInput');
-    if (prSearchEl) prSearchEl.placeholder = t('queueFilterPH');
-    const frSearchEl = document.getElementById('flaggedReportsSearchInput');
-    if (frSearchEl) frSearchEl.placeholder = t('queueFilterPH');
+    const adminSearchEl = document.getElementById('adminSearchInput');
+    if (adminSearchEl) adminSearchEl.placeholder = t('adminSearchPH');
+    const wlTitleEl = document.getElementById('waitingListSectionTitle');
+    if (wlTitleEl) wlTitleEl.textContent = t('waitingListSectionTitle');
   }
 }
 function hideSettingsModal() {
@@ -4127,20 +4110,21 @@ function removeReportLayer(layer) {
   else map.removeLayer(layer);
 }
 
-// Holds the pins for every verified public utility company that has an
+// Holds the POIs for every verified public utility company that has an
 // address on file — see loadAllCompanyMarkers() near renderMunicipalityBoundary()
-// below, called once at STARTUP. These "public" pins get their own
+// below, called once at STARTUP. These "public" POIs get their own
 // clustering group, entirely separate from pinCluster above, so a bunch of
-// utility-company pins sitting near a bunch of report pins never merge into
+// utility-company POIs sitting near a bunch of report pins never merge into
 // one mixed bubble — each layer only ever clusters with its own kind, and
-// the bubble color/shape tells you at a glance which kind you're looking at.
+// the bubble color tells you at a glance which kind you're looking at (same
+// circular shape as a report cluster, just green instead of the accent color).
 function makePublicClusterIcon(cluster) {
   const count = cluster.getChildCount();
   let size = 32, fontSize = 12;
   if (count >= 10 && count < 100) { size = 40; fontSize = 13; }
   else if (count >= 100) { size = 48; fontSize = 14; }
   return L.divIcon({
-    html: `<div style="width:${size}px;height:${size}px;box-sizing:border-box;border-radius:14px;` +
+    html: `<div style="width:${size}px;height:${size}px;box-sizing:border-box;border-radius:50%;` +
       `background:#2f8f5b;border:3px solid var(--accent-contrast);` +
       `display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.5);` +
       `color:var(--accent-contrast);font-weight:700;font-size:${fontSize}px;">${count}</div>`,
@@ -4154,32 +4138,6 @@ const companyMarkersLayer = L.markerClusterGroup({
   spiderfyOnMaxZoom: true,
   showCoverageOnHover: false,
   iconCreateFunction: makePublicClusterIcon
-}).addTo(map);
-
-// Holds one pin per municipality that has at least one report on file —
-// see loadMunicipalityStatsMarkers() near loadAllCompanyMarkers() below.
-// Own cluster group/color (blue, matching .municipality-marker-icon) so
-// these never merge into a report or utility-company cluster bubble.
-function makeMunicipalityClusterIcon(cluster) {
-  const count = cluster.getChildCount();
-  let size = 32, fontSize = 12;
-  if (count >= 10 && count < 100) { size = 40; fontSize = 13; }
-  else if (count >= 100) { size = 48; fontSize = 14; }
-  return L.divIcon({
-    html: `<div style="width:${size}px;height:${size}px;box-sizing:border-box;border-radius:50%;` +
-      `background:var(--nav-accent);border:3px solid var(--accent-contrast);` +
-      `display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.5);` +
-      `color:var(--accent-contrast);font-weight:700;font-size:${fontSize}px;">${count}</div>`,
-    className: '',
-    iconSize: [size, size]
-  });
-}
-const municipalityMarkersLayer = L.markerClusterGroup({
-  maxClusterRadius: 50,
-  disableClusteringAtZoom: 17,
-  spiderfyOnMaxZoom: true,
-  showCoverageOnHover: false,
-  iconCreateFunction: makeMunicipalityClusterIcon
 }).addTo(map);
 
 // Reparents Leaflet's internal map-pane (tiles + markers + lines + popups)
@@ -6727,8 +6685,8 @@ function checkFormReady() {
 // every uploaded photo a consistent, predictable format regardless of what
 // the phone's camera produced. Newly uploaded photos start life as
 // 'pending' (see uploadReportPhoto) and are not shown to anyone but the
-// reporter/admins until an admin approves them from the Photo review queue
-// in Settings (see loadPhotoReviewAdmin / approveReportPhoto / rejectReportPhoto).
+// reporter/admins until an admin approves them from the Waiting list
+// in Settings (see loadWaitingListAdmin / approveReportPhoto / rejectReportPhoto).
 // =============================================================================
 const REPORT_PHOTO_BUCKET = 'report-photos';
 const REPORT_PHOTO_MAX_DIMENSION = 1280;        // px, longest side, after downscaling — plenty to see a pothole/leak/downed line clearly, well below what a phone camera shoots natively
@@ -7724,12 +7682,13 @@ const companyGeocodeCache = {}; // "query|countrycode" -> {lat,lon} | null
 const utilityCompanyRegistry = new Map();
 
 function buildCompanyMarkerHtml() {
-  // Same pin proportions as a manually-dropped pin, but its own icon (fixed
-  // green, see .company-marker-icon) so it reads as "a place" rather than
-  // "a reported break" at a glance. A plain <div> here, not an <img> — the
-  // green fill comes from a CSS mask, which needs a background-color
-  // element to recolor rather than an image with its own baked-in pixels.
-  return '<div class="company-marker-icon"></div>';
+  // Same circle-plus-centered-glyph structure as a report pin
+  // (buildPinIconHtml) — a fixed green circle (see .company-marker-icon-wrap)
+  // with the public.png glyph masked white on top, so it reads as "the same
+  // family of POI as a report pin" rather than a whole different marker
+  // language, while the green + public.png silhouette still say "this one's
+  // a service, not a reported break" at a glance.
+  return '<div class="company-marker-icon-wrap"><span class="company-marker-icon"></span></div>';
 }
 
 // Forward-geocodes one free-text address via Nominatim. Used to only ever
@@ -7802,7 +7761,7 @@ async function loadAllCompanyMarkers() {
   for (const c of companies) {
     if (!isValidLatLng(c.lat, c.lon)) continue;
     const marker = L.marker([c.lat, c.lon], {
-      icon: L.divIcon({ className: '', html: buildCompanyMarkerHtml(), iconSize: [26, 31], iconAnchor: [13, 29] }),
+      icon: L.divIcon({ className: '', html: buildCompanyMarkerHtml(), iconSize: [26, 26], iconAnchor: [13, 13] }),
       zIndexOffset: 200
     });
     marker._utilityCompany = { c, lat: c.lat, lon: c.lon };
@@ -7874,50 +7833,6 @@ function buildMuniStatsGridHtml(stats) {
       <span class="muni-stat-label">${t('muniStatsResponseRateLabel')}</span>
     </div>
   </div>`;
-}
-
-// Popup for a municipality's own map pin (distinct from buildMunicipalityPopupHtml
-// above, which is the small "you are here, in X" card bound to the GPS/manual
-// pin). This one sits at the municipality's own centroid and shows aggregate
-// stats for every report ever filed there — Reports / Fixed / Average repair
-// time / Response rate — pulled from the municipality_report_stats view.
-function buildMunicipalityStatsPopupHtml(muni, stats) {
-  const name = municipalityDisplayName(muni);
-  return `<div class="popup-inner popup-card">
-    <div class="popup-header" style="background:var(--nav-accent);">
-      <span class="popup-header-title">${escapeHtml(name)}</span>
-    </div>
-    <div class="popup-body" style="padding:12px 14px;">${buildMuniStatsGridHtml(stats)}</div>
-    <div class="status-action-row" style="border-top:none;padding-top:0;">
-      <button class="status-action-btn popup-close-btn" style="background:#3a3a3a;" onclick="map.closePopup();">${t('closeBtn')}</button>
-    </div>
-  </div>`;
-}
-
-// Loads one pin per municipality that has ever had a report filed in it,
-// dropped at the municipality's centroid, with tap-to-view aggregate stats
-// (see buildMunicipalityStatsPopupHtml). Aggregation happens server-side via
-// the municipality_report_stats view rather than pulling every brake_reports
-// row down and summing client-side — cheap now at a few hundred rows, but a
-// view scales the same way regardless of how large that table grows, and it
-// means this stays a single small query instead of one that grows with the
-// whole reports table. Municipalities with zero reports are skipped rather
-// than shown with all-zero stats, so the map isn't cluttered with 150+ pins
-// that have nothing to say yet.
-async function loadMunicipalityStatsMarkers() {
-  await loadMunicipalityCache();
-  await loadMunicipalityStatsCache();
-  for (const [muniId, row] of municipalityStatsCache) {
-    if (!row.total_reports) continue;
-    const muni = getMunicipalityById(muniId);
-    if (!muni || !isValidLatLng(muni.centroid_lat, muni.centroid_lon)) continue;
-    const marker = L.marker([muni.centroid_lat, muni.centroid_lon], {
-      icon: L.divIcon({ className: '', html: '<div class="municipality-marker-icon"></div>', iconSize: [26, 31], iconAnchor: [13, 29] }),
-      zIndexOffset: 100
-    });
-    marker.bindPopup(buildMunicipalityStatsPopupHtml(muni, row), { autoPan: false, closeButton: false });
-    marker.addTo(municipalityMarkersLayer);
-  }
 }
 
 // ADMIN TOOL — one-time, explicitly-triggered backfill for contacts that
@@ -8134,119 +8049,165 @@ async function loadUtilityCompaniesAdmin() {
 }
 
 // =============================================================================
-// ADMIN: PHOTO REVIEW + FLAGGED REPORTS (Settings, admin-only)
-// Two related queues, both driven off columns on brake_reports:
-//   photo_status ('pending' | 'approved' | 'rejected') — set to 'pending'
-//   the moment a photo finishes uploading (see uploadReportPhoto), and only
-//   an admin approving/rejecting here ever moves it out of that state.
-//   flagged_for_review (bool) — set true by rejectReportPhoto() as a
-//   standing "needs follow-up" marker, independent of photo_status, so a
-//   rejected-photo report doesn't just quietly disappear once handled here —
-//   an admin still sees it in Flagged reports until they clear it or delete
-//   the report outright.
-// Both lists are loaded together (loadPhotoReviewAdmin drives both) since
-// they're shown in the same admin panel and a photo action can move a
-// report from one list to the other.
+// ADMIN: WAITING LIST — everything currently needing attention (Settings,
+// admin-only), merged into ONE oldest-first list instead of three separate
+// tabs. Three underlying sources, all driven off brake_reports / report_flags:
+//   photo_status = 'pending'   — a photo just got uploaded and hasn't been
+//                                 approved/rejected yet (see uploadReportPhoto).
+//   flagged_for_review = true  — a standing "needs follow-up" marker, set by
+//                                 rejectReportPhoto() when a photo is rejected
+//                                 as spam/inaccurate.
+//   report_flags(resolved=false) — one row per user who flagged a report via
+//                                 submitReportFlag; several users can flag the
+//                                 same report, so these are grouped by report.
+// A single report can be waiting for more than one reason at once (e.g. a
+// rejected photo AND a user flag) — those are merged into ONE card rather
+// than shown twice, with a badge per reason and the actions for all of them.
+// "Waiting since" for a merged card is the EARLIEST of its reasons' own
+// timestamps, so a report doesn't jump the queue just because a second,
+// newer reason got added on top of an older one.
 // =============================================================================
-let photoReviewCache = [];
-let flaggedReportsCache = [];
+let waitingListCache = []; // [{ report, waitingSince: Date, reasons: ['photo'|'rejected_photo'|'user_flag'], flags: [...] }]
 
-async function loadPhotoReviewAdmin() {
-  const prTitleEl = document.getElementById('photoReviewSectionTitle');
-  if (prTitleEl) prTitleEl.textContent = t('photoReviewSectionTitle');
-  const frTitleEl = document.getElementById('flaggedReportsSectionTitle');
-  if (frTitleEl) frTitleEl.textContent = t('flaggedReportsSectionTitle');
+async function loadWaitingListAdmin() {
+  const items = new Map(); // report.id -> merged waiting-list item
+
+  function addReason(report, type, since, extra) {
+    if (!report) return;
+    const sinceDate = since ? new Date(since) : new Date();
+    let item = items.get(report.id);
+    if (!item) {
+      item = { report, waitingSince: sinceDate, reasons: [], flags: [] };
+      items.set(report.id, item);
+    }
+    if (sinceDate < item.waitingSince) item.waitingSince = sinceDate;
+    if (!item.reasons.includes(type)) item.reasons.push(type);
+    if (extra && extra.flag) item.flags.push(extra.flag);
+    // A later addReason call may see a fresher report row (e.g. photo-pending
+    // pass runs after user-flags pass) — keep whichever has more on it.
+    item.report = report;
+  }
 
   try {
-    const { data, error } = await sb.from(TABLE).select('*')
-      .eq('photo_status', 'pending').order('photo_uploaded_at', { ascending: true });
+    const { data, error } = await sb.from(TABLE).select('*').eq('photo_status', 'pending');
     if (error) throw error;
-    photoReviewCache = data || [];
+    (data || []).forEach(r => addReason(r, 'photo', r.photo_uploaded_at || r.created_at));
   } catch (err) {
     console.error('Failed to load photo review queue:', err.message);
-    photoReviewCache = [];
   }
-  renderPhotoReviewList();
 
   try {
-    const { data, error } = await sb.from(TABLE).select('*')
-      .eq('flagged_for_review', true).order('photo_reviewed_at', { ascending: false });
+    const { data, error } = await sb.from(TABLE).select('*').eq('flagged_for_review', true);
     if (error) throw error;
-    flaggedReportsCache = data || [];
+    (data || []).forEach(r => addReason(r, 'rejected_photo', r.photo_reviewed_at || r.created_at));
   } catch (err) {
     console.error('Failed to load flagged reports:', err.message);
-    flaggedReportsCache = [];
   }
-  renderFlaggedReportsList();
-}
 
-// =============================================================================
-// ADMIN: reports flagged by users (Settings) — distinct from the rejected-
-// photo queue above. Groups every open (unresolved) report_flags row by
-// report, so a report flagged by several people shows as one card with a
-// full history — visible only to admins, per RLS (see report_flags_select).
-// Jurisdiction is enforced both server-side (admin_can_manage_municipality
-// in the RLS policy) and re-checked here client-side for consistency with
-// the rest of the admin panel.
-// =============================================================================
-let reportFlagsCache = []; // [{ report, flags: [...] }]
-
-async function loadReportFlagsAdmin() {
-  const titleEl = document.getElementById('reportFlagsSectionTitle');
-  if (titleEl) titleEl.textContent = t('reportFlagsSectionTitle');
   try {
     const { data, error } = await sb.from('report_flags')
       .select('*, brake_reports(*), profiles!report_flags_flagged_by_fkey(username)')
-      .eq('resolved', false)
-      .order('created_at', { ascending: false });
+      .eq('resolved', false);
     if (error) throw error;
-    const groups = new Map();
     (data || []).forEach(row => {
       const report = row.brake_reports;
       if (!report || !isReportInAdminDomain(report)) return;
-      if (!groups.has(report.id)) groups.set(report.id, { report, flags: [] });
-      groups.get(report.id).flags.push(row);
+      addReason(report, 'user_flag', row.created_at, { flag: row });
     });
-    reportFlagsCache = Array.from(groups.values());
   } catch (err) {
     console.error('Failed to load report flags:', err.message);
-    reportFlagsCache = [];
   }
-  renderReportFlagsList();
+
+  waitingListCache = Array.from(items.values())
+    .filter(item => isReportInAdminDomain(item.report))
+    .sort((a, b) => a.waitingSince - b.waitingSince); // oldest first
+  renderWaitingList();
 }
 
-function renderReportFlagsList() {
-  const listEl = document.getElementById('reportFlagsList');
+function reportSummaryTitle(r) {
+  return r.subcategory
+    ? `${translateCategory(r.category)} / ${subcategoryLabel(r.category, r.subcategory)}`
+    : translateCategory(r.category);
+}
+
+const WAITING_REASON_LABEL = { photo: 'queueTypePhoto', rejected_photo: 'flagReasonRejectedPhoto', user_flag: 'reportFlagsSectionTitle' };
+
+function renderWaitingList() {
+  const listEl = document.getElementById('waitingList');
   if (!listEl) return;
-  if (!reportFlagsCache.length) {
-    listEl.innerHTML = `<div class="detail-empty">${t('reportFlagsEmpty')}</div>`;
+  if (!waitingListCache.length) {
+    listEl.innerHTML = `<div class="detail-empty">${t('waitingListEmpty')}</div>`;
     return;
   }
-  listEl.innerHTML = reportFlagsCache.map(({ report, flags }) => {
-    const historyHtml = flags.map(f => `
-      <div class="report-flag-history-item">
-        "${escapeHtml(f.reason)}"
-        <div class="report-flag-history-meta">${escapeHtml((f.profiles && f.profiles.username) || t('detailUnknown'))} · ${formatDate(f.created_at)}</div>
-      </div>`).join('');
+  const filtered = filterWaitingListBySearch(waitingListCache);
+  if (!filtered.length) {
+    listEl.innerHTML = `<div class="detail-empty">${t('queueFilterNoResults')}</div>`;
+    return;
+  }
+  listEl.innerHTML = filtered.map(item => {
+    const r = item.report;
+    const badgesHtml = item.reasons.map(reason =>
+      `<span class="photo-status-badge" style="background:#a67817;">${escapeHtml(t(WAITING_REASON_LABEL[reason]))}</span>`).join(' ');
+    const historyHtml = item.flags.length ? `
+        <div class="report-flag-history">
+          <div class="report-flag-history-meta">${t('reportFlagsHistoryLabel')} (${item.flags.length})</div>
+          ${item.flags.map(f => `
+            <div class="report-flag-history-item">
+              "${escapeHtml(f.reason)}"
+              <div class="report-flag-history-meta">${escapeHtml((f.profiles && f.profiles.username) || t('detailUnknown'))} · ${formatDate(f.created_at)}</div>
+            </div>`).join('')}
+        </div>` : '';
+    const thumbHtml = item.reasons.includes('photo')
+      ? `<div class="photo-review-thumb" id="photo-review-thumb-${r.id}"><div class="detail-loading">${t('detailLoading')}</div></div>` : '';
+    const actionsHtml = [
+      `<button type="button" class="settings-btn" onclick="viewReportFromAdminQueue('${r.id}')">${t('detailsBtn')}</button>`,
+      item.reasons.includes('photo') ? `<button type="button" style="background:#2e7d32;color:#fff;" onclick="approveReportPhoto('${r.id}')">${t('photoApproveBtn')}</button>` : '',
+      item.reasons.includes('photo') ? `<button type="button" style="background:#7a1f1f;color:#fff;" onclick="rejectReportPhoto('${r.id}')">${t('photoRejectBtn')}</button>` : '',
+      item.reasons.includes('rejected_photo') ? `<button type="button" class="settings-btn" onclick="clearReportFlag('${r.id}')">${t('flagClearBtn')}</button>` : '',
+      item.reasons.includes('user_flag') ? `<button type="button" style="background:#2e7d32;color:#fff;" onclick="resolveReportFlags('${r.id}')">${t('reportFlagResolveBtn')}</button>` : '',
+      `<button type="button" style="background:#7a1f1f;color:#fff;" onclick="deleteReport('${r.id}')">${t('deleteBtn')}</button>`
+    ].filter(Boolean).join('');
     return `
     <div class="flagged-report-card">
+      ${thumbHtml}
       <div class="photo-review-meta">
-        <div class="photo-review-title">${escapeHtml(reportSummaryTitle(report))}
-          <span class="photo-status-badge" style="background:${statusColor(report.status)};">${escapeHtml(statusLabel(report.status))}</span>
-        </div>
-        <div class="photo-review-sub">${escapeHtml(report.owner_username || t('detailUnknown'))} · ${formatDate(report.created_at)}</div>
-        <div class="report-flag-history">
-          <div class="report-flag-history-meta">${t('reportFlagsHistoryLabel')} (${flags.length})</div>
-          ${historyHtml}
-        </div>
+        <div class="photo-review-title">${escapeHtml(reportSummaryTitle(r))} ${badgesHtml}</div>
+        <div class="photo-review-sub">${escapeHtml(r.owner_username || t('detailUnknown'))} · ${formatDate(item.waitingSince)}</div>
+        ${historyHtml}
       </div>
-      <div class="photo-review-actions">
-        <button type="button" class="settings-btn" onclick="viewReportFromAdminQueue('${report.id}')">${t('detailsBtn')}</button>
-        <button type="button" style="background:#2e7d32;color:#fff;" onclick="resolveReportFlags('${report.id}')">${t('reportFlagResolveBtn')}</button>
-        <button type="button" style="background:#7a1f1f;color:#fff;" onclick="deleteReport('${report.id}')">${t('deleteBtn')}</button>
-      </div>
+      <div class="photo-review-actions">${actionsHtml}</div>
     </div>`;
   }).join('');
+
+  filtered.forEach(item => {
+    if (!item.reasons.includes('photo')) return;
+    getReportPhotoSignedUrl(item.report.photo_path).then(url => {
+      const thumb = document.getElementById('photo-review-thumb-' + item.report.id);
+      if (!thumb) return;
+      thumb.innerHTML = url
+        ? `<img src="${url}" alt="" onclick="window.open('${url}','_blank')">`
+        : `<div class="detail-empty">${t('photoLoadFailed')}</div>`;
+    });
+  });
+}
+
+// Client-side filter for the Waiting list — it's already fully loaded in
+// memory, so no need to re-query Supabase, just narrow down what's rendered
+// by comment/category/owner/ID. Shares the same #adminSearchInput box as
+// the live All-reports search below (see onAdminSearchInput).
+function filterWaitingListBySearch(cache) {
+  const inputEl = document.getElementById('adminSearchInput');
+  const rawQuery = inputEl ? inputEl.value.trim() : '';
+  if (!rawQuery) return cache;
+  const query = normalizeMuniNameForMatch(rawQuery);
+  return cache.filter(item => {
+    const r = item.report;
+    const haystack = normalizeMuniNameForMatch([
+      r.comment, r.owner_username, categorySearchText(r.category),
+      r.subcategory ? subcategoryLabel(r.category, r.subcategory) : '', r.id
+    ].filter(Boolean).join(' '));
+    return haystack.includes(query);
+  });
 }
 
 async function resolveReportFlags(reportId) {
@@ -8258,142 +8219,59 @@ async function resolveReportFlags(reportId) {
     }).eq('report_id', reportId).eq('resolved', false);
     if (error) throw error;
     toast(t('reportFlagResolved'), 'success');
-    await loadReportFlagsAdmin();
+    await loadWaitingListAdmin();
   } catch (err) {
     console.error('Failed to resolve report flags:', err.message);
     toast(t('reportFlagActionFailed'), 'error');
   }
 }
 
-function reportSummaryTitle(r) {
-  return r.subcategory
-    ? `${translateCategory(r.category)} / ${subcategoryLabel(r.category, r.subcategory)}`
-    : translateCategory(r.category);
-}
-
-function renderPhotoReviewList() {
-  const listEl = document.getElementById('photoReviewList');
-  if (!listEl) return;
-  if (!photoReviewCache.length) {
-    listEl.innerHTML = `<div class="detail-empty">${t('photoReviewEmpty')}</div>`;
-    return;
-  }
-  const filtered = filterReportQueueBySearch(photoReviewCache, 'photoReviewSearchInput');
-  if (!filtered.length) {
-    listEl.innerHTML = `<div class="detail-empty">${t('queueFilterNoResults')}</div>`;
-    return;
-  }
-  listEl.innerHTML = filtered.map(r => `
-    <div class="photo-review-card">
-      <div class="photo-review-thumb" id="photo-review-thumb-${r.id}"><div class="detail-loading">${t('detailLoading')}</div></div>
-      <div class="photo-review-meta">
-        <div class="photo-review-title">${escapeHtml(reportSummaryTitle(r))}</div>
-        <div class="photo-review-sub">${escapeHtml(r.owner_username || t('detailUnknown'))} · ${formatDate(r.photo_uploaded_at || r.created_at)}</div>
-      </div>
-      <div class="photo-review-actions">
-        <button type="button" class="settings-btn" onclick="viewReportFromAdminQueue('${r.id}')">${t('detailsBtn')}</button>
-        <button type="button" style="background:#2e7d32;color:#fff;" onclick="approveReportPhoto('${r.id}')">${t('photoApproveBtn')}</button>
-        <button type="button" style="background:#7a1f1f;color:#fff;" onclick="rejectReportPhoto('${r.id}')">${t('photoRejectBtn')}</button>
-      </div>
-    </div>
-  `).join('');
-
-  filtered.forEach(r => {
-    getReportPhotoSignedUrl(r.photo_path).then(url => {
-      const thumb = document.getElementById('photo-review-thumb-' + r.id);
-      if (!thumb) return;
-      thumb.innerHTML = url
-        ? `<img src="${url}" alt="" onclick="window.open('${url}','_blank')">`
-        : `<div class="detail-empty">${t('photoLoadFailed')}</div>`;
-    });
-  });
-}
-
-function renderFlaggedReportsList() {
-  const listEl = document.getElementById('flaggedReportsList');
-  if (!listEl) return;
-  if (!flaggedReportsCache.length) {
-    listEl.innerHTML = `<div class="detail-empty">${t('flaggedReportsEmpty')}</div>`;
-    return;
-  }
-  const filtered = filterReportQueueBySearch(flaggedReportsCache, 'flaggedReportsSearchInput');
-  if (!filtered.length) {
-    listEl.innerHTML = `<div class="detail-empty">${t('queueFilterNoResults')}</div>`;
-    return;
-  }
-  listEl.innerHTML = filtered.map(r => `
-    <div class="flagged-report-card">
-      <div class="photo-review-meta">
-        <div class="photo-review-title">${escapeHtml(reportSummaryTitle(r))}</div>
-        <div class="photo-review-sub">${escapeHtml(r.owner_username || t('detailUnknown'))} · ${t('flagReasonRejectedPhoto')}</div>
-      </div>
-      <div class="photo-review-actions">
-        <button type="button" class="settings-btn" onclick="viewReportFromAdminQueue('${r.id}')">${t('detailsBtn')}</button>
-        <button type="button" class="settings-btn" onclick="clearReportFlag('${r.id}')">${t('flagClearBtn')}</button>
-        <button type="button" style="background:#7a1f1f;color:#fff;" onclick="deleteReport('${r.id}')">${t('deleteBtn')}</button>
-      </div>
-    </div>
-  `).join('');
-}
-
-// Client-side filter shared by the Photo review and Flagged reports
-// queues — both are already fully loaded in memory, so no need to re-query
-// Supabase, just narrow down what's rendered by comment/category/owner.
-function filterReportQueueBySearch(cache, inputId) {
-  const inputEl = document.getElementById(inputId);
-  const rawQuery = inputEl ? inputEl.value.trim() : '';
-  if (!rawQuery) return cache;
-  const query = normalizeMuniNameForMatch(rawQuery);
-  return cache.filter(r => {
-    const haystack = normalizeMuniNameForMatch([
-      r.comment, r.owner_username, categorySearchText(r.category),
-      r.subcategory ? subcategoryLabel(r.category, r.subcategory) : '', r.id
-    ].filter(Boolean).join(' '));
-    return haystack.includes(query);
-  });
-}
-
-// Both admin queues can include reports outside the current map window (and
+// The Waiting list can include reports outside the current map window (and
 // so outside globalActiveData) — stash the cached row there first so
 // showReportDetailModal() has something to find. Also checks the All
 // reports search results cache, for the same reason.
 function viewReportFromAdminQueue(reportId) {
-  const cached = photoReviewCache.find(r => r.id === reportId)
-    || flaggedReportsCache.find(r => r.id === reportId)
-    || allReportsSearchCache.find(r => r.id === reportId);
+  const waitingItem = waitingListCache.find(item => item.report.id === reportId);
+  const cached = (waitingItem && waitingItem.report) || allReportsSearchCache.find(r => r.id === reportId);
   if (cached && !globalActiveData.some(r => r.id === cached.id)) globalActiveData.push(cached);
   showReportDetailModal(reportId);
 }
 
 // =============================================================================
 // ADMIN: ALL-REPORTS SEARCH (Settings)
-// Unlike the two queues above (which are small, fully-preloaded lists),
-// this searches the entire brake_reports table live via Supabase — there's
-// no reason to load every report just to sit in memory unused. Debounced so
-// each keystroke doesn't fire its own request, and scoped to the signed-in
-// admin's own domain (isReportInAdminDomain) the same way the report list
-// and utility-contacts panel already are, so a Municipal Controller doesn't
-// see (or get tempted to delete) reports outside their own municipality.
+// Unlike the Waiting list above (small, fully-preloaded), this searches the
+// entire brake_reports table live via Supabase — there's no reason to load
+// every report just to sit in memory unused. Debounced so each keystroke
+// doesn't fire its own request, and scoped to the signed-in admin's own
+// domain (isReportInAdminDomain) the same way the Waiting list and
+// utility-contacts panel already are, so a Municipal Controller doesn't see
+// (or get tempted to delete) reports outside their own municipality.
+// Driven off the SAME #adminSearchInput box as the Waiting list filter above
+// — one keystroke narrows both at once (see onAdminSearchInput).
 // =============================================================================
 let allReportsSearchCache = [];
 let allReportsSearchDebounceTimer = null;
 const ALL_REPORTS_SEARCH_MIN_CHARS = 2;
 
-function onAllReportsSearchInput() {
+// Single search box for the whole admin panel: filters the already-loaded
+// Waiting list instantly (client-side), and debounces a live query against
+// every other report for the All-reports section further down.
+function onAdminSearchInput() {
+  renderWaitingList();
   clearTimeout(allReportsSearchDebounceTimer);
   allReportsSearchDebounceTimer = setTimeout(searchAllReportsAdmin, 350);
 }
 
-function resetAllReportsSearch() {
+function resetAdminSearch() {
   allReportsSearchCache = [];
-  const inputEl = document.getElementById('allReportsSearchInput');
+  const inputEl = document.getElementById('adminSearchInput');
   if (inputEl) inputEl.value = '';
   const listEl = document.getElementById('allReportsList');
   if (listEl) listEl.innerHTML = '';
 }
 
 async function searchAllReportsAdmin() {
-  const inputEl = document.getElementById('allReportsSearchInput');
+  const inputEl = document.getElementById('adminSearchInput');
   const listEl = document.getElementById('allReportsList');
   if (!inputEl || !listEl) return;
   const raw = inputEl.value.trim();
@@ -8459,7 +8337,7 @@ async function approveReportPhoto(reportId) {
     }).eq('id', reportId);
     if (error) throw error;
     toast(t('photoApproved'), 'success');
-    await loadPhotoReviewAdmin();
+    await loadWaitingListAdmin();
     await loadPinsByWindow(); // the approved photo may now be visible on the public report
   } catch (err) {
     console.error('Failed to approve photo:', err.message);
@@ -8479,7 +8357,7 @@ async function rejectReportPhoto(reportId) {
     }).eq('id', reportId);
     if (error) throw error;
     toast(t('photoRejected'), 'success');
-    await loadPhotoReviewAdmin();
+    await loadWaitingListAdmin();
   } catch (err) {
     console.error('Failed to reject photo:', err.message);
     toast(t('photoActionFailed'), 'error');
@@ -8491,7 +8369,7 @@ async function clearReportFlag(reportId) {
     const { error } = await sb.from(TABLE).update({ flagged_for_review: false }).eq('id', reportId);
     if (error) throw error;
     toast(t('flagCleared'), 'success');
-    await loadPhotoReviewAdmin();
+    await loadWaitingListAdmin();
   } catch (err) {
     console.error('Failed to clear flag:', err.message);
     toast(t('photoActionFailed'), 'error');
@@ -10484,8 +10362,7 @@ loadMunicipalityCache().then(() => {
     renderAdminDashboard();
   }
 });
-loadAllCompanyMarkers(); // fire-and-forget — pins appear on the map as each address is geocoded
-loadMunicipalityStatsMarkers(); // fire-and-forget — municipality service pins with click-to-view stats
+loadAllCompanyMarkers(); // fire-and-forget — POIs appear on the map as each address is geocoded
 // Help modal should greet first-time/logged-out visitors, but not talk
 // over a returning, already-signed-in user every time they open the app.
 // initAuth() resolves the session check first, then we decide.
