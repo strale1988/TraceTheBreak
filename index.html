@@ -1852,6 +1852,11 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 .fullscreen-modal-close .icon-img, .fullscreen-modal-share .icon-img{
   width:18px; height:18px; filter:var(--icon-tint-filter);
 }
+/* Leaderboard modal title trophy icon lives in .fullscreen-modal-header,
+   not .fullscreen-modal-body, so it falls outside the generic
+   `.fullscreen-modal-body .icon-img` tint rule above — scoped fix so it
+   reads correctly in both themes instead of staying its raw light glyph. */
+#leaderboardModalTitle .icon-img{ filter:var(--icon-tint-filter); }
 .fullscreen-modal-body{
   flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch;
   padding:16px 16px calc(24px + env(safe-area-inset-bottom, 0px)) 16px;
@@ -1924,8 +1929,9 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
    Tab bar picks which get_leaderboard() window is loaded (see
    switchLeaderboardTab/loadLeaderboardTab); rows below are shared markup
    regardless of tab. Top 3 ranks get a medal-colored left edge + tinted
-   background so the podium reads at a glance; everyone else is a plain
-   numbered row. */
+   background + a color-matched rank number so the podium reads at a
+   glance; everyone else is a plain numbered row. No avatar image/initial
+   circle — just rank, name, level pill, and points. */
 .leaderboard-tabs{
   display:flex; gap:6px; overflow-x:auto; -webkit-overflow-scrolling:touch;
   padding-bottom:2px;
@@ -1950,13 +1956,8 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 .leaderboard-row.rank-2{ border-color:#b8c0cc; background:linear-gradient(90deg, rgba(184,192,204,.14), var(--bg-surface) 40%); }
 .leaderboard-row.rank-3{ border-color:#c98a4b; background:linear-gradient(90deg, rgba(201,138,75,.12), var(--bg-surface) 40%); }
 .leaderboard-rank{
-  flex-shrink:0; width:26px; text-align:center; font-size:14px; font-weight:800; color:var(--text-muted);
+  flex-shrink:0; width:26px; text-align:center; font-size:16px; font-weight:800; color:var(--text-muted);
   display:flex; align-items:center; justify-content:center;
-}
-.leaderboard-medal{ width:24px; height:24px; object-fit:contain; }
-.leaderboard-avatar{
-  flex-shrink:0; width:34px; height:34px; border-radius:50%; object-fit:cover;
-  background:var(--bg-surface-alt); border:1px solid var(--border-color-strong);
 }
 .leaderboard-info{ flex:1 1 auto; min-width:0; }
 .leaderboard-name-row{ display:flex; align-items:center; gap:6px; }
@@ -3562,18 +3563,11 @@ function renderLeaderboardRows(rows) {
     const reliabilityHtml = totalPts > 0
       ? t('leaderboardReliability').replace('{p}', Math.round(successPts / totalPts * 100))
       : t('leaderboardNewUser');
-    const initial = escapeHtml(((r.username || '?').trim().charAt(0) || '?').toUpperCase());
-    const avatarHtml = r.avatar_url
-      ? `<img class="leaderboard-avatar" src="${escapeHtml(r.avatar_url)}" alt="">`
-      : `<div class="leaderboard-avatar" style="display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--text-secondary);">${initial}</div>`;
-    const medalFile = rank === 1 ? 'medal-1.png' : rank === 2 ? 'medal-2.png' : rank === 3 ? 'medal-3.png' : null;
-    const rankHtml = medalFile
-      ? `<img class="leaderboard-medal" src="icons/${medalFile}" alt="#${rank}">`
-      : String(rank);
+    const medalColor = rank === 1 ? '#f0b429' : rank === 2 ? '#8a95a3' : rank === 3 ? '#c98a4b' : null;
+    const rankHtml = `<span${medalColor ? ` style="color:${medalColor}"` : ''}>${rank}</span>`;
     return `
     <div class="leaderboard-row${rank <= 3 ? ' rank-' + rank : ''}">
       <div class="leaderboard-rank">${rankHtml}</div>
-      ${avatarHtml}
       <div class="leaderboard-info">
         <div class="leaderboard-name-row">
           <span class="leaderboard-name">${escapeHtml(r.username || '\u2014')}</span>
