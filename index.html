@@ -2315,7 +2315,7 @@ span.flatpickr-weekday {
   <span class="legend-item"><span class="legend-dot" style="background:#9c8570"></span><span class="leg" data-en="Walkways" data-sr="Pešačke staze">Pešačke staze</span></span>
   <span class="legend-item"><span class="legend-dot" style="background:#14b8a6"></span><span class="leg" data-en="Bike Lanes" data-sr="Biciklističke staze">Biciklističke staze</span></span>
   <span class="legend-item"><span class="legend-dot" style="background:#3fa34d"></span><span class="leg" data-en="Green Spaces" data-sr="Zelene površine">Zelene površine</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#5c6bc0"></span><span class="leg" data-en="Parking Violations" data-sr="Nepropisno parkiranje">Nepropisno parkiranje</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#5c6bc0"></span><span class="leg" data-en="Frequent Parking Violations" data-sr="Nepropisno parkiranje">Nepropisno parkiranje</span></span>
   <span class="legend-item"><span class="legend-dot" style="background:#26a69a"></span><span class="leg" data-en="Suggest an Improvement" data-sr="Predlog za poboljšanje">Predlog za poboljšanje</span></span>
   <span class="legend-item"><span class="legend-dot" style="background:#8342a1"></span><span class="leg" data-en="Other" data-sr="Ostalo">Ostalo</span></span>
 </div>
@@ -6537,7 +6537,7 @@ function statusLabel(s) {
   return t('statusReported');
 }
 function translateCategory(cat) {
-  const labelsEn = { Water:'Water', Electricity:'Electricity', Sewage:'Sewage', Gas:'Gas', Heating:'Heating', Road:'Road', Streetlight:'Streetlight', Waste:'Waste', Walkways:'Walkways', BikeLanes:'Bike Lanes', GreenSpaces:'Green Spaces', Parking:'Parking Violations', Suggestion:'Suggest an Improvement', Other:'Other' };
+  const labelsEn = { Water:'Water', Electricity:'Electricity', Sewage:'Sewage', Gas:'Gas', Heating:'Heating', Road:'Road', Streetlight:'Streetlight', Waste:'Waste', Walkways:'Walkways', BikeLanes:'Bike Lanes', GreenSpaces:'Green Spaces', Parking:'Frequent Parking Violations', Suggestion:'Suggest an Improvement', Other:'Other' };
   const labelsSr = { Water:'Voda', Electricity:'Struja', Sewage:'Kanalizacija', Gas:'Gas', Heating:'Grejanje', Road:'Put', Streetlight:'Ulična rasveta', Waste:'Otpad', Walkways:'Pešačke staze', BikeLanes:'Biciklističke staze', GreenSpaces:'Zelene površine', Parking:'Nepropisno parkiranje', Suggestion:'Predlog za poboljšanje', Other:'Ostalo' };
   return (lang === 'sr' ? labelsSr[cat] : labelsEn[cat]) || cat;
 }
