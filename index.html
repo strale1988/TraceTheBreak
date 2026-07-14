@@ -72,7 +72,7 @@
      2650   .turn-by-turn-card
      2700   .driving-nav-card       destination header bar
      9999   modal overlays          gpsModal / helpModal /
-                                     profileModal / edit dialogs /
+                                     leaderboardModal / edit dialogs /
                                      #mobilePopupOverlay (ALL pin
                                      popups now live here — see
                                      the popupopen handler, which
@@ -1390,7 +1390,8 @@ body.driving-active #appPanel{
   white-space:nowrap;
   min-width:0;
 }
-.user-badge .admin-pill{
+.user-badge .admin-pill,
+.dashboard-identity-row .admin-pill{
   flex-shrink:0;
   background:#3a2a00;
   color:#f5c518;
@@ -1439,11 +1440,12 @@ body.driving-active #appPanel{
   transition:width .25s ease; width:0%;
 }
 
-/* --- Settings > My Dashboard ------------------------------------------
+/* --- Rankings > Dashboard tab ------------------------------------------
    Own section (not .admin-section — visible to any signed-in non-admin
    user, admins skip the ladder entirely same as the header pill does).
    Reuses .profile-progress-track/.fill for the bar so the visual language
-   matches the profile modal's smaller version of the same progress bar. */
+   matches the (now-removed) profile popup's smaller version of the same
+   progress bar. */
 .dashboard-section{ display:flex; flex-direction:column; gap:10px; }
 .dashboard-level-row{ display:flex; align-items:center; gap:10px; }
 .dashboard-level-pill{ font-size:13px; padding:6px 12px; border-radius:20px; }
@@ -1476,6 +1478,24 @@ body.driving-active #appPanel{
 }
 .dashboard-ladder-row.achieved .ladder-dot{ background:#5ec98a; }
 .dashboard-signed-out-hint{ font-size:12px; color:var(--text-muted); text-align:center; padding:8px 0; }
+
+/* --- Rankings > Dashboard tab: identity card --------------------------
+   Sits above the user/admin dashboard sections. Replaces the old header
+   behavior where the whole user-badge doubled as a sign-out button and a
+   nested tier pill opened a separate popup — now the badge just opens this
+   tab, and nickname + sign-out live together here instead. */
+.dashboard-identity-card{
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  background:var(--bg-surface-alt); border-radius:10px; padding:10px 12px;
+}
+.dashboard-identity-row{ display:flex; align-items:center; gap:8px; min-width:0; }
+.dashboard-identity-name{
+  font-size:15px; font-weight:800; color:var(--text-primary);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.dashboard-signout-btn{
+  flex-shrink:0; width:auto; padding:7px 12px; font-size:12px;
+}
 
 /* --- Proximity-to-report indicator --------------------------------------
    Shown only while a non-admin has a manually-dropped report pin active
@@ -2466,18 +2486,18 @@ span.flatpickr-weekday {
     <div>
       <h1>TraceTheBreak</h1>
       <p id="subtitle">Community Infrastructure Reporting Network</p>
-      <div class="user-badge" id="userBadge" style="display:none" onclick="handleUserBadgeClick()" title="Sign out">
+      <div class="user-badge" id="userBadge" style="display:none" onclick="showLeaderboardModal('dashboard')" title="My dashboard">
         <span class="username-text" id="userBadgeName"></span>
         <span class="admin-pill" id="userBadgeAdmin" style="display:none">★ ADMIN</span>
-        <span class="tier-pill" id="userBadgeTier" style="display:none" onclick="event.stopPropagation(); showProfileModal();"></span>
-        <span class="signout-x">✕</span>
+        <span class="tier-pill" id="userBadgeTier" style="display:none"></span>
+        <span class="signout-x">›</span>
       </div>
     </div>
     <div class="right-controls">
       <button class="help-icon-btn" id="settingsBtn" title="Settings" onclick="showSettingsModal()"><img class="icon-img" src="icons/settings.png" alt="Settings"></button>
       <button class="help-icon-btn" id="fullscreenBtn" title="Fullscreen / Preko celog ekrana" onclick="toggleFullscreen()"><img class="icon-img" id="fullscreenBtnIcon" src="icons/fullscreen-enter.png" alt="Fullscreen"></button>
       <button class="help-icon-btn" id="helpTopBtn" title="Help / Pomoć" onclick="showHelpModal()"><img class="icon-img" src="icons/help.png" alt="Help"></button>
-      <button class="help-icon-btn" id="leaderboardBtn" title="Leaderboard" onclick="showLeaderboardModal()"><img class="icon-img" src="icons/trophy.png" alt="Leaderboard"></button>
+      <button class="help-icon-btn" id="leaderboardBtn" title="Rankings" onclick="showLeaderboardModal()"><img class="icon-img" src="icons/trophy.png" alt="Rankings"></button>
       <div class="lang-dropdown" id="langDropdown">
         <button class="help-icon-btn" id="langDdBtn" title="Language / Jezik" onclick="toggleLangDropdown()">
           <span id="langDdFlag" style="font-size:15px;line-height:1;">🇷🇸</span>
@@ -2819,19 +2839,6 @@ span.flatpickr-weekday {
 </div>
 
 
-<div id="profileModal" class="generic-modal-overlay" style="display:none">
-  <div class="generic-modal" style="max-width: 340px;">
-    <h2 id="profileModalTitle" style="margin-top:6px;">Status</h2>
-    <div class="profile-tier-row">
-      <span class="tier-pill" id="profileModalTierPill">Novi komšija</span>
-    </div>
-    <p id="profileModalProgress" style="font-size:13px;color:#555;margin:10px 0 4px;"></p>
-    <div class="profile-progress-track"><div class="profile-progress-fill" id="profileModalProgressFill"></div></div>
-    <p id="profileModalStats" style="font-size:11.5px;color:#888;margin-top:8px;"></p>
-    <button class="generic-modal-close" onclick="hideProfileModal()" id="profileModalBtn" style="margin-top:14px;">Close</button>
-  </div>
-</div>
-
 <!-- Settings modal: holds secondary controls that don't need to live on the
      main map/report panel. Starts with the time-window filter + CSV export
      (moved out of #appPanel); more settings sections get appended here
@@ -2850,55 +2857,6 @@ span.flatpickr-weekday {
         <button type="button" class="theme-segment-btn" onclick="setThemeMode('dark')" id="themeBtnDark">Dark</button>
         <button type="button" class="theme-segment-btn" onclick="setThemeMode('auto')" id="themeBtnAuto">Auto</button>
       </div>
-    </div>
-
-    <!-- My Dashboard: signed-in non-admin only (see renderUserDashboard,
-         called from showSettingsModal). Admins skip the ladder entirely,
-         same as the header pill. -->
-    <div class="detail-section dashboard-section" id="dashboardSection" style="display:none">
-      <div class="detail-section-title" id="dashboardSectionTitle">My Dashboard</div>
-      <div class="dashboard-level-row">
-        <span class="tier-pill dashboard-level-pill" id="dashboardLevelPill">1</span>
-        <span class="dashboard-level-name" id="dashboardLevelName"></span>
-      </div>
-      <div class="profile-progress-track"><div class="profile-progress-fill" id="dashboardProgressFill"></div></div>
-      <div class="dashboard-progress-text" id="dashboardProgressText"></div>
-      <div class="dashboard-stats-grid">
-        <div class="dashboard-stat-box">
-          <div class="dashboard-stat-value" id="dashboardStatPoints">0</div>
-          <div class="dashboard-stat-label" id="dashboardStatPointsLabel">Civic points</div>
-        </div>
-        <div class="dashboard-stat-box">
-          <div class="dashboard-stat-value" id="dashboardStatSuccessful">0</div>
-          <div class="dashboard-stat-label" id="dashboardStatSuccessfulLabel">Successful votes</div>
-        </div>
-        <div class="dashboard-stat-box">
-          <div class="dashboard-stat-value" id="dashboardStatWeight">x1</div>
-          <div class="dashboard-stat-label" id="dashboardStatWeightLabel">Your vote weight</div>
-        </div>
-      </div>
-      <div class="dashboard-ladder" id="dashboardLadder"></div>
-      <div class="dashboard-badges-title" id="dashboardBadgesTitle">Badges</div>
-      <div class="badge-grid" id="dashboardBadgeGrid"></div>
-    </div>
-
-    <!-- My Admin Role: signed-in admin only (see renderAdminDashboard,
-         called from showSettingsModal/updateAuthUI). Mirrors the non-admin
-         "My Dashboard" ladder above, but shows admin level + domain tag
-         instead — see the 3-tier ADMIN_LEVELS design near currentAdminLevel(). -->
-    <div class="detail-section dashboard-section" id="adminDashboardSection" style="display:none">
-      <div class="detail-section-title" id="adminDashboardSectionTitle">My Admin Role</div>
-      <div class="dashboard-level-row">
-        <span class="tier-pill dashboard-level-pill" id="adminDashboardLevelPill">1</span>
-        <span class="dashboard-level-name" id="adminDashboardLevelName"></span>
-      </div>
-      <div class="dashboard-stats-grid" style="grid-template-columns:1fr;">
-        <div class="dashboard-stat-box">
-          <div class="dashboard-stat-value" id="adminDashboardTagValue" style="font-size:14px;">—</div>
-          <div class="dashboard-stat-label" id="adminDashboardTagLabel">Responsible for</div>
-        </div>
-      </div>
-      <div class="dashboard-progress-text" id="adminDashboardScopeNote"></div>
     </div>
 
     <div class="detail-section" style="padding:0;overflow:hidden;">
@@ -3004,24 +2962,105 @@ span.flatpickr-weekday {
   <div class="fullscreen-modal-body" id="companyDetailBody"></div>
 </div>
 
-<!-- Leaderboard — opened from the trophy button in the header (see
-     showLeaderboardModal). Four tabs (All Time / This Month / This Week /
-     This City) all render through the same list, just fed by a different
-     get_leaderboard() RPC call — see loadLeaderboardTab(). -->
+<!-- Rankings (formerly just "Leaderboard") — opened from the trophy button
+     in the header, or by tapping the header user badge (which now always
+     lands on the Dashboard tab — see showLeaderboardModal('dashboard')).
+     Tab bar: Dashboard (your own stats/admin role, see
+     #leaderboardDashboardTab) plus five ranked-list tabs (All Time / This
+     Month / This Week / This City / Admins) that all render through
+     #leaderboardList — see loadLeaderboardTab(). The Dashboard tab is a
+     separate, persistent panel rather than innerHTML'd list rows, since it
+     needs stable element ids for renderUserDashboard()/renderAdminDashboard()
+     to fill in (and both can rerun any time — e.g. after a level-up — without
+     losing whichever tab is currently showing). -->
 <div id="leaderboardModal" class="fullscreen-modal-overlay" style="display:none">
   <div class="fullscreen-modal-header">
-    <h2 id="leaderboardModalTitle"><img class="icon-img icon-img-inline" src="icons/trophy.png" alt=""> Leaderboard</h2>
+    <h2 id="leaderboardModalTitle"><img class="icon-img icon-img-inline" src="icons/trophy.png" alt=""> Rankings</h2>
     <button class="fullscreen-modal-close" onclick="hideLeaderboardModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
   </div>
   <div class="fullscreen-modal-body" style="gap:12px;">
     <div class="leaderboard-tabs" id="leaderboardTabs">
-      <button type="button" class="leaderboard-tab active" data-tab="all"   onclick="switchLeaderboardTab('all')"><span id="lbTabAll">All Time</span></button>
+      <button type="button" class="leaderboard-tab active" data-tab="dashboard" onclick="switchLeaderboardTab('dashboard')"><span id="lbTabDashboard">Dashboard</span></button>
+      <button type="button" class="leaderboard-tab"        data-tab="all"   onclick="switchLeaderboardTab('all')"><span id="lbTabAll">All Time</span></button>
       <button type="button" class="leaderboard-tab"        data-tab="month" onclick="switchLeaderboardTab('month')"><span id="lbTabMonth">This Month</span></button>
       <button type="button" class="leaderboard-tab"        data-tab="week"  onclick="switchLeaderboardTab('week')"><span id="lbTabWeek">This Week</span></button>
       <button type="button" class="leaderboard-tab"        data-tab="city"  onclick="switchLeaderboardTab('city')"><span id="lbTabCity">This City</span></button>
       <button type="button" class="leaderboard-tab"        data-tab="admins" onclick="switchLeaderboardTab('admins')"><span id="lbTabAdmins">Admins</span></button>
     </div>
     <div id="leaderboardCityLabel" class="leaderboard-city-label" style="display:none"></div>
+
+    <!-- Dashboard tab — identity card (nickname, admin pill, sign-out) plus
+         whichever of the two sections below applies (renderUserDashboard/
+         renderAdminDashboard each show their own section and hide the
+         other). #dashboardSignedOutHint covers the third case: nobody
+         signed in at all. -->
+    <div id="leaderboardDashboardTab" style="display:flex; flex-direction:column; gap:12px;">
+      <div class="dashboard-identity-card" id="dashboardIdentityCard" style="display:none">
+        <div class="dashboard-identity-row">
+          <span class="dashboard-identity-name" id="dashboardIdentityName"></span>
+          <span class="admin-pill" id="dashboardIdentityAdminPill" style="display:none">★ ADMIN</span>
+        </div>
+        <button type="button" class="settings-btn dashboard-signout-btn" id="dashboardSignOutBtn" onclick="signOutUser()">Sign out</button>
+      </div>
+
+      <!-- My Dashboard: signed-in non-admin only (see renderUserDashboard).
+           Admins skip the ladder entirely, same as the header pill. -->
+      <div class="detail-section dashboard-section" id="dashboardSection" style="display:none">
+        <div class="detail-section-title" id="dashboardSectionTitle">My Dashboard</div>
+        <div class="dashboard-level-row">
+          <span class="tier-pill dashboard-level-pill" id="dashboardLevelPill">1</span>
+          <span class="dashboard-level-name" id="dashboardLevelName"></span>
+        </div>
+        <div class="profile-progress-track"><div class="profile-progress-fill" id="dashboardProgressFill"></div></div>
+        <div class="dashboard-progress-text" id="dashboardProgressText"></div>
+        <div class="dashboard-stats-grid">
+          <div class="dashboard-stat-box">
+            <div class="dashboard-stat-value" id="dashboardStatPoints">0</div>
+            <div class="dashboard-stat-label" id="dashboardStatPointsLabel">Civic points</div>
+          </div>
+          <div class="dashboard-stat-box">
+            <div class="dashboard-stat-value" id="dashboardStatSuccessful">0</div>
+            <div class="dashboard-stat-label" id="dashboardStatSuccessfulLabel">Successful votes</div>
+          </div>
+          <div class="dashboard-stat-box">
+            <div class="dashboard-stat-value" id="dashboardStatWeight">x1</div>
+            <div class="dashboard-stat-label" id="dashboardStatWeightLabel">Your vote weight</div>
+          </div>
+        </div>
+        <div class="dashboard-ladder" id="dashboardLadder"></div>
+        <div class="dashboard-badges-title" id="dashboardBadgesTitle">Badges</div>
+        <div class="badge-grid" id="dashboardBadgeGrid"></div>
+      </div>
+
+      <!-- My Admin Role: signed-in admin only (see renderAdminDashboard).
+           Same visual language as "My Dashboard" above (level pill + stat
+           box + ladder) but built around admin_level instead of points: the
+           badge/pill/ladder colors are the exact tier-level-1/2/3 palette
+           also used on the Leaderboard > Admins tab, so an admin's own role
+           reads the same way here as it does in that list. -->
+      <div class="detail-section dashboard-section" id="adminDashboardSection" style="display:none">
+        <div class="detail-section-title" id="adminDashboardSectionTitle">My Admin Role</div>
+        <div class="dashboard-level-row">
+          <div class="leaderboard-admin-badge" id="adminDashboardBadge"></div>
+          <div>
+            <span class="tier-pill dashboard-level-pill" id="adminDashboardLevelPill">1</span>
+            <span class="dashboard-level-name" id="adminDashboardLevelName"></span>
+          </div>
+        </div>
+        <div class="dashboard-stats-grid" style="grid-template-columns:1fr;">
+          <div class="dashboard-stat-box">
+            <div class="dashboard-stat-value" id="adminDashboardTagValue" style="font-size:14px;">—</div>
+            <div class="dashboard-stat-label" id="adminDashboardTagLabel">Responsible for</div>
+          </div>
+        </div>
+        <div class="dashboard-progress-text" id="adminDashboardScopeNote"></div>
+        <div class="dashboard-badges-title" id="adminDashboardLadderTitle">Admin authority</div>
+        <div class="dashboard-ladder" id="adminDashboardLadder"></div>
+      </div>
+
+      <div class="dashboard-signed-out-hint" id="dashboardSignedOutHint" style="display:none">Sign in to see your dashboard.</div>
+    </div>
+
     <div id="leaderboardList"><div class="detail-loading" id="lbLoadingText">Loading…</div></div>
   </div>
 </div>
@@ -3210,7 +3249,15 @@ async function submitUsername() {
   }
 }
 
-async function handleUserBadgeClick() {
+// Sign-out action — now only reachable via the explicit "Sign out" button in
+// the Dashboard tab (see the Rankings modal's dashboard-identity-card).
+// Previously this fired on any tap of the whole header user-badge, which
+// doubled as both "view my status" (on the nested tier pill) and "sign out"
+// (everywhere else on the badge) — a confusing split. The badge now has one
+// job (open the dashboard — see showLeaderboardModal('dashboard') on
+// #userBadge), and sign-out lives with the rest of the account info instead
+// of being one accidental tap away.
+async function signOutUser() {
   if (!confirm(t('signOutConfirm'))) return;
   try {
     const { error } = await sb.auth.signOut();
@@ -3316,6 +3363,9 @@ function updateAuthUI() {
   }
   checkFormReady();
   refreshRenderedPopups();
+  if (document.getElementById('leaderboardModal').style.display !== 'none' && leaderboardTab === 'dashboard') {
+    renderDashboardTab();
+  }
 }
 
 // =============================================================================
@@ -3580,9 +3630,11 @@ function hasFullPowerOverReport(report) {
   return isReportInAdminDomain(report) || isAdminOnSiteOf(report);
 }
 
-// --- Header level pill + profile progress modal ------------------------------
+// --- Header level pill ---------------------------------------------------
 // Admins don't climb the ladder (their vote already overrides everything),
-// so the pill only shows for regular users.
+// so the pill only shows for regular users. Tapping anywhere on the header
+// badge (including this pill) opens the Dashboard tab of the Rankings
+// modal — see #userBadge's onclick — rather than a separate popup.
 function updateTierPill() {
   const pill = document.getElementById('userBadgeTier');
   if (!pill || !currentProfile || currentProfile.is_admin) {
@@ -3593,43 +3645,6 @@ function updateTierPill() {
   pill.textContent = lvl.level + ' · ' + levelName(lvl);
   pill.className = 'tier-pill tier-level-' + lvl.level;
   pill.style.display = 'inline-block';
-}
-
-function showProfileModal() {
-  if (!currentProfile || currentProfile.is_admin) return;
-  const points = currentProfile.total_contributions || 0;
-  const successful = currentProfile.successful_contributions || 0;
-  const lvl = currentUserLevel();
-  const next = nextUserLevel(lvl);
-
-  document.getElementById('profileModalTitle').textContent =
-    t('profileModalTitlePrefix') + lvl.level + ': ' + levelName(lvl);
-  const pill = document.getElementById('profileModalTierPill');
-  pill.textContent = levelName(lvl);
-  pill.className = 'tier-pill tier-level-' + lvl.level;
-
-  const progressEl = document.getElementById('profileModalProgress');
-  const fillEl = document.getElementById('profileModalProgressFill');
-  if (!next) {
-    progressEl.textContent = t('profileMaxLevel');
-    fillEl.style.width = '100%';
-  } else {
-    const remaining = Math.max(0, next.threshold - points);
-    progressEl.textContent = t('profileProgressToNext')
-      .replace('{n}', remaining).replace('{level}', levelName(next));
-    const span = next.threshold - lvl.threshold;
-    const into = Math.max(0, points - lvl.threshold);
-    fillEl.style.width = (span > 0 ? Math.min(100, into / span * 100) : 100) + '%';
-  }
-  document.getElementById('profileModalStats').textContent = points > 0
-    ? t('profileStats').replace('{s}', successful).replace('{t}', points)
-    : '';
-  document.getElementById('profileModalBtn').textContent = t('profileModalBtn');
-  document.getElementById('profileModal').style.display = 'flex';
-}
-
-function hideProfileModal() {
-  document.getElementById('profileModal').style.display = 'none';
 }
 
 // =============================================================================
@@ -3648,14 +3663,17 @@ function hideProfileModal() {
 // loadAdminsTab below — since it's a completely different question (who
 // holds admin power and over what) rather than a points window.
 // =============================================================================
-let leaderboardTab = 'all';
+let leaderboardTab = 'dashboard';
 let leaderboardCityMuni = null; // resolved once per modal session, reused across tab switches
 
-function showLeaderboardModal() {
+// `tab`, if given, forces the modal open on that tab (e.g. the header user
+// badge always wants 'dashboard'). Omit it to reopen on whichever tab was
+// last active — the trophy header button's normal behavior.
+function showLeaderboardModal(tab) {
   document.getElementById('leaderboardModalTitle').innerHTML = '<img class="icon-img icon-img-inline" src="icons/trophy.png" alt=""> ' + t('leaderboardTitle');
   document.getElementById('leaderboardModal').style.display = 'flex';
   leaderboardCityMuni = null;
-  switchLeaderboardTab(leaderboardTab);
+  switchLeaderboardTab(tab || leaderboardTab);
 }
 function hideLeaderboardModal() {
   document.getElementById('leaderboardModal').style.display = 'none';
@@ -3701,6 +3719,22 @@ async function resolveLeaderboardCity() {
 async function loadLeaderboardTab(tab) {
   const listEl = document.getElementById('leaderboardList');
   const cityLabelEl = document.getElementById('leaderboardCityLabel');
+  const dashboardTabEl = document.getElementById('leaderboardDashboardTab');
+
+  // Dashboard is a persistent panel (stable element ids for
+  // renderUserDashboard/renderAdminDashboard to fill), not an innerHTML'd
+  // list — show it and hide the list panel, then stop before any of the
+  // get_leaderboard()/get_admins_list() plumbing below runs.
+  if (tab === 'dashboard') {
+    dashboardTabEl.style.display = 'flex';
+    listEl.style.display = 'none';
+    cityLabelEl.style.display = 'none';
+    renderDashboardTab();
+    return;
+  }
+  dashboardTabEl.style.display = 'none';
+  listEl.style.display = 'block';
+
   listEl.innerHTML = `<div class="detail-loading">${t('detailLoading')}</div>`;
   cityLabelEl.style.display = 'none';
 
@@ -3869,12 +3903,11 @@ function renderAdminListRows(rows) {
   }).join('');
 }
 
-// --- Settings > My Dashboard --------------------------------------------------
-// Same underlying data as the profile modal, laid out as a fuller-page
-// summary: level, progress bar, a small stat grid, and the whole ladder
-// with achieved levels checked off. Shown to any signed-in non-admin;
-// hidden for admins (no ladder) and signed-out visitors (see
-// showSettingsModal, which calls this).
+// --- Rankings > Dashboard tab: My Dashboard -----------------------------------
+// Own stats summary for a regular (non-admin) user: level, progress bar, a
+// small stat grid, and the whole ladder with achieved levels checked off.
+// Shown to any signed-in non-admin; hidden for admins (no ladder) and
+// signed-out visitors — see renderDashboardTab, which calls this.
 function renderUserDashboard() {
   const section = document.getElementById('dashboardSection');
   if (!section) return;
@@ -3928,13 +3961,17 @@ function renderUserDashboard() {
   }
 }
 
-// --- Settings > My Admin Role -------------------------------------------------
-// Admin-only counterpart to renderUserDashboard above: shows the signed-in
-// admin's level (Municipal Controller / Regional Director / Global
-// Overseer) and their tag — the municipality, country, or "Global" they're
-// responsible for — plus a one-line reminder of what that means for their
-// power outside that domain. Hidden entirely for non-admins and signed-out
-// visitors.
+// --- Rankings > Dashboard tab: My Admin Role ----------------------------------
+// Admin-only counterpart to renderUserDashboard above: level, a themeable
+// rank badge (same icons/admin-badge-N.png + tier-level-N ring used on the
+// Leaderboard > Admins tab, so an admin's own role card matches how they
+// appear in that list), the domain tag (municipality/country/"Global"), a
+// one-line reminder of what that means for their power outside that domain,
+// and an "authority ladder" mirroring the non-admin level ladder — except
+// here a tier isn't earned by points, so every level at-or-below the
+// admin's own is marked reached (a Global Overseer's authority already
+// encompasses what a Regional Director or Municipal Controller has).
+// Hidden entirely for non-admins and signed-out visitors.
 async function renderAdminDashboard() {
   const section = document.getElementById('adminDashboardSection');
   if (!section) return;
@@ -3958,6 +3995,17 @@ async function renderAdminDashboard() {
   const lvl = currentAdminLevel();
   const tag = currentAdminTag();
 
+  // Rebuilt fresh each render (rather than just swapping the <img src>) so
+  // a stale onerror fallback from a previous level never lingers — see the
+  // identical pattern in renderAdminListRows.
+  const badgeWrap = document.getElementById('adminDashboardBadge');
+  if (badgeWrap) {
+    badgeWrap.className = 'leaderboard-admin-badge tier-level-' + lvl;
+    badgeWrap.innerHTML = `<img src="icons/admin-badge-${lvl}.png" alt=""
+         onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+      <span class="leaderboard-admin-badge-fallback" style="display:none">${lvl}</span>`;
+  }
+
   const pill = document.getElementById('adminDashboardLevelPill');
   pill.textContent = lvl;
   pill.className = 'tier-pill dashboard-level-pill tier-level-' + lvl;
@@ -3966,6 +4014,40 @@ async function renderAdminDashboard() {
 
   const noteKey = lvl === 1 ? 'adminDashboardScopeNote1' : lvl === 2 ? 'adminDashboardScopeNote2' : 'adminDashboardScopeNote3';
   document.getElementById('adminDashboardScopeNote').textContent = t(noteKey);
+
+  const ladderEl = document.getElementById('adminDashboardLadder');
+  if (ladderEl) {
+    ladderEl.innerHTML = ADMIN_LEVELS.map(a => {
+      const reached = lvl >= a.level;
+      return `<div class="dashboard-ladder-row${reached ? ' achieved' : ''}">
+        <span class="ladder-dot"></span>
+        <span>${a.level}. ${adminLevelName(a.level)}</span>
+      </div>`;
+    }).join('');
+  }
+}
+
+// --- Rankings > Dashboard tab: identity card + orchestration ------------------
+// Called whenever the Dashboard tab is (re)shown — see loadLeaderboardTab.
+// Fills the nickname/admin-pill identity card, runs both dashboards above
+// (each shows/hides its own section), and falls back to a plain "sign in"
+// hint when nobody's signed in at all, since in that case neither section
+// has anything to show.
+function renderDashboardTab() {
+  const idCard = document.getElementById('dashboardIdentityCard');
+  const hint = document.getElementById('dashboardSignedOutHint');
+  const signedIn = !!(currentSession && currentProfile && currentProfile.username);
+
+  idCard.style.display = signedIn ? 'flex' : 'none';
+  hint.style.display = signedIn ? 'none' : 'block';
+
+  if (signedIn) {
+    document.getElementById('dashboardIdentityName').textContent = currentProfile.username;
+    document.getElementById('dashboardIdentityAdminPill').style.display = currentProfile.is_admin ? 'inline-block' : 'none';
+  }
+
+  renderUserDashboard();
+  renderAdminDashboard();
 }
 
 async function initAuth() {
@@ -4095,8 +4177,6 @@ const T = {
   adminDashboardScopeNote1:   { en:'Full power inside this municipality. Elsewhere, your vote carries the strongest weight — unless you\u2019re physically on-site, where you can still take full control.', sr:'Puna ovlašćenja unutar ove opštine. Van nje, vaš glas ima najveću težinu — osim ako se ne nalazite fizički na licu mesta, gde i dalje imate punu kontrolu.' },
   adminDashboardScopeNote2:   { en:'Full power inside this country. Elsewhere, your vote carries the strongest weight — unless you\u2019re physically on-site, where you can still take full control.', sr:'Puna ovlašćenja unutar ove zemlje. Van nje, vaš glas ima najveću težinu — osim ako se ne nalazite fizički na licu mesta, gde i dalje imate punu kontrolu.' },
   adminDashboardScopeNote3:   { en:'Full power everywhere, all the time.', sr:'Puna ovlašćenja svuda, u svakom trenutku.' },
-  profileModalTitlePrefix:  { en:'Level ',                         sr:'Nivo ' },
-  profileModalBtn:          { en:'Close',                          sr:'Zatvori' },
   profileProgressToNext:    { en:'{n} points to {level}',          sr:'Još {n} poena do nivoa: {level}' },
   profileMaxLevel:          { en:'You\u2019ve reached the top level — your vote counts as much as it can.', sr:'Dostigli ste najviši nivo — vaš glas vredi maksimalno.' },
   profileStats:  { en:'{s} successful out of {t} civic points', sr:'{s} uspešnih od ukupno {t} poena' },
@@ -4296,8 +4376,9 @@ const T = {
   waitingListEmpty:       { en:'Nothing waiting for review right now.', sr:'Trenutno nema ničega što čeka proveru.' },
   queueTypePhoto:         { en:'Photo pending',                       sr:'Fotografija na čekanju' },
 
-  leaderboardBtnTitle:     { en:'Leaderboard',                         sr:'Rang lista' },
-  leaderboardTitle:        { en:'Leaderboard',                         sr:'Rang lista' },
+  leaderboardBtnTitle:     { en:'Rankings',                           sr:'Rang lista' },
+  leaderboardTitle:        { en:'Rankings',                           sr:'Rang lista' },
+  lbTabDashboard:          { en:'Dashboard',                           sr:'Moja tabla' },
   lbTabAll:                { en:'All Time',                            sr:'Ukupno' },
   lbTabMonth:              { en:'This Month',                          sr:'Ovaj mesec' },
   lbTabWeek:               { en:'This Week',                           sr:'Ova nedelja' },
@@ -4305,6 +4386,9 @@ const T = {
   lbTabAdmins:             { en:'Admins',                              sr:'Administratori' },
   leaderboardAdminsEmpty:      { en:'No admins to show.',                          sr:'Nema administratora za prikaz.' },
   leaderboardAdminsLoadFailed: { en:'Could not load admins. Try again.',           sr:'Administratori nisu mogli da se učitaju. Pokušajte ponovo.' },
+  signOutBtn:               { en:'Sign out',                          sr:'Odjavi se' },
+  dashboardSignedOutHint:   { en:'Sign in to see your dashboard.',    sr:'Prijavite se da biste videli svoju tablu.' },
+  adminDashboardLadderTitle:{ en:'Admin Authority',                   sr:'Administratorska ovlašćenja' },
   leaderboardPointsLabel:  { en:'points',                              sr:'poena' },
   leaderboardReliability:  { en:'{p}% reliable',                       sr:'{p}% pouzdanosti' },
   leaderboardNewUser:      { en:'New contributor',                     sr:'Novi doprinosilac' },
@@ -4369,6 +4453,8 @@ function applyLang(){
   if (lbBtn) lbBtn.title = t('leaderboardBtnTitle');
   const lbTitleEl = document.getElementById('leaderboardModalTitle');
   if (lbTitleEl) lbTitleEl.innerHTML = '<img class="icon-img icon-img-inline" src="icons/trophy.png" alt=""> ' + t('leaderboardTitle');
+  const lbTabDashboardEl = document.getElementById('lbTabDashboard');
+  if (lbTabDashboardEl) lbTabDashboardEl.textContent = t('lbTabDashboard');
   const lbTabAllEl = document.getElementById('lbTabAll');
   if (lbTabAllEl) lbTabAllEl.textContent = t('lbTabAll');
   const lbTabMonthEl = document.getElementById('lbTabMonth');
@@ -4426,6 +4512,14 @@ function applyLang(){
   if (gm && gm.style.display !== 'none') updateGpsModalText();
 
   document.getElementById('userBadgeAdmin').textContent   = '\u2605 ' + t('adminBadge');
+  const dashIdAdminPillEl = document.getElementById('dashboardIdentityAdminPill');
+  if (dashIdAdminPillEl) dashIdAdminPillEl.textContent = '\u2605 ' + t('adminBadge');
+  const dashSignOutBtnEl = document.getElementById('dashboardSignOutBtn');
+  if (dashSignOutBtnEl) dashSignOutBtnEl.textContent = t('signOutBtn');
+  const dashSignedOutHintEl = document.getElementById('dashboardSignedOutHint');
+  if (dashSignedOutHintEl) dashSignedOutHintEl.textContent = t('dashboardSignedOutHint');
+  const adminDashLadderTitleEl = document.getElementById('adminDashboardLadderTitle');
+  if (adminDashLadderTitleEl) adminDashLadderTitleEl.textContent = t('adminDashboardLadderTitle');
   
   const lockedMsgEl = document.getElementById('lockedMsgText');
   if (lockedMsgEl) lockedMsgEl.textContent = lang === 'sr' ? 'Prijavite se da osigurate vaše prijave i profil.' : 'Sign in to secure your profile and reports.';
@@ -4495,7 +4589,6 @@ function applyLang(){
   if (dashWeightLabel) dashWeightLabel.textContent = t('dashboardStatWeight');
   const dashBadgesTitleEl = document.getElementById('dashboardBadgesTitle');
   if (dashBadgesTitleEl) dashBadgesTitleEl.textContent = t('dashboardBadgesTitle');
-  renderUserDashboard();
   const heatmapBtnEl = document.getElementById('heatmapBtn');
   if (heatmapBtnEl) heatmapBtnEl.title = t('heatmapBtnTitle');
   const heatmapPanelTitleEl = document.getElementById('heatmapPanelTitle');
@@ -4507,7 +4600,12 @@ function applyLang(){
   if (adminDashTitleEl) adminDashTitleEl.textContent = t('adminDashboardSectionTitle');
   const adminDashTagLabel = document.getElementById('adminDashboardTagLabel');
   if (adminDashTagLabel) adminDashTagLabel.textContent = t('adminDashboardTagLabel');
-  if (document.getElementById('settingsModal').style.display !== 'none') { renderUserDashboard(); renderAdminDashboard(); }
+  // Rankings modal open on the Dashboard tab right now — refresh it in
+  // place so a language switch mid-view doesn't leave stale text sitting
+  // next to the freshly-relabeled tab bar/identity card above.
+  if (document.getElementById('leaderboardModal').style.display !== 'none' && leaderboardTab === 'dashboard') {
+    renderDashboardTab();
+  }
   updateProximityUi();
 }
 
@@ -4521,8 +4619,6 @@ function hideHelpModal() {
 function showSettingsModal() {
   document.getElementById('settingsModalTitle').textContent = t('settingsModalTitle');
   document.getElementById('settingsModal').style.display = 'flex';
-  renderUserDashboard();
-  renderAdminDashboard();
   if (currentProfile && currentProfile.is_admin) {
     cancelUcForm();
     loadUtilityCompaniesAdmin();
@@ -11396,9 +11492,9 @@ loadPinsByWindow().finally(hideMapLoadingOverlay);
 openSharedReportFromUrl();
 // fire-and-forget warmup — see loadMunicipalityCache for why. Also, once
 // it resolves, re-render anything that reads an admin's municipality tag
-// (header badge tooltip, Settings > My Admin Role) — those can run right
-// after sign-in, well before this network fetch has actually landed, and
-// wouldn't otherwise ever refresh themselves once it does.
+// (header badge tooltip, Rankings > Dashboard > My Admin Role) — those can
+// run right after sign-in, well before this network fetch has actually
+// landed, and wouldn't otherwise ever refresh themselves once it does.
 loadMunicipalityCache().then(() => {
   if (currentProfile && currentProfile.is_admin) {
     updateAuthUI();
