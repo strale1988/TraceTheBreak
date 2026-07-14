@@ -3767,7 +3767,8 @@ const T = {
   muniStatsAvgRepairLabel:    { en:'Average repair',     sr:'Prosečna popravka' },
   muniStatsResponseRateLabel: { en:'Response rate',      sr:'Stopa odgovora' },
   muniStatsDaysUnit:          { en:'{n} days',           sr:'{n} dana' },
-  muniStatsNoRepairData:      { en:'No repair data yet', sr:'Još nema podataka o popravkama' }
+  muniStatsNoRepairData:      { en:'No repair data yet', sr:'Još nema podataka o popravkama' },
+  muniStatsSectionLabel:      { en:'Municipality stats', sr:'Statistika opštine' }
 };
 
 function t(k){ return T[k]?.[lang] ?? k; }
@@ -7820,40 +7821,73 @@ async function loadAllCompanyMarkers() {
 }
 
 // Popup for a municipality's own map pin (distinct from buildMunicipalityPopupHtml
+// Shared cache of municipality_report_stats rows, keyed by municipality_id.
+// Loaded once and reused by both the municipality centroid pins below and
+// the utility-company ("responsible service") pins further down, so a
+// company's popup can show the same numbers without a second network round
+// trip. Synchronous lookups (municipalityStatsCache.get(...)) are safe from
+// popup-build code because popup content is always rebuilt fresh at
+// popupopen time (see the map.on('popupopen', ...) handler) — by the time a
+// person actually taps a pin, this fire-and-forget startup load has almost
+// always already landed.
+let municipalityStatsCache = new Map();
+let municipalityStatsLoadPromise = null;
+async function loadMunicipalityStatsCache() {
+  if (municipalityStatsLoadPromise) return municipalityStatsLoadPromise;
+  municipalityStatsLoadPromise = (async () => {
+    try {
+      const { data, error } = await sb.from(MUNICIPALITY_STATS_TABLE).select('*');
+      if (error) throw error;
+      (data || []).forEach(row => municipalityStatsCache.set(row.municipality_id, row));
+    } catch (err) {
+      console.error('Failed to load municipality stats cache:', err.message);
+    }
+  })();
+  return municipalityStatsLoadPromise;
+}
+
+// Renders the Reports / Fixed / Average repair / Response rate grid shared
+// by the municipality centroid popup and the utility-company popup. Returns
+// '' (so callers can cleanly omit the whole section) when there's no stats
+// row yet or it has no reports on file.
+function buildMuniStatsGridHtml(stats) {
+  if (!stats || !stats.total_reports) return '';
+  const avgRepair = stats.avg_repair_days != null
+    ? t('muniStatsDaysUnit').replace('{n}', String(Math.round(parseFloat(stats.avg_repair_days) * 10) / 10))
+    : t('muniStatsNoRepairData');
+  const responseRate = stats.response_rate_pct != null ? `${Math.round(parseFloat(stats.response_rate_pct))}%` : '—';
+  return `<div class="muni-stats-grid">
+    <div class="muni-stat">
+      <span class="muni-stat-value">${Number(stats.total_reports || 0).toLocaleString()}</span>
+      <span class="muni-stat-label">${t('muniStatsReportsLabel')}</span>
+    </div>
+    <div class="muni-stat">
+      <span class="muni-stat-value">${Number(stats.fixed_reports || 0).toLocaleString()}</span>
+      <span class="muni-stat-label">${t('muniStatsFixedLabel')}</span>
+    </div>
+    <div class="muni-stat">
+      <span class="muni-stat-value">${escapeHtml(avgRepair)}</span>
+      <span class="muni-stat-label">${t('muniStatsAvgRepairLabel')}</span>
+    </div>
+    <div class="muni-stat">
+      <span class="muni-stat-value">${escapeHtml(responseRate)}</span>
+      <span class="muni-stat-label">${t('muniStatsResponseRateLabel')}</span>
+    </div>
+  </div>`;
+}
+
+// Popup for a municipality's own map pin (distinct from buildMunicipalityPopupHtml
 // above, which is the small "you are here, in X" card bound to the GPS/manual
 // pin). This one sits at the municipality's own centroid and shows aggregate
 // stats for every report ever filed there — Reports / Fixed / Average repair
 // time / Response rate — pulled from the municipality_report_stats view.
 function buildMunicipalityStatsPopupHtml(muni, stats) {
   const name = municipalityDisplayName(muni);
-  const avgRepair = stats.avg_repair_days != null
-    ? t('muniStatsDaysUnit').replace('{n}', String(Math.round(parseFloat(stats.avg_repair_days) * 10) / 10))
-    : t('muniStatsNoRepairData');
-  const responseRate = stats.response_rate_pct != null ? `${Math.round(parseFloat(stats.response_rate_pct))}%` : '—';
   return `<div class="popup-inner popup-card">
     <div class="popup-header" style="background:var(--nav-accent);">
       <span class="popup-header-title">${escapeHtml(name)}</span>
     </div>
-    <div class="popup-body" style="padding:12px 14px;">
-      <div class="muni-stats-grid">
-        <div class="muni-stat">
-          <span class="muni-stat-value">${Number(stats.total_reports || 0).toLocaleString()}</span>
-          <span class="muni-stat-label">${t('muniStatsReportsLabel')}</span>
-        </div>
-        <div class="muni-stat">
-          <span class="muni-stat-value">${Number(stats.fixed_reports || 0).toLocaleString()}</span>
-          <span class="muni-stat-label">${t('muniStatsFixedLabel')}</span>
-        </div>
-        <div class="muni-stat">
-          <span class="muni-stat-value">${escapeHtml(avgRepair)}</span>
-          <span class="muni-stat-label">${t('muniStatsAvgRepairLabel')}</span>
-        </div>
-        <div class="muni-stat">
-          <span class="muni-stat-value">${escapeHtml(responseRate)}</span>
-          <span class="muni-stat-label">${t('muniStatsResponseRateLabel')}</span>
-        </div>
-      </div>
-    </div>
+    <div class="popup-body" style="padding:12px 14px;">${buildMuniStatsGridHtml(stats)}</div>
     <div class="status-action-row" style="border-top:none;padding-top:0;">
       <button class="status-action-btn popup-close-btn" style="background:#3a3a3a;" onclick="map.closePopup();">${t('closeBtn')}</button>
     </div>
@@ -7872,17 +7906,10 @@ function buildMunicipalityStatsPopupHtml(muni, stats) {
 // that have nothing to say yet.
 async function loadMunicipalityStatsMarkers() {
   await loadMunicipalityCache();
-  let stats;
-  try {
-    const { data, error } = await sb.from(MUNICIPALITY_STATS_TABLE).select('*').gt('total_reports', 0);
-    if (error) throw error;
-    stats = data || [];
-  } catch (err) {
-    console.error('Failed to load municipality stats for map pins:', err.message);
-    return;
-  }
-  for (const row of stats) {
-    const muni = getMunicipalityById(row.municipality_id);
+  await loadMunicipalityStatsCache();
+  for (const [muniId, row] of municipalityStatsCache) {
+    if (!row.total_reports) continue;
+    const muni = getMunicipalityById(muniId);
     if (!muni || !isValidLatLng(muni.centroid_lat, muni.centroid_lon)) continue;
     const marker = L.marker([muni.centroid_lat, muni.centroid_lon], {
       icon: L.divIcon({ className: '', html: '<div class="municipality-marker-icon"></div>', iconSize: [26, 31], iconAnchor: [13, 29] }),
@@ -7936,11 +7963,16 @@ async function backfillUcCoordinates() {
   loadAllCompanyMarkers();
 }
 
-// Popup for a utility-company map pin — matches the report pin popup's
-// header/body/close-button chrome (see buildPopupHtml) instead of the older
-// bare contact card, so both kinds of pins feel like the same UI. The
-// company name lives in the header (as the report popup's category does),
-// so the body only needs the contact rows, not a repeated name.
+// Popup for a utility-company ("responsible service") map pin — matches the
+// report pin popup's header/body/close-button chrome (see buildPopupHtml):
+// same popup-card/popup-header/popup-body/status-action-row classes, and
+// now the header is colored by the company's own category the same way a
+// report pin's header is colored by its category, instead of a flat grey.
+// Below the contact details (loaded straight from the utility_companies
+// "contacts" admin panel) sits the same Reports/Fixed/Average repair/
+// Response rate grid as the municipality centroid pin, for whichever
+// municipality this company belongs to — so tapping a service pin answers
+// both "how do I reach them" and "how are they actually doing".
 function buildCompanyPopupHtml(c, lat, lon) {
   // Only offered while actively driving — browsing pins on the regular map
   // already has "Details"-style ways to look at a place; drive mode is
@@ -7948,11 +7980,27 @@ function buildCompanyPopupHtml(c, lat, lon) {
   const navigateBtnHtml = (drivingMode && isValidLatLng(lat, lon) && c.id != null)
     ? `<button class="status-action-btn" style="background:#2a2a2a;" onclick="navigateToUtilityCompany('${escapeHtml(String(c.id))}', ${lat}, ${lon})">${t('navigatePinPopupBtn')}</button>`
     : '';
+  const headerColor = (c.categories && c.categories[0]) ? categoryColor(c.categories[0]) : '#3a3a3a';
+  const catsHtml = (c.categories || []).length
+    ? `<div class="uc-item-cats" style="margin-bottom:8px;">${c.categories.map(cat =>
+        `<span class="uc-cat-chip" style="background:${categoryColor(cat)};">${escapeHtml(translateCategory(cat))}</span>`).join('')}</div>`
+    : '';
+  const stats = c.municipality_id != null ? municipalityStatsCache.get(c.municipality_id) : null;
+  const statsHtml = buildMuniStatsGridHtml(stats);
+  const statsSectionHtml = statsHtml
+    ? `<div class="popup-row" style="border-top:1px solid var(--border-color);padding-top:10px;margin-top:2px;">
+         <span class="popup-row-label">${t('muniStatsSectionLabel')}</span>
+       </div>${statsHtml}`
+    : '';
   return `<div class="popup-inner popup-card">
-    <div class="popup-header" style="background:#3a3a3a;">
+    <div class="popup-header" style="background:${headerColor};">
       <span class="popup-header-title">${escapeHtml(c.name)}</span>
     </div>
-    <div class="popup-body" style="padding:12px 14px;">${renderContactRows(c)}</div>
+    <div class="popup-body" style="padding:12px 14px;">
+      ${catsHtml}
+      ${renderContactRows(c)}
+      ${statsSectionHtml}
+    </div>
     <div class="status-action-row" style="border-top:none;padding-top:0;">
       ${navigateBtnHtml}
       <button class="status-action-btn popup-close-btn" style="background:#3a3a3a;" onclick="map.closePopup();">${t('closeBtn')}</button>
