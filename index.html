@@ -2489,7 +2489,7 @@ span.flatpickr-weekday {
 <!-- Shown instead of #reportFormPanel to a signed-in non-admin on a
      non-mobile device (see isMobileDevice/updateAuthUI) — reporting stays
      mobile-only for regular users so every report can plausibly be filed
-     on-site, which is also what makes the 10m proximity gate meaningful. -->
+     on-site, which is also what makes the 50m proximity gate meaningful. -->
 <div class="panel locked-panel" id="desktopBlockedPanel" style="display:none">
   <p id="desktopBlockedMsgText">Reporting is available on mobile only, so every report can be verified on-site.</p>
 </div>
@@ -3806,7 +3806,7 @@ const T = {
   mobileOnlyReport:  { en:'Reporting is available on mobile only.', sr:'Prijavljivanje je dostupno samo na mobilnom uređaju.' },
   proximityInRange:  { en:'\u2713 Close enough to report', sr:'\u2713 Dovoljno blizu za prijavu' },
   proximityTooFar:   { en:'{d}m away — get closer to report', sr:'{d}m udaljenosti — priđite bliže da prijavite' },
-  tooFarToReport:    { en:'You must be within 10m of the pin to report it ({d}m away).', sr:'Morate biti u krugu od 10m od pina da biste prijavili (udaljenost {d}m).' },
+  tooFarToReport:    { en:'You must be within 50m of the pin to report it ({d}m away).', sr:'Morate biti u krugu od 50m od pina da biste prijavili (udaljenost {d}m).' },
   dashboardSectionTitle:     { en:'My Dashboard',        sr:'Moja tabla' },
   dashboardStatPoints:       { en:'Civic points',        sr:'Građanski poeni' },
   dashboardStatSuccessful:   { en:'Successful votes',    sr:'Uspešni glasovi' },
@@ -4233,8 +4233,8 @@ function buildHelpModalContent() {
         ? 'Svaka prijava i svaki glas vam donose poene i podižu vas kroz šest nivoa, od Rešavača problema do Vizionara — viši nivo znači da vaš glas za status prijave vredi više. Pogledajte svoj napredak u Podešavanja → Moja tabla.'
         : 'Every report and every vote earns points and climbs you through six levels, from Problem Solver up to Visionary — a higher level means your status vote counts for more. Check your progress in Settings → My Dashboard.'}</p>
       <p><strong>${lang === 'sr' ? 'Prijavljivanje na licu mesta' : 'On-site reporting'}</strong> ${lang === 'sr'
-        ? 'Prijavljivanje je dostupno samo na mobilnom uređaju, a ako ručno postavite pin na mapu, morate biti u krugu od 10 metara od njega da biste ga prijavili — mala isprekidana kružnica na mapi pokazuje koliko ste blizu.'
-        : 'Reporting is available on mobile only, and if you drop a pin manually, you need to be within 10 meters of it to submit — a small dashed ring on the map shows how close you are.'}</p>
+        ? 'Prijavljivanje je dostupno samo na mobilnom uređaju, a ako ručno postavite pin na mapu, morate biti u krugu od 50 metara od njega da biste ga prijavili — mala isprekidana kružnica na mapi pokazuje koliko ste blizu.'
+        : 'Reporting is available on mobile only, and if you drop a pin manually, you need to be within 50 meters of it to submit — a small dashed ring on the map shows how close you are.'}</p>
     </div>
   `;
 }
@@ -4894,7 +4894,7 @@ function distMeters(a, b) {
 // =============================================================================
 // MOBILE-DEVICE DETECTION — regular (non-admin) users can only file reports
 // from a phone, so every report can plausibly be verified on-site; this is
-// also what makes the 10m proximity gate below meaningful in the first
+// also what makes the 50m proximity gate below meaningful in the first
 // place (on a desktop, "your location" isn't a real GPS fix to begin with).
 // Admins are exempt everywhere this is checked. Three signals, any one of
 // which is enough:
