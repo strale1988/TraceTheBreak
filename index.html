@@ -3023,7 +3023,6 @@ span.flatpickr-weekday {
         <div class="dashboard-level-row">
           <div class="leaderboard-admin-badge" id="adminDashboardBadge"></div>
           <div>
-            <span class="tier-pill dashboard-level-pill" id="adminDashboardLevelPill">1</span>
             <span class="dashboard-level-name" id="adminDashboardLevelName"></span>
           </div>
         </div>
@@ -4010,9 +4009,6 @@ async function renderAdminDashboard() {
     badgeWrap.innerHTML = `<img src="icons/admin-badge-${lvl}.png" alt="" onerror="this.style.display='none';">`;
   }
 
-  const pill = document.getElementById('adminDashboardLevelPill');
-  pill.textContent = lvl;
-  pill.className = 'tier-pill dashboard-level-pill tier-level-' + lvl;
   document.getElementById('adminDashboardLevelName').textContent = adminLevelName(lvl);
   document.getElementById('adminDashboardTagValue').textContent = tag;
 
