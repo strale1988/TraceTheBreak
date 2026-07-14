@@ -1999,7 +1999,15 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
    regardless of tab. Top 3 ranks get a medal-colored left edge + tinted
    background + a color-matched rank number so the podium reads at a
    glance; everyone else is a plain numbered row. No avatar image/initial
-   circle — just rank, name, level pill, and points. */
+   circle — just rank, name, level pill, and points.
+
+   A 5th tab, "Admins" (see loadAdminsTab/renderAdminListRows), is a
+   different shape of list entirely — no points, no position-rank — so it
+   reuses .leaderboard-row/.leaderboard-info/.leaderboard-name but swaps the
+   numbered .leaderboard-rank circle for a themeable .leaderboard-admin-badge
+   image slot (one PNG per admin level, see icons/admin-badge-N.png below)
+   and repurposes the muted subtitle line for that admin's responsibility
+   tag (municipality / country / "Global") instead of a reliability %. */
 .leaderboard-tabs{
   display:flex; gap:6px; overflow-x:auto; -webkit-overflow-scrolling:touch;
   padding-bottom:2px;
@@ -2037,6 +2045,34 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 .leaderboard-points{ flex-shrink:0; text-align:right; }
 .leaderboard-points-value{ font-size:15px; font-weight:800; color:var(--text-primary); }
 .leaderboard-points-label{ font-size:9px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.3px; }
+
+/* --- Leaderboard > Admins tab ---------------------------------------------
+   .leaderboard-admin-badge replaces the numbered .leaderboard-rank circle
+   on this tab: a 36px ring, color-matched per admin level to the exact same
+   palette as .tier-pill.tier-level-1/2/3 above (so a Municipal
+   Controller/Regional Director/Global Overseer reads as the same color
+   everywhere in the app, whether it's a text pill or this badge). The ring
+   itself is drawn in CSS and never depends on the image loading — it's the
+   fallback + backdrop in one. Drop real artwork in as
+   icons/admin-badge-1.png / -2.png / -3.png (level 1/2/3) whenever it's
+   ready; until then (or if a file 404s) the onerror handler in
+   renderAdminListRows swaps in a plain numeral in the same badge color, so
+   the row never looks broken either way. Badge images are intentionally
+   NOT run through --icon-tint-filter — unlike the app's white-glyph UI
+   icons, these are meant to be full-color medallion art sitting on top of
+   the ring, not a monochrome glyph tinted to match the theme. */
+.leaderboard-row-admin{ align-items:center; }
+.leaderboard-admin-badge{
+  flex-shrink:0; width:36px; height:36px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  border:2px solid; overflow:hidden;
+}
+.leaderboard-admin-badge.tier-level-1{ background:#1f2937; border-color:#93c5fd; color:#93c5fd; }
+.leaderboard-admin-badge.tier-level-2{ background:#0f3b36; border-color:#5eead4; color:#5eead4; }
+.leaderboard-admin-badge.tier-level-3{ background:#123a26; border-color:#5ec98a; color:#5ec98a; }
+.leaderboard-admin-badge img{ width:100%; height:100%; object-fit:contain; padding:5px; }
+.leaderboard-admin-badge-fallback{ font-size:14px; font-weight:800; color:inherit; }
+.leaderboard-admin-tag{ font-size:11px; color:var(--text-muted); margin-top:2px; }
 .detail-section-title-row{
   display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;
 }
@@ -2983,6 +3019,7 @@ span.flatpickr-weekday {
       <button type="button" class="leaderboard-tab"        data-tab="month" onclick="switchLeaderboardTab('month')"><span id="lbTabMonth">This Month</span></button>
       <button type="button" class="leaderboard-tab"        data-tab="week"  onclick="switchLeaderboardTab('week')"><span id="lbTabWeek">This Week</span></button>
       <button type="button" class="leaderboard-tab"        data-tab="city"  onclick="switchLeaderboardTab('city')"><span id="lbTabCity">This City</span></button>
+      <button type="button" class="leaderboard-tab"        data-tab="admins" onclick="switchLeaderboardTab('admins')"><span id="lbTabAdmins">Admins</span></button>
     </div>
     <div id="leaderboardCityLabel" class="leaderboard-city-label" style="display:none"></div>
     <div id="leaderboardList"><div class="detail-loading" id="lbLoadingText">Loading…</div></div>
@@ -3596,15 +3633,20 @@ function hideProfileModal() {
 }
 
 // =============================================================================
-// LEADERBOARD — 🏆 button in the header. Four tabs (all/month/week/city) all
-// render the same row markup, just fed by a different get_leaderboard() RPC
-// call (see the Supabase migration add_get_leaderboard_rpc). "Points" shown
-// per row is that tab's window count (reports + votes in range); the level
-// badge and reliability % next to the name are always computed from the
-// user's true all-time totals (profiles.total_contributions /
-// successful_contributions, same fields the header pill/profile modal use)
-// so a level badge means the same thing here as everywhere else in the app.
-// Admins are excluded server-side (see the RPC), same as the level ladder.
+// LEADERBOARD — 🏆 button in the header. First four tabs (all/month/week/
+// city) all render the same row markup, just fed by a different
+// get_leaderboard() RPC call (see the Supabase migration
+// add_get_leaderboard_rpc). "Points" shown per row is that tab's window
+// count (reports + votes in range); the level badge and reliability % next
+// to the name are always computed from the user's true all-time totals
+// (profiles.total_contributions / successful_contributions, same fields the
+// header pill/profile modal use) so a level badge means the same thing here
+// as everywhere else in the app. Admins are excluded server-side (see the
+// RPC), same as the level ladder.
+//
+// The 5th tab, "Admins", is a separate branch fed by its own RPC — see
+// loadAdminsTab below — since it's a completely different question (who
+// holds admin power and over what) rather than a points window.
 // =============================================================================
 let leaderboardTab = 'all';
 let leaderboardCityMuni = null; // resolved once per modal session, reused across tab switches
@@ -3661,6 +3703,11 @@ async function loadLeaderboardTab(tab) {
   const cityLabelEl = document.getElementById('leaderboardCityLabel');
   listEl.innerHTML = `<div class="detail-loading">${t('detailLoading')}</div>`;
   cityLabelEl.style.display = 'none';
+
+  // Admins tab is a different shape of data entirely (no points window,
+  // no city resolution) — hand off to its own loader and stop here rather
+  // than falling through into the get_leaderboard() call below.
+  if (tab === 'admins') { loadAdminsTab(); return; }
 
   let since = null;
   if (tab === 'month') since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -3731,6 +3778,92 @@ function renderLeaderboardRows(rows) {
       <div class="leaderboard-points">
         <div class="leaderboard-points-value">${points}</div>
         <div class="leaderboard-points-label">${t('leaderboardPointsLabel')}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// --- Leaderboard > Admins tab ------------------------------------------------
+// Lists every admin account — nickname, admin level, and what they're
+// responsible for (municipality / country / "Global") — plus the themeable
+// rank badge described in the CSS comment above .leaderboard-admin-badge.
+//
+// Admin rows aren't otherwise readable client-side: RLS on `profiles` only
+// exposes a signed-in user's own row, same reason get_leaderboard() needed
+// to be a SECURITY DEFINER RPC rather than a plain select. This needs the
+// same kind of function. Add alongside get_leaderboard in Supabase:
+//
+//   create or replace function get_admins_list()
+//   returns table(username text, admin_level smallint,
+//                 admin_municipality_id bigint, admin_country_code text)
+//   language sql security definer as $$
+//     select username, admin_level, admin_municipality_id, admin_country_code
+//     from profiles where is_admin = true;
+//   $$;
+//
+// (Only the columns this tab actually renders are selected — no email,
+// no auth id — same minimal-surface principle as get_leaderboard.)
+async function loadAdminsTab() {
+  const listEl = document.getElementById('leaderboardList');
+  try {
+    // Level-1 rows need municipalityCache to turn admin_municipality_id
+    // into a display name — see getMunicipalityForAdminAssignment. Cheap
+    // no-op if it's already loaded (see loadMunicipalityCache's own
+    // warmup-on-startup call).
+    await loadMunicipalityCache();
+    const { data, error } = await sb.rpc('get_admins_list');
+    if (error) throw error;
+    renderAdminListRows(data || []);
+  } catch (err) {
+    console.error('Admins list load failed:', err.message || err);
+    listEl.innerHTML = `<div class="detail-empty">${t('leaderboardAdminsLoadFailed')}</div>`;
+  }
+}
+
+// Same "what is this admin responsible for" logic as currentAdminTag(),
+// just generalized to any admin row instead of only currentProfile — the
+// two are kept as separate functions rather than one reading from a
+// variable, since currentAdminTag() also has to handle "am I even an admin
+// at all" (returns '' if not), which every row here already is by
+// definition.
+function adminRowTag(row) {
+  const lvl = row.admin_level || ADMIN_DEFAULT_LEVEL;
+  if (lvl >= 3) return t('adminTagGlobal');
+  if (lvl === 2) return row.admin_country_code ? countryDisplayName(row.admin_country_code) : t('adminTagUnset');
+  const muni = row.admin_municipality_id != null ? getMunicipalityForAdminAssignment(row.admin_municipality_id) : null;
+  return muni ? municipalityDisplayName(muni) : t('adminTagUnset');
+}
+
+function renderAdminListRows(rows) {
+  const listEl = document.getElementById('leaderboardList');
+  if (!rows.length) {
+    listEl.innerHTML = `<div class="detail-empty">${t('leaderboardAdminsEmpty')}</div>`;
+    return;
+  }
+  // Highest authority first (Global Overseer > Regional Director >
+  // Municipal Controller), alphabetical within a level — there's no
+  // points-based ordering here, so level is the natural "rank".
+  const sorted = rows.slice().sort((a, b) => {
+    const la = a.admin_level || ADMIN_DEFAULT_LEVEL, lb = b.admin_level || ADMIN_DEFAULT_LEVEL;
+    if (lb !== la) return lb - la;
+    return (a.username || '').localeCompare(b.username || '');
+  });
+  listEl.innerHTML = sorted.map(r => {
+    const lvl = r.admin_level || ADMIN_DEFAULT_LEVEL;
+    const tag = adminRowTag(r);
+    return `
+    <div class="leaderboard-row leaderboard-row-admin">
+      <div class="leaderboard-admin-badge tier-level-${lvl}">
+        <img src="icons/admin-badge-${lvl}.png" alt=""
+             onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+        <span class="leaderboard-admin-badge-fallback" style="display:none">${lvl}</span>
+      </div>
+      <div class="leaderboard-info">
+        <div class="leaderboard-name-row">
+          <span class="leaderboard-name">${escapeHtml(r.username || '\u2014')}</span>
+          <span class="tier-pill tier-level-${lvl}">${escapeHtml(adminLevelName(lvl))}</span>
+        </div>
+        <div class="leaderboard-admin-tag">${escapeHtml(tag)}</div>
       </div>
     </div>`;
   }).join('');
@@ -4169,6 +4302,9 @@ const T = {
   lbTabMonth:              { en:'This Month',                          sr:'Ovaj mesec' },
   lbTabWeek:               { en:'This Week',                           sr:'Ova nedelja' },
   lbTabCity:               { en:'This City',                           sr:'Ovaj grad' },
+  lbTabAdmins:             { en:'Admins',                              sr:'Administratori' },
+  leaderboardAdminsEmpty:      { en:'No admins to show.',                          sr:'Nema administratora za prikaz.' },
+  leaderboardAdminsLoadFailed: { en:'Could not load admins. Try again.',           sr:'Administratori nisu mogli da se učitaju. Pokušajte ponovo.' },
   leaderboardPointsLabel:  { en:'points',                              sr:'poena' },
   leaderboardReliability:  { en:'{p}% reliable',                       sr:'{p}% pouzdanosti' },
   leaderboardNewUser:      { en:'New contributor',                     sr:'Novi doprinosilac' },
@@ -4241,6 +4377,8 @@ function applyLang(){
   if (lbTabWeekEl) lbTabWeekEl.textContent = t('lbTabWeek');
   const lbTabCityEl = document.getElementById('lbTabCity');
   if (lbTabCityEl) lbTabCityEl.textContent = t('lbTabCity');
+  const lbTabAdminsEl = document.getElementById('lbTabAdmins');
+  if (lbTabAdminsEl) lbTabAdminsEl.textContent = t('lbTabAdmins');
   if (document.getElementById('leaderboardModal').style.display !== 'none') {
     loadLeaderboardTab(leaderboardTab);
   }
@@ -8884,7 +9022,12 @@ async function showMunicipalityBoundaryForPoint(lat, lon, marker) {
 // =============================================================================
 // ADMIN: UTILITY COMPANY CONTACTS PANEL (Settings modal, admins only)
 // =============================================================================
-const UC_CATEGORIES = ['Water','Electricity','Sewage','Gas','Heating','Road','Streetlight','Waste','Walkways','BikeLanes','GreenSpaces','Parking','Other'];
+// Includes 'Suggestion' (Suggest an Improvement) alongside the fault
+// categories — even though a suggestion isn't a utility fault, admins still
+// want somewhere to route it (e.g. the municipality's civic-engagement
+// office or public-works suggestion line), so it gets a contacts tag like
+// everything else rather than being silently excluded.
+const UC_CATEGORIES = ['Water','Electricity','Sewage','Gas','Heating','Road','Streetlight','Waste','Walkways','BikeLanes','GreenSpaces','Parking','Suggestion','Other'];
 let ucCompaniesCache = [];
 let ucEditingId = null;
 let ucEditingVerified = false;   // verified state of the row currently open in the form
