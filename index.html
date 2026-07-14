@@ -2360,7 +2360,7 @@ span.flatpickr-weekday {
   <span class="legend-item"><span class="legend-dot" style="background:#9c8570"></span><span class="leg" data-en="Walkways" data-sr="Pešačke staze">Pešačke staze</span></span>
   <span class="legend-item"><span class="legend-dot" style="background:#14b8a6"></span><span class="leg" data-en="Bike Lanes" data-sr="Biciklističke staze">Biciklističke staze</span></span>
   <span class="legend-item"><span class="legend-dot" style="background:#3fa34d"></span><span class="leg" data-en="Green Spaces" data-sr="Zelene površine">Zelene površine</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#5c6bc0"></span><span class="leg" data-en="Frequent Parking Violations" data-sr="Nepropisno parkiranje">Nepropisno parkiranje</span></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#5c6bc0"></span><span class="leg" data-en="Frequent Parking Violations" data-sr="Često Nepropisno parkiranje">Često Nepropisno parkiranje</span></span>
   <span class="legend-item"><span class="legend-dot" style="background:#26a69a"></span><span class="leg" data-en="Suggest an Improvement" data-sr="Predlog za poboljšanje">Predlog za poboljšanje</span></span>
   <span class="legend-item"><span class="legend-dot" style="background:#8342a1"></span><span class="leg" data-en="Other" data-sr="Ostalo">Ostalo</span></span>
 </div>
@@ -2382,7 +2382,7 @@ span.flatpickr-weekday {
       <option value="Walkways" data-sr="Pešačke staze">Pešačke staze</option>
       <option value="BikeLanes" data-sr="Biciklističke staze">Biciklističke staze</option>
       <option value="GreenSpaces" data-sr="Zelene površine">Zelene površine</option>
-      <option value="Parking" data-sr="Nepropisno parkiranje">Nepropisno parkiranje</option>
+      <option value="Parking" data-sr="Često Nepropisno parkiranje">Često Nepropisno parkiranje</option>
       <option value="Suggestion" data-sr="Predlog za poboljšanje">Predlog za poboljšanje</option>
       <option value="Other" data-sr="Ostalo">Ostalo</option>
     </select>
@@ -6652,16 +6652,16 @@ function statusLabel(s) {
 }
 function translateCategory(cat) {
   const labelsEn = { Water:'Water', Electricity:'Electricity', Sewage:'Sewage', Gas:'Gas', Heating:'Heating', Road:'Road', Streetlight:'Streetlight', Waste:'Waste', Walkways:'Walkways', BikeLanes:'Bike Lanes', GreenSpaces:'Green Spaces', Parking:'Frequent Parking Violations', Suggestion:'Suggest an Improvement', Other:'Other' };
-  const labelsSr = { Water:'Voda', Electricity:'Struja', Sewage:'Kanalizacija', Gas:'Gas', Heating:'Grejanje', Road:'Put', Streetlight:'Ulična rasveta', Waste:'Otpad', Walkways:'Pešačke staze', BikeLanes:'Biciklističke staze', GreenSpaces:'Zelene površine', Parking:'Nepropisno parkiranje', Suggestion:'Predlog za poboljšanje', Other:'Ostalo' };
+  const labelsSr = { Water:'Voda', Electricity:'Struja', Sewage:'Kanalizacija', Gas:'Gas', Heating:'Grejanje', Road:'Put', Streetlight:'Ulična rasveta', Waste:'Otpad', Walkways:'Pešačke staze', BikeLanes:'Biciklističke staze', GreenSpaces:'Zelene površine', Parking:'Često Nepropisno parkiranje', Suggestion:'Predlog za poboljšanje', Other:'Ostalo' };
   return (lang === 'sr' ? labelsSr[cat] : labelsEn[cat]) || cat;
 }
 
 // Both-language label text for a category, e.g. "Frequent Parking
-// Violations Nepropisno parkiranje" — used by search filters so typing in
+// Violations Često Nepropisno parkiranje" — used by search filters so typing in
 // either language matches regardless of which one is currently displayed.
 function categorySearchText(cat) {
   const labelsEn = { Water:'Water', Electricity:'Electricity', Sewage:'Sewage', Gas:'Gas', Heating:'Heating', Road:'Road', Streetlight:'Streetlight', Waste:'Waste', Walkways:'Walkways', BikeLanes:'Bike Lanes', GreenSpaces:'Green Spaces', Parking:'Frequent Parking Violations', Suggestion:'Suggest an Improvement', Other:'Other' };
-  const labelsSr = { Water:'Voda', Electricity:'Struja', Sewage:'Kanalizacija', Gas:'Gas', Heating:'Grejanje', Road:'Put', Streetlight:'Ulična rasveta', Waste:'Otpad', Walkways:'Pešačke staze', BikeLanes:'Biciklističke staze', GreenSpaces:'Zelene površine', Parking:'Nepropisno parkiranje', Suggestion:'Predlog za poboljšanje', Other:'Ostalo' };
+  const labelsSr = { Water:'Voda', Electricity:'Struja', Sewage:'Kanalizacija', Gas:'Gas', Heating:'Grejanje', Road:'Put', Streetlight:'Ulična rasveta', Waste:'Otpad', Walkways:'Pešačke staze', BikeLanes:'Biciklističke staze', GreenSpaces:'Zelene površine', Parking:'Često Nepropisno parkiranje', Suggestion:'Predlog za poboljšanje', Other:'Ostalo' };
   return [labelsEn[cat], labelsSr[cat], cat].filter(Boolean).join(' ');
 }
 
@@ -10362,7 +10362,15 @@ loadMunicipalityCache().then(() => {
     renderAdminDashboard();
   }
 });
-loadAllCompanyMarkers(); // fire-and-forget — POIs appear on the map as each address is geocoded
+loadAllCompanyMarkers(); // fire-and-forget — POIs appear on the map for every company that already has stored coordinates
+// Fire-and-forget — populates municipalityStatsCache, which both the
+// utility-company POI popup (buildCompanyPopupHtml) and any future
+// municipality-centroid popup read synchronously. Popup content is always
+// rebuilt fresh at popupopen time (see map.on('popupopen', ...) above), so
+// as long as this has landed by the time someone actually taps a pin — which
+// in practice is almost immediate — the stats grid shows up correctly
+// instead of silently rendering as an empty section forever.
+loadMunicipalityStatsCache();
 // Help modal should greet first-time/logged-out visitors, but not talk
 // over a returning, already-signed-in user every time they open the app.
 // initAuth() resolves the session check first, then we decide.
