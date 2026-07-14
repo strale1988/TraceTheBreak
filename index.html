@@ -2153,9 +2153,9 @@ details[open] > summary .uc-group-chevron{ transform:rotate(180deg); /* point do
 /* --- Report photo evidence: picker + preview in the report form --- */
 .report-comment-row{ display:flex; align-items:center; gap:8px; }
 .report-comment-row #comment{ flex:1 1 auto; min-width:0; }
-/* Camera icon opens the OS's own Camera/Gallery chooser directly (see
-   triggerReportPhotoPick) — no custom popover needed. */
-.photo-choice-dropdown{ position:relative; flex:0 0 auto; }
+/* Camera icon opens the device camera directly; gallery icon opens the
+   photo library (see triggerReportPhotoCamera / triggerReportPhotoGallery). */
+.photo-choice-dropdown{ position:relative; flex:0 0 auto; display:flex; gap:6px; }
 .report-photo-preview{
   position:relative; display:flex; width:100%;
 }
@@ -2268,11 +2268,11 @@ details[open] > summary .uc-group-chevron{ transform:rotate(180deg); /* point do
    whole panel. A fixed shared height sidesteps that entirely.
    Scoped to this id only — the unrelated camera button in the report
    detail modal (no id, plain .icon-only-btn) is untouched. */
-#reportPhotoAddBtn{
+#reportPhotoAddBtn, #reportPhotoGalleryBtn{
   width:var(--form-control-h);
   height:var(--form-control-h);
 }
-#reportPhotoAddBtn .icon-img{ width:55%; height:55%; }
+#reportPhotoAddBtn .icon-img, #reportPhotoGalleryBtn .icon-img{ width:55%; height:55%; }
 
 
 #dateRangePicker {
@@ -2461,14 +2461,22 @@ span.flatpickr-weekday {
   <div class="row report-comment-row">
     <input id="comment" type="text" placeholder="Optional notes..." oninput="checkFormReady()">
     <div class="photo-choice-dropdown" id="reportPhotoDropdown">
-      <button type="button" class="icon-only-btn" id="reportPhotoAddBtn" title="Add photo (optional)" aria-label="Add photo (optional)" onclick="triggerReportPhotoPick()">
+      <button type="button" class="icon-only-btn" id="reportPhotoAddBtn" title="Take photo" aria-label="Take photo" onclick="triggerReportPhotoCamera()">
         <img class="icon-img" src="icons/camera.png" alt="">
       </button>
+      <button type="button" class="icon-only-btn" id="reportPhotoGalleryBtn" title="Choose from gallery" aria-label="Choose from gallery" onclick="triggerReportPhotoGallery()">
+        <svg class="icon-img" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="M21 15l-5-5L5 21"></path></svg>
+      </button>
     </div>
-    <!-- No capture attribute — left as a plain file input so the OS shows
-         its own chooser (Camera / Gallery / Files) instead of us building
-         a custom menu for it, same as the later-add-photo flow
-         (addPhotoToReport) already does. -->
+    <!-- Two separate inputs instead of one:
+         - reportPhotoInputCamera has capture="environment", so on mobile
+           the browser opens the device camera directly (no OS chooser
+           step in between).
+         - reportPhotoInputLibrary has no capture attribute, so it opens
+           the normal photo library / file picker.
+         Both share the same onchange handler (onReportPhotoSelected) —
+         the resulting file is processed identically either way. -->
+    <input type="file" accept="image/*" capture="environment" id="reportPhotoInputCamera" style="display:none" onchange="onReportPhotoSelected(this)">
     <input type="file" accept="image/*" id="reportPhotoInputLibrary" style="display:none" onchange="onReportPhotoSelected(this)">
   </div>
 
@@ -6987,12 +6995,15 @@ function compressReportPhoto(file) {
   });
 }
 
-// --- Report form: camera icon opens the OS's own Camera/Gallery chooser ---
-// Used to be a custom "Take Photo / Choose from Library" popover; a plain
-// file input without a capture attribute already makes the browser show
-// that same choice natively, so there's no menu left to manage here (same
-// approach as addPhotoToReport's later-add-photo flow).
-function triggerReportPhotoPick() {
+// --- Report form: two explicit buttons instead of one OS chooser ---
+// reportPhotoAddBtn (camera icon) opens the device camera directly via
+// the capture="environment" input; reportPhotoGalleryBtn (image-stack
+// icon) opens the normal photo library via the plain input. Both funnel
+// into the same onReportPhotoSelected() handler below.
+function triggerReportPhotoCamera() {
+  document.getElementById('reportPhotoInputCamera').click();
+}
+function triggerReportPhotoGallery() {
   document.getElementById('reportPhotoInputLibrary').click();
 }
 
