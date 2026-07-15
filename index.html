@@ -2929,26 +2929,13 @@ span.flatpickr-weekday {
         <button type="button" class="uc-verify-btn" onclick="verifyUtilityCompany()" id="ucVerifyBtn">Admin has checked the data</button>
       </div>
 
-      <!-- Admin: ONE search box that filters everything below it — the
-           oldest-first Waiting list (flagged reports + photos pending
-           approval, merged — see loadWaitingListAdmin()) as well as the
-           free-text All reports search further down (searchAllReportsAdmin).
-           Used to be three separate boxes, one per queue; onAdminSearchInput()
-           now drives both at once from a single field. -->
-      <input type="text" id="adminSearchInput" oninput="onAdminSearchInput()" placeholder="Search reports, flags, photos…" style="width:100%;box-sizing:border-box;margin-bottom:10px;margin-top:18px;">
-
-      <!-- Admin: everything currently needing attention — a report a user
-           flagged with a comment (submitReportFlag), a rejected-photo
-           follow-up (rejectReportPhoto), or a photo waiting for approval —
-           merged into one list, oldest "waiting since" first, so nothing
-           quietly sits at the bottom of a separate tab. See
-           loadWaitingListAdmin() / renderWaitingList(). -->
-      <div class="admin-section-title detail-section-title" id="waitingListSectionTitle">Waiting for review</div>
-      <div id="waitingList"></div>
-
       <!-- Admin: free-text search across every report the signed-in admin
-           can manage (not limited to the Waiting list above) — same search
-           box as above, see searchAllReportsAdmin(). -->
+           can manage — see searchAllReportsAdmin(). The Waiting-for-review
+           queue that used to sit above this moved to the Notification
+           Center (bell button) so it isn't duplicated in two places; this
+           box now only drives the All-reports search below it. -->
+      <input type="text" id="adminSearchInput" oninput="onAdminSearchInput()" placeholder="Search reports…" style="width:100%;box-sizing:border-box;margin-bottom:10px;margin-top:18px;">
+
       <div class="admin-section-title detail-section-title" id="allReportsSectionTitle" style="margin-top:18px;">All reports</div>
       <div id="allReportsList"></div>
     </div>
@@ -3151,7 +3138,10 @@ span.flatpickr-weekday {
           <span id="notificationTargetUserLabel">Specific user</span>
         </label>
       </div>
-      <input type="text" id="notificationUsernameInput" placeholder="Username" style="display:none;width:100%;box-sizing:border-box;margin-top:8px;">
+      <div id="notificationUsernameWrap" style="display:none;margin-top:8px;">
+        <input type="text" id="notificationUsernameInput" placeholder="Username" autocomplete="off" style="width:100%;box-sizing:border-box;" oninput="handleNotificationUsernameInput()">
+        <div id="notificationUsernameResults" class="navigate-results"></div>
+      </div>
       <textarea id="notificationMessageInput" placeholder="Message" rows="3" style="width:100%;box-sizing:border-box;margin-top:8px;resize:vertical;"></textarea>
       <button type="button" class="settings-btn" style="background:#a67817;color:#fff;width:100%;margin-top:8px;" onclick="sendNotificationFromAdmin()" id="notificationSendBtn">Send</button>
     </div>
@@ -4262,7 +4252,56 @@ function renderNotificationModalBody() {
 
 function onNotificationTargetChange() {
   const toUser = document.getElementById('notificationTargetUser').checked;
-  document.getElementById('notificationUsernameInput').style.display = toUser ? 'block' : 'none';
+  document.getElementById('notificationUsernameWrap').style.display = toUser ? 'block' : 'none';
+  if (!toUser) {
+    document.getElementById('notificationUsernameInput').value = '';
+    document.getElementById('notificationUsernameResults').innerHTML = '';
+  }
+}
+
+// Debounced live search against profiles.username as the admin types —
+// same pattern as the destination search in driving mode
+// (handleNavigateSearchInput/searchDestination), reusing its .navigate-results
+// list styling. profiles is readable by anyone (profiles_select_all), so
+// this is a plain client-side query, no RPC needed.
+let notificationUsernameSearchTimer = null;
+function handleNotificationUsernameInput() {
+  clearTimeout(notificationUsernameSearchTimer);
+  const q = document.getElementById('notificationUsernameInput').value.trim();
+  const resultsEl = document.getElementById('notificationUsernameResults');
+  if (!q) { resultsEl.innerHTML = ''; return; }
+  notificationUsernameSearchTimer = setTimeout(() => searchNotificationUsernames(q), 300);
+}
+
+async function searchNotificationUsernames(q) {
+  const resultsEl = document.getElementById('notificationUsernameResults');
+  try {
+    const { data, error } = await sb.from(PROFILES_TABLE)
+      .select('id, username, avatar_url')
+      .not('username', 'is', null)
+      .ilike('username', '%' + q.replace(/[%_]/g, '\\$&') + '%')
+      .order('username')
+      .limit(8);
+    if (error) throw error;
+    if (!data || !data.length) {
+      resultsEl.innerHTML = `<div class="navigate-result-empty">${t('notificationUserNotFound')}</div>`;
+      return;
+    }
+    resultsEl.innerHTML = '';
+    data.forEach(p => {
+      const item = document.createElement('div');
+      item.className = 'navigate-result-item';
+      item.textContent = p.username;
+      item.onclick = () => {
+        document.getElementById('notificationUsernameInput').value = p.username;
+        resultsEl.innerHTML = '';
+      };
+      resultsEl.appendChild(item);
+    });
+  } catch (err) {
+    console.error('Username search failed:', err.message);
+    resultsEl.innerHTML = `<div class="navigate-result-empty">${t('notificationSendFailed')}</div>`;
+  }
 }
 
 async function sendNotificationFromAdmin() {
@@ -4288,6 +4327,7 @@ async function sendNotificationFromAdmin() {
     }
     document.getElementById('notificationMessageInput').value = '';
     document.getElementById('notificationUsernameInput').value = '';
+    document.getElementById('notificationUsernameResults').innerHTML = '';
     toast(t('notificationSent'), 'success');
   } catch (err) {
     console.error('Send notification failed:', err.message);
@@ -5263,7 +5303,7 @@ const T = {
   muniStatsNoRepairData:      { en:'No repair data yet', sr:'Još nema podataka o popravkama' },
   muniStatsSectionLabel:      { en:'Municipality stats', sr:'Statistika opštine' },
 
-  adminSearchPH:          { en:'Search reports, flags, photos…',      sr:'Pretraži prijave, oznake, fotografije…' },
+  adminSearchPH:          { en:'Search reports…',                      sr:'Pretraži prijave…' },
   waitingListSectionTitle:{ en:'Waiting for review',                  sr:'Čeka na proveru' },
   waitingListEmpty:       { en:'Nothing waiting for review right now.', sr:'Trenutno nema ničega što čeka proveru.' },
   notificationModalTitle: { en:'Notifications',                         sr:'Obaveštenja' },
@@ -5454,8 +5494,6 @@ function applyLang(){
     if (arTitleEl) arTitleEl.textContent = t('allReportsSectionTitle');
     const adminSearchEl = document.getElementById('adminSearchInput');
     if (adminSearchEl) adminSearchEl.placeholder = t('adminSearchPH');
-    const wlTitleEl = document.getElementById('waitingListSectionTitle');
-    if (wlTitleEl) wlTitleEl.textContent = t('waitingListSectionTitle');
     renderWaitingList();
     if (adminSearchEl && adminSearchEl.value.trim()) searchAllReportsAdmin();
   }
@@ -5536,20 +5574,15 @@ function showSettingsModal() {
   if (currentProfile && currentProfile.is_admin) {
     cancelUcForm();
     loadUtilityCompaniesAdmin();
-    loadWaitingListAdmin();
-    startWaitingListAutoRefresh();
     resetAdminSearch();
     const arTitleEl = document.getElementById('allReportsSectionTitle');
     if (arTitleEl) arTitleEl.textContent = t('allReportsSectionTitle');
     const adminSearchEl = document.getElementById('adminSearchInput');
     if (adminSearchEl) adminSearchEl.placeholder = t('adminSearchPH');
-    const wlTitleEl = document.getElementById('waitingListSectionTitle');
-    if (wlTitleEl) wlTitleEl.textContent = t('waitingListSectionTitle');
   }
 }
 function hideSettingsModal() {
   document.getElementById('settingsModal').style.display = 'none';
-  if (!anyAdminQueueModalOpen()) stopWaitingListAutoRefresh();
 }
 function buildHelpModalContent() {
   document.getElementById('helpModalTitle').textContent = t('helpTitle');
@@ -10280,13 +10313,12 @@ async function loadWaitingListAdmin() {
 // so it never polls in the background once the panel isn't visible.
 let waitingListRefreshIntervalId = null;
 const WAITING_LIST_REFRESH_MS = 15000;
-// True while any surface that shows the waiting list (Settings admin panel
-// or, for admins, the Notification Center) is open — used to decide
-// whether the refresh loop should keep polling or stop itself.
+// True while the Notification Center (the only surface that now shows the
+// waiting list, for admins) is open — used to decide whether the refresh
+// loop should keep polling or stop itself.
 function anyAdminQueueModalOpen() {
-  const settingsEl = document.getElementById('settingsModal');
   const notifEl = document.getElementById('notificationModal');
-  return !!(settingsEl && settingsEl.style.display !== 'none') || !!(notifEl && notifEl.style.display !== 'none');
+  return !!(notifEl && notifEl.style.display !== 'none');
 }
 function startWaitingListAutoRefresh() {
   if (waitingListRefreshIntervalId !== null) return; // already running
@@ -10310,12 +10342,12 @@ function reportSummaryTitle(r) {
 
 const WAITING_REASON_LABEL = { photo: 'queueTypePhoto', rejected_photo: 'flagReasonRejectedPhoto', user_flag: 'reportFlagsSectionTitle' };
 
-// Rendered into every container that wants a live copy of the waiting list —
-// currently the Settings admin panel (#waitingList) and, for admins, the
-// Notification Center (#notificationWaitingList — see showNotificationModal).
-// Both stay in sync off the one shared waitingListCache/loadWaitingListAdmin
-// above; nothing here is Settings-specific.
-const WAITING_LIST_CONTAINER_IDS = ['waitingList', 'notificationWaitingList'];
+// Rendered into the Notification Center's waiting-list container (admins
+// only — see showNotificationModal). Used to live in Settings too, but
+// that copy was removed once the Notification Center took over as the
+// admin's one queue view; kept as a list of container ids (rather than a
+// single hardcoded id) in case another surface wants it again later.
+const WAITING_LIST_CONTAINER_IDS = ['notificationWaitingList'];
 
 function renderWaitingList() {
   WAITING_LIST_CONTAINER_IDS.forEach(renderWaitingListInto);
