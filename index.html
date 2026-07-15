@@ -508,10 +508,12 @@ button{
 }
 
 /* Heatmap toggle button (bottomright stack, same look/size as the other
-   .pin-map-btn floating buttons) and the small category-filter popover it
-   opens above itself. Unlike .map-legend-pill (informational, pointer-
-   events:none), this panel is interactive — checkboxes — so pointer
-   events are explicitly re-enabled on it and its children. */
+   .pin-map-btn floating buttons). Turning it on opens #heatmapFilterModal
+   (see the fullscreen-modal-overlay block below and toggleHeatmap()) so the
+   category picker gets a real full-viewport layout instead of being
+   crammed into a tiny popover anchored to this button — on a phone that
+   popover used to render at a fixed 190px width right in the corner,
+   half off-screen-feeling and fiddly to tap. */
 .pin-map-btn.heatmap-btn{ position:relative; }
 .pin-map-btn.heatmap-btn.active{ background:#e74c3c; border-color:#e74c3c; }
 .pin-map-btn.heatmap-btn.active .icon-img{ filter:none; }
@@ -522,33 +524,15 @@ button{
    nothing since pointer-events is off entirely (no confirm/tooltip, to
    keep this a plain visual "not right now" rather than a nag). */
 .map-btn-locked{ opacity:.35; pointer-events:none; filter:grayscale(60%); }
-.heatmap-panel{
-  position:absolute;
-  bottom:100%;
-  right:0;
-  margin-bottom:8px;
-  background:var(--floating-bg);
-  backdrop-filter:blur(4px);
-  -webkit-backdrop-filter:blur(4px);
-  border-radius:10px;
-  border:1px solid var(--floating-border);
-  box-shadow:0 2px 10px var(--floating-shadow);
-  padding:8px 10px;
-  display:none;
-  flex-direction:column;
-  gap:5px;
-  width:190px;
-  max-height:60vh;
-  overflow-y:auto;
-  pointer-events:auto;
-  z-index:1;
-}
-.heatmap-panel.open{ display:flex; }
-.heatmap-panel-title{ font-size:11px; font-weight:700; color:var(--text-secondary); text-transform:uppercase; letter-spacing:.03em; margin-bottom:2px; }
-.heatmap-panel-row{ display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-primary); cursor:pointer; }
-.heatmap-panel-row input{ margin:0; flex-shrink:0; }
-.heatmap-panel-dot{ width:9px; height:9px; border-radius:50%; display:inline-block; flex-shrink:0; }
-.heatmap-panel-sep{ height:1px; background:var(--border-color); margin:3px 0; }
+
+/* Rows inside #heatmapFilterModal's .fullscreen-modal-body — same visual
+   language as .detail-row elsewhere in the app, just with a checkbox/dot
+   on the left instead of a label/value pair, and taller (44px-ish) tap
+   targets since this is meant to be comfortably usable one-handed. */
+.heatmap-panel-row{ display:flex; align-items:center; gap:10px; font-size:14px; color:var(--text-primary); cursor:pointer; padding:11px 2px; }
+.heatmap-panel-row:not(:last-child){ border-bottom:1px solid var(--border-color); }
+.heatmap-panel-row input{ margin:0; flex-shrink:0; width:18px; height:18px; }
+.heatmap-panel-dot{ width:11px; height:11px; border-radius:50%; display:inline-block; flex-shrink:0; }
 
 .leaflet-popup-content-wrapper{
   border-radius:10px !important;
@@ -2712,18 +2696,13 @@ span.flatpickr-weekday {
 <div id="drivingModeBtn" class="pin-map-btn" style="display:none" title="Driving mode" onclick="toggleDrivingMode()"><img class="icon-img" src="icons/car.png" alt="Driving mode"></div>
 <!-- Heatmap toggle: swaps the pin/cluster layers for a density blob built
      from globalActiveData (see toggleHeatmap/buildHeatLayer near
-     syncMarkers). The popover panel lets a person narrow the heatmap down
-     to just the categories they care about (potholes live under Road,
-     broken lights under Streetlight, water leaks under Water, trash under
-     Waste, etc.) — same category set/colors as #categoryLegend. -->
+     syncMarkers). Turning it on also opens #heatmapFilterModal (below,
+     grouped with the app's other fullscreen modals) so a person can narrow
+     the heatmap down to just the categories they care about (potholes live
+     under Road, broken lights under Streetlight, water leaks under Water,
+     trash under Waste, etc.) — same category set/colors as #categoryLegend. -->
 <div id="heatmapBtn" class="pin-map-btn heatmap-btn" style="display:none" title="Heatmap" onclick="toggleHeatmap()">
   <img class="icon-img" src="icons/heatmap.png" alt="Heatmap">
-  <div class="heatmap-panel" id="heatmapPanel" onclick="event.stopPropagation()">
-    <div class="heatmap-panel-title" id="heatmapPanelTitle">Show on heatmap</div>
-    <label class="heatmap-panel-row"><input type="checkbox" id="heatmapCatAll" checked onchange="onHeatmapAllToggle(this.checked)"><span id="heatmapCatAllLabel">All categories</span></label>
-    <div class="heatmap-panel-sep"></div>
-    <div id="heatmapCategoryList"></div>
-  </div>
 </div>
 <!-- Main-screen counterpart of the driving-mode compass (#mapCompass below):
      same widget, same tap-to-toggle heading-up behavior, just for walking/
