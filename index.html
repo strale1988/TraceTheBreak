@@ -3149,9 +3149,15 @@ span.flatpickr-weekday {
     <div class="admin-section-title detail-section-title" id="notificationWaitingListSectionTitle" style="display:none;margin-top:18px;">Waiting for review</div>
     <div id="notificationWaitingList"></div>
 
-    <!-- Non-admin inbox — hidden for admins, see renderNotificationModalBody(). -->
-    <div id="notificationUserList" style="display:none"></div>
+    <!-- Own inbox — the same personal notifications list for everyone,
+         admins included (admins get a title above it since they also have
+         the compose panel and waiting list on the same screen; a regular
+         user's screen only has this, so no title is needed for them — see
+         renderNotificationModalBody()). -->
+    <div class="admin-section-title detail-section-title" id="notificationInboxSectionTitle" style="display:none;margin-top:18px;">Your notifications</div>
+    <div id="notificationUserList"></div>
   </div>
+
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -4213,10 +4219,12 @@ function showNotificationModal() {
     '<img class="icon-img icon-img-inline" src="icons/notification.png" alt=""> ' + t('notificationModalTitle');
   document.getElementById('notificationModal').style.display = 'flex';
   renderNotificationModalBody();
+  startNotificationInboxAutoRefresh();
 }
 function hideNotificationModal() {
   document.getElementById('notificationModal').style.display = 'none';
   if (!anyAdminQueueModalOpen()) stopWaitingListAutoRefresh();
+  stopNotificationInboxAutoRefresh();
 }
 
 function renderNotificationModalBody() {
@@ -4224,6 +4232,7 @@ function renderNotificationModalBody() {
   const composePanel = document.getElementById('notificationComposePanel');
   const wlTitle = document.getElementById('notificationWaitingListSectionTitle');
   const wlList = document.getElementById('notificationWaitingList');
+  const inboxTitle = document.getElementById('notificationInboxSectionTitle');
   const userList = document.getElementById('notificationUserList');
 
   document.getElementById('notificationComposeTitle').textContent = t('notificationComposeTitle');
@@ -4233,21 +4242,31 @@ function renderNotificationModalBody() {
   document.getElementById('notificationMessageInput').placeholder = t('notificationMessagePH');
   document.getElementById('notificationSendBtn').textContent = t('notificationSendBtn');
   if (wlTitle) wlTitle.textContent = t('waitingListSectionTitle');
+  if (inboxTitle) inboxTitle.textContent = t('notificationInboxSectionTitle');
 
+  // Everyone gets their own inbox rendered — admins included. This used to
+  // be hidden outright for admins (userList.style.display = 'none'), which
+  // meant a message actually sent TO an admin (e.g. by another admin, or a
+  // direct notification that happens to target an admin's username) still
+  // bumped the header badge but could never be opened and read: the compose
+  // panel and waiting list took over the whole modal for admins and the
+  // inbox underneath was never shown. Admins now see it too, under its own
+  // title so it doesn't get confused with the compose/waiting-list tools.
   if (isAdmin) {
     composePanel.style.display = 'block';
     wlTitle.style.display = 'block';
     wlList.style.display = 'block';
-    userList.style.display = 'none';
+    inboxTitle.style.display = 'block';
     loadWaitingListAdmin();
     startWaitingListAutoRefresh();
   } else {
     composePanel.style.display = 'none';
     wlTitle.style.display = 'none';
     wlList.style.display = 'none';
-    userList.style.display = 'block';
-    loadUserNotifications();
+    inboxTitle.style.display = 'none';
   }
+  userList.style.display = 'block';
+  loadUserNotifications();
 }
 
 function onNotificationTargetChange() {
@@ -4337,10 +4356,10 @@ async function sendNotificationFromAdmin() {
   }
 }
 
-async function loadUserNotifications() {
+async function loadUserNotifications(silent) {
   if (!currentSession) { userNotificationsCache = []; renderUserNotifications(); return; }
   const listEl = document.getElementById('notificationUserList');
-  listEl.innerHTML = `<div class="detail-loading">${t('detailLoading')}</div>`;
+  if (!silent) listEl.innerHTML = `<div class="detail-loading">${t('detailLoading')}</div>`;
   try {
     const { data, error } = await sb.from('notifications')
       .select('*')
@@ -4415,6 +4434,30 @@ async function refreshUnreadNotificationCount() {
     }
   } catch (err) {
     console.error('Failed to refresh notification count:', err.message);
+  }
+}
+
+// Keeps the Notification Center's own inbox (and the header badge) current
+// while the modal is open, the same way startWaitingListAutoRefresh keeps
+// the admin queue current — without this, a message that arrives while
+// someone is sitting in the modal only ever shows up after they close and
+// reopen it. Runs for everyone, not just admins: a regular user's inbox is
+// the whole point of the modal for them. Silent so a background poll never
+// flashes the loading placeholder over a list the person may be reading.
+let notificationInboxRefreshIntervalId = null;
+const NOTIFICATION_INBOX_REFRESH_MS = 15000;
+function startNotificationInboxAutoRefresh() {
+  if (notificationInboxRefreshIntervalId !== null) return; // already running
+  notificationInboxRefreshIntervalId = setInterval(() => {
+    if (!anyAdminQueueModalOpen()) { stopNotificationInboxAutoRefresh(); return; }
+    loadUserNotifications(true);
+    refreshUnreadNotificationCount();
+  }, NOTIFICATION_INBOX_REFRESH_MS);
+}
+function stopNotificationInboxAutoRefresh() {
+  if (notificationInboxRefreshIntervalId !== null) {
+    clearInterval(notificationInboxRefreshIntervalId);
+    notificationInboxRefreshIntervalId = null;
   }
 }
 
@@ -5319,6 +5362,7 @@ const T = {
   notificationEmptyMessage:{ en:'Write a message first.',                sr:'Prvo napišite poruku.' },
   notificationNoUsername: { en:'Enter a username to send to.',          sr:'Unesite korisničko ime primaoca.' },
   notificationUserNotFound:{ en:'No user with that username.',          sr:'Ne postoji korisnik sa tim imenom.' },
+  notificationInboxSectionTitle:{ en:'Your notifications',              sr:'Vaša obaveštenja' },
   notificationsEmpty:     { en:'No notifications yet.',                 sr:'Još nema obaveštenja.' },
   notificationLoadFailed: { en:'Could not load notifications.',         sr:'Obaveštenja nisu mogla biti učitana.' },
   queueTypePhoto:         { en:'Photo pending',                       sr:'Fotografija na čekanju' },
@@ -8569,7 +8613,8 @@ const REPORT_PHOTO_BUCKET = 'report-photos';
 const REPORT_PHOTO_MAX_DIMENSION = 1280;        // px, longest side, after downscaling — plenty to see a pothole/leak/downed line clearly, well below what a phone camera shoots natively
 const REPORT_PHOTO_JPEG_QUALITY = 0.72;         // still visually clean at this size; the drop from 0.8 saves more here than it would at full resolution
 const REPORT_PHOTO_MAX_INPUT_BYTES = 15 * 1024 * 1024; // reject absurd originals before even trying to decode them
-const REPORT_PHOTO_SIGNED_URL_TTL = 300;        // seconds a viewing link stays valid for
+const REPORT_PHOTO_SIGNED_URL_TTL = 300;        // seconds a viewing link stays valid for — fine for in-app viewing, where the link is used right away
+const REPORT_PHOTO_EMAIL_SIGNED_URL_TTL = 60 * 60 * 24 * 7; // 7 days — an emailed link may sit unread in an inbox for a while, so it needs to outlive the in-app default
 
 let pendingReportPhotoBlob = null;       // compressed Blob, uploaded only once the report itself is saved
 let pendingReportPhotoPreviewUrl = null; // object URL backing the on-screen thumbnail
@@ -8779,10 +8824,10 @@ function refreshReportViews(reportId) {
 // detail modal and the admin Photo review queue. Short TTL is fine since
 // both call sites fetch a fresh one each time they render, and it means a
 // copied/leaked link goes stale quickly rather than staying valid forever.
-async function getReportPhotoSignedUrl(path) {
+async function getReportPhotoSignedUrl(path, ttlSeconds) {
   if (!path) return null;
   try {
-    const { data, error } = await sb.storage.from(REPORT_PHOTO_BUCKET).createSignedUrl(path, REPORT_PHOTO_SIGNED_URL_TTL);
+    const { data, error } = await sb.storage.from(REPORT_PHOTO_BUCKET).createSignedUrl(path, ttlSeconds || REPORT_PHOTO_SIGNED_URL_TTL);
     if (error) throw error;
     return data && data.signedUrl;
   } catch (err) {
@@ -11533,17 +11578,24 @@ async function submitReportFlag(reportId) {
 // Shared by showReportDetailModal and emailReport so both always agree
 // on exactly which contacts count (verified + matching category) — resolving
 // this two different ways in two places would risk them drifting apart.
-// Once resolved for a report/pin, contacts are cached directly on the report
-// object (report.contacts) so reopening the same pin later in the session —
-// or emailing right after viewing it — reuses them instead of re-querying
-// Supabase every time. This mirrors the municipality_id backfill elsewhere:
-// resolve once, keep it on the pin. Note: this is an in-memory, per-session
-// cache only (cleared whenever loadPinsByWindow() re-fetches reports), so a
-// contact an admin verifies mid-session won't retroactively appear on a pin
-// whose contacts were already cached — reopening after a fresh map load
-// picks up the change.
+// Once resolved for a report/pin, a NON-EMPTY result is cached directly on
+// the report object (report.contacts) so reopening the same pin later in
+// the session — or emailing right after viewing it — reuses it instead of
+// re-querying Supabase every time. This mirrors the municipality_id
+// backfill elsewhere: resolve once, keep it on the pin.
+//
+// Deliberately NOT caching an empty result: `if (report.contacts)` used to
+// gate the cache, but `[]` is truthy in JS, so the very first time a report
+// was opened before its contact existed (or before an admin had verified
+// it), that empty array got cached and every later reopen in the same
+// session kept returning "no contacts" — even after the contact was added
+// and verified — because the truthy-but-empty cache short-circuited the
+// query before it ever ran again. Only caching non-empty results means an
+// empty lookup simply retries next time instead of sticking for the rest
+// of the session; it costs one extra query for reports that genuinely have
+// no contacts, which is a fair trade for not silently hiding real ones.
 async function getReportContacts(report, muni) {
-  if (report.contacts) return report.contacts;
+  if (report.contacts && report.contacts.length) return report.contacts;
   if (!muni || muni.id == null) { report.contacts = []; return report.contacts; }
   try {
     // .eq('verified', true): only contacts an admin has explicitly checked
@@ -11715,6 +11767,17 @@ async function emailReport(reportId) {
     const contacts = muni ? await getReportContacts(report, muni) : [];
     const toEmails = contacts.map(c => c.email).filter(Boolean).join(',');
 
+    // Only an approved photo is fair game to hand to an outside recipient —
+    // same bar as showPhotoImage uses for showing it on-screen to anyone
+    // other than the owner/an admin. mailto: can't carry a real file
+    // attachment (there's no such thing as an attachment param in the
+    // scheme), so a signed link is the closest equivalent — given a much
+    // longer TTL than the in-app default since it may sit unread for days.
+    let photoUrl = null;
+    if (report.photo_path && report.photo_status === 'approved') {
+      photoUrl = await getReportPhotoSignedUrl(report.photo_path, REPORT_PHOTO_EMAIL_SIGNED_URL_TTL);
+    }
+
     const shareUrl = reportShareUrl(report.id);
     const subject = encodeURIComponent(headerTitle);
     const bodyLines = [
@@ -11733,6 +11796,7 @@ async function emailReport(reportId) {
       `${boldText(t('detailMunicipalityLabel'))}: ${muniText}`,
       `${boldText(t('detailCoordsLabel'))}: ${report.latitude.toFixed(6)}, ${report.longitude.toFixed(6)}`,
       ...(report.comment ? ['', `${boldText(lang === 'sr' ? 'Opis' : 'Description')}: ${report.comment}`] : []),
+      ...(photoUrl ? ['', `${boldText(lang === 'sr' ? 'Fotografija' : 'Photo')}: ${photoUrl}`] : []),
       '',
       lang === 'sr' ? `Detaljan izveštaj i mapa: ${shareUrl}` : `Full report and map: ${shareUrl}`,
       '',
