@@ -1435,6 +1435,21 @@ body.driving-active #appPanel{
 }
 .dashboard-stat-value{ font-size:17px; font-weight:800; color:var(--text-primary); }
 .dashboard-stat-label{ font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.3px; margin-top:2px; }
+/* "This Week" bar chart — see renderWeeklyChart(). Bar color is a fixed
+   green (not an accent/theme var) since, like the other status colors in
+   this file, it means the same thing regardless of light/dark theme. */
+.weekly-chart{
+  display:flex; align-items:flex-end; justify-content:space-between; gap:6px;
+  background:var(--bg-surface-alt); border-radius:10px; padding:12px 8px 8px; margin-top:8px;
+}
+.weekly-chart-col{ flex:1 1 0; display:flex; flex-direction:column; align-items:center; min-width:0; }
+.weekly-chart-bar-wrap{
+  height:72px; width:100%; display:flex; flex-direction:column;
+  align-items:center; justify-content:flex-end;
+}
+.weekly-chart-value{ font-size:11px; font-weight:800; color:var(--text-primary); margin-bottom:3px; }
+.weekly-chart-bar{ width:60%; max-width:20px; border-radius:5px 5px 2px 2px; background:#28c76f; min-height:4px; }
+.weekly-chart-day{ font-size:9.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.02em; margin-top:6px; }
 .dashboard-badges-title{ font-size:12px; font-weight:700; color:var(--text-secondary); text-transform:uppercase; letter-spacing:.03em; margin-top:16px; }
 .badge-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(85px,1fr)); gap:12px 6px; margin-top:8px; }
 .badge-tile{ display:flex; flex-direction:column; align-items:center; gap:5px; text-align:center; opacity:.4; }
@@ -3025,22 +3040,14 @@ span.flatpickr-weekday {
             <div class="dashboard-stat-label" id="dashboardStatWeightLabel">Your vote weight</div>
           </div>
         </div>
-        <!-- This Week: rolling 7-day window, same as the Leaderboard > This
-             Week tab (see loadLeaderboardTab) — reports count is exact
-             (client-computed from the user's own reports), rank is best-
-             effort since get_leaderboard() only returns the top 50 overall;
-             see getUserWeeklyRank(). -->
+        <!-- This Week: calendar week (Mon-Sun, local time), per-day report
+             counts as a small bar chart — see getUserBadgeStats()'s
+             weeklyBreakdown and renderWeeklyChart(). The rank that used to
+             sit in a stat box here now lives in the identity row at the top
+             of the modal instead (see renderUserDashboard/renderDashboardTab),
+             so it doesn't need its own spot in this section. -->
         <div class="dashboard-badges-title" id="dashboardWeekTitle">This Week</div>
-        <div class="dashboard-stats-grid">
-          <div class="dashboard-stat-box">
-            <div class="dashboard-stat-value" id="dashboardStatWeekReports">0</div>
-            <div class="dashboard-stat-label" id="dashboardStatWeekReportsLabel">Reports this week</div>
-          </div>
-          <div class="dashboard-stat-box">
-            <div class="dashboard-stat-value" id="dashboardStatWeekRank">—</div>
-            <div class="dashboard-stat-label" id="dashboardStatWeekRankLabel">This week's rank</div>
-          </div>
-        </div>
+        <div class="weekly-chart" id="dashboardWeeklyChart"></div>
         <div class="dashboard-badges-title" id="dashboardBadgesTitle">Badges</div>
         <div class="badge-grid" id="dashboardBadgeGrid"></div>
       </div>
@@ -4348,7 +4355,7 @@ function renderAdminListRows(rows) {
 async function getUserBadgeStats() {
   const empty = {
     reportCount:0, voteCount:0, photoCount:0, commentCount:0, distinctCities:0,
-    reportsThisWeek:0, successfulContributions:0, hasEarlyBirdReport:false,
+    reportsThisWeek:0, weeklyBreakdown:[0,0,0,0,0,0,0], successfulContributions:0, hasEarlyBirdReport:false,
     hasNightOwlReport:false, hasGhostHourReport:false, hasHalloweenReport:false,
     hasHolidayReport:false, maxLevelReached:false, allNonSecretEarned:false, allEarned:false,
   };
@@ -4369,6 +4376,21 @@ async function getUserBadgeStats() {
     const distinctCities = new Set(rows.map(r => r.municipality_id).filter(v => v != null)).size;
     const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
     const reportsThisWeek = rows.filter(r => r.created_at && new Date(r.created_at).getTime() >= weekAgo).length;
+
+    // Per-day breakdown for the "This Week" bar chart — a Monday-start
+    // calendar week (local time), unlike reportsThisWeek above which is a
+    // rolling 7-day window (kept as-is since that one still matches the
+    // Leaderboard > This Week tab's own window). getDay() is 0=Sun..6=Sat;
+    // shifting it makes index 0 Monday, matching the Mon-Sun display order.
+    const now = new Date();
+    const mondayIdx = (now.getDay() + 6) % 7;
+    const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - mondayIdx);
+    const weeklyBreakdown = [0, 0, 0, 0, 0, 0, 0];
+    rows.forEach(r => {
+      if (!r.created_at) return;
+      const diffDays = Math.floor((new Date(r.created_at) - monday) / 86400000);
+      if (diffDays >= 0 && diffDays < 7) weeklyBreakdown[diffDays]++;
+    });
 
     // Time/date-of-report badges — read straight off created_at, which is
     // already public per-report data (shown in the UI everywhere), so no
@@ -4392,7 +4414,7 @@ async function getUserBadgeStats() {
     const maxLevelReached = levelForPoints(totalContributions).level >= USER_LEVELS[USER_LEVELS.length - 1].level;
 
     const stats = {
-      reportCount, voteCount, photoCount, commentCount, distinctCities, reportsThisWeek,
+      reportCount, voteCount, photoCount, commentCount, distinctCities, reportsThisWeek, weeklyBreakdown,
       successfulContributions, hasEarlyBirdReport, hasNightOwlReport, hasGhostHourReport,
       hasHalloweenReport, hasHolidayReport, maxLevelReached,
       allNonSecretEarned:false, allEarned:false,
@@ -4433,6 +4455,31 @@ async function getUserWeeklyRank() {
     console.error('Failed to load weekly rank:', err.message || err);
     return { rank: null };
   }
+}
+
+// Renders the "This Week" bar chart from getUserBadgeStats()'s
+// weeklyBreakdown (Mon..Sun counts). Each bar gets a small floor height so
+// a zero-report day still shows a visible sliver rather than nothing at
+// all — otherwise an empty week would just look like a blank box.
+const WEEKDAY_LABELS_EN = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const WEEKDAY_LABELS_SR = ['Pon', 'Uto', 'Sre', 'Čet', 'Pet', 'Sub', 'Ned'];
+function renderWeeklyChart(breakdown) {
+  const el = document.getElementById('dashboardWeeklyChart');
+  if (!el) return;
+  const counts = breakdown || [0, 0, 0, 0, 0, 0, 0];
+  const labels = lang === 'sr' ? WEEKDAY_LABELS_SR : WEEKDAY_LABELS_EN;
+  const max = Math.max(1, ...counts); // avoid a divide-by-zero when the whole week is empty
+  el.innerHTML = counts.map((c, i) => {
+    const pct = Math.max(4, Math.round((c / max) * 100));
+    return `
+    <div class="weekly-chart-col">
+      <div class="weekly-chart-bar-wrap">
+        <div class="weekly-chart-value">${c}</div>
+        <div class="weekly-chart-bar" style="height:${pct}%"></div>
+      </div>
+      <div class="weekly-chart-day">${escapeHtml(labels[i])}</div>
+    </div>`;
+  }).join('');
 }
 
 async function renderUserDashboard() {
@@ -4483,10 +4530,13 @@ async function renderUserDashboard() {
   const [stats, weekly] = await Promise.all([getUserBadgeStats(), getUserWeeklyRank()]);
   if (!currentSession || !currentProfile || currentProfile.is_admin) return;
 
-  const weekReportsEl = document.getElementById('dashboardStatWeekReports');
-  if (weekReportsEl) weekReportsEl.textContent = stats.reportsThisWeek;
-  const weekRankEl = document.getElementById('dashboardStatWeekRank');
-  if (weekRankEl) weekRankEl.textContent = weekly.rank ? ('#' + weekly.rank) : t('dashboardWeekRankOutside');
+  renderWeeklyChart(stats.weeklyBreakdown);
+
+  // Nickname in the modal header's identity row is replaced with this
+  // week's rank instead — see the dashboard-identity-row comment in the
+  // markup for why a separate stat box for it was dropped.
+  const idNameEl = document.getElementById('dashboardIdentityName');
+  if (idNameEl) idNameEl.textContent = weekly.rank ? ('#' + weekly.rank) : t('dashboardWeekRankOutside');
 
   const badgeGrid = document.getElementById('dashboardBadgeGrid');
   if (badgeGrid) {
@@ -4764,8 +4814,6 @@ const T = {
   dashboardSectionTitle:     { en:'My Dashboard',        sr:'Moja tabla' },
   dashboardBadgesTitle:      { en:'Badges',              sr:'Značke' },
   dashboardWeekTitle:            { en:'This Week',            sr:'Ove nedelje' },
-  dashboardStatWeekReportsLabel: { en:'Reports this week',    sr:'Prijave ove nedelje' },
-  dashboardStatWeekRankLabel:    { en:"This week's rank",     sr:'Rang ove nedelje' },
   dashboardWeekRankOutside:      { en:'Outside top 50',        sr:'Van top 50' },
   badgeComingSoon:           { en:'coming soon',         sr:'uskoro' },
   badgeComingSoonShort:      { en:'Soon',                sr:'Uskoro' },
@@ -5171,10 +5219,6 @@ function applyLang(){
   if (dashBadgesTitleEl) dashBadgesTitleEl.textContent = t('dashboardBadgesTitle');
   const dashWeekTitleEl = document.getElementById('dashboardWeekTitle');
   if (dashWeekTitleEl) dashWeekTitleEl.textContent = t('dashboardWeekTitle');
-  const dashWeekReportsLabel = document.getElementById('dashboardStatWeekReportsLabel');
-  if (dashWeekReportsLabel) dashWeekReportsLabel.textContent = t('dashboardStatWeekReportsLabel');
-  const dashWeekRankLabel = document.getElementById('dashboardStatWeekRankLabel');
-  if (dashWeekRankLabel) dashWeekRankLabel.textContent = t('dashboardStatWeekRankLabel');
   const heatmapBtnEl = document.getElementById('heatmapBtn');
   if (heatmapBtnEl) heatmapBtnEl.title = t('heatmapBtnTitle');
   const heatmapPanelTitleEl = document.getElementById('heatmapPanelTitle');
@@ -7633,6 +7677,27 @@ function initGps() {
   }
 }
 initGps();
+
+// Turning Location Services on/off happens from the phone's system
+// Settings, which backgrounds this tab — coming back fires
+// 'visibilitychange' to 'visible'. On real devices this turned out to be
+// necessary, not just a nice-to-have on top of the second-by-second
+// watchdog above: several mobile browsers leave a watch that died while
+// backgrounded in a state where it never calls back again — no error, no
+// fix, nothing for the watchdog's staleness check or the retry loop to
+// react to — because the browser only re-attaches its location session to
+// a foregrounded tab, not a backgrounded one. That's exactly why only a
+// full page reload (which reruns initGps() fresh) used to fix it. Forcing
+// a clean restart right on resume covers the same moment without needing
+// the reload.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  if (gpsWatchId !== null) {
+    navigator.geolocation.clearWatch(gpsWatchId);
+    gpsWatchId = null;
+  }
+  startWatching();
+});
 
 // Now that #settingsBtn lives in the header (next to the fullscreen
 // button) instead of floating over the map, this stack moves into the
