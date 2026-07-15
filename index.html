@@ -10684,12 +10684,19 @@ function renderAllReportsResults(list) {
 
 async function approveReportPhoto(reportId) {
   try {
-    const { error } = await sb.from(TABLE).update({
+    // .select().single() forces PostgREST to return the row it actually
+    // touched. If an RLS USING clause silently excludes this row (e.g. a
+    // domain-scoped UPDATE policy), zero rows match and Postgres/PostgREST
+    // report that as *success* with an empty result — without .select() we
+    // had no way to tell that apart from a real approval, so the toast lied
+    // and the row just sat unchanged in the queue.
+    const { data, error } = await sb.from(TABLE).update({
       photo_status: 'approved',
       photo_reviewed_at: new Date().toISOString(),
       photo_reviewed_by: currentSession ? currentSession.user.id : null
-    }).eq('id', reportId);
+    }).eq('id', reportId).select().single();
     if (error) throw error;
+    if (!data) throw new Error('no-row-updated'); // matched 0 rows — RLS blocked it silently
     toast(t('photoApproved'), 'success');
     await loadWaitingListAdmin();
     await loadPinsByWindow(); // the approved photo may now be visible on the public report
@@ -10702,14 +10709,15 @@ async function approveReportPhoto(reportId) {
 async function rejectReportPhoto(reportId) {
   if (!confirm(t('photoRejectConfirm'))) return;
   try {
-    const { error } = await sb.from(TABLE).update({
+    const { data, error } = await sb.from(TABLE).update({
       photo_status: 'rejected',
       photo_reviewed_at: new Date().toISOString(),
       photo_reviewed_by: currentSession ? currentSession.user.id : null,
       flagged_for_review: true,
       flag_reason: 'rejected_photo'
-    }).eq('id', reportId);
+    }).eq('id', reportId).select().single();
     if (error) throw error;
+    if (!data) throw new Error('no-row-updated');
     toast(t('photoRejected'), 'success');
     await loadWaitingListAdmin();
   } catch (err) {
