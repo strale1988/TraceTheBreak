@@ -1968,11 +1968,12 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 .fullscreen-modal-close .icon-img, .fullscreen-modal-share .icon-img{
   width:18px; height:18px; filter:var(--icon-tint-filter);
 }
-/* Leaderboard modal title trophy icon lives in .fullscreen-modal-header,
-   not .fullscreen-modal-body, so it falls outside the generic
-   `.fullscreen-modal-body .icon-img` tint rule above — scoped fix so it
-   reads correctly in both themes instead of staying its raw light glyph. */
-#leaderboardModalTitle .icon-img{ filter:var(--icon-tint-filter); }
+/* Leaderboard/notification modal title icons live in .fullscreen-modal-header,
+   not .fullscreen-modal-body, so they fall outside the generic
+   `.fullscreen-modal-body .icon-img` tint rule above — scoped fix so they
+   read correctly in both themes instead of staying their raw light glyph. */
+#leaderboardModalTitle .icon-img,
+#notificationModalTitle .icon-img{ filter:var(--icon-tint-filter); }
 .fullscreen-modal-body{
   flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch;
   padding:16px 16px calc(24px + env(safe-area-inset-bottom, 0px)) 16px;
@@ -3059,7 +3060,7 @@ span.flatpickr-weekday {
            cosmetic — see the comment above that array for why it doesn't
            touch actual permissions). The achievements grid below is driven
            by a mix of report_flags.resolved_by and brake_reports
-           created_at/resolved_at/resolved_by — see getAdminModerationStats()
+           created_at/photo_reviewed_at/photo_reviewed_by — see getAdminModerationStats()
            near renderAdminDashboard. -->
       <div class="detail-section dashboard-section" id="adminDashboardSection" style="display:none">
         <div class="detail-section-title" id="adminDashboardSectionTitle">My Admin Role</div>
@@ -3807,7 +3808,7 @@ const ADMIN_BADGES = [
 ];
 
 // Most of these need moderation-history data the app already has
-// (brake_reports created_at/resolved_at/resolved_by, report_flags
+// (brake_reports created_at/photo_reviewed_at/photo_reviewed_by, report_flags
 // resolved_by) — see getAdminModerationStats() for exactly how each
 // stats.* field below is derived. The rest (Fair Judge/Precision
 // Moderator's reversal-rate, Anti-Spam's fake/spam identification,
@@ -3966,11 +3967,11 @@ function adminXpLevelName(lvl) { return lang === 'sr' ? lvl.nameSr : lvl.nameEn;
 // Builds the full moderation-activity stats object every computable admin
 // badge check (and the XP ladder) reads from. Two queries total: resolved
 // report_flags (existing getAdminResolvedFlagCount logic, inlined here) and
-// resolved brake_reports (created_at + resolved_at, so streaks/same-day/
+// reviewed brake_reports (created_at + photo_reviewed_at, so streaks/same-day/
 // within-an-hour/night-shift can all be derived client-side without needing
 // a dedicated RPC). RLS should allow a signed-in admin to read at least
-// rows they resolved themselves (resolved_by = auth.uid()) — broader admin
-// read access is fine too since this only ever filters to their own id.
+// rows they reviewed themselves (photo_reviewed_by = auth.uid()) — broader
+// admin read access is fine too since this only ever filters to their own id.
 async function getAdminModerationStats() {
   const empty = {
     resolvedFlagCount:0, resolvedReportCount:0, moderationCount:0, resolvedThisWeek:0,
@@ -3980,9 +3981,17 @@ async function getAdminModerationStats() {
   };
   if (!currentSession) return empty;
   try {
+    // NOTE: this used to filter on brake_reports.resolved/resolved_by/
+    // resolved_at — columns nothing in the app ever writes (photo review
+    // decisions stamp photo_reviewed_at/photo_reviewed_by instead, see
+    // approveReportPhoto/rejectReportPhoto), so that query always came back
+    // empty and every stat/badge below was permanently stuck at zero.
+    // photo_reviewed_by covers both an approval and a rejection — both are
+    // a real moderation decision on that report, same as "Moderate 1000
+    // reports" (a_guardian, checked against moderationCount) treats them.
     const [{ count: flagCount, error: flagErr }, { data: resolvedRows, error: reportErr }] = await Promise.all([
       sb.from('report_flags').select('id', { count: 'exact', head: true }).eq('resolved_by', currentSession.user.id),
-      sb.from(TABLE).select('created_at, resolved_at').eq('resolved_by', currentSession.user.id).eq('resolved', true),
+      sb.from(TABLE).select('created_at, photo_reviewed_at').eq('photo_reviewed_by', currentSession.user.id),
     ]);
     if (flagErr) throw flagErr;
     if (reportErr) throw reportErr;
@@ -3992,27 +4001,27 @@ async function getAdminModerationStats() {
     const resolvedReportCount = rows.length;
     const moderationCount = resolvedReportCount + resolvedFlagCount;
     const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    const resolvedThisWeek = rows.filter(r => r.resolved_at && new Date(r.resolved_at).getTime() >= weekAgo).length;
+    const resolvedThisWeek = rows.filter(r => r.photo_reviewed_at && new Date(r.photo_reviewed_at).getTime() >= weekAgo).length;
 
     // Per-day breakdown for the admin "This Week" chart — same Monday-start
     // calendar-week logic as getUserBadgeStats()'s weeklyBreakdown, just
-    // keyed off resolved_at instead of created_at.
+    // keyed off photo_reviewed_at instead of created_at.
     const nowD = new Date();
     const mondayIdx = (nowD.getDay() + 6) % 7;
     const monday = new Date(nowD.getFullYear(), nowD.getMonth(), nowD.getDate() - mondayIdx);
     const weeklyBreakdown = [0, 0, 0, 0, 0, 0, 0];
     rows.forEach(r => {
-      if (!r.resolved_at) return;
-      const diffDays = Math.floor((new Date(r.resolved_at) - monday) / 86400000);
+      if (!r.photo_reviewed_at) return;
+      const diffDays = Math.floor((new Date(r.photo_reviewed_at) - monday) / 86400000);
       if (diffDays >= 0 && diffDays < 7) weeklyBreakdown[diffDays]++;
     });
 
-    const fastResolves = rows.filter(r => r.created_at && r.resolved_at &&
-      (new Date(r.resolved_at) - new Date(r.created_at)) <= 60 * 60 * 1000).length;
+    const fastResolves = rows.filter(r => r.created_at && r.photo_reviewed_at &&
+      (new Date(r.photo_reviewed_at) - new Date(r.created_at)) <= 60 * 60 * 1000).length;
 
     const nightShiftCount = rows.filter(r => {
-      if (!r.resolved_at) return false;
-      const h = new Date(r.resolved_at).getHours();
+      if (!r.photo_reviewed_at) return false;
+      const h = new Date(r.photo_reviewed_at).getHours();
       return h >= 0 && h < 5;
     }).length;
 
@@ -4021,12 +4030,12 @@ async function getAdminModerationStats() {
     // the day-streak (On Duty).
     const dayKey = d => { const dt = new Date(d); return `${dt.getFullYear()}-${dt.getMonth()}-${dt.getDate()}`; };
     const dayCounts = {};
-    rows.forEach(r => { if (r.resolved_at) dayCounts[dayKey(r.resolved_at)] = (dayCounts[dayKey(r.resolved_at)] || 0) + 1; });
+    rows.forEach(r => { if (r.photo_reviewed_at) dayCounts[dayKey(r.photo_reviewed_at)] = (dayCounts[dayKey(r.photo_reviewed_at)] || 0) + 1; });
     const maxDayCount = Object.keys(dayCounts).length ? Math.max(...Object.values(dayCounts)) : 0;
 
     const dayMs = 24 * 60 * 60 * 1000;
-    const distinctDays = [...new Set(rows.filter(r => r.resolved_at).map(r => {
-      const dt = new Date(r.resolved_at);
+    const distinctDays = [...new Set(rows.filter(r => r.photo_reviewed_at).map(r => {
+      const dt = new Date(r.photo_reviewed_at);
       return Math.floor(Date.UTC(dt.getFullYear(), dt.getMonth(), dt.getDate()) / dayMs);
     }))].sort((a, b) => a - b);
     let streakDays = 0, runDays = 0;
@@ -9712,7 +9721,17 @@ async function resolveMunicipalityViaGeocode(lat, lon) {
 async function resolveReportMunicipality(report) {
   await loadMunicipalityCache();
   if (report.municipality_id != null) {
-    return getMunicipalityById(report.municipality_id);
+    const stored = getMunicipalityById(report.municipality_id);
+    if (stored) return stored;
+    // Stored id no longer resolves to a real cached municipality (e.g. the
+    // row was merged/deleted/renamed since it was attached to this report)
+    // — this used to just return null here and give up, permanently
+    // showing "Could not determine the municipality for this location"
+    // even though the point itself is perfectly resolvable and even
+    // though a matching contact might exist for the correct municipality.
+    // Fall through to re-resolving from scratch instead, same as a report
+    // that never had an id attached; the update below will overwrite the
+    // stale id once a fresh one is found.
   }
   let muni = findMunicipalityInCache(report.latitude, report.longitude);
   if (!muni) muni = await resolveMunicipalityViaGeocode(report.latitude, report.longitude);
@@ -12593,6 +12612,39 @@ function requestPortraitLock() {
   }
 }
 requestPortraitLock();
+
+// --- Auto portrait lock on mobile, without waiting for the fullscreen
+// button ------------------------------------------------------------------
+// requestPortraitLock() above can only ever succeed once the page is
+// ALREADY in fullscreen (a hard platform restriction, not a bug — see its
+// comment), and fullscreen itself can only be entered from a genuine user
+// gesture. Previously that meant orientation stayed fully unlocked — the
+// device autorotating normally — for the very common case of someone just
+// using the site in a regular mobile browser tab and never noticing/
+// tapping the dedicated fullscreen button. This turns the person's very
+// first tap anywhere into that gesture: it requests fullscreen once, and
+// the existing 'fullscreenchange' listener above then calls
+// requestPortraitLock() as soon as that succeeds — the two combine into an
+// automatic, no-button-needed lock. If the person later exits fullscreen
+// themselves (back gesture, browser chrome), autorotation resumes until
+// they tap the fullscreen button again, same as always.
+// Still a no-op on iOS Safari, which doesn't implement the Orientation
+// Lock API at all (see requestPortraitLock's comment) — nothing on the
+// web platform can force a lock there short of a home-screen PWA install
+// with "orientation":"portrait" in its manifest.
+if (isMobileDevice()) {
+  document.addEventListener('pointerdown', function autoLockOnFirstTap() {
+    document.removeEventListener('pointerdown', autoLockOnFirstTap);
+    if (document.fullscreenElement || document.webkitFullscreenElement) return;
+    try {
+      const el = document.documentElement;
+      (el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen)?.call(el);
+    } catch (err) {
+      // Ignore — worst case the app just stays in its normal responsive
+      // layout and rotates with the device, same as before this existed.
+    }
+  }, { once: true });
+}
 
 // =============================================================================
 // THEME — Light / Dark / Auto (Settings)
