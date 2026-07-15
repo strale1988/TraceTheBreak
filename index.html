@@ -9317,6 +9317,11 @@ function pointInRing(lat, lon, ring) {
 
 // Accepts our stored boundary (GeoJSON-ish Polygon or MultiPolygon, outer
 // rings only — see module comment above).
+// Tracks which municipality ids we've already warned about having an
+// empty/unusable boundary, so opening report pins in the same broken
+// municipality repeatedly doesn't spam the console — see findMunicipalityInCache.
+const _emptyBoundaryWarned = new Set();
+
 function pointInBoundary(lat, lon, boundary) {
   if (!boundary || !boundary.coordinates) return false;
   const polys = boundary.type === 'MultiPolygon' ? boundary.coordinates : [boundary.coordinates];
@@ -9337,6 +9342,15 @@ function findMunicipalityInCache(lat, lon) {
   let best = null;
   for (const m of municipalityCache) {
     if (!bboxContains(m.bbox, lat, lon)) continue;
+    if (m.boundary && m.boundary.coordinates) {
+      const rings = m.boundary.type === 'MultiPolygon'
+        ? (m.boundary.coordinates || []).reduce((n, p) => n + (p && p.length ? 1 : 0), 0)
+        : m.boundary.coordinates.length;
+      if (!rings && !_emptyBoundaryWarned.has(m.id)) {
+        _emptyBoundaryWarned.add(m.id);
+        console.warn(`Municipality "${m.name}" (id ${m.id}) has a stored boundary with no rings — it will never match any point here and always falls through to the Nominatim name-match fallback. Re-run "Add municipality from map center" over it to fix.`);
+      }
+    }
     if (pointInBoundary(lat, lon, m.boundary)) {
       // Prefer the most specific (highest admin_level) match if several
       // cached boundaries happen to overlap at this point.
@@ -9466,6 +9480,24 @@ async function fetchMunicipalityFromNominatim(lat, lon) {
     // can't use as a municipality outline; try the next zoom level.
     const geo = json.geojson;
     if (!geo || (geo.type !== 'Polygon' && geo.type !== 'MultiPolygon')) continue;
+    // Belt-and-suspenders: Nominatim can (and, per a DB audit, routinely
+    // does for this app's data — 152 of 154 stored municipalities were
+    // affected) return a geometry with the right `type` but an EMPTY
+    // `coordinates` array — no rings at all. That used to get saved as-is:
+    // pointInBoundary() then silently treats it as "outside everywhere",
+    // permanently, for every point in that municipality, every time it's
+    // looked up — with nothing in the stored row itself signaling that
+    // anything is wrong. Reject it here and try the next zoom level
+    // instead, so an admin re-running the import actually has a chance of
+    // getting a usable polygon rather than re-persisting a fresh copy of
+    // the same broken one.
+    const ringCount = geo.type === 'MultiPolygon'
+      ? (geo.coordinates || []).reduce((n, poly) => n + (poly && poly.length ? 1 : 0), 0)
+      : (geo.coordinates || []).length;
+    if (!ringCount) {
+      console.warn(`Nominatim returned an empty ${geo.type} at zoom ${zoom} — skipping, trying next zoom level.`);
+      continue;
+    }
 
     const addr = json.address || {};
     const name = json.name || addr.municipality || addr.city || addr.town || addr.county;
