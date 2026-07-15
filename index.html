@@ -92,10 +92,6 @@
                                      that edge case is accepted
                                      rather than solved with a
                                      portal.)
-     10001  .portrait-lock-overlay  absolute topmost — a phone turned
-                                     sideways should block literally
-                                     everything else, including the
-                                     lang menu above
      10002  #toastContainer         ABOVE EVERYTHING, including
                                      every modal overlay above. A
                                      toast fired while a modal is
@@ -107,8 +103,7 @@
                                      transient, small, and centered
                                      up top out of the way, so there's
                                      no real downside to always
-                                     winning the stack, including
-                                     over the portrait-lock overlay.
+                                     winning the stack.
    ============================================================ */
 
 /* ============================================================
@@ -1873,25 +1868,6 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 }
 .generic-modal-close:active{ background:var(--border-color-strong); }
 
-/* --- Portrait-only lock ---
-   Scoped with an (max-height:500px) ceiling alongside orientation:landscape
-   so this only ever matches an actual phone turned sideways (phones in
-   landscape are reliably under ~500px tall) — a desktop browser window or a
-   tablet in landscape never trips it. Pure CSS, no JS: both the show and
-   the hide are driven entirely by the media query re-evaluating on rotate,
-   so there's no orientationchange listener to miss/race. z-index 10001 —
-   see Z-INDEX SCALE at the top of this stylesheet — deliberately above
-   even .lang-dd-menu (10000) since nothing should be usable while sideways. */
-.portrait-lock-overlay{ display:none !important; z-index:10001; }
-@media (orientation:landscape) and (max-height:500px){
-  .portrait-lock-overlay{ display:flex !important; }
-}
-.portrait-lock-icon{
-  font-size:48px; line-height:1; margin-bottom:14px; display:inline-block;
-  animation:portraitLockRotate 1.6s ease-in-out infinite;
-}
-@keyframes portraitLockRotate{ 0%,100%{ transform:rotate(90deg); } 50%{ transform:rotate(0deg); } }
-
 /* --- Fullscreen report detail modal ------------------------------------
    Opened from the "Detalji" row inside a pin popup. Unlike .generic-modal
    (a centered card, capped at 340-380px), this genuinely covers the whole
@@ -2822,22 +2798,6 @@ span.flatpickr-weekday {
   </div>
 </div>
 
-<!-- Portrait-only lock. The Screen Orientation Lock API isn't usable here —
-     it requires the page to be in fullscreen first and iOS Safari doesn't
-     implement it at all — so this is a plain blocking overlay instead:
-     shown/hidden purely by CSS media query (see .portrait-lock-overlay
-     below), no JS needed to react to rotation. It only ever matches on an
-     actual phone/tablet in landscape (media query is scoped with a height
-     ceiling — see CSS) so a wide desktop browser window is never affected.
-     No close button on purpose: the only way out is to rotate back. -->
-<div id="portraitLockOverlay" class="generic-modal-overlay portrait-lock-overlay">
-  <div class="generic-modal">
-    <div class="portrait-lock-icon" aria-hidden="true">📱</div>
-    <h2 id="portraitLockTitle">Please Rotate to Portrait</h2>
-    <p id="portraitLockBody" style="text-align:center;">This app is designed for portrait use only. Please rotate your device back to continue.</p>
-  </div>
-</div>
-
 
 <div id="helpModal" class="generic-modal-overlay" style="display:none">
   <div class="generic-modal" style="max-width: 380px;">
@@ -3082,11 +3042,12 @@ span.flatpickr-weekday {
             <div class="dashboard-stat-value" id="adminDashboardResolvedValue">0</div>
             <div class="dashboard-stat-label" id="adminDashboardResolvedLabel">Flags resolved</div>
           </div>
-          <div class="dashboard-stat-box">
-            <div class="dashboard-stat-value" id="adminDashboardWeekValue">0</div>
-            <div class="dashboard-stat-label" id="adminDashboardWeekLabel">Resolved this week</div>
-          </div>
         </div>
+        <!-- Same per-day bar chart as My Dashboard (see renderWeeklyChart),
+             built from resolved_at instead of created_at — see
+             getAdminModerationStats()'s weeklyBreakdown. -->
+        <div class="dashboard-badges-title" id="adminDashboardWeekTitle">This Week</div>
+        <div class="weekly-chart" id="adminDashboardWeeklyChart"></div>
         <div class="dashboard-progress-text" id="adminDashboardScopeNote"></div>
         <!-- Prestige rank — see ADMIN_XP_LEVELS. Independent of the
              badge/tag/scope-note above, which is about permission scope,
@@ -3900,6 +3861,7 @@ function adminXpLevelName(lvl) { return lang === 'sr' ? lvl.nameSr : lvl.nameEn;
 async function getAdminModerationStats() {
   const empty = {
     resolvedFlagCount:0, resolvedReportCount:0, moderationCount:0, resolvedThisWeek:0,
+    weeklyBreakdown:[0,0,0,0,0,0,0],
     fastResolves:0, maxDayCount:0, streakDays:0, streakWeeks:0,
     nightShiftCount:0, adminXpLevelNum:1, allEarned:false,
   };
@@ -3918,6 +3880,19 @@ async function getAdminModerationStats() {
     const moderationCount = resolvedReportCount + resolvedFlagCount;
     const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
     const resolvedThisWeek = rows.filter(r => r.resolved_at && new Date(r.resolved_at).getTime() >= weekAgo).length;
+
+    // Per-day breakdown for the admin "This Week" chart — same Monday-start
+    // calendar-week logic as getUserBadgeStats()'s weeklyBreakdown, just
+    // keyed off resolved_at instead of created_at.
+    const nowD = new Date();
+    const mondayIdx = (nowD.getDay() + 6) % 7;
+    const monday = new Date(nowD.getFullYear(), nowD.getMonth(), nowD.getDate() - mondayIdx);
+    const weeklyBreakdown = [0, 0, 0, 0, 0, 0, 0];
+    rows.forEach(r => {
+      if (!r.resolved_at) return;
+      const diffDays = Math.floor((new Date(r.resolved_at) - monday) / 86400000);
+      if (diffDays >= 0 && diffDays < 7) weeklyBreakdown[diffDays]++;
+    });
 
     const fastResolves = rows.filter(r => r.created_at && r.resolved_at &&
       (new Date(r.resolved_at) - new Date(r.created_at)) <= 60 * 60 * 1000).length;
@@ -3959,7 +3934,7 @@ async function getAdminModerationStats() {
     const adminXpLevelNum = adminXpLevelForXp(moderationCount).level;
 
     const stats = {
-      resolvedFlagCount, resolvedReportCount, moderationCount, resolvedThisWeek, fastResolves,
+      resolvedFlagCount, resolvedReportCount, moderationCount, resolvedThisWeek, weeklyBreakdown, fastResolves,
       maxDayCount, streakDays, streakWeeks, nightShiftCount, adminXpLevelNum,
       allEarned:false,
     };
@@ -4437,22 +4412,21 @@ async function getUserBadgeStats() {
   }
 }
 
-// Own rank/points on the "This Week" window — rolling 7 days, same as the
-// Leaderboard > This Week tab (see loadLeaderboardTab, tab === 'week').
+// Own rank/points on the All Time window (p_since: null) — same as the
+// Leaderboard > All Time tab (see loadLeaderboardTab, tab === 'all').
 // get_leaderboard() only returns the top 50 globally with no "give me just
 // this one user" mode, so if the signed-in user isn't in that top 50 we
 // genuinely can't know their exact rank without a dedicated RPC — falls
 // back to null (rendered as "Outside top 50") rather than guessing.
-async function getUserWeeklyRank() {
+async function getUserOverallRank() {
   if (!currentSession || !currentProfile) return { rank: null };
   try {
-    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    const { data, error } = await sb.rpc('get_leaderboard', { p_since: since, p_municipality_id: null, p_limit: 50 });
+    const { data, error } = await sb.rpc('get_leaderboard', { p_since: null, p_municipality_id: null, p_limit: 50 });
     if (error) throw error;
     const idx = (data || []).findIndex(r => r.username === currentProfile.username);
     return { rank: idx === -1 ? null : idx + 1 };
   } catch (err) {
-    console.error('Failed to load weekly rank:', err.message || err);
+    console.error('Failed to load overall rank:', err.message || err);
     return { rank: null };
   }
 }
@@ -4463,8 +4437,8 @@ async function getUserWeeklyRank() {
 // all — otherwise an empty week would just look like a blank box.
 const WEEKDAY_LABELS_EN = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const WEEKDAY_LABELS_SR = ['Pon', 'Uto', 'Sre', 'Čet', 'Pet', 'Sub', 'Ned'];
-function renderWeeklyChart(breakdown) {
-  const el = document.getElementById('dashboardWeeklyChart');
+function renderWeeklyChart(elId, breakdown) {
+  const el = document.getElementById(elId);
   if (!el) return;
   const counts = breakdown || [0, 0, 0, 0, 0, 0, 0];
   const labels = lang === 'sr' ? WEEKDAY_LABELS_SR : WEEKDAY_LABELS_EN;
@@ -4524,19 +4498,23 @@ async function renderUserDashboard() {
   document.getElementById('dashboardStatSuccessful').textContent = successful;
   document.getElementById('dashboardStatWeight').textContent = 'x' + lvl.weight;
 
-  // Badge stats + weekly rank both need a network round trip — run them
+  // Badge stats + overall rank both need a network round trip — run them
   // together rather than sequentially. Bail if the panel's been torn down
   // or the person signed out while these were in flight.
-  const [stats, weekly] = await Promise.all([getUserBadgeStats(), getUserWeeklyRank()]);
+  const [stats, overall] = await Promise.all([getUserBadgeStats(), getUserOverallRank()]);
   if (!currentSession || !currentProfile || currentProfile.is_admin) return;
 
-  renderWeeklyChart(stats.weeklyBreakdown);
+  renderWeeklyChart('dashboardWeeklyChart', stats.weeklyBreakdown);
 
-  // Nickname in the modal header's identity row is replaced with this
-  // week's rank instead — see the dashboard-identity-row comment in the
-  // markup for why a separate stat box for it was dropped.
+  // Nickname in the modal header's identity row is replaced with the
+  // All Time rank instead — see the dashboard-identity-row comment in the
+  // markup for why a separate stat box for it was dropped. Uses
+  // getUserOverallRank() (p_since: null), the same window as the
+  // Leaderboard > All Time tab, so this number always matches where the
+  // person actually sits on that tab rather than swinging with the
+  // calendar week.
   const idNameEl = document.getElementById('dashboardIdentityName');
-  if (idNameEl) idNameEl.textContent = weekly.rank ? ('#' + weekly.rank) : t('dashboardWeekRankOutside');
+  if (idNameEl) idNameEl.textContent = overall.rank ? ('#' + overall.rank) : t('dashboardRankOutside');
 
   const badgeGrid = document.getElementById('dashboardBadgeGrid');
   if (badgeGrid) {
@@ -4603,11 +4581,11 @@ async function renderAdminDashboard() {
   const resolvedValueEl = document.getElementById('adminDashboardResolvedValue');
   if (resolvedValueEl) resolvedValueEl.textContent = stats.resolvedFlagCount;
 
-  // "Resolved this week" reuses the same resolved-reports rows fetched by
-  // getAdminModerationStats — no separate query needed, just re-derive the
-  // week window's slice the same way getUserBadgeStats does for reports.
-  const weekEl = document.getElementById('adminDashboardWeekValue');
-  if (weekEl) weekEl.textContent = stats.resolvedThisWeek;
+  // This Week chart reuses the same resolved-reports rows fetched by
+  // getAdminModerationStats — no separate query needed, just bucketed by
+  // day (see weeklyBreakdown there) the same way getUserBadgeStats does
+  // for the My Dashboard version.
+  renderWeeklyChart('adminDashboardWeeklyChart', stats.weeklyBreakdown);
 
   const xpLevel = adminXpLevelForXp(stats.moderationCount);
   const xpNext = nextAdminXpLevel(xpLevel);
@@ -4761,8 +4739,6 @@ const T = {
   gpsBody:      { en:'Location access is turned off. To report a break at your location, enable it in your settings.', sr:'Pristup lokaciji je isključen. Da biste prijavili kvar, omogućite ga u podešavanjima.' },
   gpsAlt:       { en:'Or use the <img class="icon-img icon-img-inline" src="icons/pin.png" alt="pin"> button on the map to drop a pin manually.', sr:'Ili koristite dugme <img class="icon-img icon-img-inline" src="icons/pin.png" alt="pin"> na karti da ručno postavite pin.' },
   gpsBtn:       { en:'Got it',                           sr:'Razumem' },
-  portraitLockTitle: { en:'Please Rotate to Portrait',   sr:'Okrenite telefon uspravno' },
-  portraitLockBody:  { en:'This app is designed for portrait use only. Please rotate your device back to continue.', sr:'Aplikacija je namenjena za uspravnu upotrebu. Okrenite uređaj nazad da biste nastavili.' },
   noReports:    { en:'No reports in current map view.',  sr:'Nema prijava u vidljivoj oblasti.' },
   calendarPH:   { en:'Select date range...',             sr:'Izaberi vremenski opseg...' },
   helpTitle:    { en:'How to use TraceTheBreak',         sr:'Kako se koristi TraceTheBreak' },
@@ -4795,7 +4771,6 @@ const T = {
   adminDashboardLevelLabel:   { en:'Level',                        sr:'Nivo' },
   adminDashboardTagLabel:     { en:'Responsible for',              sr:'Odgovoran za' },
   adminDashboardResolvedLabel: { en:'Flags resolved',              sr:'Rešene prijave' },
-  adminDashboardWeekLabel:     { en:'Resolved this week',          sr:'Rešeno ove nedelje' },
   adminDashboardXpTitle:       { en:'Prestige Rank',                sr:'Prestižni rang' },
   adminDashboardXpMax:         { en:'Highest prestige rank reached.', sr:'Dostignut najviši prestižni rang.' },
   adminDashboardXpProgress:    { en:'{n} more to reach {level}',    sr:'Još {n} do ranga {level}' },
@@ -4814,7 +4789,7 @@ const T = {
   dashboardSectionTitle:     { en:'My Dashboard',        sr:'Moja tabla' },
   dashboardBadgesTitle:      { en:'Badges',              sr:'Značke' },
   dashboardWeekTitle:            { en:'This Week',            sr:'Ove nedelje' },
-  dashboardWeekRankOutside:      { en:'Outside top 50',        sr:'Van top 50' },
+  dashboardRankOutside:      { en:'Outside top 50',        sr:'Van top 50' },
   badgeComingSoon:           { en:'coming soon',         sr:'uskoro' },
   badgeComingSoonShort:      { en:'Soon',                sr:'Uskoro' },
   heatmapBtnTitle:           { en:'Heatmap',             sr:'Toplotna mapa' },
@@ -5107,10 +5082,6 @@ function applyLang(){
   document.getElementById('themeBtnDark').textContent = t('themeDark');
   document.getElementById('themeBtnAuto').textContent = t('themeAuto');
   document.getElementById('mainMapCompass').title = t('mainCompassTitle');
-  const portraitTitleEl = document.getElementById('portraitLockTitle');
-  if (portraitTitleEl) portraitTitleEl.textContent = t('portraitLockTitle');
-  const portraitBodyEl = document.getElementById('portraitLockBody');
-  if (portraitBodyEl) portraitBodyEl.textContent = t('portraitLockBody');
   updateCommentPlaceholder();
   document.getElementById('dateRangePicker').placeholder  = t('calendarPH');
   document.getElementById('category').options[0].text     = t('catPH');
@@ -5232,8 +5203,8 @@ function applyLang(){
   if (adminDashTagLabel) adminDashTagLabel.textContent = t('adminDashboardTagLabel');
   const adminDashResolvedLabel = document.getElementById('adminDashboardResolvedLabel');
   if (adminDashResolvedLabel) adminDashResolvedLabel.textContent = t('adminDashboardResolvedLabel');
-  const adminDashWeekLabel = document.getElementById('adminDashboardWeekLabel');
-  if (adminDashWeekLabel) adminDashWeekLabel.textContent = t('adminDashboardWeekLabel');
+  const adminDashWeekTitleEl = document.getElementById('adminDashboardWeekTitle');
+  if (adminDashWeekTitleEl) adminDashWeekTitleEl.textContent = t('dashboardWeekTitle');
   const adminDashXpTitleEl = document.getElementById('adminDashboardXpTitle');
   if (adminDashXpTitleEl) adminDashXpTitleEl.textContent = t('adminDashboardXpTitle');
   const adminDashBadgesTitleEl = document.getElementById('adminDashboardBadgesTitle');
@@ -7654,7 +7625,24 @@ function initGps() {
   }
   try {
     navigator.permissions.query({ name: 'geolocation' }).then(result => {
-      if (result.state === 'denied') { showGpsModal(); enableManualPinMode(); }
+      // 'denied' here doesn't only mean the site itself was blocked — on
+      // several Android/Chrome combinations this query also resolves to
+      // 'denied' simply because the device's Location Services toggle is
+      // off at the moment of the query, even though the *site* was never
+      // explicitly blocked. startWatching() is never called on this branch,
+      // so without the line below, gpsWatchId stays null and the retry
+      // loop (see the big comment above startGpsRetryLoop) never gets
+      // armed — the app would sit on the "GPS Not Enabled" screen forever
+      // even after the person turns Location Services back on, since
+      // result.onchange only fires for an actual site-permission change,
+      // not the device's own GPS switch (same gap documented there).
+      // Reusing the exact same retry loop every other "GPS came back on"
+      // path already relies on closes that gap here too: harmless if this
+      // really was an explicit site-level block (each retry will just hit
+      // PERMISSION_DENIED again, which re-arms the same loop as a no-op),
+      // and it's what actually notices the moment Location Services flips
+      // back on.
+      if (result.state === 'denied') { showGpsModal(); enableManualPinMode(); startGpsRetryLoop(); }
       else { startWatching(); }
 
       // Listen for the permission itself flipping (e.g. the user turns
@@ -12070,8 +12058,42 @@ function updateFullscreenBtn() {
     if (typeof map !== 'undefined' && map.invalidateSize) {
       setTimeout(() => map.invalidateSize(), 100);
     }
+    requestPortraitLock();
   })
 );
+
+// --- Portrait orientation lock ----------------------------------------
+// Replaces the old "please rotate back" blocking overlay: instead of
+// telling the person to fix it themselves, actually ask the platform to
+// keep the app in portrait. screen.orientation.lock() only works while
+// the page is in fullscreen (it throws SecurityError otherwise in every
+// browser that implements it), so this rides the existing fullscreen
+// button as its trigger — same reasoning as requestOrientationPermission()
+// piggybacking on the driving-mode tap for its own iOS permission prompt.
+// Also tried once at startup for the case where the page is already
+// fullscreen on load (e.g. installed as a home-screen PWA, which counts
+// as fullscreen/standalone without the button ever being pressed).
+//
+// iOS Safari doesn't implement the Orientation Lock API at all (same gap
+// noted in the removed overlay's old comment) — on those devices this is
+// a silent no-op and the phone will still physically rotate to landscape
+// if turned sideways. There's no JS-only way around that on iOS short of
+// installing the app from a manifest with "orientation": "portrait" set,
+// which locks orientation automatically for a home-screen install without
+// needing this function at all.
+function requestPortraitLock() {
+  const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement;
+  if (!isFullscreen) return;
+  try {
+    screen.orientation?.lock?.('portrait')?.catch(() => {
+      // Not supported / not permitted on this browser — nothing to do,
+      // the app just falls back to its normal responsive layout.
+    });
+  } catch (err) {
+    // Some browsers throw synchronously instead of rejecting.
+  }
+}
+requestPortraitLock();
 
 // =============================================================================
 // THEME — Light / Dark / Auto (Settings)
