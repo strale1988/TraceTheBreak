@@ -302,6 +302,47 @@ header p{ font-size:11px; opacity:.7; margin-top:2px; }
 }
 .help-icon-btn:active{ background:var(--border-color-strong); }
 
+/* Notification center header button — small unread-count pill, top-right
+   corner of the bell icon. Reuses the same red as other "needs attention"
+   accents in the app (photo-status-badge rejected, report-btn). */
+.notification-btn{ position:relative; overflow:visible; }
+.notification-badge{
+  position:absolute;
+  top:-5px;
+  right:-5px;
+  min-width:16px;
+  height:16px;
+  padding:0 3px;
+  border-radius:8px;
+  background:#e74c3c;
+  color:#fff;
+  font-size:9.5px;
+  font-weight:700;
+  line-height:16px;
+  text-align:center;
+  box-shadow:0 0 0 2px var(--bg-surface-alt);
+}
+
+.notification-compose-target{ display:flex; gap:14px; margin-top:6px; }
+.notification-target-option{ display:flex; align-items:center; gap:5px; font-size:12.5px; color:var(--text-primary); cursor:pointer; }
+
+.notification-item{
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+  padding:10px 12px;
+  border-radius:8px;
+  background:var(--bg-surface-alt);
+  border:1px solid var(--border-color-strong);
+  margin-bottom:8px;
+}
+.notification-item.unread{ border-color:#a67817; }
+.notification-item-top{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.notification-item-sender{ font-size:11.5px; font-weight:600; color:var(--text-secondary); }
+.notification-item-dot{ width:8px; height:8px; border-radius:50%; background:#a67817; flex-shrink:0; }
+.notification-item-message{ font-size:13px; color:var(--text-primary); white-space:pre-wrap; }
+.notification-item-meta{ font-size:10.5px; color:var(--text-muted); }
+
 #map {
   flex: 1;
   height: 0;
@@ -2490,6 +2531,7 @@ span.flatpickr-weekday {
       <button class="help-icon-btn" id="fullscreenBtn" title="Fullscreen / Preko celog ekrana" onclick="toggleFullscreen()"><img class="icon-img" id="fullscreenBtnIcon" src="icons/fullscreen-enter.png" alt="Fullscreen"></button>
       <button class="help-icon-btn" id="helpTopBtn" title="Help / Pomoć" onclick="showHelpModal()"><img class="icon-img" src="icons/help.png" alt="Help"></button>
       <button class="help-icon-btn" id="leaderboardBtn" title="Rankings" onclick="showLeaderboardModal()"><img class="icon-img" src="icons/user.png" alt="Rankings"></button>
+      <button class="help-icon-btn notification-btn" id="notificationBtn" title="Notifications" onclick="showNotificationModal()"><img class="icon-img" src="icons/notification.png" alt="Notifications"><span class="notification-badge" id="notificationBadge" style="display:none">0</span></button>
       <div class="lang-dropdown" id="langDropdown">
         <button class="help-icon-btn" id="langDdBtn" title="Language / Jezik" onclick="toggleLangDropdown()">
           <span id="langDdFlag" style="font-size:15px;line-height:1;">🇷🇸</span>
@@ -3077,6 +3119,51 @@ span.flatpickr-weekday {
   </div>
 </div>
 
+<!-- Notification Center — opened from the bell button next to Rankings in
+     the header (see #notificationBtn / showNotificationModal). Two very
+     different bodies share this shell depending on who's signed in:
+       - regular users see #notificationUserList, their own inbox of
+         admin-sent notifications (direct + broadcast) — see
+         loadUserNotifications()/renderUserNotifications().
+       - admins get a compose panel (target: everyone or one username, plus
+         a message) on top, and — for now — the same Waiting-for-review
+         queue as the Settings admin panel underneath it as their "list"
+         (#notificationWaitingList, populated by the shared
+         renderWaitingList()/renderWaitingListInto() in the waiting-list
+         section further down). See renderNotificationModalBody(). -->
+<div id="notificationModal" class="fullscreen-modal-overlay" style="display:none">
+  <div class="fullscreen-modal-header">
+    <h2 id="notificationModalTitle"><img class="icon-img icon-img-inline" src="icons/notification.png" alt=""> Notifications</h2>
+    <button class="fullscreen-modal-close" onclick="hideNotificationModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
+  </div>
+  <div class="fullscreen-modal-body" id="notificationModalBody">
+    <!-- Admin compose panel — hidden entirely for non-admins, see
+         renderNotificationModalBody(). -->
+    <div id="notificationComposePanel" style="display:none">
+      <div class="admin-section-title detail-section-title" id="notificationComposeTitle">Send a notification</div>
+      <div class="notification-compose-target" id="notificationComposeTarget">
+        <label class="notification-target-option">
+          <input type="radio" name="notificationTarget" value="all" id="notificationTargetAll" checked onchange="onNotificationTargetChange()">
+          <span id="notificationTargetAllLabel">Everyone</span>
+        </label>
+        <label class="notification-target-option">
+          <input type="radio" name="notificationTarget" value="user" id="notificationTargetUser" onchange="onNotificationTargetChange()">
+          <span id="notificationTargetUserLabel">Specific user</span>
+        </label>
+      </div>
+      <input type="text" id="notificationUsernameInput" placeholder="Username" style="display:none;width:100%;box-sizing:border-box;margin-top:8px;">
+      <textarea id="notificationMessageInput" placeholder="Message" rows="3" style="width:100%;box-sizing:border-box;margin-top:8px;resize:vertical;"></textarea>
+      <button type="button" class="settings-btn" style="background:#a67817;color:#fff;width:100%;margin-top:8px;" onclick="sendNotificationFromAdmin()" id="notificationSendBtn">Send</button>
+    </div>
+
+    <div class="admin-section-title detail-section-title" id="notificationWaitingListSectionTitle" style="display:none;margin-top:18px;">Waiting for review</div>
+    <div id="notificationWaitingList"></div>
+
+    <!-- Non-admin inbox — hidden for admins, see renderNotificationModalBody(). -->
+    <div id="notificationUserList" style="display:none"></div>
+  </div>
+</div>
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <!-- Leaflet.heat — powers the heatmap toggle (see heatmapBtn / toggleHeatmap
@@ -3290,6 +3377,7 @@ async function signOutUser() {
   hideSettingsModal();
   hideReportDetailModal();
   hideCompanyDetailModal();
+  hideNotificationModal();
   if (typeof drivingMode !== 'undefined' && drivingMode) toggleDrivingMode();
   if (typeof heatmapActive !== 'undefined' && heatmapActive) toggleHeatmap();
 
@@ -3349,7 +3437,7 @@ function updateAuthUI() {
   // so these lock immediately on sign-out, before any profile row is even
   // considered.
   const hasAccount = !!currentSession;
-  [document.getElementById('leaderboardBtn'), document.getElementById('drivingModeBtn'), document.getElementById('heatmapBtn')]
+  [document.getElementById('leaderboardBtn'), document.getElementById('drivingModeBtn'), document.getElementById('heatmapBtn'), document.getElementById('notificationBtn')]
     .forEach(btn => { if (btn) btn.classList.toggle('map-btn-locked', !hasAccount); });
 
   if (currentSession && currentProfile && currentProfile.username) {
@@ -3387,6 +3475,7 @@ function updateAuthUI() {
   if (document.getElementById('leaderboardModal').style.display !== 'none') {
     renderDashboardTab();
   }
+  refreshUnreadNotificationCount();
 }
 
 // =============================================================================
@@ -4117,6 +4206,176 @@ function showLeaderboardModal(tab) {
 }
 function hideLeaderboardModal() {
   document.getElementById('leaderboardModal').style.display = 'none';
+}
+
+// =============================================================================
+// NOTIFICATION CENTER — bell button next to Rankings in the header.
+// Admins get a compose panel (broadcast or one username, via the
+// send_broadcast_notification/send_direct_notification RPCs) plus the same
+// Waiting-for-review queue as Settings, reusing renderWaitingListInto so
+// both stay in sync off one cache. Everyone else gets their own inbox from
+// the `notifications` table (RLS-scoped to recipient_id = auth.uid()).
+// =============================================================================
+let userNotificationsCache = [];
+
+function showNotificationModal() {
+  document.getElementById('notificationModalTitle').innerHTML =
+    '<img class="icon-img icon-img-inline" src="icons/notification.png" alt=""> ' + t('notificationModalTitle');
+  document.getElementById('notificationModal').style.display = 'flex';
+  renderNotificationModalBody();
+}
+function hideNotificationModal() {
+  document.getElementById('notificationModal').style.display = 'none';
+  if (!anyAdminQueueModalOpen()) stopWaitingListAutoRefresh();
+}
+
+function renderNotificationModalBody() {
+  const isAdmin = !!(currentProfile && currentProfile.is_admin);
+  const composePanel = document.getElementById('notificationComposePanel');
+  const wlTitle = document.getElementById('notificationWaitingListSectionTitle');
+  const wlList = document.getElementById('notificationWaitingList');
+  const userList = document.getElementById('notificationUserList');
+
+  document.getElementById('notificationComposeTitle').textContent = t('notificationComposeTitle');
+  document.getElementById('notificationTargetAllLabel').textContent = t('notificationTargetAll');
+  document.getElementById('notificationTargetUserLabel').textContent = t('notificationTargetUser');
+  document.getElementById('notificationUsernameInput').placeholder = t('notificationUsernamePH');
+  document.getElementById('notificationMessageInput').placeholder = t('notificationMessagePH');
+  document.getElementById('notificationSendBtn').textContent = t('notificationSendBtn');
+  if (wlTitle) wlTitle.textContent = t('waitingListSectionTitle');
+
+  if (isAdmin) {
+    composePanel.style.display = 'block';
+    wlTitle.style.display = 'block';
+    wlList.style.display = 'block';
+    userList.style.display = 'none';
+    loadWaitingListAdmin();
+    startWaitingListAutoRefresh();
+  } else {
+    composePanel.style.display = 'none';
+    wlTitle.style.display = 'none';
+    wlList.style.display = 'none';
+    userList.style.display = 'block';
+    loadUserNotifications();
+  }
+}
+
+function onNotificationTargetChange() {
+  const toUser = document.getElementById('notificationTargetUser').checked;
+  document.getElementById('notificationUsernameInput').style.display = toUser ? 'block' : 'none';
+}
+
+async function sendNotificationFromAdmin() {
+  const message = document.getElementById('notificationMessageInput').value.trim();
+  if (!message) { toast(t('notificationEmptyMessage'), 'error'); return; }
+  const toUser = document.getElementById('notificationTargetUser').checked;
+  const btn = document.getElementById('notificationSendBtn');
+  btn.disabled = true;
+  try {
+    let data, error;
+    if (toUser) {
+      const username = document.getElementById('notificationUsernameInput').value.trim();
+      if (!username) { toast(t('notificationNoUsername'), 'error'); return; }
+      ({ data, error } = await sb.rpc('send_direct_notification', { p_username: username, p_message: message }));
+    } else {
+      ({ data, error } = await sb.rpc('send_broadcast_notification', { p_message: message }));
+    }
+    if (error) throw error;
+    if (data && data.ok === false) {
+      if (data.reason === 'user_not_found') toast(t('notificationUserNotFound'), 'error');
+      else toast(t('notificationSendFailed'), 'error');
+      return;
+    }
+    document.getElementById('notificationMessageInput').value = '';
+    document.getElementById('notificationUsernameInput').value = '';
+    toast(t('notificationSent'), 'success');
+  } catch (err) {
+    console.error('Send notification failed:', err.message);
+    toast(t('notificationSendFailed'), 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function loadUserNotifications() {
+  if (!currentSession) { userNotificationsCache = []; renderUserNotifications(); return; }
+  const listEl = document.getElementById('notificationUserList');
+  listEl.innerHTML = `<div class="detail-loading">${t('detailLoading')}</div>`;
+  try {
+    const { data, error } = await sb.from('notifications')
+      .select('*')
+      .eq('recipient_id', currentSession.user.id)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (error) throw error;
+    userNotificationsCache = data || [];
+    renderUserNotifications();
+    markVisibleNotificationsRead();
+  } catch (err) {
+    console.error('Failed to load notifications:', err.message);
+    listEl.innerHTML = `<div class="detail-empty">${t('notificationLoadFailed')}</div>`;
+  }
+}
+
+function renderUserNotifications() {
+  const listEl = document.getElementById('notificationUserList');
+  if (!listEl) return;
+  if (!userNotificationsCache.length) {
+    listEl.innerHTML = `<div class="detail-empty">${t('notificationsEmpty')}</div>`;
+    return;
+  }
+  listEl.innerHTML = userNotificationsCache.map(n => `
+    <div class="notification-item${n.is_read ? '' : ' unread'}">
+      <div class="notification-item-top">
+        <span class="notification-item-sender">${escapeHtml(n.sender_username || t('detailUnknown'))}</span>
+        ${n.is_read ? '' : '<span class="notification-item-dot"></span>'}
+      </div>
+      <div class="notification-item-message">${escapeHtml(n.message)}</div>
+      <div class="notification-item-meta">${formatDate(n.created_at)}</div>
+    </div>`).join('');
+}
+
+// Fires right after the inbox renders — marks every currently-unread row
+// read (server + local cache) and clears the header badge. Simple
+// "opened the list = seen it" model rather than per-item read tracking.
+async function markVisibleNotificationsRead() {
+  const unreadIds = userNotificationsCache.filter(n => !n.is_read).map(n => n.id);
+  if (!unreadIds.length) return;
+  try {
+    const { error } = await sb.from('notifications')
+      .update({ is_read: true })
+      .in('id', unreadIds);
+    if (error) throw error;
+    userNotificationsCache.forEach(n => { if (unreadIds.includes(n.id)) n.is_read = true; });
+    renderUserNotifications();
+  } catch (err) {
+    console.error('Failed to mark notifications read:', err.message);
+  }
+  refreshUnreadNotificationCount();
+}
+
+// Keeps the header badge current — called from updateAuthUI (sign-in/out)
+// and after the inbox is read. Not polled continuously; the count only
+// needs to be right whenever auth state changes or the person just cleared it.
+async function refreshUnreadNotificationCount() {
+  const badge = document.getElementById('notificationBadge');
+  if (!badge) return;
+  if (!currentSession) { badge.style.display = 'none'; return; }
+  try {
+    const { count, error } = await sb.from('notifications')
+      .select('id', { count: 'exact', head: true })
+      .eq('recipient_id', currentSession.user.id)
+      .eq('is_read', false);
+    if (error) throw error;
+    if (count && count > 0) {
+      badge.textContent = count > 99 ? '99+' : String(count);
+      badge.style.display = 'block';
+    } else {
+      badge.style.display = 'none';
+    }
+  } catch (err) {
+    console.error('Failed to refresh notification count:', err.message);
+  }
 }
 
 function switchLeaderboardTab(tab) {
@@ -5007,6 +5266,21 @@ const T = {
   adminSearchPH:          { en:'Search reports, flags, photos…',      sr:'Pretraži prijave, oznake, fotografije…' },
   waitingListSectionTitle:{ en:'Waiting for review',                  sr:'Čeka na proveru' },
   waitingListEmpty:       { en:'Nothing waiting for review right now.', sr:'Trenutno nema ničega što čeka proveru.' },
+  notificationModalTitle: { en:'Notifications',                         sr:'Obaveštenja' },
+  notificationBtnTitle:   { en:'Notifications',                         sr:'Obaveštenja' },
+  notificationComposeTitle:{ en:'Send a notification',                  sr:'Pošalji obaveštenje' },
+  notificationTargetAll:  { en:'Everyone',                              sr:'Svi' },
+  notificationTargetUser: { en:'Specific user',                         sr:'Određeni korisnik' },
+  notificationUsernamePH: { en:'Username',                              sr:'Korisničko ime' },
+  notificationMessagePH:  { en:'Message',                               sr:'Poruka' },
+  notificationSendBtn:    { en:'Send',                                  sr:'Pošalji' },
+  notificationSent:       { en:'Notification sent.',                    sr:'Obaveštenje je poslato.' },
+  notificationSendFailed: { en:'Could not send the notification.',      sr:'Obaveštenje nije moglo biti poslato.' },
+  notificationEmptyMessage:{ en:'Write a message first.',                sr:'Prvo napišite poruku.' },
+  notificationNoUsername: { en:'Enter a username to send to.',          sr:'Unesite korisničko ime primaoca.' },
+  notificationUserNotFound:{ en:'No user with that username.',          sr:'Ne postoji korisnik sa tim imenom.' },
+  notificationsEmpty:     { en:'No notifications yet.',                 sr:'Još nema obaveštenja.' },
+  notificationLoadFailed: { en:'Could not load notifications.',         sr:'Obaveštenja nisu mogla biti učitana.' },
   queueTypePhoto:         { en:'Photo pending',                       sr:'Fotografija na čekanju' },
 
   leaderboardBtnTitle:     { en:'Rankings',                           sr:'Rang lista' },
@@ -5084,6 +5358,9 @@ function applyLang(){
 
   const lbBtn = document.getElementById('leaderboardBtn');
   if (lbBtn) lbBtn.title = t('leaderboardBtnTitle');
+  const notifBtn = document.getElementById('notificationBtn');
+  if (notifBtn) notifBtn.title = t('notificationBtnTitle');
+  if (document.getElementById('notificationModal').style.display !== 'none') renderNotificationModalBody();
   const lbTitleEl = document.getElementById('leaderboardModalTitle');
   if (lbTitleEl) lbTitleEl.innerHTML = '<img class="icon-img icon-img-inline" src="icons/trophy.png" alt=""> ' + t('leaderboardTitle');
   const lbTabDashboardEl = document.getElementById('lbTabDashboard');
@@ -5272,7 +5549,7 @@ function showSettingsModal() {
 }
 function hideSettingsModal() {
   document.getElementById('settingsModal').style.display = 'none';
-  stopWaitingListAutoRefresh();
+  if (!anyAdminQueueModalOpen()) stopWaitingListAutoRefresh();
 }
 function buildHelpModalContent() {
   document.getElementById('helpModalTitle').textContent = t('helpTitle');
@@ -10003,10 +10280,18 @@ async function loadWaitingListAdmin() {
 // so it never polls in the background once the panel isn't visible.
 let waitingListRefreshIntervalId = null;
 const WAITING_LIST_REFRESH_MS = 15000;
+// True while any surface that shows the waiting list (Settings admin panel
+// or, for admins, the Notification Center) is open — used to decide
+// whether the refresh loop should keep polling or stop itself.
+function anyAdminQueueModalOpen() {
+  const settingsEl = document.getElementById('settingsModal');
+  const notifEl = document.getElementById('notificationModal');
+  return !!(settingsEl && settingsEl.style.display !== 'none') || !!(notifEl && notifEl.style.display !== 'none');
+}
 function startWaitingListAutoRefresh() {
   if (waitingListRefreshIntervalId !== null) return; // already running
   waitingListRefreshIntervalId = setInterval(() => {
-    if (document.getElementById('settingsModal').style.display === 'none') { stopWaitingListAutoRefresh(); return; }
+    if (!anyAdminQueueModalOpen()) { stopWaitingListAutoRefresh(); return; }
     loadWaitingListAdmin();
   }, WAITING_LIST_REFRESH_MS);
 }
@@ -10025,8 +10310,19 @@ function reportSummaryTitle(r) {
 
 const WAITING_REASON_LABEL = { photo: 'queueTypePhoto', rejected_photo: 'flagReasonRejectedPhoto', user_flag: 'reportFlagsSectionTitle' };
 
+// Rendered into every container that wants a live copy of the waiting list —
+// currently the Settings admin panel (#waitingList) and, for admins, the
+// Notification Center (#notificationWaitingList — see showNotificationModal).
+// Both stay in sync off the one shared waitingListCache/loadWaitingListAdmin
+// above; nothing here is Settings-specific.
+const WAITING_LIST_CONTAINER_IDS = ['waitingList', 'notificationWaitingList'];
+
 function renderWaitingList() {
-  const listEl = document.getElementById('waitingList');
+  WAITING_LIST_CONTAINER_IDS.forEach(renderWaitingListInto);
+}
+
+function renderWaitingListInto(containerId) {
+  const listEl = document.getElementById(containerId);
   if (!listEl) return;
   if (!waitingListCache.length) {
     listEl.innerHTML = `<div class="detail-empty">${t('waitingListEmpty')}</div>`;
@@ -10051,7 +10347,7 @@ function renderWaitingList() {
             </div>`).join('')}
         </div>` : '';
     const thumbHtml = item.reasons.includes('photo')
-      ? `<div class="photo-review-thumb" id="photo-review-thumb-${r.id}"><div class="detail-loading">${t('detailLoading')}</div></div>` : '';
+      ? `<div class="photo-review-thumb" id="photo-review-thumb-${containerId}-${r.id}"><div class="detail-loading">${t('detailLoading')}</div></div>` : '';
     const actionsHtml = [
       `<button type="button" class="settings-btn" onclick="viewReportFromAdminQueue('${r.id}')">${t('detailsBtn')}</button>`,
       item.reasons.includes('photo') ? `<button type="button" style="background:#2e7d32;color:#fff;" onclick="approveReportPhoto('${r.id}')">${t('photoApproveBtn')}</button>` : '',
@@ -10075,7 +10371,7 @@ function renderWaitingList() {
   filtered.forEach(item => {
     if (!item.reasons.includes('photo')) return;
     getReportPhotoSignedUrl(item.report.photo_path).then(url => {
-      const thumb = document.getElementById('photo-review-thumb-' + item.report.id);
+      const thumb = document.getElementById('photo-review-thumb-' + containerId + '-' + item.report.id);
       if (!thumb) return;
       thumb.innerHTML = url
         ? `<img src="${url}" alt="" onclick="window.open('${url}','_blank')">`
