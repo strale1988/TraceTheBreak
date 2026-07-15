@@ -474,6 +474,13 @@ button{
 .pin-map-btn.heatmap-btn{ position:relative; }
 .pin-map-btn.heatmap-btn.active{ background:#e74c3c; border-color:#e74c3c; }
 .pin-map-btn.heatmap-btn.active .icon-img{ filter:none; }
+
+/* Signed-out lockout for account-gated floating buttons (Rankings/user,
+   driving mode, heatmap — see updateAuthUI). Greyed out and inert rather
+   than hidden, so the feature's presence is still visible; a tap does
+   nothing since pointer-events is off entirely (no confirm/tooltip, to
+   keep this a plain visual "not right now" rather than a nag). */
+.map-btn-locked{ opacity:.35; pointer-events:none; filter:grayscale(60%); }
 .heatmap-panel{
   position:absolute;
   bottom:100%;
@@ -3274,6 +3281,18 @@ async function signOutUser() {
   currentSession = null;
   currentProfile = null;
 
+  // Rankings/Dashboard, driving mode, and the heatmap all become locked
+  // the instant we're signed out (see updateAuthUI below), so back out of
+  // any of them that happen to be open/active right now instead of leaving
+  // the person stuck looking at a suddenly-unavailable screen — land back
+  // on the plain main map, same as a fresh, signed-out visit.
+  hideLeaderboardModal();
+  hideSettingsModal();
+  hideReportDetailModal();
+  hideCompanyDetailModal();
+  if (typeof drivingMode !== 'undefined' && drivingMode) toggleDrivingMode();
+  if (typeof heatmapActive !== 'undefined' && heatmapActive) toggleHeatmap();
+
   updateAuthUI();
   refreshRenderedPopups();
 }
@@ -3323,6 +3342,15 @@ function updateAuthUI() {
   const lockedFormPanel = document.getElementById('lockedFormPanel');
   const chooseUsernamePanel = document.getElementById('chooseUsernamePanel');
   const pinBtn = document.getElementById('pinMapBtn');
+
+  // Rankings (user), driving mode, and heatmap all live behind an account —
+  // grey them out whenever nobody's signed in (see .map-btn-locked above).
+  // Uses plain currentSession rather than the fuller "signedIn" check below
+  // so these lock immediately on sign-out, before any profile row is even
+  // considered.
+  const hasAccount = !!currentSession;
+  [document.getElementById('leaderboardBtn'), document.getElementById('drivingModeBtn'), document.getElementById('heatmapBtn')]
+    .forEach(btn => { if (btn) btn.classList.toggle('map-btn-locked', !hasAccount); });
 
   if (currentSession && currentProfile && currentProfile.username) {
     document.getElementById('settingsAdminSection').style.display = currentProfile.is_admin ? 'flex' : 'none';
@@ -4921,6 +4949,7 @@ const T = {
   photoRejectedBadge:     { en:'Rejected',                                    sr:'Odbijeno' },
   photoRejectedOwnerNote: { en:'Your photo didn\'t pass review, so it isn\'t shown publicly. The report itself is unaffected.', sr:'Vaša fotografija nije prošla proveru, pa nije javno prikazana. Sama prijava time nije pogođena.' },
   photoLoadFailed:        { en:'Could not load photo.',                       sr:'Fotografija nije mogla biti učitana.' },
+  photoLoginPrompt:       { en:'Log in to see the photo.',                    sr:'Prijavite se da biste videli fotografiju.' },
   addPhotoTooltip:        { en:'Add photo',                                   sr:'Dodaj fotografiju' },
   photoAddedPending:      { en:'Photo added — waiting for admin review.',     sr:'Fotografija dodata — čeka proveru administratora.' },
   photoAddedApproved:     { en:'Photo added.',                                sr:'Fotografija dodata.' },
@@ -10937,11 +10966,15 @@ async function showReportDetailModal(reportId) {
   const isOwner = !!(currentSession && report.owner_id === currentSession.user.id);
   const isAdmin = !!(currentProfile && currentProfile.is_admin);
   let photoSectionHtml = '';
-  const showPhotoImage = !!report.photo_path && (
+  const showPhotoImage = !!report.photo_path && !!currentSession && (
     report.photo_status === 'approved' ||
     (report.photo_status === 'pending' && (isOwner || isAdmin)) ||
     (report.photo_status === 'rejected' && isAdmin)
   );
+  // Signed-out visitor, but there's an approved photo they'd be able to see
+  // once logged in — place a login prompt where the photo would otherwise
+  // render, rather than either showing it freely or omitting the section.
+  const showPhotoLoginPrompt = !!report.photo_path && !currentSession && report.photo_status === 'approved';
   if (showPhotoImage) {
     const badge = report.photo_status === 'pending'
       ? `<span class="photo-status-badge pending">${t('photoPendingBadge')}</span>`
@@ -10952,6 +10985,12 @@ async function showReportDetailModal(reportId) {
     <div class="detail-section">
       <div class="detail-section-title">${t('detailPhotoTitle')}${badge}</div>
       <div class="detail-photo-wrap" id="detailPhotoWrap"><div class="detail-loading">${t('detailLoading')}</div></div>
+    </div>`;
+  } else if (showPhotoLoginPrompt) {
+    photoSectionHtml = `
+    <div class="detail-section">
+      <div class="detail-section-title">${t('detailPhotoTitle')}</div>
+      <div class="detail-photo-wrap"><div class="detail-empty">${t('photoLoginPrompt')}</div></div>
     </div>`;
   } else if (report.photo_path && isOwner && report.photo_status === 'rejected') {
     photoSectionHtml = `
