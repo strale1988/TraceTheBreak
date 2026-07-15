@@ -653,6 +653,119 @@ button{
 .pin-map-btn.active .icon-img,
 .pin-map-btn.recording-active .icon-img{ filter:none; }
 
+/* --- Report FAB + step wizard ---
+   The FAB replaces the old always-visible dropdown form as the entry
+   point for filing a report. It sits bottom-right, fixed to the
+   viewport (not the Leaflet control stack, so it stays a distinct,
+   larger target from the small utility icons in that corner). Tapping
+   it drops a pin at the current GPS fix (see reportFabTap()) and opens
+   the wizard below — the pin freezes the report location so the person
+   can keep walking while they finish the steps. */
+.report-fab-btn{
+  position:fixed;
+  right:16px; bottom:24px;
+  width:60px; height:60px;
+  border-radius:50%;
+  background:#ff4b4b;
+  color:#fff;
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 4px 14px rgba(0,0,0,.3);
+  cursor:pointer; z-index:4000;
+  border:none;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+  transition:transform .12s;
+}
+.report-fab-btn:active{ transform:scale(.94); }
+.report-fab-btn img{ width:26px; height:26px; filter:brightness(0) invert(1); }
+body.driving-active .report-fab-btn{ display:none !important; }
+
+/* #reportFormPanel is never shown directly anymore — the wizard above
+   is the only UI for filing a report. It's kept in the DOM, with its
+   old show/hide logic left untouched in updateAuthUI() etc. (now just
+   toggling #reportFabBtn in parallel — see reportFabTap() and the
+   wizard code), purely so every select/input inside it keeps working
+   as the data model the wizard tiles write into. */
+#reportFormPanel{ display:none !important; }
+
+.wiz-overlay{
+  position:fixed; inset:0; z-index:9999;
+  background:var(--bg-app);
+  display:flex; flex-direction:column;
+}
+.wiz-header{
+  display:flex; align-items:center; gap:10px;
+  padding:14px 16px; flex:0 0 auto;
+}
+.wiz-back-btn, .wiz-close-btn{
+  width:34px; height:34px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--bg-surface-alt); border:none; cursor:pointer;
+  color:var(--text-primary); font-size:18px;
+}
+.wiz-progress{
+  flex:1; display:flex; gap:4px;
+}
+.wiz-progress span{
+  height:4px; flex:1; border-radius:2px; background:var(--border-color-strong);
+}
+.wiz-progress span.done{ background:#ff4b4b; }
+.wiz-body{ flex:1; overflow-y:auto; padding:4px 20px 20px; }
+.wiz-step-label{ color:var(--text-secondary); font-size:13px; margin:0 0 4px; }
+.wiz-step-title{ font-size:20px; font-weight:600; margin:0 0 18px; color:var(--text-primary); }
+.wiz-grid{
+  display:grid; grid-template-columns:1fr 1fr; gap:12px;
+}
+.wiz-tile{
+  background:var(--bg-surface);
+  border:1px solid var(--border-color);
+  border-radius:14px;
+  padding:18px 8px;
+  display:flex; flex-direction:column; align-items:center; gap:10px;
+  cursor:pointer; text-align:center;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+.wiz-tile:active{ background:var(--bg-surface-alt); }
+.wiz-tile img{ width:30px; height:30px; }
+.wiz-tile span{ font-size:13px; color:var(--text-primary); }
+.wiz-list{ display:flex; flex-direction:column; gap:10px; }
+.wiz-bar{
+  border:1px solid var(--border-color);
+  background:var(--bg-surface);
+  border-radius:12px;
+  padding:16px;
+  font-size:15px; font-weight:600;
+  cursor:pointer; text-align:left;
+  display:flex; align-items:center; gap:12px;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+.wiz-bar:active{ background:var(--bg-surface-alt); }
+.wiz-bar img{ width:24px; height:24px; flex:0 0 auto; }
+.wiz-bar .dot{ width:14px; height:14px; border-radius:50%; flex:0 0 auto; }
+.wiz-pending-pin-label{
+  position:absolute; left:50%; top:50%; transform:translate(-50%,-140%);
+  background:#111; color:#fff; font-size:11px; padding:3px 8px; border-radius:6px;
+  white-space:nowrap; pointer-events:none;
+}
+.wiz-details-row{ margin:0 0 16px; }
+.wiz-details-row label{ display:block; font-size:13px; color:var(--text-secondary); margin:0 0 6px; }
+.wiz-photo-row{ display:flex; gap:10px; margin:0 0 16px; }
+.wiz-photo-btn{
+  flex:1; display:flex; flex-direction:column; align-items:center; gap:6px;
+  border:1px dashed var(--border-color); border-radius:12px; padding:14px;
+  background:var(--bg-surface); cursor:pointer;
+}
+.wiz-photo-btn img{ width:22px; height:22px; }
+.wiz-photo-btn span{ font-size:12px; color:var(--text-secondary); }
+.wiz-submit-btn{
+  width:100%; background:#ff4b4b; color:#fff; border:none;
+  border-radius:12px; padding:16px; font-size:16px; font-weight:600;
+  cursor:pointer;
+}
+.wiz-submit-btn:disabled{ opacity:.5; }
+
 /* --- Theme picker (Settings > Theme): Light/Dark/Auto segmented control --- */
 .theme-segment{
   display:flex;
@@ -2602,7 +2715,7 @@ span.flatpickr-weekday {
     <span id="proximityText"></span>
   </div>
 
-  <div class="row report-comment-row">
+  <div class="row report-comment-row" id="reportCommentRow">
     <input id="comment" type="text" placeholder="Optional notes..." oninput="checkFormReady()">
     <div class="photo-choice-dropdown" id="reportPhotoDropdown">
       <button type="button" class="icon-only-btn" id="reportPhotoAddBtn" title="Take photo" aria-label="Take photo" onclick="triggerReportPhotoCamera()">
@@ -2637,7 +2750,7 @@ span.flatpickr-weekday {
     <span class="offline-queue-retry" id="offlineQueueRetryLabel">Retry</span>
   </div>
 
-  <div class="row" style="align-items:stretch;">
+  <div class="row" id="reportSubmitRow" style="align-items:stretch;">
     <button class="report-btn" id="reportBtn" onclick="reportBreak()"
             style="width:100%;font-size:14px;" disabled>
          <span id="reportBtnLabel">REPORT BREAK</span>
@@ -2645,6 +2758,28 @@ span.flatpickr-weekday {
   </div>
 </div>
 
+
+<!-- Red FAB — the entry point for filing a report. Replaces the old
+     always-visible dropdown panel above, which stays in the DOM (see
+     the comment on #reportFormPanel) purely as the data model the
+     wizard below drives: every tile tap sets one of its selects/inputs,
+     so reportBreak() and everything around it (checkFormReady,
+     onCategoryChange, the offline queue, proximity gate) needs no
+     changes at all. Visibility is kept in lockstep with
+     #reportFormPanel's own show/hide points — see updateAuthUI() and
+     the driving-mode toggle. -->
+<button type="button" class="report-fab-btn" id="reportFabBtn" style="display:none" title="Report a break" aria-label="Report a break" onclick="reportFabTap()">
+  <img src="icons/report_new.png" alt="">
+</button>
+
+<div class="wiz-overlay" id="reportWizard" style="display:none">
+  <div class="wiz-header">
+    <button type="button" class="wiz-back-btn" id="wizBackBtn" onclick="wizGoBack()" aria-label="Back">‹</button>
+    <div class="wiz-progress" id="wizProgress"></div>
+    <button type="button" class="wiz-close-btn" onclick="closeReportWizard()" aria-label="Cancel">✕</button>
+  </div>
+  <div class="wiz-body" id="wizBody"></div>
+</div>
 
 <!-- Shown instead of #reportFormPanel to a signed-in non-admin on a
      non-mobile device (see isMobileDevice/updateAuthUI) — reporting stays
@@ -3140,6 +3275,32 @@ span.flatpickr-weekday {
 
 </div>
 
+<!-- Heatmap category filter: fullscreen modal (see the .heatmap-panel-row /
+     heatmap-btn CSS comments above for why this replaced a tiny anchored
+     popover). Opened by toggleHeatmap() when heatmap mode turns on, closed
+     either via the X here or by toggling heatmap mode back off — either way
+     the filter selection itself (heatmapCategoryFilter) persists across
+     opens, same as before. -->
+<div id="heatmapFilterModal" class="fullscreen-modal-overlay" style="display:none">
+  <div class="fullscreen-modal-header">
+    <h2 id="heatmapPanelTitle">Show on heatmap</h2>
+    <button class="fullscreen-modal-close" onclick="hideHeatmapFilterModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
+  </div>
+  <div class="fullscreen-modal-body">
+    <!-- One continuous card so the row separators (.heatmap-panel-row's
+         :not(:last-child) border) read as a single list — "All categories"
+         is just row zero, not a separate group above it. -->
+    <div class="detail-section" style="overflow:hidden;">
+      <label class="heatmap-panel-row">
+        <input type="checkbox" id="heatmapCatAll" checked onchange="onHeatmapAllToggle(this.checked)">
+        <span class="heatmap-panel-dot" style="background:var(--text-muted)"></span>
+        <span id="heatmapCatAllLabel">All categories</span>
+      </label>
+      <div id="heatmapCategoryList"></div>
+    </div>
+  </div>
+</div>
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <!-- Leaflet.heat — powers the heatmap toggle (see heatmapBtn / toggleHeatmap
@@ -3406,6 +3567,7 @@ function updateAuthUI() {
   const lockedFormPanel = document.getElementById('lockedFormPanel');
   const chooseUsernamePanel = document.getElementById('chooseUsernamePanel');
   const pinBtn = document.getElementById('pinMapBtn');
+  const reportFabBtn = document.getElementById('reportFabBtn');
 
   // Rankings (user), driving mode, and heatmap all live behind an account —
   // grey them out whenever nobody's signed in (see .map-btn-locked above).
@@ -3426,6 +3588,7 @@ function updateAuthUI() {
     reportFormPanel.style.display = canReportHere ? 'flex' : 'none';
     desktopBlockedPanel.style.display = canReportHere ? 'none' : 'flex';
     if (pinBtn) pinBtn.style.display = canReportHere ? 'flex' : 'none';
+    if (reportFabBtn) reportFabBtn.style.display = canReportHere ? 'flex' : 'none';
 
     lockedFormPanel.style.display = 'none';
     chooseUsernamePanel.style.display = 'none';
@@ -3438,14 +3601,19 @@ function updateAuthUI() {
     desktopBlockedPanel.style.display = 'none';
     lockedFormPanel.style.display = 'none';
     chooseUsernamePanel.style.display = 'flex';
+    if (reportFabBtn) reportFabBtn.style.display = 'none';
     document.getElementById('settingsAdminSection').style.display = 'none';
   } else {
     reportFormPanel.style.display = 'none';
     desktopBlockedPanel.style.display = 'none';
     lockedFormPanel.style.display = 'flex';
     chooseUsernamePanel.style.display = 'none';
+    if (reportFabBtn) reportFabBtn.style.display = 'none';
     document.getElementById('settingsAdminSection').style.display = 'none';
   }
+  // Not signed in / no permission to report right now — make sure the
+  // wizard isn't left open behind a FAB that just disappeared.
+  if (reportFabBtn && reportFabBtn.style.display === 'none') closeReportWizard();
   checkFormReady();
   refreshRenderedPopups();
   if (document.getElementById('leaderboardModal').style.display !== 'none') {
@@ -5075,6 +5243,12 @@ const T = {
   commentPHRequired: { en:'Describe your suggestion... (required)', sr:'Opišite svoj predlog... (obavezno)' },
   suggestionCommentRequired: { en:'Please describe your suggestion in the notes field.', sr:'Opišite svoj predlog u polju za napomenu.' },
   waitGps:      { en:'Waiting for GPS...',               sr:'Čekanje GPS-a...' },
+  wizStepLabel:       { en:'Step',                       sr:'Korak' },
+  wizCategoryTitle:   { en:"What's the issue?",          sr:'O kakvom kvaru se radi?' },
+  wizSubcategoryTitle:{ en:'Which one?',                 sr:'Koji tačno?' },
+  wizPriorityTitle:   { en:'How urgent is it?',           sr:'Koliko je hitno?' },
+  wizStatusTitle:     { en:"What's the current state?",  sr:'Kakvo je trenutno stanje?' },
+  wizDetailsTitle:    { en:'Add a photo & note',         sr:'Dodajte fotografiju i napomenu' },
   submitted:    { en:'Report submitted.',                sr:'Prijava uspešna.' },
   offlineQueued:      { en:'No signal — saved on your device. It\u2019ll submit automatically once you\u2019re back online.', sr:'Nema signala — sačuvano na uređaju. Biće poslato automatski čim se povežete.' },
   offlineQueueBadge:  { en:'{n} report(s) waiting for signal', sr:'{n} prijava(e) čeka signal' },
@@ -8418,7 +8592,7 @@ function categoryIcon(cat)  { return CATEGORY_ICONS[cat] || CATEGORY_ICONS.Other
 // normal pin/cluster layers for a Leaflet.heat density layer built from
 // globalActiveData, the same dataset already driving the pins (so the
 // heatmap always matches whatever date range is currently loaded). The
-// popover panel lets a person restrict the heatmap to specific categories
+// fullscreen filter modal lets a person restrict the heatmap to specific categories
 // — e.g. just "Road" to see where the pothole reports cluster, or just
 // "Streetlight"/"Water"/"Waste" for broken lights/water leaks/trash —
 // instead of one undifferentiated blob of every report type at once.
@@ -8500,20 +8674,31 @@ function refreshHeatLayer() {
 function toggleHeatmap() {
   heatmapActive = !heatmapActive;
   const btn = document.getElementById('heatmapBtn');
-  const panel = document.getElementById('heatmapPanel');
   if (heatmapActive) {
     if (map.hasLayer(pinCluster)) map.removeLayer(pinCluster);
     if (map.hasLayer(companyMarkersLayer)) map.removeLayer(companyMarkersLayer);
     heatLayer = buildHeatLayer().addTo(map);
     btn.classList.add('active');
-    if (panel) panel.classList.add('open');
+    showHeatmapFilterModal();
   } else {
     if (heatLayer) { map.removeLayer(heatLayer); heatLayer = null; }
     if (!map.hasLayer(pinCluster)) map.addLayer(pinCluster);
     if (!map.hasLayer(companyMarkersLayer)) map.addLayer(companyMarkersLayer);
     btn.classList.remove('active');
-    if (panel) panel.classList.remove('open');
+    hideHeatmapFilterModal();
   }
+}
+
+// Fullscreen category picker (see #heatmapFilterModal markup near the other
+// modals). Shown automatically whenever heatmap mode turns on. Closing it
+// (the X) leaves the heatmap layer itself running with whatever filter was
+// last set — it just dismisses the picker, it does not turn heatmap off.
+function showHeatmapFilterModal() {
+  populateHeatmapCategoryList();
+  document.getElementById('heatmapFilterModal').style.display = 'flex';
+}
+function hideHeatmapFilterModal() {
+  document.getElementById('heatmapFilterModal').style.display = 'none';
 }
 function subcategoryLabel(cat, subKey) {
   if (!subKey) return '';
@@ -8843,6 +9028,264 @@ function resetReportingForm() {
   manualCoords = null;
   manualPinMunicipality = null;
   updateProximityUi();
+
+  // Called on both submit-success paths (online insert and offline-queued)
+  // — the wizard's job is done either way, so close it and drop back to
+  // a clean slate for next time.
+  wizState.status = null;
+  closeReportWizard();
+}
+
+// =============================================================================
+// REPORT WIZARD — the FAB-driven step flow (category → subcategory →
+// priority → status → photo/comment) that replaced the old always-visible
+// dropdown form above. It's a UI layer only: every tile tap just sets the
+// value of the real #category/#subcategory/#priority/#comment fields
+// inside the (now permanently hidden) #reportFormPanel and calls the same
+// onCategoryChange()/checkFormReady() they always called, so reportBreak(),
+// the offline queue, and the proximity gate all needed zero changes.
+// =============================================================================
+
+// Big front-facing icons for the wizard tiles — deliberately separate from
+// CATEGORY_ICONS above, which are small monochrome glyphs tuned for map
+// pins. Filenames match icons/ exactly (see the icon-set reference).
+const WIZ_CATEGORY_ICONS = {
+  Water: 'water.png', Electricity: 'electricity.png', Sewage: 'sewage.png',
+  Gas: 'gas.png', Heating: 'heating.png', Road: 'road.png',
+  Streetlight: 'streetlight.png', Waste: 'waste.png', Walkways: 'walkways.png',
+  BikeLanes: 'bike_lanes.png', GreenSpaces: 'green_spaces.png', Parking: 'parking.png',
+  Suggestion: 'ui_suggestion.png', Other: 'ui_other.png',
+};
+const WIZ_SUBCATEGORY_ICONS = {
+  Water: { burst_leak:'water_leak.png', no_supply:'water_no_supply.png', low_pressure:'water_low_pressure.png', discoloration:'water_discoloration.png' },
+  Electricity: { outage:'electricity_outage.png', exposed_wire:'electricity_damaged_wire.png', transformer:'electricity_transformer_issue.png', voltage:'electricity_voltage_fluctuation.png' },
+  Sewage: { blockage:'sewage_overflow.png', manhole:'sewage_manhole_issue.png', odor:'sewage_odor.png' },
+  Gas: { leak:'gas_leak.png', outage:'gas_outage.png' },
+  Heating: { no_heat:'heating_no_heat.png', leak:'heating_leak.png', low_temp:'heating_low_temp.png' },
+  Road: { pothole:'road_pothole.png', cracked:'road_damaged_pavement.png', signage:'road_missing_sign.png', flooding:'road_flooding.png' },
+  Streetlight: { out:'street_light_out.png', flickering:'street_light_flickering.png', pole_damage:'street_light_damaged_pole.png' },
+  Waste: { overflow:'waste_overflowing_bin.png', missed:'waste_missed_collection.png', dumping:'waste_illegal_dumping.png' },
+  Walkways: { cracked_concrete:'walkway_cracked_concrete.png', blocked_path:'walkway_blocked_path.png', missing_ramp:'walkway_missing_ramp.png', trip_hazard:'walkway_trip_hazard.png' },
+  BikeLanes: { surface_damage:'bike_surface_damage.png', missing_separation:'bike_missing_separation.png', faded_markings:'bike_faded_markings.png', blocked_lane:'bike_blocked_by_car.png' },
+  GreenSpaces: { broken_equipment:'green_broken_equipment.png', fallen_trees:'green_fallen_tree.png', overgrown_grass:'green_overgrown_grass.png', illegal_dumping:'green_litter.png' },
+};
+const WIZ_PRIORITY_ICONS = { low:'priority_low.png', normal:'priority_normal.png', high:'priority_high.png' };
+const WIZ_STATUS_ICONS = { reported:'status_reported.png', in_progress:'status_in_progress.png' };
+
+let wizState = { steps: ['category'], step: 0, category: null, subcategory: null, priority: null, status: null };
+// True only while the FAB itself is responsible for pinMode/manualCoords —
+// keeps us from stomping on an admin's own manual-pin-drop session (see
+// togglePinMode) if they happen to have that on some other way.
+let wizOwnsPinDrop = false;
+
+function wizStepsFor(cat) {
+  const steps = ['category'];
+  if (cat && (SUBCATEGORIES[cat] || []).length) steps.push('subcategory');
+  steps.push('priority', 'status', 'details');
+  return steps;
+}
+
+// Entry point — the red FAB. Drops a pin at the current GPS fix (reusing
+// exactly the marker/proximity/municipality machinery togglePinMode uses
+// for a manually-clicked pin) so the report's location is locked in even
+// if the person keeps walking while they finish the wizard.
+function reportFabTap() {
+  if (!currentSession || !currentProfile) { toast(t('signInFirst') || 'Sign in first', 'error'); return; }
+  if (!currentProfile.is_admin && !isMobileDevice()) { toast(t('mobileOnlyReport'), 'error'); return; }
+  if (!userCoords || !isValidCoordObj(userCoords)) { toast(t('waitGps'), 'error'); return; }
+
+  if (!pinMode) {
+    pinMode = true;
+    wizOwnsPinDrop = true;
+    document.getElementById('pinMapBtn').classList.add('active');
+  }
+  manualCoords = { lat: userCoords.lat, lon: userCoords.lon };
+  if (manualMarker) {
+    manualMarker.setLatLng([manualCoords.lat, manualCoords.lon]);
+  } else {
+    manualMarker = L.marker([manualCoords.lat, manualCoords.lon], {
+      icon: L.divIcon({ className: '', html: buildDroppedPinHtml(), iconSize: [30, 36], iconAnchor: [15, 34] })
+    }).addTo(map);
+  }
+  manualPinMunicipality = null;
+  showMunicipalityBoundaryForPoint(manualCoords.lat, manualCoords.lon, manualMarker)
+    .then(muni => { manualPinMunicipality = muni; updateProximityUi(); })
+    .catch(() => {});
+  updateProximityUi();
+  checkFormReady();
+
+  openReportWizard();
+}
+
+function openReportWizard() {
+  wizState = { steps: ['category'], step: 0, category: null, subcategory: null, priority: null, status: null };
+  document.getElementById('reportWizard').style.display = 'flex';
+  wizRender();
+}
+
+function closeReportWizard() {
+  const overlay = document.getElementById('reportWizard');
+  if (overlay) overlay.style.display = 'none';
+  // Move the real form fields back home in case they were relocated into
+  // the details step — see wizRender()'s cleanup at the top.
+  wizReturnRelocatedNodes();
+  // Only tear down the pin if the FAB is what dropped it — leave an
+  // admin's own manual-pin session alone.
+  if (wizOwnsPinDrop) {
+    wizOwnsPinDrop = false;
+    resetReportingForm();
+  }
+}
+
+function wizGoBack() {
+  if (wizState.step === 0) { closeReportWizard(); return; }
+  wizState.step -= 1;
+  wizRender();
+}
+
+function wizAdvance() {
+  wizState.step += 1;
+  wizRender();
+}
+
+// The comment/photo row, photo preview, offline-queue badge, proximity
+// indicator, and submit button are the *real* elements from the (hidden)
+// #reportFormPanel — moved (not cloned) into the wizard's details step so
+// there's exactly one copy of each with all its ids/listeners intact.
+// Always parked back inside #reportFormPanel before any other step
+// re-renders wizBody, so a fresh render never destroys them.
+const WIZ_RELOCATED_IDS = ['proximityIndicator', 'reportCommentRow', 'reportPhotoPreview', 'offlineQueueBadge', 'reportSubmitRow'];
+function wizReturnRelocatedNodes() {
+  const home = document.getElementById('reportFormPanel');
+  WIZ_RELOCATED_IDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (el && el.parentElement !== home) home.appendChild(el);
+  });
+}
+
+function wizRender() {
+  wizReturnRelocatedNodes();
+  const step = wizState.steps[wizState.step];
+  const progressWrap = document.getElementById('wizProgress');
+  progressWrap.innerHTML = wizState.steps.map((_, i) => `<span class="${i <= wizState.step ? 'done' : ''}"></span>`).join('');
+  document.getElementById('wizBackBtn').style.visibility = 'visible';
+
+  const body = document.getElementById('wizBody');
+  if (step === 'category') return wizRenderCategory(body);
+  if (step === 'subcategory') return wizRenderSubcategory(body);
+  if (step === 'priority') return wizRenderPriority(body);
+  if (step === 'status') return wizRenderStatus(body);
+  if (step === 'details') return wizRenderDetails(body);
+}
+
+function wizRenderCategory(body) {
+  const cats = Object.keys(WIZ_CATEGORY_ICONS);
+  body.innerHTML = `
+    <p class="wiz-step-label">${t('wizStepLabel') || 'Step 1'}</p>
+    <h3 class="wiz-step-title">${t('wizCategoryTitle') || "What's the issue?"}</h3>
+    <div class="wiz-grid">
+      ${cats.map(cat => `
+        <div class="wiz-tile" onclick="wizSelectCategory('${cat}')">
+          <img src="icons/${WIZ_CATEGORY_ICONS[cat]}" alt="">
+          <span>${translateCategory(cat)}</span>
+        </div>`).join('')}
+    </div>`;
+}
+
+function wizSelectCategory(cat) {
+  document.getElementById('category').value = cat;
+  onCategoryChange();
+  wizState.category = cat;
+  wizState.subcategory = null;
+  wizState.steps = wizStepsFor(cat);
+  wizAdvance();
+}
+
+function wizRenderSubcategory(body) {
+  const list = SUBCATEGORIES[wizState.category] || [];
+  const icons = WIZ_SUBCATEGORY_ICONS[wizState.category] || {};
+  body.innerHTML = `
+    <p class="wiz-step-label">${t('wizStepLabel') || 'Step 2'}</p>
+    <h3 class="wiz-step-title">${t('wizSubcategoryTitle') || 'Which one?'}</h3>
+    <div class="wiz-grid">
+      ${list.map(s => `
+        <div class="wiz-tile" onclick="wizSelectSubcategory('${s.key}')">
+          ${icons[s.key] ? `<img src="icons/${icons[s.key]}" alt="">` : ''}
+          <span>${lang === 'sr' ? s.sr : s.en}</span>
+        </div>`).join('')}
+    </div>`;
+}
+
+function wizSelectSubcategory(key) {
+  document.getElementById('subcategory').value = key || '';
+  checkFormReady();
+  wizState.subcategory = key || null;
+  wizAdvance();
+}
+
+function wizRenderPriority(body) {
+  const opts = [
+    { key: 'low', icon: WIZ_PRIORITY_ICONS.low },
+    { key: 'normal', icon: WIZ_PRIORITY_ICONS.normal },
+    { key: 'high', icon: WIZ_PRIORITY_ICONS.high },
+  ];
+  body.innerHTML = `
+    <p class="wiz-step-label">${t('wizStepLabel') || 'Step'}</p>
+    <h3 class="wiz-step-title">${t('wizPriorityTitle') || 'How urgent is it?'}</h3>
+    <div class="wiz-list">
+      ${opts.map(o => `
+        <div class="wiz-bar" onclick="wizSelectPriority('${o.key}')">
+          <img src="icons/${o.icon}" alt="">
+          <span class="dot" style="background:${priorityColor(o.key)}"></span>
+          <span>${priorityLabelText(o.key)}</span>
+        </div>`).join('')}
+    </div>`;
+}
+
+function wizSelectPriority(p) {
+  document.getElementById('priority').value = p;
+  checkFormReady();
+  wizState.priority = p;
+  wizAdvance();
+}
+
+function wizRenderStatus(body) {
+  // Reported / In progress only — "Fixed" is never a starting state for a
+  // freshly filed report, that's set later by an admin/owner.
+  const opts = ['reported', 'in_progress'];
+  body.innerHTML = `
+    <p class="wiz-step-label">${t('wizStepLabel') || 'Step'}</p>
+    <h3 class="wiz-step-title">${t('wizStatusTitle') || "What's the current state?"}</h3>
+    <div class="wiz-list">
+      ${opts.map(s => `
+        <div class="wiz-bar" onclick="wizSelectStatus('${s}')">
+          <img src="icons/${WIZ_STATUS_ICONS[s]}" alt="">
+          <span class="dot" style="background:${statusColor(s)}"></span>
+          <span>${statusLabel(s)}</span>
+        </div>`).join('')}
+    </div>`;
+}
+
+function wizSelectStatus(s) {
+  wizState.status = s;
+  wizAdvance();
+}
+
+function wizRenderDetails(body) {
+  body.innerHTML = `
+    <p class="wiz-step-label">${t('wizStepLabel') || 'Last step'}</p>
+    <h3 class="wiz-step-title">${t('wizDetailsTitle') || 'Add a photo & note'}</h3>
+    <div id="wizProximitySlot"></div>
+    <div id="wizCommentSlot"></div>
+    <div id="wizPhotoPreviewSlot"></div>
+    <div id="wizOfflineBadgeSlot"></div>
+    <div id="wizSubmitSlot" style="margin-top:8px;"></div>`;
+  // Relocate the real elements in — see WIZ_RELOCATED_IDS above.
+  document.getElementById('wizProximitySlot').appendChild(document.getElementById('proximityIndicator'));
+  document.getElementById('wizCommentSlot').appendChild(document.getElementById('reportCommentRow'));
+  document.getElementById('wizPhotoPreviewSlot').appendChild(document.getElementById('reportPhotoPreview'));
+  document.getElementById('wizOfflineBadgeSlot').appendChild(document.getElementById('offlineQueueBadge'));
+  document.getElementById('wizSubmitSlot').appendChild(document.getElementById('reportSubmitRow'));
 }
 
 // =============================================================================
@@ -9104,6 +9547,11 @@ async function reportBreak(){
   const subcategory = document.getElementById('subcategory').value || null;
   const priority     = document.getElementById('priority').value || 'normal';
   const comment      = cyrillicToLatin(document.getElementById('comment').value);
+  // Set by the wizard's status step (see wizSelectStatus) — reported or
+  // in_progress only, same restriction as the wizard UI itself. Anything
+  // else reaching reportBreak() (there shouldn't be another path) falls
+  // back to 'reported', same as before this field existed.
+  const status = (wizState.status === 'in_progress') ? 'in_progress' : 'reported';
 
   // Defense in depth, same reasoning as every other guard here — the
   // button is already disabled without a comment for these categories
@@ -9124,7 +9572,7 @@ async function reportBreak(){
       category,
       subcategory,
       priority,
-      status: 'reported',
+      status,
       comment,
       created_at: new Date().toISOString(),
       owner_id: currentSession.user.id,
