@@ -5306,6 +5306,7 @@ const T = {
   proximityInRange:  { en:'\u2713 Close enough to report', sr:'\u2713 Dovoljno blizu za prijavu' },
   proximityTooFar:   { en:'{d}m away — get closer to report', sr:'{d}m udaljenosti — priđite bliže da prijavite' },
   tooFarToReport:    { en:'You must be within 50m of the pin to report it ({d}m away).', sr:'Morate biti u krugu od 50m od pina da biste prijavili (udaljenost {d}m).' },
+  vpnBlockedReport:  { en:'Reports can\u2019t be filed while using a VPN or proxy. Turn it off and try again.', sr:'Prijave nije moguće slati dok je uključen VPN ili proksi. Isključite ga i pokušajte ponovo.' },
   dashboardSectionTitle:     { en:'My Dashboard',        sr:'Moja tabla' },
   dashboardBadgesTitle:      { en:'Badges',              sr:'Značke' },
   dashboardWeekTitle:            { en:'This Week',            sr:'Ove nedelje' },
@@ -6548,6 +6549,53 @@ function isMobileDevice() {
   return !!(window.matchMedia && window.matchMedia('(pointer:coarse)').matches);
 }
 
+// =============================================================================
+// VPN / PROXY DETECTION — best-effort signal that whoever's about to file a
+// report isn't hiding their real network location behind a VPN/proxy, the
+// network-level equivalent of the manual-pin proximity gate below. There's
+// no browser API for "is this a VPN" — this asks a free third-party IP
+// lookup (ipwho.is, no key required, HTTPS) whether the request's IP
+// address looks like a known VPN/proxy/Tor exit. It says nothing about the
+// GPS fix itself (a VPN only reroutes network traffic, it doesn't touch the
+// device's GPS chip), so it's one signal among several, not proof either
+// way — and, like every other client-side gate in this file, someone
+// hitting the Supabase table directly bypasses it entirely; there's no
+// substitute for a matching server-side check.
+// Cached for VPN_RECHECK_INTERVAL_MS so the report flow doesn't refire this
+// on every tap, and warmed up proactively at startup so the common case
+// (report FAB tap) already has an answer instead of waiting on a fetch.
+// =============================================================================
+const VPN_CHECK_URL = 'https://ipwho.is/?fields=success,security';
+const VPN_RECHECK_INTERVAL_MS = 5 * 60 * 1000;
+let vpnCheckResult = null;   // { isVpn: boolean } | null (null = never resolved yet)
+let vpnCheckedAt = 0;
+let vpnCheckInFlight = null; // de-dupes overlapping calls
+
+async function ensureVpnStatus() {
+  const isFresh = vpnCheckResult && (Date.now() - vpnCheckedAt) < VPN_RECHECK_INTERVAL_MS;
+  if (isFresh) return vpnCheckResult;
+  if (vpnCheckInFlight) return vpnCheckInFlight;
+
+  vpnCheckInFlight = (async () => {
+    try {
+      const res = await fetch(VPN_CHECK_URL);
+      const data = await res.json();
+      const sec = data && data.success !== false ? data.security : null;
+      vpnCheckResult = { isVpn: !!(sec && (sec.vpn || sec.proxy || sec.tor)) };
+    } catch (err) {
+      // Fail OPEN: an unreachable/blocked third-party lookup (ad-blocker,
+      // no connectivity, the service itself being down) must never itself
+      // stop a genuine on-site report from going through.
+      vpnCheckResult = { isVpn: false };
+    }
+    vpnCheckedAt = Date.now();
+    vpnCheckInFlight = null;
+    return vpnCheckResult;
+  })();
+  return vpnCheckInFlight;
+}
+ensureVpnStatus(); // fire-and-forget warmup — see comment above
+
 // A non-admin's manually-dropped report pin (see togglePinMode) must be
 // within this many meters of their live GPS fix to submit — the reporting
 // equivalent of the existing 50m vote proximity gate (see castStatusVote).
@@ -7585,6 +7633,7 @@ async function quickReportRoad(subcategoryKey) {
   if (!currentProfile.is_admin && !isMobileDevice()) { toast(t('mobileOnlyReport'), 'error'); return; }
   if (!userCoords) { toast(t('waitGps'), 'error'); return; }
   if (!isValidCoordObj(userCoords)) { toast(t('invalidLocation'), 'error'); return; }
+  if ((await ensureVpnStatus()).isVpn) { toast(t('vpnBlockedReport'), 'error'); return; }
   if (shouldBlockReportSubmission()) return;
 
   reportSubmissionInFlight = true;
@@ -7675,6 +7724,12 @@ async function finalizeSectionReport(subcategoryKey) {
     return;
   }
   if (shouldBlockReportSubmission()) return;
+  if ((await ensureVpnStatus()).isVpn) {
+    sectionAwaitingCategory = false;
+    updateSectionButtonUI();
+    toast(t('vpnBlockedReport'), 'error');
+    return;
+  }
 
   const freshSession = await ensureFreshSession();
   if (!freshSession) { discardSectionDraft(); sectionAwaitingCategory = false; updateSectionButtonUI(); return; }
@@ -9083,6 +9138,11 @@ function wizStepsFor(cat) {
 function reportFabTap() {
   if (!currentSession || !currentProfile) { toast(t('signInFirst') || 'Sign in first', 'error'); return; }
   if (!currentProfile.is_admin && !isMobileDevice()) { toast(t('mobileOnlyReport'), 'error'); return; }
+  // Cheap, cached check for instant feedback — vpnCheckResult is warmed up
+  // at startup (see ensureVpnStatus()). Unknown/not-yet-resolved is let
+  // through here; the real gate is the awaited check inside reportBreak()
+  // (and the other submission functions) once the wizard actually submits.
+  if (vpnCheckResult && vpnCheckResult.isVpn) { toast(t('vpnBlockedReport'), 'error'); return; }
   if (!userCoords || !isValidCoordObj(userCoords)) { toast(t('waitGps'), 'error'); return; }
 
   if (!pinMode) {
@@ -9525,6 +9585,7 @@ async function reportBreak(){
   // for non-admins (see updateAuthUI), this just covers anyone who got
   // here anyway (e.g. a stale tab left open after switching devices).
   if (!isAdmin && !isMobileDevice()) { toast(t('mobileOnlyReport'), 'error'); return; }
+  if ((await ensureVpnStatus()).isVpn) { toast(t('vpnBlockedReport'), 'error'); return; }
 
   const coords = pinMode && manualCoords ? manualCoords : userCoords;
   if (!coords) { toast(t('waitGps'), 'error'); return; }
