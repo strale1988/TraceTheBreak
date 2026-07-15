@@ -9587,11 +9587,21 @@ async function reverseGeocodeMunicipalityCandidates(lat, lon) {
     const json = await res.json();
     if (!json || json.error) return { candidates: [], countryCode: null, bestName: null };
     const addr = json.address || {};
-    // Ordered most-specific first; address breakdown includes the full
-    // admin hierarchy regardless of which level `zoom` targets, so one
-    // request is enough — no need to retry across zoom levels here the
-    // way fetchMunicipalityFromNominatim does for boundary imports.
-    const candidates = [addr.city_district, addr.municipality, addr.town, addr.city, addr.county, json.name].filter(Boolean);
+    // Ordered to try real municipality/city-level names BEFORE
+    // city_district. Our municipalityCache is registered at
+    // municipality/city granularity (e.g. "Novi Sad"), so a sub-area like
+    // a city_district ("Sremska Kamenica", a gradska opština within Grad
+    // Novi Sad) will almost never have its own cache row. Trying it first
+    // used to mean findMunicipalityByNameMatch failed on every candidate
+    // before it (since it never got to addr.city) — that missed match then
+    // fell through to autoRegisterMunicipality, which created a brand-new,
+    // contact-less "Sremska Kamenica" municipality instead of resolving to
+    // the already-configured "Novi Sad" — so any report from that area lost
+    // its municipality/contacts even though the city itself resolves fine
+    // elsewhere in the modal (see fetchAddressForPoint's Opština field).
+    // city_district is now a fallback, tried only if nothing more
+    // municipality-level matched anything cached.
+    const candidates = [addr.municipality, addr.city, addr.town, addr.city_district, addr.county, json.name].filter(Boolean);
     // Separate "best name" for auto-registration (see autoRegisterMunicipality
     // below) — deliberately skips city_district, which is usually a
     // neighborhood/borough rather than a real municipality-level place, so
@@ -9687,8 +9697,18 @@ async function autoRegisterMunicipality(name, countryCode, lat, lon) {
       writeMunicipalityCacheToStorage(municipalityCache);
       return data;
     } catch (err) {
+      // Most common cause: the caller is a regular (non-admin) user and
+      // the municipalities table's RLS only allows admin writes — a report
+      // submitted by a regular user can absolutely hit this path. That
+      // used to leave `row` with no `id` field, and every downstream
+      // `muni.id == null` check (report-detail contacts, etc.) treated
+      // that exactly like "municipality unresolved", silently hiding the
+      // resolved name (and any contacts) even though the name WAS found.
+      // A session-local id keeps this row usable for this session's checks
+      // without pretending it's a real, persisted municipality row.
       console.error('Failed to auto-register municipality (showing it for this session only):', err.message);
-      return row; // still usable this session even if the DB write failed
+      row.id = 'session:' + key;
+      return row;
     }
   })();
   _autoRegisterInFlight.set(key, promise);
@@ -10294,6 +10314,11 @@ async function loadUtilityCompaniesAdmin() {
 // of only ever updating on modal open or after an admin's own action —
 // so a flag from someone else shows up without needing to close and
 // reopen Settings.
+//
+// VISIBILITY: 'photo' items (pending photo review) are shown to every
+// admin, not just ones whose domain covers that report — see the filter
+// at the bottom of loadWaitingListAdmin. 'rejected_photo' and 'user_flag'
+// stay domain-gated via hasFullPowerOverReport.
 // =============================================================================
 let waitingListCache = []; // [{ report, waitingSince: Date, reasons: ['photo'|'rejected_photo'|'user_flag'], flags: [...] }]
 const WAITING_LIST_PREVIEW_LIMIT = 5;
@@ -10364,8 +10389,20 @@ async function loadWaitingListAdmin() {
     console.error('Failed to load report flags:', err.message);
   }
 
+  // Visibility rule: a pending PHOTO REVIEW is global — any admin can see
+  // and act on it (approveReportPhoto/rejectReportPhoto never domain-check
+  // the report either), so it's never hidden by the domain gate. This is
+  // also what fixes reports whose municipality failed to resolve (or
+  // resolved to the wrong place, e.g. a city_district instead of its
+  // parent municipality — see reverseGeocodeMunicipalityCandidates): those
+  // used to silently vanish from every non-Overseer admin's queue, because
+  // isReportInAdminDomain has nothing to match against without a correct
+  // municipality_id, leaving the photo waiting for review forever with no
+  // admin ever seeing it. rejected_photo and user_flag stay domain-gated,
+  // since those are tied to actually managing/resolving that specific
+  // report, not just judging whether an image is appropriate.
   waitingListCache = Array.from(items.values())
-    .filter(item => hasFullPowerOverReport(item.report))
+    .filter(item => item.reasons.includes('photo') || hasFullPowerOverReport(item.report))
     .sort((a, b) => a.waitingSince - b.waitingSince) // oldest first
     .slice(0, WAITING_LIST_PREVIEW_LIMIT);
   renderWaitingList();
