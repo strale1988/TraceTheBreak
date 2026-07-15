@@ -42,10 +42,19 @@
     (function(){
       try {
         var mode = localStorage.getItem('ttb_theme_mode') || 'auto';
-        var resolved = mode === 'auto'
-          ? (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-          : mode;
-        document.documentElement.dataset.theme = resolved;
+        if (mode === 'custom') {
+          var bg = localStorage.getItem('ttb_theme_custom_bg') || '#121212';
+          var m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(bg);
+          var r = m ? parseInt(m[1],16) : 18, g = m ? parseInt(m[2],16) : 18, b = m ? parseInt(m[3],16) : 18;
+          var isLight = (0.2126*r + 0.7152*g + 0.0722*b) / 255 > 0.55;
+          document.documentElement.dataset.theme = isLight ? 'light' : 'dark';
+          document.documentElement.style.setProperty('--bg-app', bg);
+        } else {
+          var resolved = mode === 'auto'
+            ? (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+            : mode;
+          document.documentElement.dataset.theme = resolved;
+        }
       } catch (e) {}
     })();
   </script>
@@ -792,6 +801,20 @@ body.driving-active .report-fab-btn{ display:none !important; }
   background:var(--bg-surface);
   color:var(--text-primary);
   box-shadow:0 1px 4px var(--floating-shadow);
+}
+.theme-custom-pickers{
+  display:flex; flex-direction:column; gap:10px;
+  margin-top:10px;
+}
+.theme-custom-picker-row{
+  display:flex; align-items:center; justify-content:space-between;
+  gap:12px; cursor:pointer;
+}
+.theme-custom-picker-row span{ font-size:13px; color:var(--text-primary); }
+.theme-custom-picker-row input[type="color"]{
+  width:40px; height:32px; border:1px solid var(--border-color);
+  border-radius:8px; padding:2px; background:var(--bg-surface);
+  cursor:pointer;
 }
 
 /* Custom PNG icons (https://strale1988.github.io/TraceTheStuff/) replacing
@@ -2769,7 +2792,7 @@ span.flatpickr-weekday {
      #reportFormPanel's own show/hide points — see updateAuthUI() and
      the driving-mode toggle. -->
 <button type="button" class="report-fab-btn" id="reportFabBtn" style="display:none" title="Report a break" aria-label="Report a break" onclick="reportFabTap()">
-  <img src="icons/report_new.png" alt="">
+  <img src="icons/report/report_new.png" alt="">
 </button>
 
 <div class="wiz-overlay" id="reportWizard" style="display:none">
@@ -2989,6 +3012,21 @@ span.flatpickr-weekday {
         <button type="button" class="theme-segment-btn" onclick="setThemeMode('light')" id="themeBtnLight">Light</button>
         <button type="button" class="theme-segment-btn" onclick="setThemeMode('dark')" id="themeBtnDark">Dark</button>
         <button type="button" class="theme-segment-btn" onclick="setThemeMode('auto')" id="themeBtnAuto">Auto</button>
+        <button type="button" class="theme-segment-btn" onclick="setThemeMode('custom')" id="themeBtnCustom">Custom</button>
+      </div>
+      <!-- Shown only when Custom is selected — see updateThemeSegmentUI().
+           Picking either color re-solves and re-applies the whole theme
+           live (see applyCustomTheme()); both are also persisted so the
+           choice survives a reload. -->
+      <div class="theme-custom-pickers" id="themeCustomPickers" style="display:none">
+        <label class="theme-custom-picker-row">
+          <span id="themeCustomBgLabel">Background color</span>
+          <input type="color" id="themeCustomBgInput" value="#121212" oninput="onCustomThemeColorChange()">
+        </label>
+        <label class="theme-custom-picker-row">
+          <span id="themeCustomIconLabel">Icon color</span>
+          <input type="color" id="themeCustomIconInput" value="#ff4b4b" oninput="onCustomThemeColorChange()">
+        </label>
       </div>
     </div>
 
@@ -5249,6 +5287,10 @@ const T = {
   wizPriorityTitle:   { en:'How urgent is it?',           sr:'Koliko je hitno?' },
   wizStatusTitle:     { en:"What's the current state?",  sr:'Kakvo je trenutno stanje?' },
   wizDetailsTitle:    { en:'Add a photo & note',         sr:'Dodajte fotografiju i napomenu' },
+  wizNoteLabel:       { en:'Note (optional)',             sr:'Napomena (opciono)' },
+  wizPhotoLabel:      { en:'Photo (optional)',            sr:'Fotografija (opciono)' },
+  wizTakePhoto:       { en:'Take photo',                  sr:'Slikaj' },
+  wizChoosePhoto:     { en:'Choose photo',                sr:'Izaberi iz galerije' },
   submitted:    { en:'Report submitted.',                sr:'Prijava uspešna.' },
   offlineQueued:      { en:'No signal — saved on your device. It\u2019ll submit automatically once you\u2019re back online.', sr:'Nema signala — sačuvano na uređaju. Biće poslato automatski čim se povežete.' },
   offlineQueueBadge:  { en:'{n} report(s) waiting for signal', sr:'{n} prijava(e) čeka signal' },
@@ -9154,7 +9196,7 @@ function wizAdvance() {
 // there's exactly one copy of each with all its ids/listeners intact.
 // Always parked back inside #reportFormPanel before any other step
 // re-renders wizBody, so a fresh render never destroys them.
-const WIZ_RELOCATED_IDS = ['proximityIndicator', 'reportCommentRow', 'reportPhotoPreview', 'offlineQueueBadge', 'reportSubmitRow'];
+const WIZ_RELOCATED_IDS = ['proximityIndicator', 'comment', 'reportPhotoPreview', 'offlineQueueBadge', 'reportSubmitRow'];
 function wizReturnRelocatedNodes() {
   const home = document.getElementById('reportFormPanel');
   WIZ_RELOCATED_IDS.forEach(id => {
@@ -9186,7 +9228,7 @@ function wizRenderCategory(body) {
     <div class="wiz-grid">
       ${cats.map(cat => `
         <div class="wiz-tile" onclick="wizSelectCategory('${cat}')">
-          <img src="icons/${WIZ_CATEGORY_ICONS[cat]}" alt="">
+          <img src="icons/report/${WIZ_CATEGORY_ICONS[cat]}" alt="">
           <span>${translateCategory(cat)}</span>
         </div>`).join('')}
     </div>`;
@@ -9210,7 +9252,7 @@ function wizRenderSubcategory(body) {
     <div class="wiz-grid">
       ${list.map(s => `
         <div class="wiz-tile" onclick="wizSelectSubcategory('${s.key}')">
-          ${icons[s.key] ? `<img src="icons/${icons[s.key]}" alt="">` : ''}
+          ${icons[s.key] ? `<img src="icons/report/${icons[s.key]}" alt="">` : ""}
           <span>${lang === 'sr' ? s.sr : s.en}</span>
         </div>`).join('')}
     </div>`;
@@ -9235,7 +9277,7 @@ function wizRenderPriority(body) {
     <div class="wiz-list">
       ${opts.map(o => `
         <div class="wiz-bar" onclick="wizSelectPriority('${o.key}')">
-          <img src="icons/${o.icon}" alt="">
+          <img src="icons/report/${o.icon}" alt="">
           <span class="dot" style="background:${priorityColor(o.key)}"></span>
           <span>${priorityLabelText(o.key)}</span>
         </div>`).join('')}
@@ -9259,7 +9301,7 @@ function wizRenderStatus(body) {
     <div class="wiz-list">
       ${opts.map(s => `
         <div class="wiz-bar" onclick="wizSelectStatus('${s}')">
-          <img src="icons/${WIZ_STATUS_ICONS[s]}" alt="">
+          <img src="icons/report/${WIZ_STATUS_ICONS[s]}" alt="">
           <span class="dot" style="background:${statusColor(s)}"></span>
           <span>${statusLabel(s)}</span>
         </div>`).join('')}
@@ -9275,14 +9317,34 @@ function wizRenderDetails(body) {
   body.innerHTML = `
     <p class="wiz-step-label">${t('wizStepLabel') || 'Last step'}</p>
     <h3 class="wiz-step-title">${t('wizDetailsTitle') || 'Add a photo & note'}</h3>
-    <div id="wizProximitySlot"></div>
-    <div id="wizCommentSlot"></div>
-    <div id="wizPhotoPreviewSlot"></div>
+    <div id="wizProximitySlot" class="wiz-details-row"></div>
+    <div class="wiz-details-row">
+      <label>${t('wizNoteLabel') || 'Note (optional)'}</label>
+      <div id="wizCommentSlot"></div>
+    </div>
+    <div class="wiz-details-row">
+      <label>${t('wizPhotoLabel') || 'Photo (optional)'}</label>
+      <div class="wiz-photo-row">
+        <div class="wiz-photo-btn" onclick="triggerReportPhotoCamera()">
+          <img src="icons/report/camera.png" alt="">
+          <span>${t('wizTakePhoto') || 'Take photo'}</span>
+        </div>
+        <div class="wiz-photo-btn" onclick="triggerReportPhotoGallery()">
+          <img src="icons/report/gallery.png" alt="">
+          <span>${t('wizChoosePhoto') || 'Choose photo'}</span>
+        </div>
+      </div>
+      <div id="wizPhotoPreviewSlot"></div>
+    </div>
     <div id="wizOfflineBadgeSlot"></div>
     <div id="wizSubmitSlot" style="margin-top:8px;"></div>`;
-  // Relocate the real elements in — see WIZ_RELOCATED_IDS above.
+  // Relocate the real elements in — see WIZ_RELOCATED_IDS above. Only the
+  // bare #comment input moves (not its old parent row, which also held
+  // the small legacy camera/gallery icon buttons — those stay behind,
+  // unused, in the hidden panel; the buttons above call the same
+  // trigger functions directly).
   document.getElementById('wizProximitySlot').appendChild(document.getElementById('proximityIndicator'));
-  document.getElementById('wizCommentSlot').appendChild(document.getElementById('reportCommentRow'));
+  document.getElementById('wizCommentSlot').appendChild(document.getElementById('comment'));
   document.getElementById('wizPhotoPreviewSlot').appendChild(document.getElementById('reportPhotoPreview'));
   document.getElementById('wizOfflineBadgeSlot').appendChild(document.getElementById('offlineQueueBadge'));
   document.getElementById('wizSubmitSlot').appendChild(document.getElementById('reportSubmitRow'));
@@ -13254,32 +13316,49 @@ if (isMobileDevice()) {
 // (or system) theme before first paint to avoid a flash; everything here is
 // the ongoing part — the Settings UI, persisting a change, and staying in
 // sync with the OS while in Auto mode.
-const THEME_STORAGE_KEY = 'ttb_theme_mode'; // localStorage value: 'light' | 'dark' | 'auto'
+const THEME_STORAGE_KEY = 'ttb_theme_mode'; // localStorage value: 'light' | 'dark' | 'auto' | 'custom'
+const THEME_CUSTOM_BG_KEY = 'ttb_theme_custom_bg';
+const THEME_CUSTOM_ICON_KEY = 'ttb_theme_custom_icon';
 let themeMode = (function () {
   try { return localStorage.getItem(THEME_STORAGE_KEY) || 'auto'; } catch (e) { return 'auto'; }
 })();
 const systemDarkModeMQ = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
 
 // 'auto' resolves against the OS preference at the moment it's called;
-// 'light'/'dark' are already resolved.
+// 'light'/'dark' are already resolved. 'custom' isn't handled here — see
+// applyTheme(), which branches off to applyCustomTheme() instead.
 function resolveThemeMode(mode) {
   if (mode === 'auto') return (systemDarkModeMQ && systemDarkModeMQ.matches) ? 'dark' : 'light';
   return mode;
 }
 
 function updateThemeSegmentUI() {
-  ['Light', 'Dark', 'Auto'].forEach(label => {
+  ['Light', 'Dark', 'Auto', 'Custom'].forEach(label => {
     const btn = document.getElementById('themeBtn' + label);
     if (btn) btn.classList.toggle('active', themeMode === label.toLowerCase());
   });
+  const pickers = document.getElementById('themeCustomPickers');
+  if (pickers) pickers.style.display = (themeMode === 'custom') ? 'flex' : 'none';
 }
 
 // Applies `mode` (without persisting it — see setThemeMode for the
 // persisted, user-facing entry point) to <html data-theme>. flatpickr is
 // themed directly via CSS vars (see .flatpickr-calendar rules) rather than
-// swapping stylesheets, so this is the only thing that needs to happen.
+// swapping stylesheets, so this (plus the custom-color branch below) is
+// the only thing that needs to happen.
 function applyTheme(mode) {
   themeMode = mode;
+  if (mode === 'custom') {
+    let bg, icon;
+    try {
+      bg = localStorage.getItem(THEME_CUSTOM_BG_KEY);
+      icon = localStorage.getItem(THEME_CUSTOM_ICON_KEY);
+    } catch (e) {}
+    applyCustomTheme(bg || '#121212', icon || '#ff4b4b');
+    updateThemeSegmentUI();
+    return;
+  }
+  clearCustomThemeOverrides();
   const resolved = resolveThemeMode(mode);
   document.documentElement.dataset.theme = resolved;
   updateThemeSegmentUI();
@@ -13292,16 +13371,202 @@ function setThemeMode(mode) {
 }
 
 function initTheme() {
+  const bgInput = document.getElementById('themeCustomBgInput');
+  const iconInput = document.getElementById('themeCustomIconInput');
+  try {
+    const savedBg = localStorage.getItem(THEME_CUSTOM_BG_KEY);
+    const savedIcon = localStorage.getItem(THEME_CUSTOM_ICON_KEY);
+    if (bgInput && savedBg) bgInput.value = savedBg;
+    if (iconInput && savedIcon) iconInput.value = savedIcon;
+  } catch (e) {}
+
   applyTheme(themeMode);
   // Only matters in Auto mode, but cheap to always listen — applyTheme()
   // re-resolves against themeMode every time anyway, so a change firing
-  // while in Light/Dark mode is just a harmless no-op re-apply.
+  // while in Light/Dark/Custom mode is just a harmless no-op re-apply.
   if (systemDarkModeMQ) {
     const onSystemThemeChange = () => applyTheme(themeMode);
     if (systemDarkModeMQ.addEventListener) systemDarkModeMQ.addEventListener('change', onSystemThemeChange);
     else if (systemDarkModeMQ.addListener) systemDarkModeMQ.addListener(onSystemThemeChange); // Safari <14
   }
 }
+
+// =============================================================================
+// CUSTOM THEME — Settings > Theme > Custom. Two color pickers (background,
+// icon color) drive every surface + every icon in the app via the same CSS
+// variables Light/Dark already use (--bg-app, --bg-surface,
+// --icon-tint-filter, etc. — see the THEME comment near the top of <style>).
+//
+// Backgrounds are simple: every surface shade is just the picked color at a
+// different computed lightness (see shiftLightness), same relationship the
+// hand-picked Light/Dark palettes already have to each other.
+//
+// Icons are the harder part — every icon in icons/ ships as a plain black
+// glyph, tinted purely by CSS filter (brightness(0) invert(X%) today, which
+// only ever produces a *gray*, never a hue). To let the picker land on any
+// arbitrary color, solveIconFilter() below numerically searches for a
+// filter chain (invert/sepia/saturate/hue-rotate/brightness/contrast) that
+// turns a black pixel into (approximately) the target color — the standard
+// technique for CSS-only icon recoloring without touching the image files.
+// It's an approximation (CSS filters can't reach every RGB exactly from
+// black), but it's visually close for any color across the wheel.
+// =============================================================================
+function hexToRgb(hex) {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return m ? { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16) } : { r: 0, g: 0, b: 0 };
+}
+function rgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0, s = 0; const l = (max + min) / 2;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h /= 6;
+  }
+  return [h, s, l];
+}
+function hslToRgb(h, s, l) {
+  if (s === 0) { const v = l * 255; return [v, v, v]; }
+  const hue2rgb = (p, q, t) => {
+    if (t < 0) t += 1;
+    if (t > 1) t -= 1;
+    if (t < 1 / 6) return p + (q - p) * 6 * t;
+    if (t < 1 / 2) return q;
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+    return p;
+  };
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  return [hue2rgb(p, q, h + 1 / 3) * 255, hue2rgb(p, q, h) * 255, hue2rgb(p, q, h - 1 / 3) * 255];
+}
+// Shifts a hex color's lightness by `deltaPct` (-100..100), clamped, used to
+// derive surface-alt/border/floating shades from the one picked background.
+function shiftLightness(hex, deltaPct) {
+  const { r, g, b } = hexToRgb(hex);
+  let [h, s, l] = rgbToHsl(r, g, b);
+  l = Math.min(1, Math.max(0, l + deltaPct / 100));
+  const [nr, ng, nb] = hslToRgb(h, s, l);
+  return rgbToHex(nr, ng, nb);
+}
+function rgbToHex(r, g, b) {
+  const c = v => Math.round(Math.min(255, Math.max(0, v))).toString(16).padStart(2, '0');
+  return `#${c(r)}${c(g)}${c(b)}`;
+}
+// Picks black or white text depending on which reads better against `hex`
+// (standard relative-luminance threshold).
+function readableTextColor(hex) {
+  const { r, g, b } = hexToRgb(hex);
+  const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  return lum > 0.55 ? '#1a1a1a' : '#f0f0ee';
+}
+
+const _iconFilterCache = {};
+function solveIconFilter(targetHex) {
+  if (_iconFilterCache[targetHex]) return _iconFilterCache[targetHex];
+  const target = hexToRgb(targetHex);
+  const clamp = v => Math.min(255, Math.max(0, v));
+
+  function simulate([inv, sep, sat, hue, bri, con]) {
+    let r = 0, g = 0, b = 0; // black source pixel
+    r = r * (1 - inv) + (255 - r) * inv;
+    g = g * (1 - inv) + (255 - g) * inv;
+    b = b * (1 - inv) + (255 - b) * inv;
+    const sr = 0.393 * r + 0.769 * g + 0.189 * b;
+    const sg = 0.349 * r + 0.686 * g + 0.168 * b;
+    const sb = 0.272 * r + 0.534 * g + 0.131 * b;
+    r = r * (1 - sep) + sr * sep;
+    g = g * (1 - sep) + sg * sep;
+    b = b * (1 - sep) + sb * sep;
+    const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    r = lum + (r - lum) * sat;
+    g = lum + (g - lum) * sat;
+    b = lum + (b - lum) * sat;
+    let [h, s, l] = rgbToHsl(clamp(r), clamp(g), clamp(b));
+    h = (h + hue / 360) % 1; if (h < 0) h += 1;
+    [r, g, b] = hslToRgb(h, s, l);
+    r *= bri; g *= bri; b *= bri;
+    r = (r - 127.5) * con + 127.5;
+    g = (g - 127.5) * con + 127.5;
+    b = (b - 127.5) * con + 127.5;
+    return [clamp(r), clamp(g), clamp(b)];
+  }
+  function loss(params) {
+    const [r, g, b] = simulate(params);
+    return (r - target.r) ** 2 + (g - target.g) ** 2 + (b - target.b) ** 2;
+  }
+
+  // [invert 0-1, sepia 0-1, saturate 0-10, hueRotate -180..180deg, brightness 0-2, contrast 0-2]
+  let params = [1, 1, 3, 0, 1, 1];
+  const bounds = [[0, 1], [0, 1], [0, 12], [-180, 180], [0, 2], [0, 2]];
+  let steps = [0.25, 0.25, 1.5, 45, 0.3, 0.3];
+  let best = loss(params);
+  for (let iter = 0; iter < 200; iter++) {
+    let improved = false;
+    for (let i = 0; i < params.length; i++) {
+      for (const dir of [1, -1]) {
+        const trial = params.slice();
+        trial[i] = Math.min(bounds[i][1], Math.max(bounds[i][0], trial[i] + dir * steps[i]));
+        const l = loss(trial);
+        if (l < best) { best = l; params = trial; improved = true; }
+      }
+    }
+    if (!improved) {
+      steps = steps.map(s => s * 0.6);
+      if (steps[0] < 0.004) break;
+    }
+  }
+  const [inv, sep, sat, hue, bri, con] = params;
+  const filter = `invert(${Math.round(inv * 100)}%) sepia(${Math.round(sep * 100)}%) saturate(${Math.round(sat * 100)}%) hue-rotate(${Math.round(hue)}deg) brightness(${Math.round(bri * 100)}%) contrast(${Math.round(con * 100)}%)`;
+  _iconFilterCache[targetHex] = filter;
+  return filter;
+}
+
+// Every var here mirrors one already set per-theme in the THEME CSS block —
+// see the :root/[data-theme="dark"] rules near the top of <style>.
+function applyCustomTheme(bgHex, iconHex) {
+  const root = document.documentElement.style;
+  const text = readableTextColor(bgHex);
+  const isLightBg = text === '#1a1a1a';
+  root.setProperty('--bg-app', bgHex);
+  root.setProperty('--bg-surface', shiftLightness(bgHex, isLightBg ? 4 : 5));
+  root.setProperty('--bg-surface-alt', shiftLightness(bgHex, isLightBg ? -5 : 9));
+  root.setProperty('--border-color', shiftLightness(bgHex, isLightBg ? -8 : 12));
+  root.setProperty('--border-color-strong', shiftLightness(bgHex, isLightBg ? -14 : 16));
+  root.setProperty('--text-primary', text);
+  root.setProperty('--text-secondary', isLightBg ? '#555555' : '#b7b7b2');
+  root.setProperty('--text-muted', isLightBg ? '#999999' : '#8a8a86');
+  root.setProperty('--floating-bg', shiftLightness(bgHex, isLightBg ? 4 : 5));
+  root.setProperty('--floating-border', shiftLightness(bgHex, isLightBg ? -8 : 12));
+  root.setProperty('--icon-tint-filter', solveIconFilter(iconHex));
+  root.setProperty('--accent', iconHex);
+  document.documentElement.dataset.theme = isLightBg ? 'light' : 'dark';
+}
+
+function clearCustomThemeOverrides() {
+  const root = document.documentElement.style;
+  ['--bg-app', '--bg-surface', '--bg-surface-alt', '--border-color', '--border-color-strong',
+   '--text-primary', '--text-secondary', '--text-muted', '--floating-bg', '--floating-border',
+   '--icon-tint-filter', '--accent'].forEach(v => root.removeProperty(v));
+}
+
+// Settings > Theme > Custom color pickers.
+function onCustomThemeColorChange() {
+  const bg = document.getElementById('themeCustomBgInput').value;
+  const icon = document.getElementById('themeCustomIconInput').value;
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, 'custom');
+    localStorage.setItem(THEME_CUSTOM_BG_KEY, bg);
+    localStorage.setItem(THEME_CUSTOM_ICON_KEY, icon);
+  } catch (e) {}
+  themeMode = 'custom';
+  applyCustomTheme(bg, icon);
+  updateThemeSegmentUI();
+}
+
 
 // Keeps the --header-h CSS var in sync with the header's real rendered
 // height, so fixed-position elements below it (currently just
