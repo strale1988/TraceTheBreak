@@ -1432,10 +1432,23 @@ body.driving-active #appPanel{
 .badge-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(68px,1fr)); gap:12px 6px; margin-top:8px; }
 .badge-tile{ display:flex; flex-direction:column; align-items:center; gap:5px; text-align:center; opacity:.4; }
 .badge-tile.earned{ opacity:1; }
-.badge-tile-circle{ width:42px; height:42px; border-radius:50%; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,.35); flex-shrink:0; }
+.badge-tile-circle{ width:42px; height:42px; border-radius:50%; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,.35); flex-shrink:0; position:relative; }
 .badge-tile-glyph{ width:20px; height:20px; display:inline-block; }
 .badge-tile-name{ font-size:10px; line-height:1.2; color:var(--text-secondary); }
 .badge-tile.earned .badge-tile-name{ color:var(--text-primary); font-weight:600; }
+/* Coming-soon badges (see USER_BADGES_EXTRA/ADMIN_BADGES_EXTRA comingSoon
+   flag) always render locked, plus this small ribbon so it's clear the
+   badge isn't trackable yet — not just "not earned" like a normal locked
+   tile. Kept extra-dim (on top of the base .badge-tile opacity) so the grid
+   still reads earned-first at a glance. */
+.badge-tile-soon{ opacity:.28; }
+.badge-tile-soon-ribbon{
+  position:absolute; bottom:-3px; right:-6px;
+  background:var(--bg-surface); color:var(--text-muted);
+  font-size:7px; font-weight:800; text-transform:uppercase; letter-spacing:.02em;
+  padding:1px 4px; border-radius:6px; border:1px solid var(--border-color-strong);
+  line-height:1.4;
+}
 .dashboard-ladder{ display:flex; flex-direction:column; gap:5px; margin-top:4px; }
 .dashboard-ladder-row{
   display:flex; align-items:center; gap:8px; font-size:11.5px;
@@ -3005,6 +3018,22 @@ span.flatpickr-weekday {
             <div class="dashboard-stat-label" id="dashboardStatWeightLabel">Your vote weight</div>
           </div>
         </div>
+        <!-- This Week: rolling 7-day window, same as the Leaderboard > This
+             Week tab (see loadLeaderboardTab) — reports count is exact
+             (client-computed from the user's own reports), rank is best-
+             effort since get_leaderboard() only returns the top 50 overall;
+             see getUserWeeklyRank(). -->
+        <div class="dashboard-badges-title" id="dashboardWeekTitle">This Week</div>
+        <div class="dashboard-stats-grid">
+          <div class="dashboard-stat-box">
+            <div class="dashboard-stat-value" id="dashboardStatWeekReports">0</div>
+            <div class="dashboard-stat-label" id="dashboardStatWeekReportsLabel">Reports this week</div>
+          </div>
+          <div class="dashboard-stat-box">
+            <div class="dashboard-stat-value" id="dashboardStatWeekRank">—</div>
+            <div class="dashboard-stat-label" id="dashboardStatWeekRankLabel">This week's rank</div>
+          </div>
+        </div>
         <div class="dashboard-badges-title" id="dashboardBadgesTitle">Badges</div>
         <div class="badge-grid" id="dashboardBadgeGrid"></div>
       </div>
@@ -3015,9 +3044,13 @@ span.flatpickr-weekday {
            activity instead of points: the badge/pill colors are the exact
            tier-level-1/2/3 palette also used on the Leaderboard > Admins
            tab, so an admin's own role reads the same way here as it does
-           in that list. The "Flags resolved" stat and the achievements
-           grid below are both driven by report_flags.resolved_by — see
-           getAdminResolvedFlagCount() / ADMIN_BADGES near renderAdminDashboard. -->
+           in that list. Below the permission-scope badge/tag sits a
+           SEPARATE prestige ladder (ADMIN_XP_LEVELS, 8 tiers, purely
+           cosmetic — see the comment above that array for why it doesn't
+           touch actual permissions). The achievements grid below is driven
+           by a mix of report_flags.resolved_by and brake_reports
+           created_at/resolved_at/resolved_by — see getAdminModerationStats()
+           near renderAdminDashboard. -->
       <div class="detail-section dashboard-section" id="adminDashboardSection" style="display:none">
         <div class="detail-section-title" id="adminDashboardSectionTitle">My Admin Role</div>
         <div class="dashboard-level-row">
@@ -3035,8 +3068,22 @@ span.flatpickr-weekday {
             <div class="dashboard-stat-value" id="adminDashboardResolvedValue">0</div>
             <div class="dashboard-stat-label" id="adminDashboardResolvedLabel">Flags resolved</div>
           </div>
+          <div class="dashboard-stat-box">
+            <div class="dashboard-stat-value" id="adminDashboardWeekValue">0</div>
+            <div class="dashboard-stat-label" id="adminDashboardWeekLabel">Resolved this week</div>
+          </div>
         </div>
         <div class="dashboard-progress-text" id="adminDashboardScopeNote"></div>
+        <!-- Prestige rank — see ADMIN_XP_LEVELS. Independent of the
+             badge/tag/scope-note above, which is about permission scope,
+             not activity. -->
+        <div class="dashboard-badges-title" id="adminDashboardXpTitle">Prestige Rank</div>
+        <div class="dashboard-level-row">
+          <span class="tier-pill dashboard-level-pill" id="adminDashboardXpPill">1</span>
+          <span class="dashboard-level-name" id="adminDashboardXpName"></span>
+        </div>
+        <div class="profile-progress-track"><div class="profile-progress-fill" id="adminDashboardXpFill"></div></div>
+        <div class="dashboard-progress-text" id="adminDashboardXpText"></div>
         <div class="dashboard-badges-title" id="adminDashboardBadgesTitle">Admin achievements</div>
         <div class="badge-grid" id="adminDashboardBadgeGrid"></div>
       </div>
@@ -3426,9 +3473,144 @@ const BADGES = [
     descEn:'Have 10 of your reports confirmed fixed.',                descSr:'Neka vam 10 prijava bude potvrđeno rešeno.',
     check: p => (p && p.successful_contributions || 0) >= 10 },
 ];
+
+// Badge catalog transcribed from TraceTheBreak_User_Badges.xlsx. check(p, s)
+// takes the profile (for parity with the original BADGES above, most of
+// which only need currentProfile) plus a stats object built once per render
+// by getUserBadgeStats() — add a counter there instead of fetching
+// separately per-badge if you add another one of these. Most of these need
+// activity data the app doesn't track yet (login/activity streaks, GPS
+// distance/neighborhood visits, an upvote system, weather at report time,
+// duplicate-report detection, birthdays), so they're marked comingSoon:true
+// and always render locked with a "Soon" ribbon (see buildBadgeIconHtml)
+// instead of quietly pretending they're reachable today.
+const USER_BADGES_EXTRA = [
+  // --- Activity ---
+  { id:'the_daily_herald', icon:'badge-the-daily-herald.png', nameEn:'The Daily Herald', nameSr:'Dnevne novine',
+    descEn:'Log in or submit a report 7 days in a row.', descSr:'Prijavite se ili pošaljite prijavu 7 dana zaredom.',
+    category:'Activity', comingSoon:true, check: () => false },
+  { id:'night_owl', icon:'badge-night-owl.png', nameEn:'Night Owl', nameSr:'Noćna ptica',
+    descEn:'Submit a report or vote between midnight and 4 AM.', descSr:'Pošaljite prijavu ili glasajte između ponoći i 4 ujutru.',
+    category:'Activity', check: (p, s) => s.hasNightOwlReport },
+  { id:'weekend_warrior', icon:'badge-weekend-warrior.png', nameEn:'Weekend Warrior', nameSr:'Vikend ratnik',
+    descEn:'Submit 5 successful reports over a weekend.', descSr:'Pošaljite 5 uspešnih prijava tokom vikenda.',
+    category:'Activity', comingSoon:true, check: () => false },
+  // --- Community ---
+  { id:'local_legend', icon:'badge-local-legend.png', nameEn:'Local Legend', nameSr:'Lokalna legenda',
+    descEn:'Get 10 verified reports within the same 1-mile radius.', descSr:'Dobijte 10 potvrđenih prijava u istom radijusu od 1.6 km.',
+    category:'Community', comingSoon:true, check: () => false },
+  { id:'trailblazer', icon:'badge-trailblazer.png', nameEn:'Trailblazer', nameSr:'Pionir',
+    descEn:'Submit the first report in a new zone or category.', descSr:'Pošaljite prvu prijavu u novoj zoni ili kategoriji.',
+    category:'Community', comingSoon:true, check: () => false },
+  { id:'good_samaritan', icon:'badge-good-samaritan.png', nameEn:'Good Samaritan', nameSr:'Dobri Samarićanin',
+    descEn:'Upvote or validate a new user\'s report.', descSr:'Podržite ili potvrdite prijavu novog korisnika.',
+    category:'Community', comingSoon:true, check: () => false },
+  // --- Activity ---
+  { id:'first_steps', icon:'badge-first-steps.png', nameEn:'First Steps', nameSr:'Prvi koraci',
+    descEn:'Open the map 3 days in one week.', descSr:'Otvorite mapu 3 dana u jednoj nedelji.',
+    category:'Activity', comingSoon:true, check: () => false },
+  // --- Community ---
+  { id:'the_upvoter', icon:'badge-the-upvoter.png', nameEn:'The Upvoter', nameSr:'Podrška komšiluku',
+    descEn:'Upvote 5 reports in your neighborhood.', descSr:'Podržite 5 prijava u svom komšiluku.',
+    category:'Community', comingSoon:true, check: () => false },
+  // --- Exploration ---
+  { id:'on_the_move', icon:'badge-on-the-move.png', nameEn:'On the Move', nameSr:'U pokretu',
+    descEn:'Open the app more than 2 miles from your usual location.', descSr:'Otvorite aplikaciju više od 3 km od uobičajene lokacije.',
+    category:'Exploration', comingSoon:true, check: () => false },
+  // --- Community ---
+  { id:'conversation_starter', icon:'badge-conversation-starter.png', nameEn:'Conversation Starter', nameSr:'Pokretač razgovora',
+    descEn:'Leave your first report comment.', descSr:'Ostavite svoj prvi komentar na prijavu.',
+    category:'Community', check: (p, s) => s.commentCount >= 1 },
+  { id:'civic_voice', icon:'badge-civic-voice.png', nameEn:'Civic Voice', nameSr:'Građanski glas',
+    descEn:'Cast 25 votes.', descSr:'Date 25 glasova.',
+    category:'Community', check: (p, s) => s.voteCount >= 25 },
+  { id:'team_player', icon:'badge-team-player.png', nameEn:'Team Player', nameSr:'Timski igrač',
+    descEn:'Help verify 25 reports.', descSr:'Pomozite u potvrđivanju 25 prijava.',
+    category:'Community', comingSoon:true, check: () => false },
+  { id:'community_favorite', icon:'badge-community-favorite.png', nameEn:'Community Favorite', nameSr:'Ljubimac zajednice',
+    descEn:'Receive 50 upvotes.', descSr:'Dobijte 50 podrški (upvote).',
+    category:'Community', comingSoon:true, check: () => false },
+  // --- Exploration ---
+  { id:'explorer', icon:'badge-explorer.png', nameEn:'Explorer', nameSr:'Istraživač',
+    descEn:'Visit 10 neighborhoods.', descSr:'Posetite 10 komšiluka.',
+    category:'Exploration', comingSoon:true, check: () => false },
+  { id:'world_traveler', icon:'badge-world-traveler.png', nameEn:'World Traveler', nameSr:'Svetski putnik',
+    descEn:'Submit reports in 5 different cities.', descSr:'Pošaljite prijave u 5 različitih gradova.',
+    category:'Exploration', check: (p, s) => s.distinctCities >= 5 },
+  { id:'bike_patrol', icon:'badge-bike-patrol.png', nameEn:'Bike Patrol', nameSr:'Biciklistička patrola',
+    descEn:'Submit 20 reports while cycling.', descSr:'Pošaljite 20 prijava dok vozite bicikl.',
+    category:'Exploration', comingSoon:true, check: () => false },
+  { id:'street_scout', icon:'badge-street-scout.png', nameEn:'Street Scout', nameSr:'Ulični izviđač',
+    descEn:'Walk 25 miles using the app.', descSr:'Pređite 25 milja koristeći aplikaciju.',
+    category:'Exploration', comingSoon:true, check: () => false },
+  // --- Reporting ---
+  { id:'sharp_eye', icon:'badge-sharp-eye.png', nameEn:'Sharp Eye', nameSr:'Oštro oko',
+    descEn:'Get your first report verified.', descSr:'Neka vam prva prijava bude potvrđena.',
+    category:'Reporting', check: (p, s) => s.successfulContributions >= 1 },
+  { id:'eagle_eye', icon:'badge-eagle-eye.png', nameEn:'Eagle Eye', nameSr:'Orlovo oko',
+    descEn:'Spot 10 duplicate reports.', descSr:'Uočite 10 duplih prijava.',
+    category:'Reporting', comingSoon:true, check: () => false },
+  { id:'photo_expert', icon:'badge-photo-expert.png', nameEn:'Photo Expert', nameSr:'Foto ekspert',
+    descEn:'Submit 100 reports with photos.', descSr:'Pošaljite 100 prijava sa fotografijama.',
+    category:'Reporting', check: (p, s) => s.photoCount >= 100 },
+  { id:'quick_response', icon:'badge-quick-response.png', nameEn:'Quick Response', nameSr:'Brz odgovor',
+    descEn:'Submit a report within 15 minutes.', descSr:'Pošaljite prijavu u roku od 15 minuta.',
+    category:'Reporting', comingSoon:true, check: () => false },
+  // --- Streak ---
+  { id:'on_fire', icon:'badge-on-fire.png', nameEn:'On Fire', nameSr:'U vatri',
+    descEn:'Keep a 14-day activity streak.', descSr:'Održite niz aktivnosti od 14 dana.',
+    category:'Streak', comingSoon:true, check: () => false },
+  { id:'unstoppable', icon:'badge-unstoppable.png', nameEn:'Unstoppable', nameSr:'Nezaustavljiv',
+    descEn:'Keep a 30-day activity streak.', descSr:'Održite niz aktivnosti od 30 dana.',
+    category:'Streak', comingSoon:true, check: () => false },
+  { id:'one_year_strong', icon:'badge-one-year-strong.png', nameEn:'One Year Strong', nameSr:'Godinu dana jak',
+    descEn:'Stay active for 365 days.', descSr:'Budite aktivni 365 dana.',
+    category:'Streak', comingSoon:true, check: () => false },
+  // --- Fun ---
+  { id:'early_bird', icon:'badge-early-bird.png', nameEn:'Early Bird', nameSr:'Rana ptica',
+    descEn:'Submit a report before 6 AM.', descSr:'Pošaljite prijavu pre 6 ujutru.',
+    category:'Fun', check: (p, s) => s.hasEarlyBirdReport },
+  { id:'rain_reporter', icon:'badge-rain-reporter.png', nameEn:'Rain Reporter', nameSr:'Kišni reporter',
+    descEn:'Submit a report while it\'s raining.', descSr:'Pošaljite prijavu dok pada kiša.',
+    category:'Fun', comingSoon:true, check: () => false },
+  { id:'snow_patrol', icon:'badge-snow-patrol.png', nameEn:'Snow Patrol', nameSr:'Snežna patrola',
+    descEn:'Submit a report during snowfall.', descSr:'Pošaljite prijavu tokom snežnih padavina.',
+    category:'Fun', comingSoon:true, check: () => false },
+  { id:'anniversary', icon:'badge-anniversary.png', nameEn:'Anniversary', nameSr:'Godišnjica',
+    descEn:'Reach your 1-year account anniversary.', descSr:'Proslavite godišnjicu naloga.',
+    category:'Fun', comingSoon:true, check: () => false },
+  { id:'birthday_reporter', icon:'badge-birthday-reporter.png', nameEn:'Birthday Reporter', nameSr:'Rođendanski reporter',
+    descEn:'Open the app on your birthday.', descSr:'Otvorite aplikaciju na svoj rođendan.',
+    category:'Fun', comingSoon:true, check: () => false },
+  { id:'halloween_hero', icon:'badge-halloween-hero.png', nameEn:'Halloween Hero', nameSr:'Noć veštica heroj',
+    descEn:'Submit a report on Halloween.', descSr:'Pošaljite prijavu na Noć veštica.',
+    category:'Fun', check: (p, s) => s.hasHalloweenReport },
+  { id:'holiday_helper', icon:'badge-holiday-helper.png', nameEn:'Holiday Helper', nameSr:'Praznični pomoćnik',
+    descEn:'Submit a report on a major holiday.', descSr:'Pošaljite prijavu na veliki praznik.',
+    category:'Fun', check: (p, s) => s.hasHolidayReport },
+  // --- Secret ---
+  { id:'silent_guardian', icon:'badge-silent-guardian.png', nameEn:'Silent Guardian', nameSr:'Tihi čuvar',
+    descEn:'Submit 50 reports with no rejections.', descSr:'Pošaljite 50 prijava bez ijednog odbijanja.',
+    category:'Secret', comingSoon:true, check: () => false },
+  { id:'ghost_hunter', icon:'badge-ghost-hunter.png', nameEn:'Ghost Hunter', nameSr:'Lovac na duhove',
+    descEn:'Submit a report between 3 and 4 AM.', descSr:'Pošaljite prijavu između 3 i 4 ujutru.',
+    category:'Secret', check: (p, s) => s.hasGhostHourReport },
+  { id:'speed_demon', icon:'badge-speed-demon.png', nameEn:'Speed Demon', nameSr:'Demon brzine',
+    descEn:'Get 3 reports verified within 30 minutes.', descSr:'Neka vam 3 prijave budu potvrđene u roku od 30 minuta.',
+    category:'Secret', comingSoon:true, check: () => false },
+  { id:'completionist', icon:'badge-completionist.png', nameEn:'Completionist', nameSr:'Kompletista',
+    descEn:'Earn every standard badge.', descSr:'Osvojite svaku standardnu značku.',
+    category:'Secret', check: (p, s) => s.allNonSecretEarned },
+  { id:'legend_user', icon:'badge-legend.png', nameEn:'Legend', nameSr:'Legenda',
+    descEn:'Reach the highest civic level.', descSr:'Dostignite najviši građanski nivo.',
+    category:'Secret', check: (p, s) => s.maxLevelReached },
+  { id:'mythic_citizen', icon:'badge-mythic-citizen.png', nameEn:'Mythic Citizen', nameSr:'Mitski građanin',
+    descEn:'Unlock every badge.', descSr:'Otključajte svaku značku.',
+    category:'Secret', check: (p, s) => s.allEarned },
+];
 function badgeName(b) { return lang === 'sr' ? b.nameSr : b.nameEn; }
 function badgeDesc(b) { return lang === 'sr' ? b.descSr : b.descEn; }
-function isBadgeEarned(badge, profile) { return !!badge.check(profile); }
+function isBadgeEarned(badge, profile, stats) { return !!badge.check(profile, stats); }
 // Reused by the Rankings list rows (see renderLeaderboardRows) to show a
 // person's current level as a badge icon instead of a rank number — levels
 // 1-5 mirror BADGES[0..4] one-for-one (see the BADGES comment above), so no
@@ -3441,14 +3623,22 @@ function levelBadgeIcon(level) {
 // Renders one badge tile: a colored circle (accent when earned, muted
 // surface color when locked) with the glyph masked on top, same
 // mask-on-a-colored-circle technique as buildPinIconHtml() uses for
-// category pins — see the comment on BADGES above.
-function buildBadgeIconHtml(badge, earned) {
+// category pins — see the comment on BADGES above. comingSoon badges (see
+// USER_BADGES_EXTRA/ADMIN_BADGES_EXTRA) always render locked regardless of
+// their check(), plus a small "Soon" ribbon so it reads as "not trackable
+// yet" rather than "you haven't done this" — those are different messages
+// and conflating them just looks like a bug to whoever's looking at it.
+function buildBadgeIconHtml(badge, earnedIn) {
+  const soon = !!badge.comingSoon;
+  const earned = soon ? false : earnedIn;
   const iconSrc = `icons/badges/${badge.icon}`;
   const bg    = earned ? 'var(--accent)' : 'var(--bg-surface-alt)';
   const glyph = earned ? 'var(--accent-contrast)' : 'var(--text-secondary)';
-  return `<div class="badge-tile${earned ? ' earned' : ''}" title="${escapeHtml(badgeName(badge))} — ${escapeHtml(badgeDesc(badge))}">
+  const titleSuffix = soon ? ` (${t('badgeComingSoon')})` : '';
+  return `<div class="badge-tile${earned ? ' earned' : ''}${soon ? ' badge-tile-soon' : ''}" title="${escapeHtml(badgeName(badge))} — ${escapeHtml(badgeDesc(badge))}${titleSuffix}">
     <div class="badge-tile-circle" style="background:${bg};">
       <span class="badge-tile-glyph" style="background-color:${glyph};-webkit-mask:url('${iconSrc}') center / contain no-repeat;mask:url('${iconSrc}') center / contain no-repeat;"></span>
+      ${soon ? `<span class="badge-tile-soon-ribbon">${escapeHtml(t('badgeComingSoonShort'))}</span>` : ''}
     </div>
     <div class="badge-tile-name">${escapeHtml(badgeName(badge))}</div>
   </div>`;
@@ -3506,54 +3696,269 @@ function currentAdminLevel() {
 // =============================================================================
 // ADMIN ACHIEVEMENTS — mirrors BADGES above, but for moderation activity
 // instead of civic points, since admins are exempt from the points ladder
-// entirely (see the USER_LEVELS comment). Driven by how many report_flags
-// rows this admin has personally resolved (report_flags.resolved_by — see
-// resolveReportFlags()), fetched fresh each time the Admin Role card renders
-// via getAdminResolvedFlagCount() below. Icon files follow the same
-// icons/badges/<icon> convention as BADGES (flat white glyph, masked onto a
-// colored circle by buildBadgeIconHtml()).
+// entirely (see the USER_LEVELS comment). The first three are the original
+// flag-review set (report_flags.resolved_by); ADMIN_BADGES_EXTRA below adds
+// the full catalog transcribed from TraceTheBreak_Admin_Badges.xlsx. Every
+// check(stats) here reads off the single shared stats object built once per
+// render by getAdminModerationStats() below — add a counter there instead
+// of fetching separately per-badge if you add another one of these.
+// Icon files follow the same icons/badges/<icon> convention as BADGES (flat
+// white glyph, masked onto a colored circle) — badges of every kind (user
+// or admin) now share the one buildBadgeIconHtml()/badgeName()/badgeDesc()
+// trio defined above instead of a separate admin-only copy of each.
 const ADMIN_BADGES = [
   { id:'first_review',   icon:'badge-first-review.png',    nameEn:'First Review',      nameSr:'Prva provera',
     descEn:'Resolve your first flagged report.',                  descSr:'Rešite svoju prvu prijavljenu prijavu.',
-    check: n => n >= 1 },
+    check: s => s.resolvedFlagCount >= 1 },
   { id:'trusted_reviewer', icon:'badge-trusted-reviewer.png', nameEn:'Trusted Reviewer', nameSr:'Pouzdani proveravač',
     descEn:'Resolve 10 flagged reports.',                          descSr:'Rešite 10 prijavljenih prijava.',
-    check: n => n >= 10 },
+    check: s => s.resolvedFlagCount >= 10 },
   { id:'veteran_moderator', icon:'badge-veteran-moderator.png', nameEn:'Veteran Moderator', nameSr:'Iskusni moderator',
     descEn:'Resolve 50 flagged reports.',                          descSr:'Rešite 50 prijavljenih prijava.',
-    check: n => n >= 50 },
+    check: s => s.resolvedFlagCount >= 50 },
 ];
-function adminBadgeName(b) { return lang === 'sr' ? b.nameSr : b.nameEn; }
-function adminBadgeDesc(b) { return lang === 'sr' ? b.descSr : b.descEn; }
-// Same tile markup as buildBadgeIconHtml (see BADGES above), just reading
-// off a plain earned boolean instead of badge.check(profile) since these
-// check a count, not a profile.
-function buildAdminBadgeIconHtml(badge, earned) {
-  const iconSrc = `icons/badges/${badge.icon}`;
-  const bg    = earned ? 'var(--accent)' : 'var(--bg-surface-alt)';
-  const glyph = earned ? 'var(--accent-contrast)' : 'var(--text-secondary)';
-  return `<div class="badge-tile${earned ? ' earned' : ''}" title="${escapeHtml(adminBadgeName(badge))} — ${escapeHtml(adminBadgeDesc(badge))}">
-    <div class="badge-tile-circle" style="background:${bg};">
-      <span class="badge-tile-glyph" style="background-color:${glyph};-webkit-mask:url('${iconSrc}') center / contain no-repeat;mask:url('${iconSrc}') center / contain no-repeat;"></span>
-    </div>
-    <div class="badge-tile-name">${escapeHtml(adminBadgeName(badge))}</div>
-  </div>`;
+
+// Most of these need moderation-history data the app already has
+// (brake_reports created_at/resolved_at/resolved_by, report_flags
+// resolved_by) — see getAdminModerationStats() for exactly how each
+// stats.* field below is derived. The rest (Fair Judge/Precision
+// Moderator's reversal-rate, Anti-Spam's fake/spam identification,
+// Community's comment-reply/mentoring, Local's per-district history,
+// Development's category/location authoring, Elite's monthly-leaderboard
+// snapshots, and a handful of Secret ones) need tracking the app doesn't do
+// yet, so they're marked comingSoon:true and always render locked with a
+// "Soon" ribbon (see buildBadgeIconHtml) instead of quietly pretending
+// they're reachable today.
+const ADMIN_BADGES_EXTRA = [
+  // --- Moderation ---
+  { id:'a_first_approval', icon:'badge-admin-first-approval.png', nameEn:'First Approval', nameSr:'Prvo odobrenje',
+    descEn:'Approve your first report.', descSr:'Odobrite svoju prvu prijavu.',
+    category:'Moderation', check: s => s.resolvedReportCount >= 1 },
+  { id:'a_cleanup_crew', icon:'badge-admin-cleanup-crew.png', nameEn:'Cleanup Crew', nameSr:'Ekipa za čišćenje',
+    descEn:'Resolve 100 reports.', descSr:'Rešite 100 prijava.',
+    category:'Moderation', check: s => s.resolvedReportCount >= 100 },
+  { id:'a_fair_judge', icon:'badge-admin-fair-judge.png', nameEn:'Fair Judge', nameSr:'Pravedan sudija',
+    descEn:'Make 100 decisions with under 5% reversed.', descSr:'Donesite 100 odluka sa manje od 5% poništenih.',
+    category:'Moderation', comingSoon:true, check: () => false },
+  { id:'a_fast_responder', icon:'badge-admin-fast-responder.png', nameEn:'Fast Responder', nameSr:'Brz odgovor',
+    descEn:'Resolve 25 reports within 1 hour.', descSr:'Rešite 25 prijava u roku od 1 sata.',
+    category:'Moderation', check: s => s.fastResolves >= 25 },
+  { id:'a_precision_moderator', icon:'badge-admin-precision-moderator.png', nameEn:'Precision Moderator', nameSr:'Precizan moderator',
+    descEn:'Make 500 decisions with 98% accuracy.', descSr:'Donesite 500 odluka sa 98% tačnosti.',
+    category:'Moderation', comingSoon:true, check: () => false },
+  { id:'a_eagle_eye', icon:'badge-admin-eagle-eye.png', nameEn:'Eagle Eye', nameSr:'Orlovo oko',
+    descEn:'Catch 50 fake or spam reports.', descSr:'Uhvatite 50 lažnih ili spam prijava.',
+    category:'Moderation', comingSoon:true, check: () => false },
+  { id:'a_guardian', icon:'badge-admin-guardian.png', nameEn:'Guardian', nameSr:'Čuvar',
+    descEn:'Moderate 1000 reports.', descSr:'Modirajte 1000 prijava.',
+    category:'Moderation', check: s => s.moderationCount >= 1000 },
+  { id:'a_chief_moderator', icon:'badge-admin-chief-moderator.png', nameEn:'Chief Moderator', nameSr:'Šef moderator',
+    descEn:'Moderate 10000 reports.', descSr:'Modirajte 10000 prijava.',
+    category:'Moderation', check: s => s.moderationCount >= 10000 },
+  // --- Anti-Spam ---
+  { id:'a_detective', icon:'badge-admin-detective.png', nameEn:'Detective', nameSr:'Detektiv',
+    descEn:'Identify 25 fake reports.', descSr:'Prepoznajte 25 lažnih prijava.',
+    category:'Anti-Spam', comingSoon:true, check: () => false },
+  { id:'a_spam_slayer', icon:'badge-admin-spam-slayer.png', nameEn:'Spam Slayer', nameSr:'Ubica spama',
+    descEn:'Remove 100 spam reports.', descSr:'Uklonite 100 spam prijava.',
+    category:'Anti-Spam', comingSoon:true, check: () => false },
+  { id:'a_clean_feed', icon:'badge-admin-clean-feed.png', nameEn:'Clean Feed', nameSr:'Čist feed',
+    descEn:'Keep the spam rate under 1% for a month.', descSr:'Održite stopu spama ispod 1% mesec dana.',
+    category:'Anti-Spam', comingSoon:true, check: () => false },
+  // --- Community ---
+  { id:'a_community_helper', icon:'badge-admin-community-helper.png', nameEn:'Community Helper', nameSr:'Pomoćnik zajednice',
+    descEn:'Reply to 50 user comments.', descSr:'Odgovorite na 50 korisničkih komentara.',
+    category:'Community', comingSoon:true, check: () => false },
+  { id:'a_good_communicator', icon:'badge-admin-good-communicator.png', nameEn:'Good Communicator', nameSr:'Dobar komunikator',
+    descEn:'Leave 100 moderator messages.', descSr:'Ostavite 100 moderatorskih poruka.',
+    category:'Community', comingSoon:true, check: () => false },
+  { id:'a_mentor', icon:'badge-admin-mentor.png', nameEn:'Mentor', nameSr:'Mentor',
+    descEn:'Help 20 new users.', descSr:'Pomozite 20 novih korisnika.',
+    category:'Community', comingSoon:true, check: () => false },
+  { id:'a_peacemaker', icon:'badge-admin-peacemaker.png', nameEn:'Peacemaker', nameSr:'Mirotvorac',
+    descEn:'Resolve 25 disputes.', descSr:'Rešite 25 spornih slučajeva.',
+    category:'Community', comingSoon:true, check: () => false },
+  // --- Local ---
+  { id:'a_district_keeper', icon:'badge-admin-district-keeper.png', nameEn:'District Keeper', nameSr:'Čuvar okruga',
+    descEn:'Maintain a district for 6 months.', descSr:'Održavajte okrug 6 meseci.',
+    category:'Local', comingSoon:true, check: () => false },
+  { id:'a_regional_hero', icon:'badge-admin-regional-hero.png', nameEn:'Regional Hero', nameSr:'Regionalni heroj',
+    descEn:'Moderate 5 districts.', descSr:'Modirajte 5 okruga.',
+    category:'Local', comingSoon:true, check: () => false },
+  { id:'a_city_steward', icon:'badge-admin-city-steward.png', nameEn:'City Steward', nameSr:'Gradski upravitelj',
+    descEn:'Moderate a whole municipality.', descSr:'Modirajte celu opštinu.',
+    category:'Local', comingSoon:true, check: () => false },
+  // --- Performance ---
+  { id:'a_on_duty', icon:'badge-admin-on-duty.png', nameEn:'On Duty', nameSr:'Na dužnosti',
+    descEn:'Keep a 14-day moderation streak.', descSr:'Održite niz moderisanja od 14 dana.',
+    category:'Performance', check: s => s.streakDays >= 14 },
+  { id:'a_dedicated', icon:'badge-admin-dedicated.png', nameEn:'Dedicated', nameSr:'Posvećen',
+    descEn:'Moderate weekly for 3 months.', descSr:'Modirajte nedeljno 3 meseca.',
+    category:'Performance', check: s => s.streakWeeks >= 13 },
+  { id:'a_lightning_review', icon:'badge-admin-lightning-review.png', nameEn:'Lightning Review', nameSr:'Munjevita provera',
+    descEn:'Resolve 100 reports in one day.', descSr:'Rešite 100 prijava u jednom danu.',
+    category:'Performance', check: s => s.maxDayCount >= 100 },
+  { id:'a_marathon_moderator', icon:'badge-admin-marathon-moderator.png', nameEn:'Marathon Moderator', nameSr:'Maratonski moderator',
+    descEn:'Resolve 5000 reports.', descSr:'Rešite 5000 prijava.',
+    category:'Performance', check: s => s.moderationCount >= 5000 },
+  // --- Development ---
+  { id:'a_builder', icon:'badge-admin-builder.png', nameEn:'Builder', nameSr:'Graditelj',
+    descEn:'Create your first category.', descSr:'Napravite prvu kategoriju.',
+    category:'Development', comingSoon:true, check: () => false },
+  { id:'a_organizer', icon:'badge-admin-organizer.png', nameEn:'Organizer', nameSr:'Organizator',
+    descEn:'Create 20 categories.', descSr:'Napravite 20 kategorija.',
+    category:'Development', comingSoon:true, check: () => false },
+  { id:'a_mapper', icon:'badge-admin-mapper.png', nameEn:'Mapper', nameSr:'Kartograf',
+    descEn:'Add 100 locations.', descSr:'Dodajte 100 lokacija.',
+    category:'Development', comingSoon:true, check: () => false },
+  { id:'a_cartographer', icon:'badge-admin-cartographer.png', nameEn:'Cartographer', nameSr:'Kartograf terena',
+    descEn:'Expand map coverage.', descSr:'Proširite pokrivenost mape.',
+    category:'Development', comingSoon:true, check: () => false },
+  // --- Elite ---
+  { id:'a_top_moderator', icon:'badge-admin-top-moderator.png', nameEn:'Top Moderator', nameSr:'Moderator meseca',
+    descEn:'Be the top moderator of the month.', descSr:'Budite moderator meseca.',
+    category:'Elite', comingSoon:true, check: () => false },
+  { id:'a_diamond_admin', icon:'badge-admin-diamond-admin.png', nameEn:'Diamond Admin', nameSr:'Dijamantski administrator',
+    descEn:'Reach level 100.', descSr:'Dostignite nivo 100.',
+    category:'Elite', check: s => s.adminXpLevelNum >= 8 },
+  { id:'a_hall_of_fame', icon:'badge-admin-hall-of-fame.png', nameEn:'Hall of Fame', nameSr:'Kuća slavnih',
+    descEn:'Be top moderator for 12 months.', descSr:'Budite najbolji moderator 12 meseci.',
+    category:'Elite', comingSoon:true, check: () => false },
+  { id:'legend_admin', icon:'badge-admin-legend.png', nameEn:'Legend', nameSr:'Legenda',
+    descEn:'Earn every admin badge.', descSr:'Osvojite svaku administratorsku značku.',
+    category:'Elite', check: s => s.allEarned },
+  // --- Secret ---
+  { id:'a_super_admin', icon:'badge-admin-super-admin.png', nameEn:'Super Admin', nameSr:'Super administrator',
+    descEn:'Resolve 100 reports in one day.', descSr:'Rešite 100 prijava u jednom danu.',
+    category:'Secret', check: s => s.maxDayCount >= 100 },
+  { id:'a_night_shift', icon:'badge-admin-night-shift.png', nameEn:'Night Shift', nameSr:'Noćna smena',
+    descEn:'Resolve 50 reports between midnight and 5 AM.', descSr:'Rešite 50 prijava između ponoći i 5 ujutru.',
+    category:'Secret', check: s => s.nightShiftCount >= 50 },
+  { id:'a_coffee_powered', icon:'badge-admin-coffee-powered.png', nameEn:'Coffee Powered', nameSr:'Na kafi',
+    descEn:'Moderate for 4 continuous hours.', descSr:'Modirajte 4 sata neprekidno.',
+    category:'Secret', comingSoon:true, check: () => false },
+  { id:'a_mind_reader', icon:'badge-admin-mind-reader.png', nameEn:'Mind Reader', nameSr:'Čitač misli',
+    descEn:'Identify 100 fake reports early.', descSr:'Rano prepoznajte 100 lažnih prijava.',
+    category:'Secret', comingSoon:true, check: () => false },
+  { id:'a_invisible_hero', icon:'badge-admin-invisible-hero.png', nameEn:'Invisible Hero', nameSr:'Nevidljivi heroj',
+    descEn:'Resolve 1000 reports without a complaint.', descSr:'Rešite 1000 prijava bez ijedne žalbe.',
+    category:'Secret', comingSoon:true, check: () => false },
+  { id:'a_launch_control', icon:'badge-admin-launch-control.png', nameEn:'Launch Control', nameSr:'Kontrola lansiranja',
+    descEn:'Support the app in its first week after an update.', descSr:'Podržite aplikaciju prve nedelje posle ažuriranja.',
+    category:'Secret', comingSoon:true, check: () => false },
+];
+
+// --- Admin prestige ladder (separate from admin_level / ADMIN_LEVELS above) ---
+// ADMIN_LEVELS (1-3, Municipal Controller/Regional Director/Global Overseer)
+// controls actual PERMISSIONS — which municipality/country/global scope an
+// admin can act on — and is assigned by whoever grants admin access, not
+// earned. This ladder is purely a display/prestige rank layered on top of
+// it, transcribed from TraceTheBreak_Admin_Badges.xlsx's "Admin Levels"
+// sheet, driven by stats.moderationCount (resolved reports + resolved
+// flags — see getAdminModerationStats()) as a stand-in for "XP" since the
+// app has no separate XP ledger.
+const ADMIN_XP_LEVELS = [
+  { level:1, xp:0,     nameEn:'Moderator I',             nameSr:'Moderator I' },
+  { level:2, xp:500,   nameEn:'Moderator II',            nameSr:'Moderator II' },
+  { level:3, xp:1500,  nameEn:'Senior Moderator',        nameSr:'Viši moderator' },
+  { level:4, xp:3500,  nameEn:'Area Manager',            nameSr:'Rukovodilac oblasti' },
+  { level:5, xp:7000,  nameEn:'Regional Manager',        nameSr:'Regionalni rukovodilac' },
+  { level:6, xp:12000, nameEn:'Chief Moderator',         nameSr:'Šef moderatora' },
+  { level:7, xp:20000, nameEn:'Master Moderator',        nameSr:'Majstor moderator' },
+  { level:8, xp:35000, nameEn:'Legendary Administrator', nameSr:'Legendarni administrator' },
+];
+function adminXpLevelForXp(xp) {
+  let cur = ADMIN_XP_LEVELS[0];
+  for (const l of ADMIN_XP_LEVELS) { if (xp >= l.xp) cur = l; else break; }
+  return cur;
 }
-// Count of report_flags this admin has personally resolved — RLS on
-// report_flags should allow a signed-in admin to read rows they resolved
-// (resolved_by = auth.uid()) at minimum; broader admin read access is fine
-// too since this only ever filters to the signed-in admin's own id anyway.
-async function getAdminResolvedFlagCount() {
-  if (!currentSession) return 0;
+function nextAdminXpLevel(lvl) { return ADMIN_XP_LEVELS.find(l => l.level === lvl.level + 1) || null; }
+function adminXpLevelName(lvl) { return lang === 'sr' ? lvl.nameSr : lvl.nameEn; }
+
+// Builds the full moderation-activity stats object every computable admin
+// badge check (and the XP ladder) reads from. Two queries total: resolved
+// report_flags (existing getAdminResolvedFlagCount logic, inlined here) and
+// resolved brake_reports (created_at + resolved_at, so streaks/same-day/
+// within-an-hour/night-shift can all be derived client-side without needing
+// a dedicated RPC). RLS should allow a signed-in admin to read at least
+// rows they resolved themselves (resolved_by = auth.uid()) — broader admin
+// read access is fine too since this only ever filters to their own id.
+async function getAdminModerationStats() {
+  const empty = {
+    resolvedFlagCount:0, resolvedReportCount:0, moderationCount:0, resolvedThisWeek:0,
+    fastResolves:0, maxDayCount:0, streakDays:0, streakWeeks:0,
+    nightShiftCount:0, adminXpLevelNum:1, allEarned:false,
+  };
+  if (!currentSession) return empty;
   try {
-    const { count, error } = await sb.from('report_flags')
-      .select('id', { count: 'exact', head: true })
-      .eq('resolved_by', currentSession.user.id);
-    if (error) throw error;
-    return count || 0;
+    const [{ count: flagCount, error: flagErr }, { data: resolvedRows, error: reportErr }] = await Promise.all([
+      sb.from('report_flags').select('id', { count: 'exact', head: true }).eq('resolved_by', currentSession.user.id),
+      sb.from(TABLE).select('created_at, resolved_at').eq('resolved_by', currentSession.user.id).eq('resolved', true),
+    ]);
+    if (flagErr) throw flagErr;
+    if (reportErr) throw reportErr;
+
+    const rows = resolvedRows || [];
+    const resolvedFlagCount = flagCount || 0;
+    const resolvedReportCount = rows.length;
+    const moderationCount = resolvedReportCount + resolvedFlagCount;
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const resolvedThisWeek = rows.filter(r => r.resolved_at && new Date(r.resolved_at).getTime() >= weekAgo).length;
+
+    const fastResolves = rows.filter(r => r.created_at && r.resolved_at &&
+      (new Date(r.resolved_at) - new Date(r.created_at)) <= 60 * 60 * 1000).length;
+
+    const nightShiftCount = rows.filter(r => {
+      if (!r.resolved_at) return false;
+      const h = new Date(r.resolved_at).getHours();
+      return h >= 0 && h < 5;
+    }).length;
+
+    // Distinct local dates this admin resolved at least one report on —
+    // backs both "most in a single day" (Lightning Review/Super Admin) and
+    // the day-streak (On Duty).
+    const dayKey = d => { const dt = new Date(d); return `${dt.getFullYear()}-${dt.getMonth()}-${dt.getDate()}`; };
+    const dayCounts = {};
+    rows.forEach(r => { if (r.resolved_at) dayCounts[dayKey(r.resolved_at)] = (dayCounts[dayKey(r.resolved_at)] || 0) + 1; });
+    const maxDayCount = Object.keys(dayCounts).length ? Math.max(...Object.values(dayCounts)) : 0;
+
+    const dayMs = 24 * 60 * 60 * 1000;
+    const distinctDays = [...new Set(rows.filter(r => r.resolved_at).map(r => {
+      const dt = new Date(r.resolved_at);
+      return Math.floor(Date.UTC(dt.getFullYear(), dt.getMonth(), dt.getDate()) / dayMs);
+    }))].sort((a, b) => a - b);
+    let streakDays = 0, runDays = 0;
+    for (let i = 0; i < distinctDays.length; i++) {
+      runDays = (i > 0 && distinctDays[i] === distinctDays[i - 1] + 1) ? runDays + 1 : 1;
+      streakDays = Math.max(streakDays, runDays);
+    }
+
+    // Same idea one granularity up — distinct ISO-ish week numbers (weeks
+    // since epoch, calendar-agnostic) for the 3-months-weekly badge.
+    const distinctWeeks = [...new Set(distinctDays.map(d => Math.floor(d / 7)))].sort((a, b) => a - b);
+    let streakWeeks = 0, runWeeks = 0;
+    for (let i = 0; i < distinctWeeks.length; i++) {
+      runWeeks = (i > 0 && distinctWeeks[i] === distinctWeeks[i - 1] + 1) ? runWeeks + 1 : 1;
+      streakWeeks = Math.max(streakWeeks, runWeeks);
+    }
+
+    const adminXpLevelNum = adminXpLevelForXp(moderationCount).level;
+
+    const stats = {
+      resolvedFlagCount, resolvedReportCount, moderationCount, resolvedThisWeek, fastResolves,
+      maxDayCount, streakDays, streakWeeks, nightShiftCount, adminXpLevelNum,
+      allEarned:false,
+    };
+    // Meta badge ("Legend: earn every admin badge") needs every OTHER
+    // admin badge's earned state, so it's computed as a second pass once
+    // the rest of stats is settled, same pattern as the user side's
+    // Completionist/Mythic Citizen (see getUserBadgeStats()).
+    const everyOtherAdminBadge = [...ADMIN_BADGES, ...ADMIN_BADGES_EXTRA].filter(b => b.id !== 'legend_admin');
+    stats.allEarned = everyOtherAdminBadge.every(b => b.check(stats));
+    return stats;
   } catch (err) {
-    console.error('Failed to load resolved-flag count:', err.message || err);
-    return 0;
+    console.error('Failed to load admin moderation stats:', err.message || err);
+    return empty;
   }
 }
 
@@ -3926,7 +4331,104 @@ function renderAdminListRows(rows) {
 // small stat grid, and the whole ladder with achieved levels checked off.
 // Shown to any signed-in non-admin; hidden for admins (no ladder) and
 // signed-out visitors — see renderDashboardTab, which calls this.
-function renderUserDashboard() {
+// Builds the stats object every computable user badge check (see
+// USER_BADGES_EXTRA) reads from, plus the "reports this week" count shown
+// alongside it. One query for the signed-in user's own reports
+// (created_at/comment/photo_path/municipality_id — all already readable
+// via the same owner_id=me RLS every other "my reports" view in the app
+// relies on), combined with currentProfile.total_contributions/
+// successful_contributions for the rest.
+async function getUserBadgeStats() {
+  const empty = {
+    reportCount:0, voteCount:0, photoCount:0, commentCount:0, distinctCities:0,
+    reportsThisWeek:0, successfulContributions:0, hasEarlyBirdReport:false,
+    hasNightOwlReport:false, hasGhostHourReport:false, hasHalloweenReport:false,
+    hasHolidayReport:false, maxLevelReached:false, allNonSecretEarned:false, allEarned:false,
+  };
+  if (!currentSession || !currentProfile) return empty;
+  try {
+    const { data, error } = await sb.from(TABLE)
+      .select('created_at, comment, photo_path, municipality_id')
+      .eq('owner_id', currentSession.user.id);
+    if (error) throw error;
+    const rows = data || [];
+
+    const totalContributions = currentProfile.total_contributions || 0;
+    const successfulContributions = currentProfile.successful_contributions || 0;
+    const reportCount = rows.length;
+    const voteCount = Math.max(0, totalContributions - reportCount);
+    const photoCount = rows.filter(r => r.photo_path).length;
+    const commentCount = rows.filter(r => r.comment && r.comment.trim()).length;
+    const distinctCities = new Set(rows.map(r => r.municipality_id).filter(v => v != null)).size;
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const reportsThisWeek = rows.filter(r => r.created_at && new Date(r.created_at).getTime() >= weekAgo).length;
+
+    // Time/date-of-report badges — read straight off created_at, which is
+    // already public per-report data (shown in the UI everywhere), so no
+    // new tracking needed. Uses the browser's local time, same as every
+    // other formatDate() call in the app.
+    const hour = iso => new Date(iso).getHours();
+    const hasEarlyBirdReport = rows.some(r => r.created_at && hour(r.created_at) < 6);
+    const hasNightOwlReport  = rows.some(r => r.created_at && hour(r.created_at) < 4);
+    const hasGhostHourReport = rows.some(r => r.created_at && hour(r.created_at) === 3);
+    const isHalloween = d => { const dt = new Date(d); return dt.getMonth() === 9 && dt.getDate() === 31; };
+    // A small fixed set of fixed-date "major holidays" — deliberately not
+    // trying to resolve moveable/regional ones (Easter, Eid, Orthodox
+    // Christmas, etc.) without a real holiday-calendar source.
+    const isMajorHoliday = d => {
+      const dt = new Date(d), m = dt.getMonth(), day = dt.getDate();
+      return (m === 0 && day === 1) || (m === 11 && (day === 25 || day === 31));
+    };
+    const hasHalloweenReport = rows.some(r => r.created_at && isHalloween(r.created_at));
+    const hasHolidayReport = rows.some(r => r.created_at && isMajorHoliday(r.created_at));
+
+    const maxLevelReached = levelForPoints(totalContributions).level >= USER_LEVELS[USER_LEVELS.length - 1].level;
+
+    const stats = {
+      reportCount, voteCount, photoCount, commentCount, distinctCities, reportsThisWeek,
+      successfulContributions, hasEarlyBirdReport, hasNightOwlReport, hasGhostHourReport,
+      hasHalloweenReport, hasHolidayReport, maxLevelReached,
+      allNonSecretEarned:false, allEarned:false,
+    };
+    // Meta badges (Completionist/Mythic Citizen) need every OTHER badge's
+    // earned state, so they're a second pass once the rest of stats is
+    // settled — Completionist over non-Secret badges, Mythic Citizen over
+    // everything except the three meta ones themselves (avoids self-
+    // reference; see the USER_BADGES_EXTRA comment on those three).
+    const allBadges = [...BADGES, ...USER_BADGES_EXTRA];
+    const metaIds = ['completionist', 'legend_user', 'mythic_citizen'];
+    const nonMeta = allBadges.filter(b => !metaIds.includes(b.id));
+    const nonMetaNonSecret = nonMeta.filter(b => b.category !== 'Secret');
+    stats.allNonSecretEarned = nonMetaNonSecret.every(b => isBadgeEarned(b, currentProfile, stats));
+    stats.allEarned = nonMeta.every(b => isBadgeEarned(b, currentProfile, stats));
+    return stats;
+  } catch (err) {
+    console.error('Failed to load user badge stats:', err.message || err);
+    return empty;
+  }
+}
+
+// Own rank/points on the "This Week" window — rolling 7 days, same as the
+// Leaderboard > This Week tab (see loadLeaderboardTab, tab === 'week').
+// get_leaderboard() only returns the top 50 globally with no "give me just
+// this one user" mode, so if the signed-in user isn't in that top 50 we
+// genuinely can't know their exact rank without a dedicated RPC — falls
+// back to null (rendered as "Outside top 50") rather than guessing.
+async function getUserWeeklyRank() {
+  if (!currentSession || !currentProfile) return { rank: null };
+  try {
+    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const { data, error } = await sb.rpc('get_leaderboard', { p_since: since, p_municipality_id: null, p_limit: 50 });
+    if (error) throw error;
+    const idx = (data || []).findIndex(r => r.username === currentProfile.username);
+    return { rank: idx === -1 ? null : idx + 1 };
+  } catch (err) {
+    console.error('Failed to load weekly rank:', err.message || err);
+    return { rank: null };
+  }
+}
+
+async function renderUserDashboard() {
   const section = document.getElementById('dashboardSection');
   if (!section) return;
 
@@ -3964,9 +4466,21 @@ function renderUserDashboard() {
   document.getElementById('dashboardStatSuccessful').textContent = successful;
   document.getElementById('dashboardStatWeight').textContent = 'x' + lvl.weight;
 
+  // Badge stats + weekly rank both need a network round trip — run them
+  // together rather than sequentially. Bail if the panel's been torn down
+  // or the person signed out while these were in flight.
+  const [stats, weekly] = await Promise.all([getUserBadgeStats(), getUserWeeklyRank()]);
+  if (!currentSession || !currentProfile || currentProfile.is_admin) return;
+
+  const weekReportsEl = document.getElementById('dashboardStatWeekReports');
+  if (weekReportsEl) weekReportsEl.textContent = stats.reportsThisWeek;
+  const weekRankEl = document.getElementById('dashboardStatWeekRank');
+  if (weekRankEl) weekRankEl.textContent = weekly.rank ? ('#' + weekly.rank) : t('dashboardWeekRankOutside');
+
   const badgeGrid = document.getElementById('dashboardBadgeGrid');
   if (badgeGrid) {
-    badgeGrid.innerHTML = BADGES.map(b => buildBadgeIconHtml(b, isBadgeEarned(b, currentProfile))).join('');
+    const allBadges = [...BADGES, ...USER_BADGES_EXTRA];
+    badgeGrid.innerHTML = allBadges.map(b => buildBadgeIconHtml(b, isBadgeEarned(b, currentProfile, stats))).join('');
   }
 }
 
@@ -4015,21 +4529,53 @@ async function renderAdminDashboard() {
   const noteKey = lvl === 1 ? 'adminDashboardScopeNote1' : lvl === 2 ? 'adminDashboardScopeNote2' : 'adminDashboardScopeNote3';
   document.getElementById('adminDashboardScopeNote').textContent = t(noteKey);
 
-  // Resolved-flag count backs both the stat box and the achievements grid
-  // below — fetched fresh each render, same reasoning as the municipality
-  // cache await above (kept correct across sign-ins without caching a
-  // possibly-stale number on currentProfile).
-  const resolvedCount = await getAdminResolvedFlagCount();
+  // Moderation stats back the resolved-flags stat, the new weekly stat,
+  // the prestige ladder, and the achievements grid all at once — fetched
+  // fresh each render, same reasoning as the municipality cache await
+  // above (kept correct across sign-ins without caching a possibly-stale
+  // number on currentProfile).
+  const stats = await getAdminModerationStats();
   // Bail again post-await for the same reason as above — the admin could
   // have signed out or closed the panel while this was in flight.
   if (!currentSession || !currentProfile || !currentProfile.is_admin) return;
 
   const resolvedValueEl = document.getElementById('adminDashboardResolvedValue');
-  if (resolvedValueEl) resolvedValueEl.textContent = resolvedCount;
+  if (resolvedValueEl) resolvedValueEl.textContent = stats.resolvedFlagCount;
+
+  // "Resolved this week" reuses the same resolved-reports rows fetched by
+  // getAdminModerationStats — no separate query needed, just re-derive the
+  // week window's slice the same way getUserBadgeStats does for reports.
+  const weekEl = document.getElementById('adminDashboardWeekValue');
+  if (weekEl) weekEl.textContent = stats.resolvedThisWeek;
+
+  const xpLevel = adminXpLevelForXp(stats.moderationCount);
+  const xpNext = nextAdminXpLevel(xpLevel);
+  const xpPill = document.getElementById('adminDashboardXpPill');
+  if (xpPill) {
+    xpPill.textContent = xpLevel.level;
+    xpPill.className = 'tier-pill dashboard-level-pill tier-level-' + Math.min(5, Math.max(1, xpLevel.level));
+  }
+  const xpNameEl = document.getElementById('adminDashboardXpName');
+  if (xpNameEl) xpNameEl.textContent = adminXpLevelName(xpLevel);
+  const xpFillEl = document.getElementById('adminDashboardXpFill');
+  const xpTextEl = document.getElementById('adminDashboardXpText');
+  if (xpFillEl && xpTextEl) {
+    if (!xpNext) {
+      xpFillEl.style.width = '100%';
+      xpTextEl.textContent = t('adminDashboardXpMax');
+    } else {
+      const span = xpNext.xp - xpLevel.xp;
+      const into = Math.max(0, stats.moderationCount - xpLevel.xp);
+      xpFillEl.style.width = (span > 0 ? Math.min(100, into / span * 100) : 100) + '%';
+      xpTextEl.textContent = t('adminDashboardXpProgress')
+        .replace('{n}', Math.max(0, xpNext.xp - stats.moderationCount)).replace('{level}', adminXpLevelName(xpNext));
+    }
+  }
 
   const adminBadgeGrid = document.getElementById('adminDashboardBadgeGrid');
   if (adminBadgeGrid) {
-    adminBadgeGrid.innerHTML = ADMIN_BADGES.map(b => buildAdminBadgeIconHtml(b, b.check(resolvedCount))).join('');
+    const allAdminBadges = [...ADMIN_BADGES, ...ADMIN_BADGES_EXTRA];
+    adminBadgeGrid.innerHTML = allAdminBadges.map(b => buildBadgeIconHtml(b, b.check(stats))).join('');
   }
 }
 
@@ -4188,6 +4734,10 @@ const T = {
   adminDashboardLevelLabel:   { en:'Level',                        sr:'Nivo' },
   adminDashboardTagLabel:     { en:'Responsible for',              sr:'Odgovoran za' },
   adminDashboardResolvedLabel: { en:'Flags resolved',              sr:'Rešene prijave' },
+  adminDashboardWeekLabel:     { en:'Resolved this week',          sr:'Rešeno ove nedelje' },
+  adminDashboardXpTitle:       { en:'Prestige Rank',                sr:'Prestižni rang' },
+  adminDashboardXpMax:         { en:'Highest prestige rank reached.', sr:'Dostignut najviši prestižni rang.' },
+  adminDashboardXpProgress:    { en:'{n} more to reach {level}',    sr:'Još {n} do ranga {level}' },
   adminDashboardBadgesTitle:  { en:'Admin achievements',           sr:'Administratorska dostignuća' },
   adminDashboardScopeNote1:   { en:'Full power inside this municipality. Elsewhere, your vote carries the strongest weight — unless you\u2019re physically on-site, where you can still take full control.', sr:'Puna ovlašćenja unutar ove opštine. Van nje, vaš glas ima najveću težinu — osim ako se ne nalazite fizički na licu mesta, gde i dalje imate punu kontrolu.' },
   adminDashboardScopeNote2:   { en:'Full power inside this country. Elsewhere, your vote carries the strongest weight — unless you\u2019re physically on-site, where you can still take full control.', sr:'Puna ovlašćenja unutar ove zemlje. Van nje, vaš glas ima najveću težinu — osim ako se ne nalazite fizički na licu mesta, gde i dalje imate punu kontrolu.' },
@@ -4202,6 +4752,12 @@ const T = {
   tooFarToReport:    { en:'You must be within 50m of the pin to report it ({d}m away).', sr:'Morate biti u krugu od 50m od pina da biste prijavili (udaljenost {d}m).' },
   dashboardSectionTitle:     { en:'My Dashboard',        sr:'Moja tabla' },
   dashboardBadgesTitle:      { en:'Badges',              sr:'Značke' },
+  dashboardWeekTitle:            { en:'This Week',            sr:'Ove nedelje' },
+  dashboardStatWeekReportsLabel: { en:'Reports this week',    sr:'Prijave ove nedelje' },
+  dashboardStatWeekRankLabel:    { en:"This week's rank",     sr:'Rang ove nedelje' },
+  dashboardWeekRankOutside:      { en:'Outside top 50',        sr:'Van top 50' },
+  badgeComingSoon:           { en:'coming soon',         sr:'uskoro' },
+  badgeComingSoonShort:      { en:'Soon',                sr:'Uskoro' },
   heatmapBtnTitle:           { en:'Heatmap',             sr:'Toplotna mapa' },
   heatmapPanelTitle:         { en:'Show on heatmap',     sr:'Prikaži na toplotnoj mapi' },
   heatmapCatAllLabel:        { en:'All categories',      sr:'Sve kategorije' },
@@ -4602,6 +5158,12 @@ function applyLang(){
   if (dashWeightLabel) dashWeightLabel.textContent = t('dashboardStatWeight');
   const dashBadgesTitleEl = document.getElementById('dashboardBadgesTitle');
   if (dashBadgesTitleEl) dashBadgesTitleEl.textContent = t('dashboardBadgesTitle');
+  const dashWeekTitleEl = document.getElementById('dashboardWeekTitle');
+  if (dashWeekTitleEl) dashWeekTitleEl.textContent = t('dashboardWeekTitle');
+  const dashWeekReportsLabel = document.getElementById('dashboardStatWeekReportsLabel');
+  if (dashWeekReportsLabel) dashWeekReportsLabel.textContent = t('dashboardStatWeekReportsLabel');
+  const dashWeekRankLabel = document.getElementById('dashboardStatWeekRankLabel');
+  if (dashWeekRankLabel) dashWeekRankLabel.textContent = t('dashboardStatWeekRankLabel');
   const heatmapBtnEl = document.getElementById('heatmapBtn');
   if (heatmapBtnEl) heatmapBtnEl.title = t('heatmapBtnTitle');
   const heatmapPanelTitleEl = document.getElementById('heatmapPanelTitle');
@@ -4615,6 +5177,10 @@ function applyLang(){
   if (adminDashTagLabel) adminDashTagLabel.textContent = t('adminDashboardTagLabel');
   const adminDashResolvedLabel = document.getElementById('adminDashboardResolvedLabel');
   if (adminDashResolvedLabel) adminDashResolvedLabel.textContent = t('adminDashboardResolvedLabel');
+  const adminDashWeekLabel = document.getElementById('adminDashboardWeekLabel');
+  if (adminDashWeekLabel) adminDashWeekLabel.textContent = t('adminDashboardWeekLabel');
+  const adminDashXpTitleEl = document.getElementById('adminDashboardXpTitle');
+  if (adminDashXpTitleEl) adminDashXpTitleEl.textContent = t('adminDashboardXpTitle');
   const adminDashBadgesTitleEl = document.getElementById('adminDashboardBadgesTitle');
   if (adminDashBadgesTitleEl) adminDashBadgesTitleEl.textContent = t('adminDashboardBadgesTitle');
   // Rankings modal open right now (on any tab) — refresh the header
