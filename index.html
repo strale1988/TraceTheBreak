@@ -10406,35 +10406,39 @@ async function loadWaitingListAdmin() {
       .order('created_at', { ascending: true })
       .limit(WAITING_LIST_PREVIEW_LIMIT);
     if (error) throw error;
+    // A user-submitted flag is global, same as photo review — any admin
+    // can see and resolve it (see the report_flags "admins can read/resolve
+    // flags" RLS policies), not just the admin whose domain covers this
+    // report's municipality. Used to be gated behind hasFullPowerOverReport,
+    // which meant any report whose municipality_id was null/broken (a
+    // boundary re-import gone wrong, a geocode failure, etc.) had its flags
+    // silently vanish from every admin's queue with no way to ever surface
+    // them again — same failure mode as the photo-review domain gate below,
+    // just for a different reason type.
     (data || []).forEach(row => {
       const report = row.brake_reports;
-      // Same gate as everywhere else an admin gets full power over a
-      // report (edit/delete, resolve, etc — see hasFullPowerOverReport).
-      // This used to only check isReportInAdminDomain, which misses the
-      // on-site override: an admin standing at a report outside their own
-      // assigned domain has full power over it everywhere else in the
-      // app, but their own flag on it would silently never show up here.
-      if (!report || !hasFullPowerOverReport(report)) return;
+      if (!report) return;
       addReason(report, 'user_flag', row.created_at, { flag: row });
     });
   } catch (err) {
     console.error('Failed to load report flags:', err.message);
   }
 
-  // Visibility rule: a pending PHOTO REVIEW is global — any admin can see
-  // and act on it (approveReportPhoto/rejectReportPhoto never domain-check
-  // the report either), so it's never hidden by the domain gate. This is
-  // also what fixes reports whose municipality failed to resolve (or
-  // resolved to the wrong place, e.g. a city_district instead of its
-  // parent municipality — see reverseGeocodeMunicipalityCandidates): those
-  // used to silently vanish from every non-Overseer admin's queue, because
-  // isReportInAdminDomain has nothing to match against without a correct
-  // municipality_id, leaving the photo waiting for review forever with no
-  // admin ever seeing it. rejected_photo and user_flag stay domain-gated,
-  // since those are tied to actually managing/resolving that specific
-  // report, not just judging whether an image is appropriate.
+  // Visibility rule: pending PHOTO REVIEW and USER FLAGS are both global —
+  // any admin can see and act on them (approveReportPhoto/rejectReportPhoto
+  // and resolveReportFlags never domain-check the report either), so
+  // neither is hidden by the domain gate. This is also what fixes reports
+  // whose municipality failed to resolve (or resolved to the wrong place,
+  // e.g. a city_district instead of its parent municipality — see
+  // reverseGeocodeMunicipalityCandidates): those used to silently vanish
+  // from every non-Overseer admin's queue, because isReportInAdminDomain
+  // has nothing to match against without a correct municipality_id, leaving
+  // the item waiting for review forever with no admin ever seeing it.
+  // rejected_photo stays domain-gated, since resolving it is tied to
+  // actually managing that specific report (clearing its flag, following
+  // up locally), not just triaging whether an image/flag needs attention.
   waitingListCache = Array.from(items.values())
-    .filter(item => item.reasons.includes('photo') || hasFullPowerOverReport(item.report))
+    .filter(item => item.reasons.includes('photo') || item.reasons.includes('user_flag') || hasFullPowerOverReport(item.report))
     .sort((a, b) => a.waitingSince - b.waitingSince) // oldest first
     .slice(0, WAITING_LIST_PREVIEW_LIMIT);
   renderWaitingList();
@@ -10566,12 +10570,13 @@ function filterWaitingListBySearch(cache) {
 
 async function resolveReportFlags(reportId) {
   try {
-    const { error } = await sb.from('report_flags').update({
+    const { data, error } = await sb.from('report_flags').update({
       resolved: true,
       resolved_at: new Date().toISOString(),
       resolved_by: currentSession ? currentSession.user.id : null
-    }).eq('report_id', reportId).eq('resolved', false);
+    }).eq('report_id', reportId).eq('resolved', false).select();
     if (error) throw error;
+    if (!data || !data.length) throw new Error('no-row-updated');
     toast(t('reportFlagResolved'), 'success');
     await loadWaitingListAdmin();
   } catch (err) {
