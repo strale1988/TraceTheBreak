@@ -622,6 +622,13 @@ button{
   color:white;
 }
 
+/* Wraps every bottomright floating map button (follow/pin/driving/heatmap/
+   compass/report-FAB) as a single Leaflet control — see
+   BottomRightStackControl — so their visual top-to-bottom order is exactly
+   the DOM order in #bottomRightStack, with the report FAB pinned last. */
+.bottomright-stack{
+  display:flex; flex-direction:column; align-items:center; gap:10px;
+}
 .pin-map-btn{
   background:var(--floating-bg);
   border:1px solid var(--floating-border);
@@ -704,21 +711,31 @@ body.driving-active .report-fab-btn{ display:none !important; }
 .wiz-step-label{ color:var(--text-secondary); font-size:13px; margin:0 0 4px; }
 .wiz-step-title{ font-size:20px; font-weight:600; margin:0 0 18px; color:var(--text-primary); }
 .wiz-grid{
-  display:grid; grid-template-columns:1fr 1fr; gap:12px;
+  display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;
 }
 .wiz-tile{
   background:var(--bg-surface);
   border:1px solid var(--border-color);
   border-radius:14px;
-  padding:18px 8px;
+  padding:16px 6px;
   display:flex; flex-direction:column; align-items:center; gap:10px;
   cursor:pointer; text-align:center;
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
 }
 .wiz-tile:active{ background:var(--bg-surface-alt); }
-.wiz-tile img{ width:30px; height:30px; }
-.wiz-tile span{ font-size:13px; color:var(--text-primary); }
+.wiz-tile img{ width:44px; height:44px; }
+.wiz-tile span{ font-size:12.5px; color:var(--text-primary); line-height:1.25; }
+/* Category/subcategory glyphs are rendered as a CSS mask (not a plain
+   <img>) so they can be tinted with the category's own color — see
+   categoryColor() / CATEGORY_COLORS and wizRenderCategory/Subcategory.
+   Sized up from the old flat 30px <img> per the "bigger icons" request. */
+.wiz-tile-icon{
+  width:44px; height:44px; flex:0 0 auto;
+  -webkit-mask-size:contain; mask-size:contain;
+  -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
+  -webkit-mask-position:center; mask-position:center;
+}
 .wiz-list{ display:flex; flex-direction:column; gap:10px; }
 .wiz-bar{
   border:1px solid var(--border-color);
@@ -732,7 +749,15 @@ body.driving-active .report-fab-btn{ display:none !important; }
   touch-action:manipulation;
 }
 .wiz-bar:active{ background:var(--bg-surface-alt); }
-.wiz-bar img{ width:24px; height:24px; flex:0 0 auto; }
+.wiz-bar img{ width:32px; height:32px; flex:0 0 auto; }
+/* Same CSS-mask tinting approach as .wiz-tile-icon, colored per priority/
+   status instead of category — see wizRenderPriority/Status. */
+.wiz-bar-icon{
+  width:32px; height:32px; flex:0 0 auto;
+  -webkit-mask-size:contain; mask-size:contain;
+  -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
+  -webkit-mask-position:center; mask-position:center;
+}
 .wiz-bar .dot{ width:14px; height:14px; border-radius:50%; flex:0 0 auto; }
 .wiz-pending-pin-label{
   position:absolute; left:50%; top:50%; transform:translate(-50%,-140%);
@@ -2747,18 +2772,11 @@ span.flatpickr-weekday {
 </div>
 
 
-<!-- Red FAB — the entry point for filing a report. Replaces the old
-     always-visible dropdown panel above, which stays in the DOM (see
-     the comment on #reportFormPanel) purely as the data model the
-     wizard below drives: every tile tap sets one of its selects/inputs,
-     so reportBreak() and everything around it (checkFormReady,
-     onCategoryChange, the offline queue, proximity gate) needs no
-     changes at all. Visibility is kept in lockstep with
-     #reportFormPanel's own show/hide points — see updateAuthUI() and
-     the driving-mode toggle. -->
-<button type="button" class="report-fab-btn" id="reportFabBtn" style="display:none" title="Report a break" aria-label="Report a break" onclick="reportFabTap()">
-  <img src="icons/report/report_new.png" alt="">
-</button>
+<!-- The red report FAB — entry point for filing a report — used to live
+     here as its own standalone element. It now lives inside
+     #bottomRightStack further down, as the last (bottom-most, closest to
+     the thumb) item in that stack, so its markup moved down there. See
+     the comment on #bottomRightStack for why. -->
 
 <div class="wiz-overlay" id="reportWizard" style="display:none">
   <div class="wiz-header">
@@ -2814,31 +2832,51 @@ span.flatpickr-weekday {
      "Waiting for GPS…" and the driving HUD could end up rendered behind
      other UI instead of on top of it. See the Z-INDEX SCALE at the top
      of <style> for how these layers are meant to stack. -->
-<div id="followLocationBtn" class="pin-map-btn" style="display:none" title="Follow my location" onclick="toggleFollowMode()"><img class="icon-img" src="icons/target.png" alt="Recenter"></div>
-<div id="pinMapBtn" class="pin-map-btn" style="display:none" title="Set location manually" onclick="togglePinMode()"><img class="icon-img" src="icons/pin.png" alt="Pin"></div>
-<div id="drivingModeBtn" class="pin-map-btn" style="display:none" title="Driving mode" onclick="toggleDrivingMode()"><img class="icon-img" src="icons/car.png" alt="Driving mode"></div>
-<!-- Heatmap toggle: swaps the pin/cluster layers for a density blob built
-     from globalActiveData (see toggleHeatmap/buildHeatLayer near
-     syncMarkers). Turning it on also opens #heatmapFilterModal (below,
-     grouped with the app's other fullscreen modals) so a person can narrow
-     the heatmap down to just the categories they care about (potholes live
-     under Road, broken lights under Streetlight, water leaks under Water,
-     trash under Waste, etc.) — same category set/colors as #categoryLegend. -->
-<div id="heatmapBtn" class="pin-map-btn heatmap-btn" style="display:none" title="Heatmap" onclick="toggleHeatmap()">
-  <img class="icon-img" src="icons/heatmap.png" alt="Heatmap">
-</div>
-<!-- Main-screen counterpart of the driving-mode compass (#mapCompass below):
-     same widget, same tap-to-toggle heading-up behavior, just for walking/
-     browsing instead of driving. Lives in its own Leaflet control (see
-     MainCompassControl further down) rather than inside the driving report
-     sheet, and is hidden the moment driving mode takes over (see
-     body.driving-active rules above). -->
-<div id="mainMapCompass" class="map-compass heading-up-disabled" style="display:none" title="Heading — tap to rotate the map with your direction of travel" onclick="toggleWalkingCompassMode()">
-  <div class="compass-face">
-    <div class="compass-needle" id="mainCompassNeedle">
-      <svg viewBox="0 0 24 24"><path d="M12 2 L16 13 L12 11 L8 13 Z" fill="#ff4b4b"/><path d="M12 22 L16 13 L12 15 L8 13 Z" fill="#ccc"/></svg>
+<!-- Single bottomright stack for every floating map button, registered as
+     ONE Leaflet control (see BottomRightStackControl further down) so the
+     visual order is exactly this DOM order, top to bottom — no longer
+     several separate same-corner controls relying on Leaflet's own
+     stacking behavior to land in the right order. The report FAB is
+     deliberately the LAST child: it's the button used every single time
+     someone files a report, so it sits bottom-most in the stack, closest
+     to the thumb on a one-handed phone grip, below every utility button
+     above it. -->
+<div id="bottomRightStack" class="bottomright-stack">
+  <div id="followLocationBtn" class="pin-map-btn" style="display:none" title="Follow my location" onclick="toggleFollowMode()"><img class="icon-img" src="icons/target.png" alt="Recenter"></div>
+  <div id="pinMapBtn" class="pin-map-btn" style="display:none" title="Set location manually" onclick="togglePinMode()"><img class="icon-img" src="icons/pin.png" alt="Pin"></div>
+  <div id="drivingModeBtn" class="pin-map-btn" style="display:none" title="Driving mode" onclick="toggleDrivingMode()"><img class="icon-img" src="icons/car.png" alt="Driving mode"></div>
+  <!-- Heatmap toggle: swaps the pin/cluster layers for a density blob built
+       from globalActiveData (see toggleHeatmap/buildHeatLayer near
+       syncMarkers). Turning it on also opens #heatmapFilterModal (below,
+       grouped with the app's other fullscreen modals) so a person can narrow
+       the heatmap down to just the categories they care about (potholes live
+       under Road, broken lights under Streetlight, water leaks under Water,
+       trash under Waste, etc.) — same category set/colors as #categoryLegend. -->
+  <div id="heatmapBtn" class="pin-map-btn heatmap-btn" style="display:none" title="Heatmap" onclick="toggleHeatmap()">
+    <img class="icon-img" src="icons/heatmap.png" alt="Heatmap">
+  </div>
+  <!-- Main-screen counterpart of the driving-mode compass (#mapCompass below):
+       same widget, same tap-to-toggle heading-up behavior, just for walking/
+       browsing instead of driving. Hidden the moment driving mode takes
+       over (see body.driving-active rules above). -->
+  <div id="mainMapCompass" class="map-compass heading-up-disabled" style="display:none" title="Heading — tap to rotate the map with your direction of travel" onclick="toggleWalkingCompassMode()">
+    <div class="compass-face">
+      <div class="compass-needle" id="mainCompassNeedle">
+        <svg viewBox="0 0 24 24"><path d="M12 2 L16 13 L12 11 L8 13 Z" fill="#ff4b4b"/><path d="M12 22 L16 13 L12 15 L8 13 Z" fill="#ccc"/></svg>
+      </div>
     </div>
   </div>
+  <!-- Red report FAB — entry point for filing a report. Replaces the old
+       always-visible dropdown panel (see the comment on #reportFormPanel),
+       which stays in the DOM purely as the data model the wizard drives:
+       every tile tap sets one of its selects/inputs, so reportBreak() and
+       everything around it (checkFormReady, onCategoryChange, the offline
+       queue, proximity gate) needs no changes at all. Visibility is kept
+       in lockstep with #reportFormPanel's own show/hide points — see
+       updateAuthUI() and the driving-mode toggle. -->
+  <button type="button" class="report-fab-btn" id="reportFabBtn" style="display:none" title="Report a break" aria-label="Report a break" onclick="reportFabTap()">
+    <img src="icons/reports/report_new.png" alt="">
+  </button>
 </div>
 <div id="drivingTopFade"></div>
 
@@ -8279,75 +8317,33 @@ document.addEventListener('visibilitychange', () => {
 // Now that #settingsBtn lives in the header (next to the fullscreen
 // button) instead of floating over the map, this stack moves into the
 // bottomright corner it vacated.
-const FollowLocationControl = L.Control.extend({
+//
+// All of follow/pin/driving/heatmap/compass/report-FAB are registered as
+// ONE Leaflet control wrapping #bottomRightStack, instead of six separate
+// same-corner controls. That means their visual order is simply the DOM
+// order inside that wrapper (see the HTML), not something that depends on
+// Leaflet's own same-corner stacking behavior — so the report FAB, as the
+// wrapper's last child, is guaranteed to render bottom-most, closest to
+// the thumb. Each button's own show/hide logic (canReportHere, auth
+// state, driving mode — see updateAuthUI()) is untouched; joining one
+// shared control only changes where the stack sits, not when any
+// individual button is visible.
+const BottomRightStackControl = L.Control.extend({
   options:{ position:'bottomright' },
   onAdd(){
-    const btn = document.getElementById('followLocationBtn');
-    L.DomEvent.disableClickPropagation(btn);
-    return btn;
+    const el = document.getElementById('bottomRightStack');
+    L.DomEvent.disableClickPropagation(el);
+    return el;
   }
 });
-new FollowLocationControl().addTo(map);
+new BottomRightStackControl().addTo(map);
 document.getElementById('followLocationBtn').style.display = 'flex';
-
-const PinControl = L.Control.extend({
-  options:{ position:'bottomright' },
-  onAdd(){
-    const btn = document.getElementById('pinMapBtn');
-    L.DomEvent.disableClickPropagation(btn);
-    return btn;
-  }
-});
-new PinControl().addTo(map);
 document.getElementById('pinMapBtn').style.display = 'flex';
-
-const DrivingControl = L.Control.extend({
-  options:{ position:'bottomright' },
-  onAdd(){
-    const btn = document.getElementById('drivingModeBtn');
-    L.DomEvent.disableClickPropagation(btn);
-    return btn;
-  }
-});
-new DrivingControl().addTo(map);
 document.getElementById('drivingModeBtn').style.display = 'flex';
-
-const HeatmapControl = L.Control.extend({
-  options:{ position:'bottomright' },
-  onAdd(){
-    const btn = document.getElementById('heatmapBtn');
-    L.DomEvent.disableClickPropagation(btn);
-    return btn;
-  }
-});
-new HeatmapControl().addTo(map);
 document.getElementById('heatmapBtn').style.display = 'flex';
-
-const MainCompassControl = L.Control.extend({
-  options:{ position:'bottomright' },
-  onAdd(){
-    const btn = document.getElementById('mainMapCompass');
-    L.DomEvent.disableClickPropagation(btn);
-    return btn;
-  }
-});
-new MainCompassControl().addTo(map);
 document.getElementById('mainMapCompass').style.display = 'flex';
-
-// Report FAB — added last so it stacks below the rest of the bottomright
-// buttons (Leaflet lays out same-corner controls in the order they're
-// added, closest-to-edge last). Its own show/hide logic (canReportHere,
-// auth state, driving mode — see updateAuthUI()) is untouched; joining
-// the control stack only changes where it sits, not when it's visible.
-const ReportFabControl = L.Control.extend({
-  options:{ position:'bottomright' },
-  onAdd(){
-    const btn = document.getElementById('reportFabBtn');
-    L.DomEvent.disableClickPropagation(btn);
-    return btn;
-  }
-});
-new ReportFabControl().addTo(map);
+// reportFabBtn is intentionally NOT force-shown here — its visibility is
+// still driven entirely by updateAuthUI()/canReportHere, same as before.
 
 const NavigatePanelControl = L.Control.extend({
   options:{ position:'topleft' },
@@ -9118,7 +9114,7 @@ const WIZ_SUBCATEGORY_ICONS = {
 const WIZ_PRIORITY_ICONS = { low:'priority_low.png', normal:'priority_normal.png', high:'priority_high.png' };
 const WIZ_STATUS_ICONS = { reported:'status_reported.png', in_progress:'status_in_progress.png' };
 
-let wizState = { steps: ['category'], step: 0, category: null, subcategory: null, priority: null, status: null };
+let wizState = { steps: wizStepsFor(null), step: 0, category: null, subcategory: null, priority: null, status: null };
 // True only while the FAB itself is responsible for pinMode/manualCoords —
 // keeps us from stomping on an admin's own manual-pin-drop session (see
 // togglePinMode) if they happen to have that on some other way.
@@ -9169,7 +9165,13 @@ function reportFabTap() {
 }
 
 function openReportWizard() {
-  wizState = { steps: ['category'], step: 0, category: null, subcategory: null, priority: null, status: null };
+  // Seed with the full default step sequence (category → priority → status
+  // → details) rather than just ['category'] — otherwise, on the very
+  // first render, wizProgress has exactly one segment for one step, which
+  // is 100% "done" and paints the whole bar solid red before anything's
+  // even been picked. wizSelectCategory() below re-derives the real list
+  // (adding 'subcategory' when needed) once a category is chosen.
+  wizState = { steps: wizStepsFor(null), step: 0, category: null, subcategory: null, priority: null, status: null };
   document.getElementById('reportWizard').style.display = 'flex';
   wizRender();
 }
@@ -9237,7 +9239,7 @@ function wizRenderCategory(body) {
     <div class="wiz-grid">
       ${cats.map(cat => `
         <div class="wiz-tile" onclick="wizSelectCategory('${cat}')">
-          <img src="icons/report/${WIZ_CATEGORY_ICONS[cat]}" alt="">
+          <div class="wiz-tile-icon" style="background-color:${categoryColor(cat)};-webkit-mask-image:url('icons/reports/${WIZ_CATEGORY_ICONS[cat]}');mask-image:url('icons/reports/${WIZ_CATEGORY_ICONS[cat]}');"></div>
           <span>${translateCategory(cat)}</span>
         </div>`).join('')}
     </div>`;
@@ -9261,7 +9263,7 @@ function wizRenderSubcategory(body) {
     <div class="wiz-grid">
       ${list.map(s => `
         <div class="wiz-tile" onclick="wizSelectSubcategory('${s.key}')">
-          ${icons[s.key] ? `<img src="icons/report/${icons[s.key]}" alt="">` : ""}
+          ${icons[s.key] ? `<div class="wiz-tile-icon" style="background-color:${categoryColor(wizState.category)};-webkit-mask-image:url('icons/reports/${icons[s.key]}');mask-image:url('icons/reports/${icons[s.key]}');"></div>` : ""}
           <span>${lang === 'sr' ? s.sr : s.en}</span>
         </div>`).join('')}
     </div>`;
@@ -9286,8 +9288,7 @@ function wizRenderPriority(body) {
     <div class="wiz-list">
       ${opts.map(o => `
         <div class="wiz-bar" onclick="wizSelectPriority('${o.key}')">
-          <img src="icons/report/${o.icon}" alt="">
-          <span class="dot" style="background:${priorityColor(o.key)}"></span>
+          <div class="wiz-bar-icon" style="background-color:${priorityColor(o.key)};-webkit-mask-image:url('icons/reports/${o.icon}');mask-image:url('icons/reports/${o.icon}');"></div>
           <span>${priorityLabelText(o.key)}</span>
         </div>`).join('')}
     </div>`;
@@ -9310,8 +9311,7 @@ function wizRenderStatus(body) {
     <div class="wiz-list">
       ${opts.map(s => `
         <div class="wiz-bar" onclick="wizSelectStatus('${s}')">
-          <img src="icons/report/${WIZ_STATUS_ICONS[s]}" alt="">
-          <span class="dot" style="background:${statusColor(s)}"></span>
+          <div class="wiz-bar-icon" style="background-color:${statusColor(s)};-webkit-mask-image:url('icons/reports/${WIZ_STATUS_ICONS[s]}');mask-image:url('icons/reports/${WIZ_STATUS_ICONS[s]}');"></div>
           <span>${statusLabel(s)}</span>
         </div>`).join('')}
     </div>`;
@@ -9335,11 +9335,11 @@ function wizRenderDetails(body) {
       <label>${t('wizPhotoLabel') || 'Photo (optional)'}</label>
       <div class="wiz-photo-row">
         <div class="wiz-photo-btn" onclick="triggerReportPhotoCamera()">
-          <img src="icons/report/camera.png" alt="">
+          <img src="icons/reports/camera.png" alt="">
           <span>${t('wizTakePhoto') || 'Take photo'}</span>
         </div>
         <div class="wiz-photo-btn" onclick="triggerReportPhotoGallery()">
-          <img src="icons/report/gallery.png" alt="">
+          <img src="icons/reports/gallery.png" alt="">
           <span>${t('wizChoosePhoto') || 'Choose photo'}</span>
         </div>
       </div>
