@@ -11561,7 +11561,19 @@ async function showReportDetailModal(reportId) {
 
   const contactsEl = document.getElementById('detailContactsContainer');
   if (!muni || muni.id == null) {
-    if (contactsEl) contactsEl.innerHTML = `<div class="detail-empty">${t('detailNoMunicipality')}</div>`;
+    // Municipality resolution failed for this report (bad/missing boundary
+    // data, point outside every cached polygon, etc — see
+    // resolveReportMunicipality). Rather than give up on contacts entirely,
+    // fall back to the same lookup the map's utility-company POI pins use:
+    // match by the company's own stored coordinates + category, not by
+    // municipality_id. This is a strictly worse match than a real
+    // municipality lookup (nearest-by-distance instead of "which admin
+    // boundary contains this point"), so it's only ever used when the real
+    // lookup has nothing to go on.
+    const fallbackContacts = await getReportContactsByProximity(report);
+    if (contactsEl) contactsEl.innerHTML = fallbackContacts.length
+      ? renderContactCards(fallbackContacts)
+      : `<div class="detail-empty">${t('detailNoMunicipality')}</div>`;
     return;
   }
   const contacts = await getReportContacts(report, muni);
@@ -11709,6 +11721,45 @@ async function getReportContacts(report, muni) {
     report.contacts = [];
   }
   return report.contacts;
+}
+
+// Fallback contact lookup for reports whose municipality can't be resolved
+// (see resolveReportMunicipality / showReportDetailModal). Mirrors what the
+// utility-company POI pins already do on the map — match by the company's
+// OWN stored coordinates + category, never by municipality_id — so a report
+// sitting right next to a verified company still shows its contact info even
+// though the point-in-polygon lookup has nothing to match against.
+// Weaker than the real lookup (nearest-by-distance instead of "which admin
+// boundary actually contains this point"), so it's only ever used once the
+// real lookup has already given up, and it's capped to a generous-but-not-
+// unbounded radius so a report in one region never picks up a company from
+// somewhere else entirely if nothing nearby exists.
+const REPORT_CONTACT_FALLBACK_MAX_M = 50000; // 50km — "same general area", not a strict boundary match
+const REPORT_CONTACT_FALLBACK_LIMIT = 3;
+async function getReportContactsByProximity(report) {
+  if (!isValidLatLng(report.latitude, report.longitude)) return [];
+  try {
+    // Same shape of query as loadAllCompanyMarkers (verified + has coords),
+    // just also narrowed to this report's category — municipality_id is
+    // deliberately left out of the filter here.
+    const { data, error } = await sb.from(UTILITY_COMPANIES_TABLE)
+      .select('*')
+      .eq('verified', true)
+      .not('lat', 'is', null)
+      .not('lon', 'is', null)
+      .contains('categories', [report.category]);
+    if (error) throw error;
+    const candidates = (data || [])
+      .filter(c => isValidLatLng(c.lat, c.lon))
+      .map(c => ({ c, d: distMeters({ lat: report.latitude, lon: report.longitude }, { lat: c.lat, lon: c.lon }) }))
+      .filter(x => x.d <= REPORT_CONTACT_FALLBACK_MAX_M)
+      .sort((a, b) => a.d - b.d)
+      .slice(0, REPORT_CONTACT_FALLBACK_LIMIT);
+    return candidates.map(x => x.c);
+  } catch (err) {
+    console.error('Failed to load fallback utility contacts by proximity:', err.message);
+    return [];
+  }
 }
 
 // Just the phone/email/website/address/notes rows for a single company —
