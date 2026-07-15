@@ -7377,6 +7377,34 @@ function startGpsRetryLoop() {
   }, 4000);
 }
 
+// The retry loop above only kicks in on PERMISSION_DENIED/POSITION_UNAVAILABLE
+// — but Location Services being off can also just make watchPosition time
+// out over and over (TIMEOUT, err.code 3), which the error callback below
+// deliberately leaves alone as "transient" since that's also exactly what
+// briefly losing signal indoors looks like. The two cases are
+// indistinguishable from the error code alone, so instead of guessing from
+// codes, this checks the actual fix age once a second: if it's been stale
+// longer than the driving HUD's own "GPS lost" threshold, treat the watch
+// as dead and restart it. That's what makes "turn Location back on" get
+// picked up on its own — previously the only thing that happened to
+// trigger a fresh enough interaction to notice was opening driving mode.
+// Actual restarts are still cooldown-limited so a genuinely-dead GPS
+// doesn't get its watch torn down and reopened every single second (the
+// exact radio-cycling problem watchPosition replaced a setInterval-based
+// poll to avoid — see the comment above gpsWatchId).
+let lastGpsWatchdogRestartAt = 0;
+const GPS_WATCHDOG_RESTART_COOLDOWN_MS = 3000;
+function gpsWatchdogTick() {
+  const stale = !lastAcceptedFix || (Date.now() - lastAcceptedFix.t) > GPS_SIGNAL_LOST_MS;
+  if (!stale || gpsWatchId === null) return; // fine, or already being recovered by the dedicated retry loop
+  if (Date.now() - lastGpsWatchdogRestartAt < GPS_WATCHDOG_RESTART_COOLDOWN_MS) return;
+  lastGpsWatchdogRestartAt = Date.now();
+  navigator.geolocation.clearWatch(gpsWatchId);
+  gpsWatchId = null;
+  startWatching();
+}
+setInterval(gpsWatchdogTick, 1000);
+
 function startWatching() {
   if (gpsWatchId !== null) return; // already watching — avoid opening a second session
   gpsWatchId = navigator.geolocation.watchPosition(
