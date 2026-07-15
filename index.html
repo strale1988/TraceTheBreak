@@ -4950,7 +4950,6 @@ const T = {
   flagReportLoginRequired:{ en:'Sign in to flag a report.',                   sr:'Prijavite se da biste označili prijavu.' },
   flagReportOwnReport:    { en:'You can\'t flag your own report.',            sr:'Ne možete označiti sopstvenu prijavu.' },
   flagReportSubmitted:    { en:'Flagged — an admin will review it.',          sr:'Označeno — administrator će pregledati.' },
-  flagReportAlreadyFlagged:{ en:'You already flagged this report.',          sr:'Već ste označili ovu prijavu.' },
   flagReportAlreadyFlaggedNote: { en:'You flagged this on {date}:',           sr:'Označili ste ovo {date}:' },
   flagReportError:        { en:'Could not submit. Try again.',                sr:'Slanje nije uspelo. Pokušajte ponovo.' },
 
@@ -5232,6 +5231,7 @@ function showSettingsModal() {
     cancelUcForm();
     loadUtilityCompaniesAdmin();
     loadWaitingListAdmin();
+    startWaitingListAutoRefresh();
     resetAdminSearch();
     const arTitleEl = document.getElementById('allReportsSectionTitle');
     if (arTitleEl) arTitleEl.textContent = t('allReportsSectionTitle');
@@ -5243,6 +5243,7 @@ function showSettingsModal() {
 }
 function hideSettingsModal() {
   document.getElementById('settingsModal').style.display = 'none';
+  stopWaitingListAutoRefresh();
 }
 function buildHelpModalContent() {
   document.getElementById('helpModalTitle').textContent = t('helpTitle');
@@ -9879,8 +9880,20 @@ async function loadUtilityCompaniesAdmin() {
 // "Waiting since" for a merged card is the EARLIEST of its reasons' own
 // timestamps, so a report doesn't jump the queue just because a second,
 // newer reason got added on top of an older one.
+//
+// This is a lightweight preview, not the full queue: each source query is
+// capped, and the merged result is trimmed to WAITING_LIST_PREVIEW_LIMIT
+// items (oldest-first) rather than pulling in everything waiting — the
+// full set is still reachable through All reports search below for anyone
+// who needs to dig further. It also refreshes on its own on a short
+// interval while Settings is open (see startWaitingListAutoRefresh /
+// stopWaitingListAutoRefresh, wired into show/hideSettingsModal), instead
+// of only ever updating on modal open or after an admin's own action —
+// so a flag from someone else shows up without needing to close and
+// reopen Settings.
 // =============================================================================
 let waitingListCache = []; // [{ report, waitingSince: Date, reasons: ['photo'|'rejected_photo'|'user_flag'], flags: [...] }]
+const WAITING_LIST_PREVIEW_LIMIT = 5;
 
 async function loadWaitingListAdmin() {
   const items = new Map(); // report.id -> merged waiting-list item
@@ -9901,8 +9914,14 @@ async function loadWaitingListAdmin() {
     item.report = report;
   }
 
+  // Each source is capped and pulled oldest-first so the preview limit
+  // below is actually trimming from the right end, not an arbitrary
+  // unordered slice of whatever Postgres happened to return first.
   try {
-    const { data, error } = await sb.from(TABLE).select('*').eq('photo_status', 'pending');
+    const { data, error } = await sb.from(TABLE).select('*')
+      .eq('photo_status', 'pending')
+      .order('created_at', { ascending: true })
+      .limit(WAITING_LIST_PREVIEW_LIMIT);
     if (error) throw error;
     (data || []).forEach(r => addReason(r, 'photo', r.photo_uploaded_at || r.created_at));
   } catch (err) {
@@ -9910,7 +9929,10 @@ async function loadWaitingListAdmin() {
   }
 
   try {
-    const { data, error } = await sb.from(TABLE).select('*').eq('flagged_for_review', true);
+    const { data, error } = await sb.from(TABLE).select('*')
+      .eq('flagged_for_review', true)
+      .order('created_at', { ascending: true })
+      .limit(WAITING_LIST_PREVIEW_LIMIT);
     if (error) throw error;
     (data || []).forEach(r => addReason(r, 'rejected_photo', r.photo_reviewed_at || r.created_at));
   } catch (err) {
@@ -9920,11 +9942,19 @@ async function loadWaitingListAdmin() {
   try {
     const { data, error } = await sb.from('report_flags')
       .select('*, brake_reports(*), profiles!report_flags_flagged_by_fkey(username)')
-      .eq('resolved', false);
+      .eq('resolved', false)
+      .order('created_at', { ascending: true })
+      .limit(WAITING_LIST_PREVIEW_LIMIT);
     if (error) throw error;
     (data || []).forEach(row => {
       const report = row.brake_reports;
-      if (!report || !isReportInAdminDomain(report)) return;
+      // Same gate as everywhere else an admin gets full power over a
+      // report (edit/delete, resolve, etc — see hasFullPowerOverReport).
+      // This used to only check isReportInAdminDomain, which misses the
+      // on-site override: an admin standing at a report outside their own
+      // assigned domain has full power over it everywhere else in the
+      // app, but their own flag on it would silently never show up here.
+      if (!report || !hasFullPowerOverReport(report)) return;
       addReason(report, 'user_flag', row.created_at, { flag: row });
     });
   } catch (err) {
@@ -9932,9 +9962,30 @@ async function loadWaitingListAdmin() {
   }
 
   waitingListCache = Array.from(items.values())
-    .filter(item => isReportInAdminDomain(item.report))
-    .sort((a, b) => a.waitingSince - b.waitingSince); // oldest first
+    .filter(item => hasFullPowerOverReport(item.report))
+    .sort((a, b) => a.waitingSince - b.waitingSince) // oldest first
+    .slice(0, WAITING_LIST_PREVIEW_LIMIT);
   renderWaitingList();
+}
+
+// Keeps the Waiting list current while Settings is open, without the
+// admin needing to close/reopen it to see a flag someone else just
+// submitted. Started in showSettingsModal, stopped in hideSettingsModal
+// so it never polls in the background once the panel isn't visible.
+let waitingListRefreshIntervalId = null;
+const WAITING_LIST_REFRESH_MS = 15000;
+function startWaitingListAutoRefresh() {
+  if (waitingListRefreshIntervalId !== null) return; // already running
+  waitingListRefreshIntervalId = setInterval(() => {
+    if (document.getElementById('settingsModal').style.display === 'none') { stopWaitingListAutoRefresh(); return; }
+    loadWaitingListAdmin();
+  }, WAITING_LIST_REFRESH_MS);
+}
+function stopWaitingListAutoRefresh() {
+  if (waitingListRefreshIntervalId !== null) {
+    clearInterval(waitingListRefreshIntervalId);
+    waitingListRefreshIntervalId = null;
+  }
 }
 
 function reportSummaryTitle(r) {
@@ -11016,6 +11067,13 @@ async function showReportDetailModal(reportId) {
 // report_flags(report_id, flagged_by) — see the Supabase migration. Only the
 // flagger's own row is readable by them (RLS), so "already flagged?" is
 // resolved with a direct row lookup rather than any local/session state.
+//
+// Resolving a flag (see resolveReportFlags) never deletes the row — it just
+// sets resolved=true — so that (report_id, flagged_by) slot stays occupied
+// forever after someone's very first flag on a given report. A resolved row
+// still counts as "already flagged" here so the person can flag the SAME
+// report again later if the issue comes back, instead of being silently
+// locked out the moment their first-ever flag on it got resolved.
 // =============================================================================
 async function loadReportFlagSection(reportId) {
   const contentEl = document.getElementById('reportFlagContent');
@@ -11037,7 +11095,10 @@ async function loadReportFlagSection(reportId) {
 function renderReportFlagSection(reportId, existingFlag) {
   const contentEl = document.getElementById('reportFlagContent');
   if (!contentEl) return;
-  if (existingFlag) {
+  // Only an UNRESOLVED flag blocks a fresh one — a resolved row is history,
+  // not a still-open flag, and shouldn't stop the person from flagging this
+  // report again (see the big comment above loadReportFlagSection).
+  if (existingFlag && !existingFlag.resolved) {
     contentEl.innerHTML = `<div class="flag-report-note">
       ${t('flagReportAlreadyFlaggedNote').replace('{date}', formatDate(existingFlag.created_at))}<br>
       "${escapeHtml(existingFlag.reason)}"
@@ -11070,22 +11131,29 @@ async function submitReportFlag(reportId) {
   const submitBtn = document.getElementById('flagReportSubmitBtn');
   if (submitBtn) submitBtn.disabled = true;
   try {
-    const { error } = await sb.from('report_flags').insert({
+    // upsert (not insert) — if this person already has a row on this
+    // report from a previous, since-resolved flag, a plain insert would
+    // hit the unique (report_id, flagged_by) constraint and fail every
+    // single time, which is exactly the "can't flag this anymore" bug.
+    // Upserting on that same constraint reopens the old row instead:
+    // resolved/resolved_at/resolved_by are explicitly reset and created_at
+    // is bumped to now so it correctly re-enters the Waiting list as a
+    // fresh "waiting since", rather than keeping a stale years-old date.
+    // NOTE: Supabase performs this as INSERT ... ON CONFLICT DO UPDATE, so
+    // the reopen path needs an UPDATE RLS policy on report_flags letting
+    // flagged_by = auth.uid() update their own row, alongside whatever
+    // INSERT policy already covers the first-ever flag — add one if it's
+    // not already there, or the reopen half of this will fail RLS.
+    const { error } = await sb.from('report_flags').upsert({
       report_id: reportId,
       flagged_by: currentSession.user.id,
-      reason: cyrillicToLatin(reason)
-    });
-    if (error) {
-      // Unique-violation — a second tab, a double-tap, or the earlier
-      // maybeSingle() lookup racing another insert. Either way the report
-      // is already flagged by this user, so just reflect that state.
-      if (error.code === '23505') {
-        toast(t('flagReportAlreadyFlagged'), 'error');
-        loadReportFlagSection(reportId);
-        return;
-      }
-      throw error;
-    }
+      reason: cyrillicToLatin(reason),
+      resolved: false,
+      resolved_at: null,
+      resolved_by: null,
+      created_at: new Date().toISOString()
+    }, { onConflict: 'report_id,flagged_by' });
+    if (error) throw error;
     toast(t('flagReportSubmitted'), 'success');
     loadReportFlagSection(reportId);
   } catch (err) {
