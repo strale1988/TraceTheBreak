@@ -9519,12 +9519,19 @@ async function fetchMunicipalityFromNominatim(lat, lon) {
       centroid_lat: parseFloat(json.lat) || lat,
       centroid_lon: parseFloat(json.lon) || lon,
       boundary: geo,
-      bbox
+      bbox,
+      // slug is NOT NULL with no DB-side default — omitting it here meant
+      // this insert (and even the ON CONFLICT DO UPDATE branch, since
+      // Postgres validates the row being inserted before conflict
+      // resolution kicks in) always failed for a genuinely new
+      // osm_type/osm_id pair. Only pre-existing rows that already had a
+      // slug from the original bulk import were ever safe from this.
+      slug: generateMuniSlug()
     };
 
     try {
       const { data, error } = await sb.from(MUNICIPALITIES_TABLE)
-        .upsert(row, { onConflict: 'osm_type,osm_id' })
+        .upsert(row, { onConflict: 'osm_type,osm_id', ignoreDuplicates: false })
         .select()
         .single();
       if (error) throw error;
@@ -9594,7 +9601,8 @@ function normalizeMuniNameForMatch(s) {
   if (!s) return '';
   return cyrillicToLatin(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '')  // strip diacritics (č/ć/š/ž/đ etc.)
     .replace(/\s*\([^)]*\)\s*/g, ' ')                          // drop parenthetical qualifiers, e.g. "Beograd (Central)" -> "Beograd"
-    .toLowerCase().trim().replace(/\s+/g, ' ');
+    .toLowerCase().trim().replace(/\s+/g, ' ')
+    .replace(/^grad\s+/, '');                                  // Nominatim's official Serbian admin name for city-municipalities is "Grad X" (e.g. "Grad Novi Sad"), but our cache stores the bare name ("Novi Sad") — without this, an already-imported city never matches its own reverse-geocode result and gets needlessly pushed into auto-registration on every lookup.
 }
 
 // Successful lookups are cached per ~111m grid cell (3 decimal places is
@@ -9603,6 +9611,17 @@ function normalizeMuniNameForMatch(s) {
 // slightly — doesn't re-hit Nominatim for something already known this
 // session. Failures are deliberately NOT cached, so a transient rate-limit
 // or network hiccup gets a clean retry next time instead of being stuck.
+// municipalities.slug is a NOT NULL column with no DB-side default or
+// trigger to fill it in — every INSERT (auto-register below, and the admin
+// "Add municipality from map center" tool further down) must supply one
+// itself or the insert fails outright, before RLS or ON CONFLICT even come
+// into play. Existing rows (e.g. Beočin) got their slug from the original
+// bulk import; this mirrors that same short random-token shape for new
+// rows created at runtime.
+function generateMuniSlug() {
+  return Math.random().toString(36).slice(2, 10);
+}
+
 const _muniGeocodeCache = new Map();
 async function reverseGeocodeMunicipalityCandidates(lat, lon) {
   const cacheKey = lat.toFixed(3) + ',' + lon.toFixed(3);
@@ -9642,7 +9661,13 @@ async function reverseGeocodeMunicipalityCandidates(lat, lon) {
     result = {
       candidates,
       countryCode: (addr.country_code || '').toUpperCase() || null,
-      bestName: bestName ? cyrillicToLatin(bestName) : null
+      bestName: bestName ? cyrillicToLatin(bestName) : null,
+      // jsonv2 always includes these at the top level (distinct from
+      // addr.*) — needed so autoRegisterMunicipality can satisfy
+      // municipalities.osm_type/osm_id (both NOT NULL) instead of nulling
+      // them out.
+      osmType: json.osm_type || null,
+      osmId: json.osm_id != null ? json.osm_id : null
     };
   } catch (err) {
     console.warn('Reverse-geocode for municipality name-match failed:', err.message);
@@ -9704,23 +9729,38 @@ const _autoRegisterInFlight = new Map();
 // not saved for next time or other users). Loosen that INSERT policy if
 // you want auto-registration to persist regardless of who triggers it
 // first.
-async function autoRegisterMunicipality(name, countryCode, lat, lon) {
+async function autoRegisterMunicipality(name, countryCode, lat, lon, osmType, osmId) {
   if (!name) return null;
   const key = normalizeMuniNameForMatch(name) + '|' + (countryCode || '');
   if (_autoRegisterInFlight.has(key)) return _autoRegisterInFlight.get(key);
 
   const promise = (async () => {
     const row = {
-      osm_type: null,
-      osm_id: null,
+      // osm_type/osm_id/slug/boundary are all NOT NULL on this table with
+      // no DB-side default — this insert used to hardcode osm_type/osm_id
+      // to null and never set slug at all, which meant it failed with a
+      // not-null constraint violation on every single call, before RLS was
+      // even evaluated. osmType/osmId come from the reverse-geocode call
+      // that led here; if Nominatim's response didn't include them for
+      // some reason, fall back to a synthetic-but-non-null placeholder
+      // scoped to this name+country so it still can't collide with a real
+      // OSM way/relation id.
+      osm_type: osmType || 'unknown',
+      osm_id: osmId != null ? osmId : -Math.floor(Math.random() * 1e9), // real OSM ids are always positive, so a negative placeholder can never collide with one
       admin_level: null,
       name,
       name_en: null,
       country_code: countryCode || null,
       centroid_lat: lat,
       centroid_lon: lon,
-      boundary: null,
-      bbox: null
+      // No polygon_geojson call is made for this lightweight path (that's
+      // reserved for the heavier admin import tool) — an empty-ring
+      // Polygon is the same placeholder shape the bulk import already used
+      // for boundary-less rows, which findMunicipalityInCache already
+      // knows how to warn about and safely skip rather than crash on.
+      boundary: { type: 'Polygon', coordinates: [] },
+      bbox: null,
+      slug: generateMuniSlug()
     };
     try {
       const { data, error } = await sb.from(MUNICIPALITIES_TABLE).insert(row).select().single();
@@ -9754,11 +9794,11 @@ async function autoRegisterMunicipality(name, countryCode, lat, lon) {
 async function resolveMunicipalityViaGeocode(lat, lon) {
   if (!isValidLatLng(lat, lon)) return null;
   await loadMunicipalityCache();
-  const { candidates, countryCode, bestName } = await reverseGeocodeMunicipalityCandidates(lat, lon);
+  const { candidates, countryCode, bestName, osmType, osmId } = await reverseGeocodeMunicipalityCandidates(lat, lon);
   if (!candidates.length) return null;
   const hit = findMunicipalityByNameMatch(candidates, countryCode);
   if (hit) return hit;
-  return autoRegisterMunicipality(bestName, countryCode, lat, lon);
+  return autoRegisterMunicipality(bestName, countryCode, lat, lon, osmType, osmId);
 }
 
 // Report-specific resolver: municipality_id, once stored on a report, is
