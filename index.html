@@ -1317,11 +1317,18 @@ body.driving-active #appPanel{
 .badge-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(106px,1fr)); gap:12px 6px; margin-top:8px; }
 .badge-tile{ display:flex; flex-direction:column; align-items:center; gap:5px; text-align:center; opacity:.4; cursor:pointer; -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
 .badge-tile.earned{ opacity:1; }
+.badge-tile-circle-wrap{ position:relative; width:65.5px; height:65.5px; flex-shrink:0; }
 .badge-tile-circle{ width:65.5px; height:65.5px; border-radius:50%; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,.35); flex-shrink:0; position:relative; }
 .badge-tile-glyph{ width:31px; height:31px; display:inline-block; }
 .badge-tile-name{ font-size:10px; line-height:1.2; color:var(--text-secondary); }
 .badge-tile.earned .badge-tile-name{ color:var(--text-primary); font-weight:600; }
 .badge-tile-soon{ opacity:.28; }
+.badge-progress-ring{
+  position:absolute; top:-6px; left:-6px; width:calc(100% + 12px); height:calc(100% + 12px);
+  transform:rotate(-90deg); pointer-events:none;
+}
+.badge-progress-ring-track{ fill:none; stroke:var(--border-color-strong); stroke-width:6; opacity:.6; }
+.badge-progress-ring-fill{ fill:none; stroke:var(--accent); stroke-width:6; stroke-linecap:round; transition:stroke-dashoffset .4s ease; }
 .badge-tile-soon-ribbon{
   position:absolute; bottom:-4px; right:-7px;
   background:var(--bg-surface); color:var(--text-muted);
@@ -1341,11 +1348,11 @@ body.driving-active #appPanel{
 .dashboard-ladder-row.achieved .ladder-dot{ background:#5ec98a; }
 .dashboard-signed-out-hint{ font-size:12px; color:var(--text-muted); text-align:center; padding:8px 0; }
 
+.badge-info-icon-circle-wrap{ position:relative; width:84px; height:84px; margin:0 auto 14px auto; }
 .badge-info-icon-circle{
   width:84px; height:84px; border-radius:50%;
   display:flex; align-items:center; justify-content:center;
   box-shadow:0 2px 6px rgba(0,0,0,.35);
-  margin:0 auto 14px auto;
 }
 .badge-info-icon-glyph{ width:40px; height:40px; display:inline-block; }
 .badge-info-status{
@@ -2457,8 +2464,11 @@ span.flatpickr-weekday {
 
 <div id="badgeInfoModal" class="generic-modal-overlay" style="display:none">
   <div class="generic-modal">
-    <div class="badge-info-icon-circle" id="badgeInfoIconCircle">
-      <span class="badge-info-icon-glyph" id="badgeInfoIconGlyph"></span>
+    <div class="badge-info-icon-circle-wrap">
+      <span id="badgeInfoIconRing"></span>
+      <div class="badge-info-icon-circle" id="badgeInfoIconCircle">
+        <span class="badge-info-icon-glyph" id="badgeInfoIconGlyph"></span>
+      </div>
     </div>
     <span class="badge-info-status" id="badgeInfoStatus"></span>
     <h2 id="badgeInfoName"></h2>
@@ -3122,21 +3132,63 @@ const USER_BADGES_EXTRA = [
 function badgeName(b) { return lang === 'sr' ? b.nameSr : b.nameEn; }
 function badgeDesc(b) { return lang === 'sr' ? b.descSr : b.descEn; }
 function isBadgeEarned(badge, profile, stats) { return !!badge.check(profile, stats); }
+
+// Most badge checks are simple numeric thresholds (e.g. "s.commentCount >= 1" or
+// "p.total_contributions >= 3"). Read the field name + threshold straight out of the check
+// function's own source so the progress ring reflects real progress without having to hand-author
+// a parallel progress function for every badge. Badges whose check is a plain boolean flag (coming
+// soon, streak flags, "earn every badge", etc.) fall back to a simple full/empty ring.
+function badgeProgressFraction(badge, earned, profile, stats) {
+  if (earned) return 1;
+  if (badge.comingSoon) return 0;
+  try {
+    const src = badge.check.toString();
+    const numMatch = src.match(/>=\s*(\d+(?:\.\d+)?)/);
+    if (!numMatch) return 0;
+    const threshold = parseFloat(numMatch[1]);
+    if (!threshold) return 0;
+    // These check functions each reference exactly one data field (e.g. "p.total_contributions"
+    // or "s.commentCount") — grab it wherever it appears in the source rather than assuming it's
+    // immediately adjacent to ">=", since several are wrapped like "(p && p.field || 0) >= N".
+    const fieldMatches = [...src.matchAll(/\.([a-zA-Z_$]\w*)\b/g)].map(m => m[1]);
+    const field = fieldMatches[fieldMatches.length - 1];
+    if (!field) return 0;
+    const current = (stats && stats[field] !== undefined) ? stats[field]
+      : (profile && profile[field] !== undefined ? profile[field] : 0);
+    return Math.max(0, Math.min(1, (Number(current) || 0) / threshold));
+  } catch (e) {
+    return 0;
+  }
+}
+
+function badgeProgressRingSvg(fraction) {
+  const r = 46;
+  const c = 2 * Math.PI * r;
+  const offset = c * (1 - Math.max(0, Math.min(1, fraction)));
+  return `<svg class="badge-progress-ring" viewBox="0 0 100 100" aria-hidden="true">
+    <circle class="badge-progress-ring-track" cx="50" cy="50" r="${r}"></circle>
+    <circle class="badge-progress-ring-fill" cx="50" cy="50" r="${r}" style="stroke-dasharray:${c.toFixed(2)};stroke-dashoffset:${offset.toFixed(2)};"></circle>
+  </svg>`;
+}
 function levelBadgeIcon(level) {
   const b = BADGES[level - 1];
   return b ? b.icon : null;
 }
-function buildBadgeIconHtml(badge, earnedIn) {
+function buildBadgeIconHtml(badge, earnedIn, profile, stats) {
   const soon = !!badge.comingSoon;
   const earned = soon ? false : earnedIn;
   const iconSrc = cachedIconUrl(`icons/badges/${badge.icon}`);
   const bg    = earned ? 'var(--accent)' : 'var(--bg-surface-alt)';
   const glyph = earned ? 'var(--accent-contrast)' : 'var(--text-secondary)';
   const titleSuffix = soon ? ` (${t('badgeComingSoon')})` : '';
-  return `<div class="badge-tile${earned ? ' earned' : ''}${soon ? ' badge-tile-soon' : ''}" title="${escapeHtml(badgeName(badge))} — ${escapeHtml(badgeDesc(badge))}${titleSuffix}" onclick="showBadgeInfo('${badge.id}', ${earned}, ${soon})">
-    <div class="badge-tile-circle" style="background:${bg};">
-      <span class="badge-tile-glyph" style="background-color:${glyph};-webkit-mask:url('${iconSrc}') center / contain no-repeat;mask:url('${iconSrc}') center / contain no-repeat;"></span>
-      ${soon ? `<span class="badge-tile-soon-ribbon">${escapeHtml(t('badgeComingSoonShort'))}</span>` : ''}
+  const fraction = soon ? 0 : badgeProgressFraction(badge, earned, profile, stats);
+  return `<div class="badge-tile${earned ? ' earned' : ''}${soon ? ' badge-tile-soon' : ''}" title="${escapeHtml(badgeName(badge))} — ${escapeHtml(badgeDesc(badge))}${titleSuffix}" onclick="showBadgeInfo('${badge.id}', ${earned}, ${soon}, ${fraction})">
+    <div class="badge-tile-circle-wrap">
+      ${badgeProgressRingSvg(fraction)}
+      <div class="badge-tile-circle" style="background:${bg};">
+        <span class="badge-tile-glyph" style="background-color:${glyph};-webkit-mask:url('${iconSrc}') center / contain no-repeat;mask:url('${iconSrc}') center / contain no-repeat;"></span>
+        ${soon ? `<span class="badge-tile-soon-ribbon">${escapeHtml(t('badgeComingSoonShort'))}</span>` : ''}
+      </div>
     </div>
     <div class="badge-tile-name">${escapeHtml(badgeName(badge))}</div>
   </div>`;
@@ -3145,7 +3197,7 @@ function buildBadgeIconHtml(badge, earnedIn) {
 function findBadgeById(id) {
   return [...BADGES, ...USER_BADGES_EXTRA, ...ADMIN_BADGES, ...ADMIN_BADGES_EXTRA].find(b => b.id === id);
 }
-function showBadgeInfo(id, earned, soon) {
+function showBadgeInfo(id, earned, soon, fraction) {
   const badge = findBadgeById(id);
   if (!badge) return;
   const iconSrc = cachedIconUrl(`icons/badges/${badge.icon}`);
@@ -3156,6 +3208,8 @@ function showBadgeInfo(id, earned, soon) {
   glyphEl.style.backgroundColor = glyph;
   glyphEl.style.webkitMask = `url('${iconSrc}') center / contain no-repeat`;
   glyphEl.style.mask = `url('${iconSrc}') center / contain no-repeat`;
+  const ringSlot = document.getElementById('badgeInfoIconRing');
+  if (ringSlot) ringSlot.innerHTML = badgeProgressRingSvg(typeof fraction === 'number' ? fraction : (earned ? 1 : 0));
   document.getElementById('badgeInfoName').textContent = badgeName(badge);
   document.getElementById('badgeInfoDesc').textContent = badgeDesc(badge) + (soon ? ` (${t('badgeComingSoon')})` : '');
   const statusEl = document.getElementById('badgeInfoStatus');
@@ -4063,7 +4117,7 @@ async function renderUserDashboard() {
   const badgeGrid = document.getElementById('dashboardBadgeGrid');
   if (badgeGrid) {
     const allBadges = [...BADGES, ...USER_BADGES_EXTRA];
-    badgeGrid.innerHTML = allBadges.map(b => buildBadgeIconHtml(b, isBadgeEarned(b, currentProfile, stats))).join('');
+    badgeGrid.innerHTML = allBadges.map(b => buildBadgeIconHtml(b, isBadgeEarned(b, currentProfile, stats), currentProfile, stats)).join('');
   }
 }
 
@@ -4130,7 +4184,7 @@ async function renderAdminDashboard() {
   const adminBadgeGrid = document.getElementById('adminDashboardBadgeGrid');
   if (adminBadgeGrid) {
     const allAdminBadges = [...ADMIN_BADGES, ...ADMIN_BADGES_EXTRA];
-    adminBadgeGrid.innerHTML = allAdminBadges.map(b => buildBadgeIconHtml(b, b.check(stats))).join('');
+    adminBadgeGrid.innerHTML = allAdminBadges.map(b => buildBadgeIconHtml(b, b.check(stats), null, stats)).join('');
   }
 }
 
@@ -4980,6 +5034,7 @@ async function initIconCaching() {
   const paths = collectAllIconPaths();
   await Promise.all(paths.map(p => warmIconObjectUrl(p)));
   applyCachedIconSrc(document.body);
+  refreshVisibleBadgeGrids();
 
   new MutationObserver(mutations => {
     for (const m of mutations) {
@@ -4991,8 +5046,21 @@ async function initIconCaching() {
   }).observe(document.body, { childList: true, subtree: true });
 }
 
-if ('requestIdleCallback' in window) requestIdleCallback(initIconCaching);
-else setTimeout(initIconCaching, 0);
+function refreshVisibleBadgeGrids() {
+  // Badge icons are painted via CSS mask-image (not <img src>), so applyCachedIconSrc can't
+  // swap them in after the fact — re-render any badge grid that's already open on screen so it
+  // picks up the now-warm, cached icon URLs instead of a fresh network fetch.
+  try {
+    const lbModal = document.getElementById('leaderboardModal');
+    if (lbModal && lbModal.style.display !== 'none' && leaderboardTab === 'dashboard') renderUserDashboard();
+  } catch (e) {}
+  try {
+    const adminSection = document.getElementById('adminDashboardSection');
+    if (adminSection && adminSection.style.display !== 'none') renderAdminDashboard();
+  } catch (e) {}
+}
+
+initIconCaching();
 
 //
 function makeClusterIcon(cluster) {
@@ -7342,7 +7410,9 @@ let wizOwnsPinDrop = false;
 function wizStepsFor(cat) {
   const steps = ['category'];
   if (cat && (SUBCATEGORIES[cat] || []).length) steps.push('subcategory');
-  steps.push('priority', 'status', 'details');
+  steps.push('priority');
+  if (cat !== 'Suggestion') steps.push('status');
+  steps.push('details');
   return steps;
 }
 
