@@ -72,6 +72,7 @@ button, [onclick], [role="button"]{
   --warn-text: #8a6212;
   --driving-tile-base: #232323;
   --driving-tile-text: #ffffff;
+  --pill-radius: 999px;
 }
 html[data-theme="dark"]{
   --bg-app:#121212;
@@ -429,7 +430,7 @@ button{
 .cat-filter-dot{ width:11px; height:11px; border-radius:50%; display:inline-block; flex-shrink:0; }
 
 .leaflet-popup-content-wrapper{
-  border-radius:10px !important;
+  border-radius:var(--pill-radius) !important;
   padding:0 !important;
   overflow:hidden;
   min-width:170px;
@@ -1319,7 +1320,7 @@ body.driving-active #appPanel{
 .badge-tile.earned{ opacity:1; }
 .badge-tile-circle-wrap{ position:relative; width:65.5px; height:65.5px; flex-shrink:0; }
 .badge-tile-circle{ width:65.5px; height:65.5px; border-radius:50%; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,.35); flex-shrink:0; position:relative; }
-.badge-tile-glyph{ width:15.5px; height:15.5px; display:inline-block; }
+.badge-tile-glyph{ width:46.5px; height:46.5px; display:inline-block; }
 .badge-tile-name{ font-size:10px; line-height:1.2; color:var(--text-secondary); }
 .badge-tile.earned .badge-tile-name{ color:var(--text-primary); font-weight:600; }
 .badge-tile-soon{ opacity:.28; }
@@ -1652,9 +1653,9 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 .status-action-btn{
   flex:1 1 auto;
   min-width:72px;
-  padding:6px 5px;
+  padding:6px 12px;
   border:none;
-  border-radius:6px;
+  border-radius:var(--pill-radius);
   font-size:9.5px;
   font-weight:700;
   cursor:pointer;
@@ -1667,6 +1668,12 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 .status-action-btn.progress-btn{ background:#f5a623; }
 .status-action-btn.fixed-btn{ background:#2ecc71; }
 .status-action-btn:disabled{ opacity:.4; cursor:not-allowed; }
+
+.status-action-btn.popup-btn-outline{
+  background:transparent !important;
+  border:1.5px solid var(--text-primary);
+  color:var(--text-primary);
+}
 
 .vote-progress-row{
   display:flex;
@@ -1681,12 +1688,6 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   background:#fdf3dc;
   border-radius:6px;
   padding:4px 8px;
-}
-
-.owner-tag{
-  font-size:9px;
-  color:#00838f;
-  font-weight:700;
 }
 
 .generic-modal-overlay{
@@ -8434,8 +8435,8 @@ function buildCompanyPopupHtml(c, lat, lon) {
     </div>
     <div class="status-action-row" style="border-top:none;padding-top:0;">
       ${navigateBtnHtml}
-      <button class="status-action-btn" style="background:#2a2a2a;" onclick="showCompanyDetailModal('${escapeHtml(String(c.id))}')">${t('detailsBtn')}</button>
-      <button class="status-action-btn popup-close-btn" style="background:#ff4b4b;" onclick="map.closePopup();">${t('closeBtn')}</button>
+      <button class="status-action-btn popup-btn-outline" onclick="showCompanyDetailModal('${escapeHtml(String(c.id))}')">${t('detailsBtn')}</button>
+      <button class="status-action-btn popup-close-btn popup-btn-outline" onclick="map.closePopup();">${t('closeBtn')}</button>
     </div>
   </div>`;
 }
@@ -9312,7 +9313,7 @@ function buildPopupHtml(report) {
   let noteActionHtml = '';
   if (isOwner && !isAdmin) {
     noteActionHtml = `<div class="status-action-row" style="border-top:none;padding-top:0;">
-      <button class="status-action-btn" style="background:#3a3a3a;" onclick="enterNoteEditMode('${report.id}')">${t('editNoteBtn')}</button>
+      <button class="status-action-btn popup-btn-outline" onclick="enterNoteEditMode('${report.id}')">${t('editNoteBtn')}</button>
     </div>`;
   }
 
@@ -9336,13 +9337,13 @@ function buildPopupHtml(report) {
       </div>
       <div class="popup-row">
         <span class="popup-row-label">${t('reportedByLabel')}</span>
-        <span class="popup-row-value">${escapeHtml(reporterName)}${isOwner ? ` <span class="owner-tag">(${t('yourReport')})</span>` : ''}</span>
+        <span class="popup-row-value">${escapeHtml(reporterName)}</span>
       </div>
     </div>
     ${noteRowHtml}
     <div class="status-action-row" style="border-top:none;padding-top:0;">
-      <button class="status-action-btn" style="background:#2a2a2a;" onclick="showReportDetailModal('${report.id}')">${t('detailsBtn')}</button>
-      <button class="status-action-btn popup-close-btn" style="background:#ff4b4b;" onclick="map.closePopup();">${t('closeBtn')}</button>
+      <button class="status-action-btn popup-btn-outline" onclick="showReportDetailModal('${report.id}')">${t('detailsBtn')}</button>
+      <button class="status-action-btn popup-close-btn popup-btn-outline" onclick="map.closePopup();">${t('closeBtn')}</button>
     </div>
     ${actionsHtml}
     ${noteActionHtml}
