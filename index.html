@@ -9905,7 +9905,14 @@ let wizOwnsPinDrop = false;
 function wizStepsFor(cat) {
   const steps = ['category'];
   if (cat && (SUBCATEGORIES[cat] || []).length) steps.push('subcategory');
-  steps.push('priority', 'status', 'details');
+  steps.push('priority');
+  // Reported/in-progress only makes sense for an actual fault that's either
+  // just been noticed or already being worked on. A Suggestion isn't a
+  // fault with that lifecycle, so skip asking — reportBreak() defaults a
+  // status-less Suggestion straight to 'in_progress' (see there for why not
+  // 'reported').
+  if (cat !== 'Suggestion') steps.push('status');
+  steps.push('details');
   return steps;
 }
 
@@ -10119,11 +10126,11 @@ function wizRenderDetails(body) {
       <label>${t('wizPhotoLabel') || 'Photo (optional)'}</label>
       <div class="wiz-photo-row">
         <div class="wiz-photo-btn" onclick="triggerReportPhotoCamera()">
-          <img src="icons/reports/camera.png" alt="">
+          <img src="icons/camera.png" alt="">
           <span>${t('wizTakePhoto') || 'Take photo'}</span>
         </div>
         <div class="wiz-photo-btn" onclick="triggerReportPhotoGallery()">
-          <img src="icons/reports/gallery.png" alt="">
+          <img src="icons/gallery.png" alt="">
           <span>${t('wizChoosePhoto') || 'Choose photo'}</span>
         </div>
       </div>
@@ -10404,10 +10411,14 @@ async function reportBreak(){
   const priority     = document.getElementById('priority').value || 'normal';
   const comment      = cyrillicToLatin(document.getElementById('comment').value);
   // Set by the wizard's status step (see wizSelectStatus) — reported or
-  // in_progress only, same restriction as the wizard UI itself. Anything
-  // else reaching reportBreak() (there shouldn't be another path) falls
-  // back to 'reported', same as before this field existed.
-  const status = (wizState.status === 'in_progress') ? 'in_progress' : 'reported';
+  // in_progress only, same restriction as the wizard UI itself. Suggestion
+  // never gets that step at all (see wizStepsFor), so wizState.status is
+  // always null for it here — default it straight to 'in_progress' rather
+  // than the general 'reported' fallback below, since "reported" describes
+  // a fault someone just noticed, not a suggestion that was just submitted.
+  const status = (category === 'Suggestion')
+    ? 'in_progress'
+    : (wizState.status === 'in_progress') ? 'in_progress' : 'reported';
 
   // Defense in depth, same reasoning as every other guard here — the
   // button is already disabled without a comment for these categories
