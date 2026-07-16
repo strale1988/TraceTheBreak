@@ -275,7 +275,7 @@ header p{ font-size:11px; opacity:.7; margin-top:2px; }
   text-align:left;
 }
 
-.lang-btn, .help-icon-btn{
+.lang-btn{
   background:var(--bg-surface-alt);
   color:var(--text-secondary);
   border:none;
@@ -289,18 +289,30 @@ header p{ font-size:11px; opacity:.7; margin-top:2px; }
   touch-action:manipulation;
 }
 .lang-btn.active{ background:var(--accent); color:var(--accent-contrast); }
+
+/* Header icon buttons (Settings/Fullscreen/Rankings/Notifications) —
+   circular "chip" buttons in the Google/Apple style: soft flat surface,
+   no hard outline, gentle shadow to lift them off the header, and a
+   quick scale-down on tap for tactile feedback instead of just a color
+   swap. */
 .help-icon-btn{
   background:var(--bg-surface-alt);
-  border:1px solid var(--border-color-strong);
+  border:none;
+  border-radius:50%;
   font-size:14px;
-  width:32px;
-  height:32px;
+  width:36px;
+  height:36px;
   padding:0;
   display:flex;
   align-items:center;
   justify-content:center;
+  cursor:pointer;
+  box-shadow:0 1px 3px var(--floating-shadow);
+  transition:transform .12s ease, background .15s ease, box-shadow .15s ease;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
 }
-.help-icon-btn:active{ background:var(--border-color-strong); }
+.help-icon-btn:active{ background:var(--border-color-strong); transform:scale(.9); box-shadow:0 1px 2px var(--floating-shadow); }
 
 /* Notification center header button — small unread-count pill, top-right
    corner of the bell icon. Reuses the same red as other "needs attention"
@@ -632,18 +644,18 @@ button{
 .pin-map-btn{
   background:var(--floating-bg);
   border:1px solid var(--floating-border);
-  border-radius:8px;
+  border-radius:50%;
   width:44px; height:44px;
   display:flex; align-items:center; justify-content:center;
   cursor:pointer; font-size:22px;
   box-shadow:0 2px 8px var(--floating-shadow);
-  transition:background .15s;
+  transition:background .15s ease, transform .12s ease, box-shadow .15s ease;
   user-select:none;
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
 }
+.pin-map-btn:active{ background:var(--bg-surface-alt); transform:scale(.9); box-shadow:0 1px 4px var(--floating-shadow); }
 .pin-map-btn .icon-img{ filter:var(--icon-tint-filter); }
-.pin-map-btn:active{ background:var(--bg-surface-alt); }
 .pin-map-btn.active{ background:#f5a623; border-color:#f5a623; }
 .pin-map-btn.recording-active{ background:#ff4b4b; border-color:#ff4b4b; animation:pulseRec 1.2s infinite; }
 /* On the colored accent backgrounds above, the icon's native white reads
@@ -671,9 +683,9 @@ button{
   border:none;
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
-  transition:transform .12s;
+  transition:transform .12s ease, box-shadow .12s ease;
 }
-.report-fab-btn:active{ transform:scale(.94); }
+.report-fab-btn:active{ transform:scale(.9); box-shadow:0 2px 8px rgba(0,0,0,.3); }
 .report-fab-btn img{ width:26px; height:26px; filter:brightness(0) invert(1); }
 body.driving-active .report-fab-btn{ display:none !important; }
 
@@ -834,11 +846,15 @@ body.driving-active .report-fab-btn{ display:none !important; }
    every secondary button in these panels visually consistent instead of
    one-off inline styles. */
 .settings-btn{
-  background:var(--bg-surface-alt); color:var(--text-primary); border:1px solid var(--border-color-strong); border-radius:8px;
+  background:var(--bg-surface-alt); color:var(--text-primary); border:none; border-radius:12px;
   display:flex; align-items:center; justify-content:center; gap:6px;
-  padding:11px 12px; font-size:13px; font-weight:600;
+  padding:12px; font-size:13px; font-weight:600;
+  cursor:pointer;
+  transition:background .15s ease, transform .1s ease;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
 }
-.settings-btn:active{ background:var(--border-color-strong); }
+.settings-btn:active{ background:var(--border-color-strong); transform:scale(.98); }
 
 /* --- Destination search panel (simple point-to-point navigation) ---
    Was a Leaflet topleft control, which put it in exactly the same corner
@@ -1101,35 +1117,33 @@ body.driving-active #drivingTopFade{ display:block; }
   align-items:center;
   gap:10px;
   background:var(--floating-bg);
-  backdrop-filter:blur(10px);
-  -webkit-backdrop-filter:blur(10px);
+  backdrop-filter:blur(16px);
+  -webkit-backdrop-filter:blur(16px);
   border:1px solid var(--floating-border);
-  border-left:3px solid var(--text-muted);
   color:var(--text-primary);
-  padding:11px 16px;
-  border-radius:12px;
+  padding:12px 16px;
+  border-radius:16px;
   font-size:13px;
   font-weight:600;
   line-height:1.35;
-  box-shadow:0 8px 24px var(--floating-shadow);
+  box-shadow:0 10px 30px var(--floating-shadow);
   opacity:0;
-  transform:translateY(-8px);
-  transition:opacity .2s ease, transform .2s ease;
+  transform:translateY(-10px) scale(.96);
+  transition:opacity .25s cubic-bezier(.2,.8,.2,1), transform .25s cubic-bezier(.2,.8,.2,1);
   text-align:left;
 }
 .toast-icon{
   flex:0 0 auto;
-  width:18px; height:18px;
+  width:22px; height:22px;
   border-radius:50%;
   display:flex; align-items:center; justify-content:center;
   font-size:12px; font-weight:800;
   color:#fff;
+  background:var(--text-muted);
 }
 .toast-msg{ flex:1 1 auto; }
-.toast.toast-show{ opacity:1; transform:translateY(0); }
-.toast.toast-error{ border-left-color:#ff4b4b; }
+.toast.toast-show{ opacity:1; transform:translateY(0) scale(1); }
 .toast.toast-error .toast-icon{ background:#ff4b4b; }
-.toast.toast-success{ border-left-color:#2ecc71; }
 .toast.toast-success .toast-icon{ background:#2ecc71; }
 
 /* --- Driving mode ---
@@ -2016,15 +2030,16 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 .generic-modal p{ font-size:13px; line-height:1.6; color:var(--text-secondary); margin-bottom:12px; text-align:left; }
 .generic-modal-close{
   background:var(--bg-surface-alt); color:var(--text-primary);
-  border:1px solid var(--border-color-strong); border-radius:10px;
+  border:none; border-radius:14px;
   padding:12px 20px;
   font-size:14px; font-weight:600;
   cursor:pointer; width:100%;
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
   min-height:44px;
+  transition:background .15s ease, transform .1s ease;
 }
-.generic-modal-close:active{ background:var(--border-color-strong); }
+.generic-modal-close:active{ background:var(--border-color-strong); transform:scale(.98); }
 
 /* --- Fullscreen report detail modal ------------------------------------
    Opened from the "Detalji" row inside a pin popup. Unlike .generic-modal
@@ -2070,11 +2085,15 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   filter:brightness(0) invert(1);
 }
 .fullscreen-modal-close, .fullscreen-modal-share{
-  background:var(--bg-surface-alt); color:var(--text-primary); border:1px solid var(--border-color-strong); border-radius:8px;
+  background:var(--bg-surface-alt); color:var(--text-primary); border:none; border-radius:50%;
   width:36px; height:36px; flex-shrink:0;
   display:flex; align-items:center; justify-content:center;
   font-size:18px; cursor:pointer;
+  transition:transform .12s ease, background .15s ease;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
 }
+.fullscreen-modal-close:active, .fullscreen-modal-share:active{ background:var(--border-color-strong); transform:scale(.9); }
 .fullscreen-modal-close .icon-img, .fullscreen-modal-share .icon-img{
   width:18px; height:18px; filter:var(--icon-tint-filter);
 }
@@ -4383,7 +4402,9 @@ let leaderboardCityMuni = null; // resolved once per modal session, reused acros
 // last active — the trophy header button's normal behavior.
 function showLeaderboardModal(tab) {
   document.getElementById('leaderboardModalTitle').innerHTML = '<img class="icon-img icon-img-inline" src="icons/trophy.png" alt=""> ' + t('leaderboardTitle');
-  document.getElementById('leaderboardModal').style.display = 'flex';
+  const lbModal = document.getElementById('leaderboardModal');
+  bringModalToFront(lbModal);
+  lbModal.style.display = 'flex';
   leaderboardCityMuni = null;
   renderDashboardTab(); // header identity row/title — correct even if we land on a non-Dashboard tab below
   switchLeaderboardTab(tab || leaderboardTab);
@@ -4405,7 +4426,9 @@ let userNotificationsCache = [];
 function showNotificationModal() {
   document.getElementById('notificationModalTitle').innerHTML =
     '<img class="icon-img icon-img-inline" src="icons/notification.png" alt=""> ' + t('notificationModalTitle');
-  document.getElementById('notificationModal').style.display = 'flex';
+  const notifModal = document.getElementById('notificationModal');
+  bringModalToFront(notifModal);
+  notifModal.style.display = 'flex';
   renderNotificationModalBody();
   startNotificationInboxAutoRefresh();
 }
@@ -5804,14 +5827,18 @@ function applyLang(){
 
 function showHelpModal() {
   buildHelpModalContent();
-  document.getElementById('helpModal').style.display = 'flex';
+  const modal = document.getElementById('helpModal');
+  bringModalToFront(modal);
+  modal.style.display = 'flex';
 }
 function hideHelpModal() {
   document.getElementById('helpModal').style.display = 'none';
 }
 function showSettingsModal() {
   document.getElementById('settingsModalTitle').textContent = t('settingsModalTitle');
-  document.getElementById('settingsModal').style.display = 'flex';
+  const modal = document.getElementById('settingsModal');
+  bringModalToFront(modal);
+  modal.style.display = 'flex';
   if (currentProfile && currentProfile.is_admin) {
     cancelUcForm();
     loadUtilityCompaniesAdmin();
@@ -6020,7 +6047,13 @@ const CachedTileLayer = L.TileLayer.extend({
 new CachedTileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
   attribution:'© OpenStreetMap',
   maxZoom: 22,
-  maxNativeZoom: 19
+  maxNativeZoom: 19,
+  // Default keepBuffer (2) only keeps ~2 extra rows/columns of tiles
+  // loaded around the viewport. Bumped up so panning/zooming reveals
+  // tiles that are already sitting there rather than a moment of grey —
+  // this preloads a wider ring around what's currently on screen instead
+  // of only ever fetching exactly the visible area.
+  keepBuffer: 6
 }).addTo(map);
 
 // --- Pin clustering -------------------------------------------------------
@@ -7864,6 +7897,21 @@ function updateGpsModalText(){
   if (el('gpsModalAlt'))   el('gpsModalAlt').innerHTML     = t('gpsAlt');
   if (el('gpsModalBtn'))   el('gpsModalBtn').textContent   = t('gpsBtn');
 }
+// All modal overlays (gpsModal, helpModal, settingsModal, reportDetailModal,
+// companyDetailModal, leaderboardModal, notificationModal, heatmapFilterModal)
+// share one z-index tier (9999 — see the Z-INDEX SCALE at the top of
+// <style>), so when one is opened from inside another (e.g. tapping Help
+// from inside Settings, or Details on a report from inside the Notification
+// Center), whichever one is LATER in the DOM wins the tie and visually
+// covers the other — regardless of which one the person just opened. Every
+// showXModal() below calls this right before setting display:flex, which
+// re-parents the modal to the end of <body>, so the modal someone just
+// opened is always the last sibling and always renders on top of whatever
+// was already open underneath it.
+function bringModalToFront(el){
+  if (el && el.parentNode) document.body.appendChild(el);
+}
+
 let gpsModalShownOnce = false;
 function showGpsModal(){
   if (gpsModalShownOnce) return; // only ever shown once per page load — see hideGpsModal() note
@@ -7871,6 +7919,7 @@ function showGpsModal(){
   if (!modal) return;
   gpsModalShownOnce = true;
   updateGpsModalText();
+  bringModalToFront(modal);
   modal.style.display = 'flex';
 }
 function hideGpsModal(){
@@ -8760,7 +8809,9 @@ function toggleHeatmap() {
 // last set — it just dismisses the picker, it does not turn heatmap off.
 function showHeatmapFilterModal() {
   populateHeatmapCategoryList();
-  document.getElementById('heatmapFilterModal').style.display = 'flex';
+  const modal = document.getElementById('heatmapFilterModal');
+  bringModalToFront(modal);
+  modal.style.display = 'flex';
 }
 function hideHeatmapFilterModal() {
   document.getElementById('heatmapFilterModal').style.display = 'none';
@@ -10745,10 +10796,9 @@ function showCompanyDetailModal(id) {
     ${statsSectionHtml}
   `;
 
+  bringModalToFront(modal);
   modal.style.display = 'flex';
 }
-
-
 // Backs the popup's Navigate button — only an id and plain numbers ever
 // travel through the onclick="" attribute (company names are free text an
 // admin can type, including quotes, so they never go directly into inline
@@ -12012,6 +12062,7 @@ async function showReportDetailModal(reportId) {
     </div>
   `;
 
+  bringModalToFront(modal);
   modal.style.display = 'flex';
   modal.dataset.openReportId = report.id;
 
