@@ -74,6 +74,7 @@ button, [onclick], [role="button"]{
   --driving-tile-text: #ffffff;
   --pill-radius: 999px;
   --popup-radius: 26px;
+  --danger: #ff4b4b;
 }
 html[data-theme="dark"]{
   --bg-app:#121212;
@@ -1669,15 +1670,39 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
 }
-.status-action-btn.progress-btn{ background:#f5a623; }
-.status-action-btn.fixed-btn{ background:#2ecc71; }
 .status-action-btn:disabled{ opacity:.4; cursor:not-allowed; }
 
 .status-action-btn.popup-btn-outline{
-  background:transparent !important;
-  border:1.5px solid var(--text-primary);
+  background:var(--bg-surface-alt) !important;
+  border:1.75px solid var(--text-primary);
   color:var(--text-primary);
+  transition:background .15s ease, transform .1s ease;
 }
+.status-action-btn.popup-btn-outline:active{ background:var(--border-color-strong) !important; transform:scale(.97); }
+
+.status-action-btn.popup-btn-danger{
+  background:var(--bg-surface-alt) !important;
+  border:1.75px solid var(--danger);
+  color:var(--danger);
+  transition:background .15s ease, transform .1s ease;
+}
+.status-action-btn.popup-btn-danger:active{ background:rgba(255,75,75,.18) !important; transform:scale(.97); }
+
+.status-action-btn.popup-btn-accent{
+  background:color-mix(in srgb, var(--accent) 16%, transparent) !important;
+  border:1.75px solid var(--accent);
+  color:var(--accent);
+  transition:background .15s ease, transform .1s ease;
+}
+.status-action-btn.popup-btn-accent:active{ background:color-mix(in srgb, var(--accent) 30%, transparent) !important; transform:scale(.97); }
+
+.status-action-btn.tinted{
+  background:color-mix(in srgb, var(--status-color, var(--accent)) 16%, transparent) !important;
+  border:1.75px solid var(--status-color, var(--accent));
+  color:var(--status-color, var(--accent));
+  transition:background .15s ease, transform .1s ease;
+}
+.status-action-btn.tinted:active{ background:color-mix(in srgb, var(--status-color, var(--accent)) 30%, transparent) !important; transform:scale(.97); }
 
 .vote-progress-row{
   display:flex;
@@ -8415,7 +8440,7 @@ async function backfillUcCoordinates() {
 function buildCompanyPopupHtml(c, lat, lon) {
 
   const navigateBtnHtml = (drivingMode && isValidLatLng(lat, lon) && c.id != null)
-    ? `<button class="status-action-btn" style="background:#2a2a2a;" onclick="navigateToUtilityCompany('${escapeHtml(String(c.id))}', ${lat}, ${lon})">${t('navigatePinPopupBtn')}</button>`
+    ? `<button class="status-action-btn popup-btn-outline" onclick="navigateToUtilityCompany('${escapeHtml(String(c.id))}', ${lat}, ${lon})">${t('navigatePinPopupBtn')}</button>`
     : '';
   const headerColor = (c.categories && c.categories[0]) ? categoryColor(c.categories[0]) : '#3a3a3a';
   const catsHtml = (c.categories || []).length
@@ -8440,7 +8465,7 @@ function buildCompanyPopupHtml(c, lat, lon) {
     <div class="status-action-row" style="border-top:none;padding-top:0;">
       ${navigateBtnHtml}
       <button class="status-action-btn popup-btn-outline" onclick="showCompanyDetailModal('${escapeHtml(String(c.id))}')">${t('detailsBtn')}</button>
-      <button class="status-action-btn popup-close-btn popup-btn-outline" onclick="map.closePopup();">${t('closeBtn')}</button>
+      <button class="status-action-btn popup-close-btn popup-btn-danger" onclick="map.closePopup();">${t('closeBtn')}</button>
     </div>
   </div>`;
 }
@@ -9300,7 +9325,7 @@ function buildPopupHtml(report) {
       { key: 'fixed',       label: t('markFixed'),      bg: STATUS_COLORS.fixed }
     ].filter(s => s.key !== report.status);
     actionsHtml = `<div class="status-action-row">
-      ${statuses.map(s => `<button class="status-action-btn" style="background:${s.bg};" onclick="updateReportStatus('${report.id}','${s.key}')">${s.label}</button>`).join('')}
+      ${statuses.map(s => `<button class="status-action-btn tinted" style="--status-color:${s.bg};" onclick="updateReportStatus('${report.id}','${s.key}')">${s.label}</button>`).join('')}
     </div>`;
   } else if (currentSession && report.status !== 'fixed') {
     const statuses = [
@@ -9309,7 +9334,7 @@ function buildPopupHtml(report) {
       { key: 'fixed',       label: t('markFixed'),      bg: STATUS_COLORS.fixed }
     ].filter(s => s.key !== report.status);
     actionsHtml = `<div class="status-action-row">
-      ${statuses.map(s => `<button class="status-action-btn" style="background:${s.bg};" onclick="castStatusVote('${report.id}','${s.key}')">${s.label}</button>`).join('')}
+      ${statuses.map(s => `<button class="status-action-btn tinted" style="--status-color:${s.bg};" onclick="castStatusVote('${report.id}','${s.key}')">${s.label}</button>`).join('')}
     </div>
     ${buildVoteProgressHtml(report)}`;
   }
@@ -9347,9 +9372,7 @@ function buildPopupHtml(report) {
     ${noteRowHtml}
     <div class="status-action-row" style="border-top:none;padding-top:0;">
       <button class="status-action-btn popup-btn-outline" onclick="showReportDetailModal('${report.id}')">${t('detailsBtn')}</button>
-      <button class="status-action-btn popup-close-btn popup-btn-outline" onclick="map.closePopup();">${t('closeBtn')}</button>
-    </div>
-    ${actionsHtml}
+      <button class="status-action-btn popup-close-btn popup-btn-danger" onclick="map.closePopup();">${t('closeBtn')}</button>
     ${noteActionHtml}
   </div>`;
 }
@@ -9921,8 +9944,8 @@ function buildNoteEditPopupHtml(report) {
         <input type="text" id="edit-note-${uid}" value="${escapeHtml(report.comment || '')}" placeholder="${t('commentPH')}">
       </div>
       <div class="status-action-row" style="padding:2px 0 0 0;border-top:none;">
-        <button class="status-action-btn" style="background:#e16e11;" onclick="saveOwnerNote('${uid}')">${t('saveBtn')}</button>
-        <button class="status-action-btn" style="background:#3a3a3a;" onclick="cancelEdit('${uid}')">${t('cancelBtn')}</button>
+        <button class="status-action-btn popup-btn-accent" onclick="saveOwnerNote('${uid}')">${t('saveBtn')}</button>
+        <button class="status-action-btn popup-btn-outline" onclick="cancelEdit('${uid}')">${t('cancelBtn')}</button>
       </div>
     </div>
   </div>`;
