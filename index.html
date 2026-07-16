@@ -475,58 +475,68 @@ button{
 .report-btn:disabled{ opacity:.35; cursor:not-allowed; }
 .export-btn{ background:var(--accent); color:var(--accent-contrast); width:100%; }
 
-/* --- Map legend (status key) ----------------------------------------------
+/* --- Map legend / status filter bar ----------------------------------------
    Used to be two cards under the map (status counts + the full 14-category
    key side by side). The category key is gone from here now — it moved into
    #categoryFilterBtn's fullscreen picker (bottomright stack, same spot the
    heatmap's old per-category picker used to live) since it needed to be
    interactive (show/hide categories on the map) rather than a static key.
-   What's left is just the status pill (color dot + count, no text label —
-   see .leg below), now floating over the bottom of the map as a single
-   horizontal row (see .legend-row) instead of sitting in normal document
-   flow above the panel. --legend-bottom-gap tracks #appPanel's rendered
-   height (see initAppPanelHeightTracking) so the row always sits just above
-   the panel, whatever the panel's current collapsed/expanded state is.
-   Deliberately NOT transitioned (no "bottom" animation): #appPanel's real
-   height settles through several intermediate values during page load
-   (locked-panel shown, then hidden, reportForm shown, etc.), and animating
-   every one of those would make the whole row visibly bounce up and down
-   on startup instead of just landing once it's settled. Icon badges reuse
-   the exact same colored-CSS-mask technique as the report wizard tiles (see
-   categoryColor()/WIZ_CATEGORY_ICONS and .wiz-tile-icon) — a solid color
-   circle, glyph masked in white on top. */
+   What's left (#mapLegend itself) is now a full-width bar pinned to the
+   bottom of the map, edge to edge with curved top corners — same visual
+   language as .driving-report-sheet's bottom sheet — instead of a floating
+   centered pill. Each dot+count is a real tap target (see .legend-item
+   below): tapping one toggles that status on/off the map, same idea as
+   #categoryFilterBtn but inline instead of behind a picker, since there
+   are only three statuses to choose from. --legend-bottom-gap tracks
+   #appPanel's rendered height (see initAppPanelHeightTracking) so the bar
+   always sits flush on top of the panel, whatever the panel's current
+   collapsed/expanded state is. Deliberately NOT transitioned (no "bottom"
+   animation): #appPanel's real height settles through several intermediate
+   values during page load (locked-panel shown, then hidden, reportForm
+   shown, etc.), and animating every one of those would make the whole bar
+   visibly bounce up and down on startup instead of just landing once it's
+   settled. Icon badges reuse the exact same colored-CSS-mask technique as
+   the report wizard tiles (see categoryColor()/WIZ_CATEGORY_ICONS and
+   .wiz-tile-icon) — a solid color circle, glyph masked in white on top. */
 .legend-row{
   position:fixed;
   left:0; right:0;
-  bottom:calc(var(--legend-bottom-gap, 0px) + 10px);
-  display:flex;
-  justify-content:center;
-  padding:0 10px;
+  bottom:var(--legend-bottom-gap, 0px);
   z-index:410;
-  pointer-events:none;
-}
-.map-legend-pill{
   background:var(--floating-bg);
-  backdrop-filter:blur(10px);
-  -webkit-backdrop-filter:blur(10px);
-  border-radius:16px;
-  padding:6px;
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+  border-top:1px solid var(--floating-border);
+  border-radius:20px 20px 0 0;
+  box-shadow:0 -6px 24px var(--floating-shadow);
   display:flex;
-  flex-direction:row;
+  justify-content:space-around;
   align-items:center;
-  gap:2px;
-  pointer-events:auto;
-  border:1px solid var(--floating-border);
-  box-shadow:0 4px 16px var(--floating-shadow);
-  max-width:100%;
+  padding:8px 10px calc(8px + env(safe-area-inset-bottom, 0px)) 10px;
 }
-#mapLegend{ flex:0 1 auto; }
+#mapLegend{ display:flex; align-items:center; width:100%; }
 .legend-item{
-  display:flex; align-items:center; gap:6px;
-  padding:5px 10px;
-  border-radius:10px;
+  display:flex; align-items:center; justify-content:center; gap:6px;
+  flex:1 1 0;
+  padding:8px 6px;
+  border-radius:12px;
   min-width:0;
+  background:none;
+  border:none;
+  font:inherit;
+  color:inherit;
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+  transition:opacity .15s ease;
 }
+.legend-item:active{ background:var(--bg-surface-alt); }
+/* Tapped off: the status stays in globalActiveData, it's just filtered out
+   of the pins (and the heatmap — see isStatusVisible/syncMarkers) until
+   tapped again. Dimmed + desaturated rather than hidden entirely so it's
+   obvious this status exists and is just switched off, not gone. */
+.legend-item.status-off{ opacity:.4; }
+.legend-item.status-off .legend-badge{ filter:grayscale(70%); }
 .legend-badge{
   width:20px; height:20px; border-radius:50%; flex-shrink:0;
   box-shadow:0 1px 3px rgba(0,0,0,.25);
