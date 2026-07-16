@@ -871,23 +871,37 @@ body.driving-active .report-fab-btn{ display:none !important; }
 }
 .wiz-tile{
   background:var(--bg-surface);
-  border:1px solid var(--border-color);
+  border:none;
   border-radius:14px;
-  padding:16px 6px;
-  display:flex; flex-direction:column; align-items:center; gap:10px;
+  padding:12px 6px;
+  aspect-ratio:1/1;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:10px;
   cursor:pointer; text-align:center;
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
 }
-.wiz-tile:active{ background:var(--bg-surface-alt); }
+.wiz-tile:active{ filter:brightness(.85); }
 .wiz-tile img{ width:44px; height:44px; }
-.wiz-tile span{ font-size:12.5px; color:var(--text-primary); line-height:1.25; }
+.wiz-tile span{
+  font-size:12.5px; font-weight:600; line-height:1.25; color:#fff;
+  text-shadow:0 1px 2px rgba(0,0,0,.35);
+  /* Long labels ("Često Nepropisno parkiranje") used to just wrap to a
+     third line and push the tile taller — not an option now that the tile
+     is a fixed square, so clamp instead of overflowing it. */
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+  overflow:hidden;
+}
 /* Category/subcategory glyphs are rendered as a CSS mask (not a plain
-   <img>) so they can be tinted with the category's own color — see
-   categoryColor() / CATEGORY_COLORS and wizRenderCategory/Subcategory.
-   Sized up from the old flat 30px <img> per the "bigger icons" request. */
+   <img>) so they can be tinted — see categoryColor() / CATEGORY_COLORS and
+   wizRenderCategory/Subcategory. Sized up from the old flat 30px <img> per
+   the "bigger icons" request. The category color now lives on the tile
+   itself (set inline per-render, see wizRenderCategory/Subcategory) so the
+   glyph is always plain white on top of it, rather than a colored glyph on
+   a neutral card. */
 .wiz-tile-icon{
   width:44px; height:44px; flex:0 0 auto;
+  background-color:#fff;
   -webkit-mask-size:contain; mask-size:contain;
   -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
   -webkit-mask-position:center; mask-position:center;
@@ -6061,15 +6075,20 @@ function t(k){ return T[k]?.[lang] ?? k; }
 // =============================================================================
 // GLOBAL STATE
 // =============================================================================
-let lang = 'sr';
+// Persisted the same way as THEME_STORAGE_KEY/themeMode (see the THEME
+// block further down) — read the saved choice (or fall back to 'sr') once
+// at startup, instead of always resetting to 'sr' on every visit.
+const LANG_STORAGE_KEY = 'ttb_lang';
+let lang = (function () {
+  try { return localStorage.getItem(LANG_STORAGE_KEY) || 'sr'; } catch (e) { return 'sr'; }
+})();
 let globalActiveData = [];
 let fp = null;
 
 function setLang(l){
   lang = l;
-  document.querySelectorAll('.lang-btn').forEach(b=>{
-    b.classList.toggle('active', b.getAttribute('onclick').includes("'"+l+"'"));
-  });
+  try { localStorage.setItem(LANG_STORAGE_KEY, l); } catch (e) {}
+  syncLangSegmentUI();
   applyLang();
 
   if (fp) {
@@ -6078,6 +6097,18 @@ function setLang(l){
     initCalendarFilter(savedDates);
     loadPinsByWindow();
   }
+}
+
+// Highlights whichever .lang-btn matches the current `lang`. Split out of
+// setLang() so startup can call it too: the saved language is read straight
+// into `lang` above (no setLang() call, to avoid its calendar-reset side
+// effects before the calendar even exists yet), which would otherwise leave
+// the Settings segment showing "SR" active even when a saved 'en' is really
+// in effect.
+function syncLangSegmentUI(){
+  document.querySelectorAll('.lang-btn').forEach(b=>{
+    b.classList.toggle('active', b.getAttribute('onclick').includes("'"+lang+"'"));
+  });
 }
 
 function applyLang(){
@@ -9991,8 +10022,8 @@ function wizRenderCategory(body) {
     <h3 class="wiz-step-title">${t('wizCategoryTitle') || "What's the issue?"}</h3>
     <div class="wiz-grid">
       ${cats.map(cat => `
-        <div class="wiz-tile" onclick="wizSelectCategory('${cat}')">
-          <div class="wiz-tile-icon" style="background-color:${categoryColor(cat)};-webkit-mask-image:url('icons/reports/${WIZ_CATEGORY_ICONS[cat]}');mask-image:url('icons/reports/${WIZ_CATEGORY_ICONS[cat]}');"></div>
+        <div class="wiz-tile" style="background-color:${categoryColor(cat)};" onclick="wizSelectCategory('${cat}')">
+          <div class="wiz-tile-icon" style="-webkit-mask-image:url('icons/reports/${WIZ_CATEGORY_ICONS[cat]}');mask-image:url('icons/reports/${WIZ_CATEGORY_ICONS[cat]}');"></div>
           <span>${translateCategory(cat)}</span>
         </div>`).join('')}
     </div>`;
@@ -10015,8 +10046,8 @@ function wizRenderSubcategory(body) {
     <h3 class="wiz-step-title">${t('wizSubcategoryTitle') || 'Which one?'}</h3>
     <div class="wiz-grid">
       ${list.map(s => `
-        <div class="wiz-tile" onclick="wizSelectSubcategory('${s.key}')">
-          ${icons[s.key] ? `<div class="wiz-tile-icon" style="background-color:${categoryColor(wizState.category)};-webkit-mask-image:url('icons/reports/${icons[s.key]}');mask-image:url('icons/reports/${icons[s.key]}');"></div>` : ""}
+        <div class="wiz-tile" style="background-color:${categoryColor(wizState.category)};" onclick="wizSelectSubcategory('${s.key}')">
+          ${icons[s.key] ? `<div class="wiz-tile-icon" style="-webkit-mask-image:url('icons/reports/${icons[s.key]}');mask-image:url('icons/reports/${icons[s.key]}');"></div>` : ""}
           <span>${lang === 'sr' ? s.sr : s.en}</span>
         </div>`).join('')}
     </div>`;
@@ -14059,6 +14090,7 @@ function hideMapLoadingOverlay() {
 // =============================================================================
 initTheme();
 initCalendarFilter();
+syncLangSegmentUI();
 applyLang();
 // openSharedReportFromUrl() fetches its report directly by id (it doesn't
 // wait on or depend on globalActiveData), so it can safely run right
