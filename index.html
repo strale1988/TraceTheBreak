@@ -1836,11 +1836,12 @@ body.driving-active #appPanel{
 .weekly-chart-bar{ width:60%; max-width:20px; border-radius:5px 5px 2px 2px; background:#28c76f; min-height:4px; }
 .weekly-chart-day{ font-size:9.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.02em; margin-top:6px; }
 .dashboard-badges-title{ font-size:12px; font-weight:700; color:var(--text-secondary); text-transform:uppercase; letter-spacing:.03em; margin-top:16px; }
-.badge-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(85px,1fr)); gap:12px 6px; margin-top:8px; }
-.badge-tile{ display:flex; flex-direction:column; align-items:center; gap:5px; text-align:center; opacity:.4; }
+.badge-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(106px,1fr)); gap:12px 6px; margin-top:8px; }
+.badge-tile{ display:flex; flex-direction:column; align-items:center; gap:5px; text-align:center; opacity:.4; cursor:pointer; -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
 .badge-tile.earned{ opacity:1; }
-.badge-tile-circle{ width:52.5px; height:52.5px; border-radius:50%; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,.35); flex-shrink:0; position:relative; }
-.badge-tile-glyph{ width:25px; height:25px; display:inline-block; }
+/* Scaled up 25% (was 52.5px/25px) for legibility of the glyphs at a glance. */
+.badge-tile-circle{ width:65.5px; height:65.5px; border-radius:50%; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,.35); flex-shrink:0; position:relative; }
+.badge-tile-glyph{ width:31px; height:31px; display:inline-block; }
 .badge-tile-name{ font-size:10px; line-height:1.2; color:var(--text-secondary); }
 .badge-tile.earned .badge-tile-name{ color:var(--text-primary); font-weight:600; }
 /* Coming-soon badges (see USER_BADGES_EXTRA/ADMIN_BADGES_EXTRA comingSoon
@@ -1850,7 +1851,7 @@ body.driving-active #appPanel{
    still reads earned-first at a glance. */
 .badge-tile-soon{ opacity:.28; }
 .badge-tile-soon-ribbon{
-  position:absolute; bottom:-3px; right:-6px;
+  position:absolute; bottom:-4px; right:-7px;
   background:var(--bg-surface); color:var(--text-muted);
   font-size:7px; font-weight:800; text-transform:uppercase; letter-spacing:.02em;
   padding:1px 4px; border-radius:6px; border:1px solid var(--border-color-strong);
@@ -1867,6 +1868,26 @@ body.driving-active #appPanel{
 }
 .dashboard-ladder-row.achieved .ladder-dot{ background:#5ec98a; }
 .dashboard-signed-out-hint{ font-size:12px; color:var(--text-muted); text-align:center; padding:8px 0; }
+
+/* --- Badge info modal ---------------------------------------------------
+   Opened by tapping a badge tile (see buildBadgeIconHtml/showBadgeInfo) —
+   gives touch users the same name+description the desktop `title` tooltip
+   already provides on hover. Reuses .generic-modal-overlay/.generic-modal
+   (the small centered-card look shared with the GPS/Help modals), with a
+   badge-icon-circle sized up from .badge-tile-circle for a title-card feel. */
+.badge-info-icon-circle{
+  width:84px; height:84px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 2px 6px rgba(0,0,0,.35);
+  margin:0 auto 14px auto;
+}
+.badge-info-icon-glyph{ width:40px; height:40px; display:inline-block; }
+.badge-info-status{
+  font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
+  margin-bottom:10px; display:inline-block; padding:3px 10px; border-radius:20px;
+}
+.badge-info-status.is-earned{ background:var(--accent); color:var(--accent-contrast); }
+.badge-info-status.is-locked{ background:var(--bg-surface-alt); color:var(--text-secondary); }
 
 /* --- Rankings modal header: identity row -------------------------------
    Sits in .fullscreen-modal-header in place of the plain "Rankings" title
@@ -3246,6 +3267,22 @@ span.flatpickr-weekday {
 </div>
 
 
+<!-- Badge info modal: opened by tapping any badge tile in the Dashboard's
+     Badges grid (see showBadgeInfo/buildBadgeIconHtml) so touch users get
+     the same name+description the desktop hover title already shows. -->
+<div id="badgeInfoModal" class="generic-modal-overlay" style="display:none">
+  <div class="generic-modal">
+    <div class="badge-info-icon-circle" id="badgeInfoIconCircle">
+      <span class="badge-info-icon-glyph" id="badgeInfoIconGlyph"></span>
+    </div>
+    <span class="badge-info-status" id="badgeInfoStatus"></span>
+    <h2 id="badgeInfoName"></h2>
+    <p id="badgeInfoDesc"></p>
+    <button class="generic-modal-close" onclick="hideBadgeInfo()">Close</button>
+  </div>
+</div>
+
+
 <!-- Settings modal: holds secondary controls that don't need to live on the
      main map/report panel. Starts with the time-window filter + CSV export
      (moved out of #appPanel); more settings sections get appended here
@@ -3651,25 +3688,11 @@ function updateHeaderHeightVar() {
   // change in header height (auth badge row appearing, text wrapping,
   // safe-area insets on rotation, etc.) silently resizes #map too.
   // Leaflet doesn't watch for that on its own — tell it to re-measure so
-  // the map canvas never lags behind its actual container size.
-  //
-  // `map` (the Leaflet instance) is declared with `const map = L.map(...)`
-  // thousands of lines further down this same script, and this function now
-  // runs for the first time at the very top, long before that line
-  // executes. A plain `typeof map !== 'undefined'` looks safe but ISN'T:
-  // for a `const`/`let` binding that's declared later in the same scope but
-  // not yet initialized (the "temporal dead zone"), even `typeof` throws a
-  // ReferenceError instead of returning 'undefined' — unlike a variable
-  // that was never declared at all. That threw synchronously on every page
-  // load the moment this moved to the top, which stopped everything below
-  // it from running (including the STARTUP block and the splash-screen
-  // safety net) — a strictly worse version of the exact bug this reordering
-  // was meant to fix. The try/catch below is what a bare `typeof` check
-  // can't do here: silently no-op until `map` is real, then behave
-  // identically to the old check on every call after that.
-  try {
-    if (typeof map !== 'undefined' && map.invalidateSize) map.invalidateSize({ animate: false, pan: false });
-  } catch (e) {}
+  // the map canvas never lags behind its actual container size. `map` isn't
+  // defined yet the first time this runs (Leaflet init happens much further
+  // down) — the typeof guard just skips this line until it exists, and every
+  // later resize/orientation call (after `map` is real) picks it up as before.
+  if (typeof map !== 'undefined' && map.invalidateSize) map.invalidateSize({ animate: false, pan: false });
 }
 (function initHeaderHeightTracking() {
   const header = document.querySelector('header');
@@ -4286,13 +4309,52 @@ function buildBadgeIconHtml(badge, earnedIn) {
   const bg    = earned ? 'var(--accent)' : 'var(--bg-surface-alt)';
   const glyph = earned ? 'var(--accent-contrast)' : 'var(--text-secondary)';
   const titleSuffix = soon ? ` (${t('badgeComingSoon')})` : '';
-  return `<div class="badge-tile${earned ? ' earned' : ''}${soon ? ' badge-tile-soon' : ''}" title="${escapeHtml(badgeName(badge))} — ${escapeHtml(badgeDesc(badge))}${titleSuffix}">
+  return `<div class="badge-tile${earned ? ' earned' : ''}${soon ? ' badge-tile-soon' : ''}" title="${escapeHtml(badgeName(badge))} — ${escapeHtml(badgeDesc(badge))}${titleSuffix}" onclick="showBadgeInfo('${badge.id}', ${earned}, ${soon})">
     <div class="badge-tile-circle" style="background:${bg};">
       <span class="badge-tile-glyph" style="background-color:${glyph};-webkit-mask:url('${iconSrc}') center / contain no-repeat;mask:url('${iconSrc}') center / contain no-repeat;"></span>
       ${soon ? `<span class="badge-tile-soon-ribbon">${escapeHtml(t('badgeComingSoonShort'))}</span>` : ''}
     </div>
     <div class="badge-tile-name">${escapeHtml(badgeName(badge))}</div>
   </div>`;
+}
+
+// Looked up across all four badge lists by id — tiles from any of the
+// grids (user/admin, base/extra) all route through this one modal.
+function findBadgeById(id) {
+  return [...BADGES, ...USER_BADGES_EXTRA, ...ADMIN_BADGES, ...ADMIN_BADGES_EXTRA].find(b => b.id === id);
+}
+// Tap-to-info for badge tiles — gives touch users (no hover) the same
+// name+description the desktop `title` tooltip already shows. earned/soon
+// are passed in from buildBadgeIconHtml rather than recomputed here, since
+// recomputing needs the profile/stats context that isn't available at
+// click time. Registered on the back-button overlay stack like every other
+// closeable window (see OVERLAY / BACK-BUTTON STACK) so back closes it.
+function showBadgeInfo(id, earned, soon) {
+  const badge = findBadgeById(id);
+  if (!badge) return;
+  const iconSrc = `icons/badges/${badge.icon}`;
+  const bg    = earned ? 'var(--accent)' : 'var(--bg-surface-alt)';
+  const glyph = earned ? 'var(--accent-contrast)' : 'var(--text-secondary)';
+  document.getElementById('badgeInfoIconCircle').style.background = bg;
+  const glyphEl = document.getElementById('badgeInfoIconGlyph');
+  glyphEl.style.backgroundColor = glyph;
+  glyphEl.style.webkitMask = `url('${iconSrc}') center / contain no-repeat`;
+  glyphEl.style.mask = `url('${iconSrc}') center / contain no-repeat`;
+  document.getElementById('badgeInfoName').textContent = badgeName(badge);
+  document.getElementById('badgeInfoDesc').textContent = badgeDesc(badge) + (soon ? ` (${t('badgeComingSoon')})` : '');
+  const statusEl = document.getElementById('badgeInfoStatus');
+  const isEarned = soon ? false : earned;
+  statusEl.textContent = isEarned ? t('badgeEarnedLabel') : t('badgeLockedLabel');
+  statusEl.className = 'badge-info-status ' + (isEarned ? 'is-earned' : 'is-locked');
+  const modal = document.getElementById('badgeInfoModal');
+  bringModalToFront(modal);
+  modal.style.display = 'flex';
+  openOverlay('badgeInfoModal', hideBadgeInfo);
+}
+function hideBadgeInfo() {
+  const modal = document.getElementById('badgeInfoModal');
+  if (modal) modal.style.display = 'none';
+  closeOverlay('badgeInfoModal');
 }
 
 // =============================================================================
@@ -4772,9 +4834,11 @@ function showLeaderboardModal(tab) {
   leaderboardCityMuni = null;
   renderDashboardTab(); // header identity row/title — correct even if we land on a non-Dashboard tab below
   switchLeaderboardTab(tab || leaderboardTab);
+  openOverlay('leaderboardModal', hideLeaderboardModal);
 }
 function hideLeaderboardModal() {
   document.getElementById('leaderboardModal').style.display = 'none';
+  closeOverlay('leaderboardModal');
 }
 
 // =============================================================================
@@ -4795,11 +4859,13 @@ function showNotificationModal() {
   notifModal.style.display = 'flex';
   renderNotificationModalBody();
   startNotificationInboxAutoRefresh();
+  openOverlay('notificationModal', hideNotificationModal);
 }
 function hideNotificationModal() {
   document.getElementById('notificationModal').style.display = 'none';
   if (!anyAdminQueueModalOpen()) stopWaitingListAutoRefresh();
   stopNotificationInboxAutoRefresh();
+  closeOverlay('notificationModal');
 }
 
 function renderNotificationModalBody() {
@@ -5751,6 +5817,8 @@ const T = {
   dashboardRankOutside:      { en:'Outside top 50',        sr:'Van top 50' },
   badgeComingSoon:           { en:'coming soon',         sr:'uskoro' },
   badgeComingSoonShort:      { en:'Soon',                sr:'Uskoro' },
+  badgeEarnedLabel:          { en:'Earned',              sr:'Osvojeno' },
+  badgeLockedLabel:          { en:'Locked',              sr:'Zaključano' },
   heatmapBtnTitle:           { en:'Heatmap',             sr:'Toplotna mapa' },
   categoryFilterBtnTitle:    { en:'Filter categories',   sr:'Filtriraj kategorije' },
   categoryFilterPanelTitle:  { en:'Show on map',         sr:'Prikaži na mapi' },
@@ -6200,9 +6268,11 @@ function showHelpModal() {
   const modal = document.getElementById('helpModal');
   bringModalToFront(modal);
   modal.style.display = 'flex';
+  openOverlay('helpModal', hideHelpModal);
 }
 function hideHelpModal() {
   document.getElementById('helpModal').style.display = 'none';
+  closeOverlay('helpModal');
 }
 function showSettingsModal() {
   document.getElementById('settingsModalTitle').textContent = t('settingsModalTitle');
@@ -6216,9 +6286,11 @@ function showSettingsModal() {
     const adminSearchEl = document.getElementById('adminSearchInput');
     if (adminSearchEl) adminSearchEl.placeholder = t('adminSearchPH');
   }
+  openOverlay('settingsModal', hideSettingsModal);
 }
 function hideSettingsModal() {
   document.getElementById('settingsModal').style.display = 'none';
+  closeOverlay('settingsModal');
 }
 function buildHelpModalContent() {
   document.getElementById('helpModalTitle').textContent = t('helpTitle');
@@ -6720,6 +6792,11 @@ map.on('popupopen', e => {
     mobilePopupOverlay.appendChild(popupEl);
     mobilePopupOverlay.classList.add('showing');
   }
+  // Registers the popup on the shared overlay/back-button stack (see
+  // OVERLAY / BACK-BUTTON STACK) so the back button closes it like any
+  // other window. Only one Leaflet popup is ever open at a time (opening a
+  // new one auto-closes the last), so a single fixed key is enough.
+  openOverlay('mapPopup', () => map.closePopup());
 });
 map.on('popupclose', e => {
   const popupEl = e.popup && e.popup._container;
@@ -6731,6 +6808,7 @@ map.on('popupclose', e => {
     mobilePopupOriginalParent = null;
   }
   if (mobilePopupOverlay) mobilePopupOverlay.classList.remove('showing');
+  closeOverlay('mapPopup');
 });
 
 // On mobile the overlay is a full-screen dimmed backdrop — tapping it,
@@ -7420,8 +7498,10 @@ function toggleNavigatePanel() {
   if (navPanelOpen) {
     setTimeout(() => document.getElementById('navigateSearchInput').focus(), 50);
     if (navState === NavState.IDLE) setNavState(NavState.SEARCHING);
-  } else if (navState === NavState.SEARCHING) {
-    setNavState(NavState.IDLE);
+    openOverlay('navigatePanel', closeNavigatePanel);
+  } else {
+    if (navState === NavState.SEARCHING) setNavState(NavState.IDLE);
+    closeOverlay('navigatePanel');
   }
 }
 
@@ -7437,6 +7517,7 @@ function closeNavigatePanel() {
   const pinHint = document.getElementById('navigatePinHint');
   if (pinBtn) pinBtn.classList.remove('active');
   if (pinHint) pinHint.style.display = 'none';
+  closeOverlay('navigatePanel');
 }
 
 // Lets the user place a destination directly on the map instead of only
@@ -7995,22 +8076,10 @@ function customDragPointerUp() {
 // =============================================================================
 // DRIVING MODE
 // =============================================================================
-// Driving mode pushes a history entry the moment it opens, purely so the
-// phone's hardware/gesture back button has something to "go back" from —
-// without it, back would leave the page entirely (or do nothing) instead of
-// closing driving mode the same way the on-screen back button does.
-// drivingModeHistoryPushed tracks whether that entry is still outstanding;
-// handlingDrivingPopstate guards against the history.back() we trigger below
-// re-entering this same handler and double-toggling.
-let drivingModeHistoryPushed = false;
-let handlingDrivingPopstate = false;
-
-window.addEventListener('popstate', () => {
-  if (!drivingMode) return;
-  handlingDrivingPopstate = true;
-  toggleDrivingMode();
-  handlingDrivingPopstate = false;
-});
+// Driving mode registers itself on the shared overlay/back-button stack
+// (see OVERLAY / BACK-BUTTON STACK) the moment it opens, purely so the
+// phone's hardware/gesture back button has something to close instead of
+// leaving the page — same mechanism every other modal in the app uses.
 
 function toggleDrivingMode() {
   drivingMode = !drivingMode;
@@ -8055,21 +8124,13 @@ function toggleDrivingMode() {
     // branch below), show the turn-by-turn HUD right away instead of
     // waiting for the next GPS fix to trigger it.
     if (destinationCoords && userCoords) updateTurnByTurnDisplay(userCoords);
-    // See popstate listener above — this is the entry the hardware/gesture
-    // back button will consume to close driving mode instead of the page.
-    history.pushState({ drivingMode: true }, '');
-    drivingModeHistoryPushed = true;
+    // Registers on the shared overlay stack — see the back-press comment
+    // above the DRIVING MODE section header. The closeFn just re-toggles
+    // driving mode off; toggleDrivingMode() itself calls closeOverlay()
+    // in its else-branch below to keep the stack in sync either way.
+    openOverlay('drivingMode', () => { if (drivingMode) toggleDrivingMode(); });
   } else {
-    // If the pushed history entry from above is still there, it means we
-    // got here from the on-screen back button (or the car icon), not from
-    // the hardware back button — history.back() consumes it so a later,
-    // unrelated back press doesn't land on a stale "driving mode" entry.
-    // When handlingDrivingPopstate is true, the browser already popped it
-    // for us, so skip this and avoid a duplicate/undesired history.back().
-    if (drivingModeHistoryPushed && !handlingDrivingPopstate) {
-      history.back();
-    }
-    drivingModeHistoryPushed = false;
+    closeOverlay('drivingMode');
     if (sectionRecording) {
       // Leaving driving mode mid-recording would strand an unfinished section; stop it cleanly.
       toggleSectionRecording();
@@ -8376,6 +8437,63 @@ function bringModalToFront(el){
   if (el && el.parentNode) document.body.appendChild(el);
 }
 
+// =============================================================================
+// OVERLAY / BACK-BUTTON STACK
+// =============================================================================
+// Every closeable "window" in the app — the fullscreen modals, the badge
+// info popup, the report wizard, the navigate search panel, driving mode,
+// and map pin popups — registers itself here the moment it opens via
+// openOverlay(key, closeFn), and unregisters via closeOverlay(key) the
+// moment it closes (whether that's from its own X/Close button, tapping
+// the backdrop, or the back button itself). Each open pushes one browser
+// history entry, so the phone/browser back button (and the edge-swipe
+// gesture, which fires the same 'popstate' event) closes whatever's
+// currently on top instead of leaving the page — and cascades one level
+// per press back down to the main map screen, exactly like tapping each
+// window's own close button in the same order. Once the stack is empty,
+// back-press is neutralized (a guard entry is immediately re-pushed) so an
+// accidental back on the main screen never exits the app.
+//
+// key is a short string ('gpsModal', 'reportWizard', ...) rather than the
+// closeFn itself, so re-entrant opens of the same overlay can't accidentally
+// stack duplicate history entries — see the .some() guard below.
+let overlayStack = [];
+let suppressOverlayPopstate = false;
+
+function openOverlay(key, closeFn) {
+  if (overlayStack.some(o => o.key === key)) return; // already open/tracked
+  overlayStack.push({ key, closeFn });
+  history.pushState({ overlayKey: key }, '');
+}
+// Called from inside every hideX()/closeX() function. If this overlay is
+// still on the stack, it means it's being closed "manually" (its own X
+// button, a backdrop tap, an internal Cancel action) rather than via the
+// back button — so we consume the history entry openOverlay() pushed for
+// it, keeping history length in sync with what's actually open. If the
+// popstate handler below already popped it, suppressOverlayPopstate is set
+// and we skip the redundant history.back().
+function closeOverlay(key) {
+  const idx = overlayStack.findIndex(o => o.key === key);
+  if (idx === -1) return; // not tracked — already closed via back button
+  overlayStack.splice(idx, 1);
+  if (!suppressOverlayPopstate) history.back();
+}
+window.addEventListener('popstate', () => {
+  if (overlayStack.length) {
+    const top = overlayStack.pop();
+    suppressOverlayPopstate = true;
+    top.closeFn();
+    suppressOverlayPopstate = false;
+  } else {
+    // Main screen — re-arm the guard so this doesn't fall through to the
+    // browser's default back behavior (leaving/closing the page).
+    history.pushState({ overlayGuard: true }, '');
+  }
+});
+// Initial guard entry: the very first back-press on the main screen needs
+// something already on the stack to consume instead of leaving the page.
+history.pushState({ overlayGuard: true }, '');
+
 // gpsModalShownOnce used to mean "ever, for the whole page load" — which
 // meant that once GPS dropped once and later recovered (a real fix came
 // in, userMarker placed), a SECOND drop later in the same session would
@@ -8395,10 +8513,12 @@ function showGpsModal(){
   updateGpsModalText();
   bringModalToFront(modal);
   modal.style.display = 'flex';
+  openOverlay('gpsModal', hideGpsModal);
 }
 function hideGpsModal(){
   const modal = document.getElementById('gpsModal');
   if (modal) modal.style.display = 'none';
+  closeOverlay('gpsModal');
 }
 // Called only from the watchPosition success path (a fix actually came
 // in) — distinct from hideGpsModal() alone, which also runs when the user
@@ -9304,9 +9424,11 @@ function toggleCategoryFilterModal() {
   const modal = document.getElementById('categoryFilterModal');
   bringModalToFront(modal);
   modal.style.display = 'flex';
+  openOverlay('categoryFilterModal', hideCategoryFilterModal);
 }
 function hideCategoryFilterModal() {
   document.getElementById('categoryFilterModal').style.display = 'none';
+  closeOverlay('categoryFilterModal');
 }
 
 // HEATMAP — toggled by #heatmapBtn (bottomright control, see the
@@ -9803,6 +9925,7 @@ function openReportWizard() {
   wizState = { steps: wizStepsFor(null), step: 0, category: null, subcategory: null, priority: null, status: null };
   document.getElementById('reportWizard').style.display = 'flex';
   wizRender();
+  openOverlay('reportWizard', closeReportWizard);
 }
 
 function closeReportWizard() {
@@ -9817,6 +9940,7 @@ function closeReportWizard() {
     wizOwnsPinDrop = false;
     resetReportingForm();
   }
+  closeOverlay('reportWizard');
 }
 
 function wizGoBack() {
@@ -11299,6 +11423,7 @@ function buildCompanyPopupHtml(c, lat, lon) {
 function hideCompanyDetailModal() {
   const modal = document.getElementById('companyDetailModal');
   if (modal) modal.style.display = 'none';
+  closeOverlay('companyDetailModal');
 }
 
 function showCompanyDetailModal(id) {
@@ -11353,6 +11478,7 @@ function showCompanyDetailModal(id) {
 
   bringModalToFront(modal);
   modal.style.display = 'flex';
+  openOverlay('companyDetailModal', hideCompanyDetailModal);
 }
 // Backs the popup's Navigate button — only an id and plain numbers ever
 // travel through the onclick="" attribute (company names are free text an
@@ -12620,6 +12746,7 @@ async function showReportDetailModal(reportId) {
   bringModalToFront(modal);
   modal.style.display = 'flex';
   modal.dataset.openReportId = report.id;
+  openOverlay('reportDetailModal', hideReportDetailModal);
 
   if (canFlagReport) loadReportFlagSection(report.id);
 
@@ -12902,6 +13029,7 @@ function hideReportDetailModal() {
   const modal = document.getElementById('reportDetailModal');
   modal.style.display = 'none';
   delete modal.dataset.openReportId;
+  closeOverlay('reportDetailModal');
 }
 
 // Closes the detail modal and re-centers/zooms the app's own map on a
