@@ -751,32 +751,40 @@ button{
   color:white;
 }
 
-/* Wraps every bottomright floating map button (follow/pin/driving/heatmap/
-   compass/report-FAB) as a single Leaflet control — see
-   BottomRightStackControl — so their visual top-to-bottom order is exactly
-   the DOM order in #bottomRightStack, with the report FAB pinned last.
-   margin-bottom clears .legend-row, the status pill bar floating over the
-   bottom of the map. Only --legend-row-h (the bar's own full rendered
-   height, padding included — see initLegendHeightTracking) is needed here:
-   #map is flex:1 in the body's flex column, so its own rendered bottom
-   edge already stops exactly where #appPanel begins, and .legend-row's
-   `bottom` offset (--legend-bottom-gap) places ITS bottom edge at that
-   same exact point — the two coincide regardless of #appPanel's current
-   height. So from the Leaflet control's perspective (anchored to #map's
-   own bottom edge), only the legend bar's own height is ever in the way;
-   adding --legend-bottom-gap on top of it here would double-count the
-   same gap and just waste extra map space. This stacks on top of
-   Leaflet's own default ~10px corner margin, not instead of it. */
+/* Every bottomright floating map button (follow/pin/driving/heatmap/
+   compass/report-FAB), stacked as one column — the DOM order in
+   #bottomRightStack is the visual top-to-bottom order, with the report FAB
+   pinned last (bottom-most, closest to the thumb).
+
+   THIS USED TO BE A LEAFLET CONTROL living inside #map (see the removed
+   BottomRightStackControl) — which was the actual reason the report FAB
+   kept rendering behind .legend-row no matter how much clearance
+   (margin-bottom) was added. #map has z-index:1 and establishes its own
+   stacking context, so EVERYTHING inside it — including this stack, even
+   though Leaflet gives its own controls z-index:1000 internally — is
+   capped at that rank 1 the moment it's compared against something
+   outside #map, like .legend-row (z-index:410, a fixed sibling of #map,
+   not a descendant of it). No amount of spacing fixes a stacking-context
+   problem: wherever the two boxes overlapped at all (a rounding pixel, a
+   stale height var on first paint, a taller FAB than expected), the
+   legend bar was guaranteed to paint on top. This is the exact same bug
+   the popup-overlay comment above (#mobilePopupOverlay, Z-INDEX SCALE)
+   already called out and fixed the same way for pin popups — move the
+   element out of #map's DOM entirely rather than fight its stacking
+   context from inside. Now a plain fixed element and a genuine sibling of
+   .legend-row, so z-index:420 (see the Z-INDEX SCALE up top) is a real,
+   honest comparison instead of one #map quietly wins by default. As a
+   bonus, it no longer needs L.DomEvent.disableClickPropagation either —
+   that was only ever needed because a click here used to bubble into
+   Leaflet's own map container. */
 .bottomright-stack{
   display:flex; flex-direction:column; align-items:center; gap:10px;
-  /* Was legend-row-h + 16px, which in practice still let the bottom of
-     the stack (the report FAB, being the largest button) sit under the
-     legend bar on some screens. Bumped the buffer and added the safe-area
-     inset explicitly (belt-and-suspenders alongside legend-row's own
-     offsetHeight, which should already include it) so the stack always
-     clears the bar with room to spare instead of grazing it. */
-  margin-bottom:calc(var(--legend-row-h, 72px) + 28px + env(safe-area-inset-bottom, 0px));
+  position:fixed;
+  right:12px;
+  z-index:420;
+  bottom:calc(var(--legend-bottom-gap, 0px) + var(--legend-row-h, 72px) + 16px + env(safe-area-inset-bottom, 0px));
 }
+body.driving-active .bottomright-stack{ display:none !important; }
 .pin-map-btn{
   background:var(--floating-bg);
   border:1px solid var(--floating-border);
@@ -1623,6 +1631,14 @@ body.driving-active .driving-report-sheet{ display:flex; }
 .driving-tile.tile-signage  .icon-img-tile{ filter:brightness(0) saturate(100%) invert(76%) sepia(59%) saturate(1073%) hue-rotate(1deg) brightness(103%) contrast(105%); } /* #f1c40f */
 .driving-tile.tile-flooding .icon-img-tile{ filter:brightness(0) saturate(100%) invert(52%) sepia(35%) saturate(1826%) hue-rotate(169deg) brightness(93%) contrast(89%); } /* #3498db */
 .driving-tile.tile-other    .icon-img-tile{ filter:brightness(0) saturate(100%) invert(37%) sepia(21%) saturate(2489%) hue-rotate(240deg) brightness(93%) contrast(90%); } /* #9b59b6 */
+/* Red, matching the quick-report tiles below it (.driving-tile) rather than
+   the old plain gold fill: same border weight/hue-matched border-color, same
+   transition list, and the same :active tap-scale feedback, so the record
+   button reads as part of the same button family instead of a visually
+   unrelated bar sitting above them. Idle state uses the tiles' own
+   color-mix-over-driving-tile-base treatment (a muted red tint) so it's
+   still clearly distinguishable from the solid, pulsing red of the active
+   "recording" state below. */
 .driving-section-btn{
   width:100%;
   padding:14px;
@@ -1630,11 +1646,18 @@ body.driving-active .driving-report-sheet{ display:flex; }
   font-size:14px;
   font-weight:800;
   letter-spacing:.3px;
-  background:#a67817;
+  background:color-mix(in srgb, var(--driving-tile-base) 65%, #ff4b4b 35%);
+  border:2px solid #ff4b4b;
   color:white;
+  cursor:pointer;
+  transition:background .15s, border-color .15s, transform .1s;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
 }
+.driving-section-btn:active{ transform:scale(.96); }
 .driving-section-btn.recording{
   background:#ff4b4b;
+  border-color:#ff4b4b;
   animation:pulseRec 1.2s infinite;
 }
 .driving-nav-dest{
@@ -3594,6 +3617,94 @@ span.flatpickr-weekday {
 <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/sr.js"></script>
 <script>
+
+// =============================================================================
+// CRITICAL LAYOUT TRACKING — deliberately the very first thing this script
+// does, before CONFIG/Supabase/Leaflet/anything else below.
+//
+// Why: this used to live at the bottom of this same (single, ~10,000-line)
+// <script> tag. That's fragile in a way that isn't obvious from reading it in
+// isolation — a single inline <script> executes its top-level statements in
+// order and simply stops at the first uncaught synchronous error, so ANY
+// earlier failure (a blocked/slow-loading CDN for Supabase or Leaflet, a
+// third-party API shape change, a flaky mobile connection — all realistic
+// for a "report it from the field" app used outdoors) silently prevented
+// this code from ever running. When that happened, .legend-row and
+// .bottomright-stack (the report FAB + its sibling buttons) fell back to
+// their hardcoded CSS defaults (var(--legend-bottom-gap, 0px) and
+// var(--legend-row-h, 72px)) instead of the real, currently-rendered heights
+// — which is exactly what makes the report FAB and its neighbors visually
+// collide with the legend/status bar above #appPanel. No error was ever
+// shown to the user; the buttons just quietly ended up in the wrong place.
+//
+// These three only touch the DOM (header/#appPanel/.legend-row, all already
+// parsed since this <script> tag sits at the end of <body>) and set CSS
+// custom properties — they have zero dependency on Supabase, Leaflet, or
+// anything else below, so there's no reason for them to ever be at the mercy
+// of code that does depend on those. Running them first means the floating
+// buttons are correctly positioned even if everything after this point blows
+// up.
+function updateHeaderHeightVar() {
+  const header = document.querySelector('header');
+  if (header) document.documentElement.style.setProperty('--header-h', header.offsetHeight + 'px');
+  // The header and #map share a flex column (#map is flex:1), so any
+  // change in header height (auth badge row appearing, text wrapping,
+  // safe-area insets on rotation, etc.) silently resizes #map too.
+  // Leaflet doesn't watch for that on its own — tell it to re-measure so
+  // the map canvas never lags behind its actual container size. `map` isn't
+  // defined yet the first time this runs (Leaflet init happens much further
+  // down) — the typeof guard just skips this line until it exists, and every
+  // later resize/orientation call (after `map` is real) picks it up as before.
+  if (typeof map !== 'undefined' && map.invalidateSize) map.invalidateSize({ animate: false, pan: false });
+}
+(function initHeaderHeightTracking() {
+  const header = document.querySelector('header');
+  if (!header) return;
+  updateHeaderHeightVar();
+  if (window.ResizeObserver) {
+    new ResizeObserver(updateHeaderHeightVar).observe(header);
+  } else {
+    window.addEventListener('resize', updateHeaderHeightVar);
+    window.addEventListener('orientationchange', updateHeaderHeightVar);
+  }
+})();
+
+// Keeps --legend-bottom-gap in sync with #appPanel's real rendered height,
+// so .legend-row (the status pill, fixed to the bottom of the screen) always
+// floats just above the panel instead of getting buried under it. #appPanel's
+// height changes constantly (collapsing/expanding, the wizard steps, keyboard
+// focus, etc.), so this uses the same ResizeObserver pattern as
+// updateHeaderHeightVar() above rather than a one-time read.
+(function initAppPanelHeightTracking() {
+  const panel = document.getElementById('appPanel');
+  if (!panel) return;
+  const sync = () => document.documentElement.style.setProperty('--legend-bottom-gap', panel.offsetHeight + 'px');
+  sync();
+  if (window.ResizeObserver) {
+    new ResizeObserver(sync).observe(panel);
+  } else {
+    window.addEventListener('resize', sync);
+    window.addEventListener('orientationchange', sync);
+  }
+})();
+
+// Keeps --legend-row-h in sync with .legend-row's own full rendered height
+// (padding included, not just the pills inside it), so .bottomright-stack
+// (follow/pin/driving/categoryFilter/heatmap/compass/report-FAB) always
+// clears the WHOLE status legend bar instead of the two visually colliding
+// in the bottom corner of the map.
+(function initLegendHeightTracking() {
+  const legendRow = document.querySelector('.legend-row');
+  if (!legendRow) return;
+  const sync = () => document.documentElement.style.setProperty('--legend-row-h', legendRow.offsetHeight + 'px');
+  sync();
+  if (window.ResizeObserver) {
+    new ResizeObserver(sync).observe(legendRow);
+  } else {
+    window.addEventListener('resize', sync);
+    window.addEventListener('orientationchange', sync);
+  }
+})();
 
 // =============================================================================
 // CONFIG
@@ -6293,6 +6404,14 @@ new CachedTileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
 // icon, so nothing changes visually once you're zoomed in enough that pins
 // no longer overlap. disableClusteringAtZoom turns clustering off entirely
 // at close-in zooms, so street-level browsing always shows every real pin.
+//
+// Bubble color is deliberately --nav-accent (a teal/blue, already in the
+// palette for the driving-nav accent) rather than --accent (amber/gold) —
+// --accent sits too close in hue to STATUS_COLORS.in_progress (#f5a623), so
+// a cluster bubble could read as "these are all in-progress reports" at a
+// glance when it's really just a mixed-status count. Teal doesn't collide
+// with any of the three status colors (red/orange/green), so a bubble is
+// never mistaken for a status.
 function makeClusterIcon(cluster) {
   const count = cluster.getChildCount();
   let size = 32, fontSize = 12;
@@ -6300,20 +6419,23 @@ function makeClusterIcon(cluster) {
   else if (count >= 100) { size = 48; fontSize = 14; }
   return L.divIcon({
     html: `<div style="width:${size}px;height:${size}px;box-sizing:border-box;border-radius:50%;` +
-      `background:var(--accent);border:3px solid var(--accent-contrast);` +
+      `background:var(--nav-accent);border:3px solid var(--accent-contrast);` +
       `display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.5);` +
       `color:var(--accent-contrast);font-weight:700;font-size:${fontSize}px;">${count}</div>`,
     className: '',
     iconSize: [size, size]
   });
 }
+// NOT .addTo(map) here — see the comment just after companyMarkersLayer's
+// own .addTo(map) call below for why pinCluster is attached to the map
+// afterward instead, further down this file.
 const pinCluster = L.markerClusterGroup({
   maxClusterRadius: 50,
   disableClusteringAtZoom: 17,
   spiderfyOnMaxZoom: true,
   showCoverageOnHover: false,
   iconCreateFunction: makeClusterIcon
-}).addTo(map);
+});
 
 // Report markers/lines are added either straight to the map (section
 // spline polylines) or into pinCluster (point pins) — this picks whichever
@@ -6352,6 +6474,18 @@ const companyMarkersLayer = L.markerClusterGroup({
   showCoverageOnHover: false,
   iconCreateFunction: makePublicClusterIcon
 }).addTo(map);
+
+// pinCluster (report pins/clusters) is attached HERE, after
+// companyMarkersLayer, rather than at its own creation above. Both groups'
+// markers land in Leaflet's shared default markerPane (neither requests a
+// custom pane), and within a single pane there's no z-index to lean on —
+// stacking just follows DOM order, i.e. whichever group was added to the
+// map more recently paints on top. Report pins are the thing people are
+// actively looking for, so they need to win that comparison every time,
+// not just whichever happened to load last — attaching pinCluster last,
+// deliberately, here, is what guarantees that instead of leaving it to
+// coincidence.
+pinCluster.addTo(map);
 
 // Reparents Leaflet's internal map-pane (tiles + markers + lines + popups)
 // inside a plain div we control, so that div can be CSS-rotated for
@@ -8706,28 +8840,20 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // Now that #settingsBtn lives in the header (next to the fullscreen
-// button) instead of floating over the map, this stack moves into the
+// button) instead of floating over the map, this stack moved into the
 // bottomright corner it vacated.
 //
-// All of follow/pin/driving/heatmap/compass/report-FAB are registered as
-// ONE Leaflet control wrapping #bottomRightStack, instead of six separate
-// same-corner controls. That means their visual order is simply the DOM
-// order inside that wrapper (see the HTML), not something that depends on
-// Leaflet's own same-corner stacking behavior — so the report FAB, as the
-// wrapper's last child, is guaranteed to render bottom-most, closest to
-// the thumb. Each button's own show/hide logic (canReportHere, auth
-// state, driving mode — see updateAuthUI()) is untouched; joining one
-// shared control only changes where the stack sits, not when any
-// individual button is visible.
-const BottomRightStackControl = L.Control.extend({
-  options:{ position:'bottomright' },
-  onAdd(){
-    const el = document.getElementById('bottomRightStack');
-    L.DomEvent.disableClickPropagation(el);
-    return el;
-  }
-});
-new BottomRightStackControl().addTo(map);
+// This USED to be registered as a Leaflet control wrapping
+// #bottomRightStack (see the CSS comment on .bottomright-stack for why
+// that was actually the root cause of the report FAB rendering behind
+// .legend-row, not just a spacing issue) — now it's a plain fixed-position
+// element positioned entirely by CSS, so there's no control to register
+// and no L.DomEvent.disableClickPropagation() needed (a click here no
+// longer bubbles into Leaflet's map container at all, since the element
+// isn't inside it anymore). All of follow/pin/driving/heatmap/compass/
+// report-FAB just need their inline display:none lifted once at startup;
+// each button's own show/hide logic (canReportHere, auth state, driving
+// mode — see updateAuthUI()) is untouched.
 document.getElementById('followLocationBtn').style.display = 'flex';
 document.getElementById('pinMapBtn').style.display = 'flex';
 document.getElementById('drivingModeBtn').style.display = 'flex';
@@ -13742,67 +13868,14 @@ function initTheme() {
 // user-badge row is showing. A ResizeObserver on the header picks up all of
 // those automatically instead of needing a manual recompute call wired into
 // every place that could change it.
-function updateHeaderHeightVar() {
-  const header = document.querySelector('header');
-  if (header) document.documentElement.style.setProperty('--header-h', header.offsetHeight + 'px');
-  // The header and #map share a flex column (#map is flex:1), so any
-  // change in header height (auth badge row appearing, text wrapping,
-  // safe-area insets on rotation, etc.) silently resizes #map too.
-  // Leaflet doesn't watch for that on its own — tell it to re-measure so
-  // the map canvas never lags behind its actual container size.
-  if (typeof map !== 'undefined' && map.invalidateSize) map.invalidateSize({ animate: false, pan: false });
-}
-(function initHeaderHeightTracking() {
-  const header = document.querySelector('header');
-  if (!header) return;
-  updateHeaderHeightVar();
-  if (window.ResizeObserver) {
-    new ResizeObserver(updateHeaderHeightVar).observe(header);
-  } else {
-    window.addEventListener('resize', updateHeaderHeightVar);
-    window.addEventListener('orientationchange', updateHeaderHeightVar);
-  }
-})();
-
-// Keeps --legend-bottom-gap in sync with #appPanel's real rendered height,
-// so .legend-row (the status pill, now fixed to the bottom of the screen —
-// see the "Map legend" CSS comment) always floats just above the panel
-// instead of getting buried under it. #appPanel's height changes constantly
-// (collapsing/expanding, the wizard steps, keyboard focus, etc. — see its
-// own height transition in CSS), so this uses the same ResizeObserver
-// pattern as updateHeaderHeightVar() above rather than a one-time read.
-(function initAppPanelHeightTracking() {
-  const panel = document.getElementById('appPanel');
-  if (!panel) return;
-  const sync = () => document.documentElement.style.setProperty('--legend-bottom-gap', panel.offsetHeight + 'px');
-  sync();
-  if (window.ResizeObserver) {
-    new ResizeObserver(sync).observe(panel);
-  } else {
-    window.addEventListener('resize', sync);
-    window.addEventListener('orientationchange', sync);
-  }
-})();
-
-// Keeps --legend-row-h in sync with .legend-row's own full rendered height
-// (padding included, not just the pills inside it), so .bottomright-stack
-// (follow/pin/driving/categoryFilter/heatmap/compass/report-FAB — see its
-// CSS comment) always clears the WHOLE status legend bar instead of the
-// two visually colliding in the bottom corner of the map. Was previously
-// tracking #mapLegend's own inner height only, which left out the bar's
-// own vertical padding entirely — close but not quite enough clearance.
-(function initLegendHeightTracking() {
-  const legendRow = document.querySelector('.legend-row');
-  if (!legendRow) return;
-  const sync = () => document.documentElement.style.setProperty('--legend-row-h', legendRow.offsetHeight + 'px');
-  sync();
-  if (window.ResizeObserver) {
-    new ResizeObserver(sync).observe(legendRow);
-  } else {
-    window.addEventListener('resize', sync);
-    window.addEventListener('orientationchange', sync);
-  }
-})();
+//
+// NOTE: the actual tracking (updateHeaderHeightVar/initHeaderHeightTracking)
+// now runs at the very TOP of this script, alongside initAppPanelHeightTracking/
+// initLegendHeightTracking — see the CRITICAL LAYOUT TRACKING block right
+// after <script> opens for why. The `typeof map !== 'undefined'` guard inside
+// updateHeaderHeightVar already made it safe to run before `map` exists (the
+// very first call just skips the invalidateSize line), so nothing else about
+// the function needed to change to move it this early.
 
 // Initial map-loading overlay is visible by default (see CSS) so first
 // paint never shows a bare, empty map with no feedback. Faded out once the
