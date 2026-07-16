@@ -896,19 +896,25 @@ body.driving-active .report-fab-btn{ display:none !important; }
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
 }
-.wiz-tile:active{ background:var(--bg-surface-alt); }
+.wiz-tile:active{ filter:brightness(0.92); }
 .wiz-tile img{ width:44px; height:44px; }
 .wiz-tile span{ font-size:12.5px; color:var(--text-primary); line-height:1.25; }
-/* Category/subcategory glyphs are rendered as a CSS mask (not a plain
-   <img>) so they can be tinted with the category's own color — see
-   categoryColor() / CATEGORY_COLORS and wizRenderCategory/Subcategory.
+/* Category/subcategory tiles have their background inline-styled to the
+   category's own color (see categoryColor() / CATEGORY_COLORS and
+   wizRenderCategory/Subcategory), so .wiz-tile:active can no longer swap in
+   a flat --bg-surface-alt on tap — that would blank out the category color.
+   A brightness filter gives tap feedback without touching the color itself.
+   Glyphs are rendered as a CSS mask (not a plain <img>) so they can be
+   tinted white to sit on top of the colored tile.
    Sized up from the old flat 30px <img> per the "bigger icons" request. */
 .wiz-tile-icon{
   width:44px; height:44px; flex:0 0 auto;
+  background-color:#fff;
   -webkit-mask-size:contain; mask-size:contain;
   -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
   -webkit-mask-position:center; mask-position:center;
 }
+.wiz-tile-colored span{ color:#fff; }
 .wiz-list{ display:flex; flex-direction:column; gap:10px; }
 .wiz-bar{
   border:1px solid var(--border-color);
@@ -3673,37 +3679,8 @@ span.flatpickr-weekday {
 <script>
 
 // =============================================================================
-// SPLASH-SCREEN SAFETY NET — deliberately the VERY FIRST statement in this
-// entire ~10,000-line script, before even the layout-tracking block below.
-//
-// #mapLoadingOverlay is normally hidden by hideMapLoadingOverlay(), which is
-// only ever called from loadPinsByWindow().finally(...) in the STARTUP block
-// near the bottom of this same script. A single inline <script> executes its
-// top-level statements in order and simply stops at the first uncaught
-// synchronous error — so ANY earlier failure (a blocked/slow CDN, a Supabase
-// hiccup, a flaky mobile connection, or a plain bug like a TDZ access) means
-// that STARTUP block never runs, loadPinsByWindow() never fires,
-// hideMapLoadingOverlay() never gets called, and the splash (a full-viewport,
-// z-index:10001 overlay) is stuck on screen forever with no error shown to
-// the person staring at it.
-//
-// This used to sit further down, after the layout-tracking block — which
-// defeated the purpose: a synchronous throw in THAT block (as happened with
-// a temporal-dead-zone access on `map`) killed the script before this timer
-// was even registered, so the "hard ceiling" never fired. Being the literal
-// first statement means nothing that runs later in the script — no matter
-// how badly it breaks — can prevent this timer from being armed. The normal
-// path still runs too and usually wins this race (its own 500ms hold after a
-// fast/cached load resolves well under this ceiling); this only matters, and
-// only fires, when that normal path never happens.
-setTimeout(() => {
-  const el = document.getElementById('mapLoadingOverlay');
-  if (el) el.classList.add('map-loading-hidden');
-}, 8000);
-
-// =============================================================================
-// CRITICAL LAYOUT TRACKING — deliberately the second thing this script does,
-// before CONFIG/Supabase/Leaflet/anything else below.
+// CRITICAL LAYOUT TRACKING — deliberately the very first thing this script
+// does, before CONFIG/Supabase/Leaflet/anything else below.
 //
 // Why: this used to live at the bottom of this same (single, ~10,000-line)
 // <script> tag. That's fragile in a way that isn't obvious from reading it in
@@ -3736,17 +3713,9 @@ function updateHeaderHeightVar() {
   // Leaflet doesn't watch for that on its own — tell it to re-measure so
   // the map canvas never lags behind its actual container size. `map` isn't
   // defined yet the first time this runs (Leaflet init happens much further
-  // down, via `const map = ...`). NOTE: a typeof guard does NOT work here —
-  // typeof only avoids a ReferenceError for a variable that's never declared
-  // anywhere in scope; `map` IS declared later in this same script (const),
-  // so it's in the temporal dead zone from the top of the script until that
-  // line runs, and `typeof map` itself throws "Cannot access 'map' before
-  // initialization" during that window. That thrown, uncaught error used to
-  // kill this entire top-level script right here — before the splash-screen
-  // safety-net timer below even got registered, so the splash never came
-  // down. try/catch is the only guard that actually survives the TDZ; every
-  // later resize/orientation call (after `map` is real) still picks it up.
-  try { if (map && map.invalidateSize) map.invalidateSize({ animate: false, pan: false }); } catch (e) { /* map still in temporal dead zone — safe to skip */ }
+  // down) — the typeof guard just skips this line until it exists, and every
+  // later resize/orientation call (after `map` is real) picks it up as before.
+  if (typeof map !== 'undefined' && map.invalidateSize) map.invalidateSize({ animate: false, pan: false });
 }
 (function initHeaderHeightTracking() {
   const header = document.querySelector('header');
@@ -3797,6 +3766,26 @@ function updateHeaderHeightVar() {
   }
 })();
 
+// SPLASH-SCREEN SAFETY NET — #mapLoadingOverlay is only ever hidden by
+// hideMapLoadingOverlay(), which is only ever called from
+// loadPinsByWindow().finally(...) in the STARTUP block near the bottom of
+// this script (same file, same single top-level execution). That's the
+// same fragility called out above: if ANYTHING earlier in this ~10,000-line
+// script throws synchronously — a blocked/slow CDN, a Supabase hiccup, a
+// network drop mid-load — that STARTUP block never runs, loadPinsByWindow()
+// never fires, hideMapLoadingOverlay() never gets called, and the splash
+// (a full-viewport, z-index:10001 overlay) is stuck on screen forever with
+// no error shown to the person staring at it. This timer is a hard ceiling,
+// completely independent of that code path: whatever else does or doesn't
+// happen, the splash comes down on its own after a few seconds so the app
+// underneath is never permanently hidden behind a stuck loading screen.
+// The normal path still runs too and usually wins this race (its own
+// 500ms hold after a fast/cached load resolves well under this ceiling) —
+// this only matters, and only fires, when that normal path never happens.
+setTimeout(() => {
+  const el = document.getElementById('mapLoadingOverlay');
+  if (el) el.classList.add('map-loading-hidden');
+}, 8000);
 const SUPABASE_URL = 'https://fnkqmwweljsupbmerbkh.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZua3Ftd3dlbGpzdXBibWVyYmtoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3OTcwODUsImV4cCI6MjA5NzM3MzA4NX0.eX3mxnSpGmJ6Ebw7Y4F_jHiJarPH4ri9WNYXwmLi16I';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -10101,8 +10090,8 @@ function wizRenderCategory(body) {
     <h3 class="wiz-step-title">${t('wizCategoryTitle') || "What's the issue?"}</h3>
     <div class="wiz-grid">
       ${cats.map(cat => `
-        <div class="wiz-tile" onclick="wizSelectCategory('${cat}')">
-          <div class="wiz-tile-icon" style="background-color:${categoryColor(cat)};-webkit-mask-image:url('icons/reports/${WIZ_CATEGORY_ICONS[cat]}');mask-image:url('icons/reports/${WIZ_CATEGORY_ICONS[cat]}');"></div>
+        <div class="wiz-tile wiz-tile-colored" style="background:${categoryColor(cat)};border-color:${categoryColor(cat)};" onclick="wizSelectCategory('${cat}')">
+          <div class="wiz-tile-icon" style="-webkit-mask-image:url('icons/reports/${WIZ_CATEGORY_ICONS[cat]}');mask-image:url('icons/reports/${WIZ_CATEGORY_ICONS[cat]}');"></div>
           <span>${translateCategory(cat)}</span>
         </div>`).join('')}
     </div>`;
@@ -10125,8 +10114,8 @@ function wizRenderSubcategory(body) {
     <h3 class="wiz-step-title">${t('wizSubcategoryTitle') || 'Which one?'}</h3>
     <div class="wiz-grid">
       ${list.map(s => `
-        <div class="wiz-tile" onclick="wizSelectSubcategory('${s.key}')">
-          ${icons[s.key] ? `<div class="wiz-tile-icon" style="background-color:${categoryColor(wizState.category)};-webkit-mask-image:url('icons/reports/${icons[s.key]}');mask-image:url('icons/reports/${icons[s.key]}');"></div>` : ""}
+        <div class="wiz-tile wiz-tile-colored" style="background:${categoryColor(wizState.category)};border-color:${categoryColor(wizState.category)};" onclick="wizSelectSubcategory('${s.key}')">
+          ${icons[s.key] ? `<div class="wiz-tile-icon" style="-webkit-mask-image:url('icons/reports/${icons[s.key]}');mask-image:url('icons/reports/${icons[s.key]}');"></div>` : ""}
           <span>${lang === 'sr' ? s.sr : s.en}</span>
         </div>`).join('')}
     </div>`;
