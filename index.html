@@ -3895,7 +3895,7 @@ function renderAdminListRows(rows) {
     return `
     <div class="leaderboard-row leaderboard-row-admin">
       <div class="leaderboard-admin-badge tier-level-${lvl}">
-        <img src="icons/badge-admin-admin-${lvl}.png" alt="" onerror="this.style.display='none';">
+        <img src="icons/badges/badge-admin-admin-${lvl}.png" alt="" onerror="this.style.display='none';">
       </div>
       <div class="leaderboard-info">
         <div class="leaderboard-name-row">
@@ -4086,7 +4086,7 @@ async function renderAdminDashboard() {
   const badgeWrap = document.getElementById('adminDashboardBadge');
   if (badgeWrap) {
     badgeWrap.className = 'leaderboard-admin-badge tier-level-' + lvl;
-    badgeWrap.innerHTML = `<img src="icons/badge-admin-admin-${lvl}.png" alt="" onerror="this.style.display='none';">`;
+    badgeWrap.innerHTML = `<img src="icons/badges/badge-admin-admin-${lvl}.png" alt="" onerror="this.style.display='none';">`;
   }
 
   document.getElementById('adminDashboardLevelName').textContent = adminLevelName(lvl);
@@ -4527,12 +4527,16 @@ const T = {
 
 function t(k){ return T[k]?.[lang] ?? k; }
 
-let lang = 'sr';
+const LANG_STORAGE_KEY = 'ttb_lang'; // localStorage value: 'en' | 'sr'
+let lang = (function () {
+  try { return localStorage.getItem(LANG_STORAGE_KEY) || 'sr'; } catch (e) { return 'sr'; }
+})();
 let globalActiveData = [];
 let fp = null;
 
 function setLang(l){
   lang = l;
+  try { localStorage.setItem(LANG_STORAGE_KEY, l); } catch (e) {}
   document.querySelectorAll('.lang-btn').forEach(b=>{
     b.classList.toggle('active', b.getAttribute('onclick').includes("'"+l+"'"));
   });
@@ -4544,6 +4548,12 @@ function setLang(l){
     initCalendarFilter(savedDates);
     loadPinsByWindow();
   }
+}
+
+function initLang(){
+  document.querySelectorAll('.lang-btn').forEach(b=>{
+    b.classList.toggle('active', b.getAttribute('onclick').includes("'"+lang+"'"));
+  });
 }
 
 function applyLang(){
@@ -10334,6 +10344,7 @@ function hideMapLoadingOverlay() {
 
 initTheme();
 initCalendarFilter();
+initLang();
 applyLang();
 loadPinsByWindow().finally(hideMapLoadingOverlay);
 openSharedReportFromUrl();
