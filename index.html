@@ -481,14 +481,20 @@ button{
    #categoryFilterBtn's fullscreen picker (bottomright stack, same spot the
    heatmap's old per-category picker used to live) since it needed to be
    interactive (show/hide categories on the map) rather than a static key.
-   What's left is just the status pill, now floating over the bottom of the
-   map as a single horizontal row (see .legend-row) instead of sitting in
-   normal document flow above the panel. --legend-bottom-gap tracks
-   #appPanel's rendered height (see observeAppPanelHeight) so the row always
-   sits just above the panel, whatever the panel's current collapsed/expanded
-   state is. Icon badges reuse the exact same colored-CSS-mask technique as
-   the report wizard tiles (see categoryColor()/WIZ_CATEGORY_ICONS and
-   .wiz-tile-icon) — a solid color circle, glyph masked in white on top. */
+   What's left is just the status pill (color dot + count, no text label —
+   see .leg below), now floating over the bottom of the map as a single
+   horizontal row (see .legend-row) instead of sitting in normal document
+   flow above the panel. --legend-bottom-gap tracks #appPanel's rendered
+   height (see initAppPanelHeightTracking) so the row always sits just above
+   the panel, whatever the panel's current collapsed/expanded state is.
+   Deliberately NOT transitioned (no "bottom" animation): #appPanel's real
+   height settles through several intermediate values during page load
+   (locked-panel shown, then hidden, reportForm shown, etc.), and animating
+   every one of those would make the whole row visibly bounce up and down
+   on startup instead of just landing once it's settled. Icon badges reuse
+   the exact same colored-CSS-mask technique as the report wizard tiles (see
+   categoryColor()/WIZ_CATEGORY_ICONS and .wiz-tile-icon) — a solid color
+   circle, glyph masked in white on top. */
 .legend-row{
   position:fixed;
   left:0; right:0;
@@ -498,7 +504,6 @@ button{
   padding:0 10px;
   z-index:410;
   pointer-events:none;
-  transition:bottom .28s ease;
 }
 .map-legend-pill{
   background:var(--floating-bg);
@@ -518,12 +523,12 @@ button{
 #mapLegend{ flex:0 1 auto; }
 .legend-item{
   display:flex; align-items:center; gap:6px;
-  padding:5px 8px;
+  padding:5px 10px;
   border-radius:10px;
   min-width:0;
 }
 .legend-badge{
-  width:22px; height:22px; border-radius:50%; flex-shrink:0;
+  width:20px; height:20px; border-radius:50%; flex-shrink:0;
   box-shadow:0 1px 3px rgba(0,0,0,.25);
 }
 .legend-badge-icon{
@@ -533,19 +538,20 @@ button{
   -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
   -webkit-mask-position:center; mask-position:center;
 }
+/* Kept in the DOM (rather than deleted) purely so applyLang()'s existing
+   .leg-swap loop and the resulting title tooltip below still work — visibly
+   hidden here since #mapLegend now shows just the color dot + count, no
+   text. See the title-setting bit of applyLang() for the tooltip. */
+#mapLegend .leg{ display:none; }
 .leg{ color:var(--text-primary); font-size:12px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-/* Per-status counts next to the Reported/In progress/Fixed labels in
-   #mapLegend — e.g. "Reported (562)" shown as its own rounded pill on the
-   row's trailing edge rather than plain muted text, so it reads as a
-   distinct data point next to the label instead of a trailing afterthought. */
+/* Per-status count next to each colored dot in #mapLegend — now the ONLY
+   visible content per item (see #mapLegend .leg above), so it's sized up
+   to read as the pill's actual content rather than a trailing afterthought
+   next to a label that no longer exists. */
 .legend-count{
   color:var(--text-primary);
-  font-size:11px; font-weight:700;
-  background:var(--bg-surface-alt);
-  padding:2px 8px;
-  border-radius:20px;
-  flex-shrink:0;
-  min-width:20px;
+  font-size:14px; font-weight:800;
+  min-width:14px;
   text-align:center;
 }
 
@@ -686,9 +692,15 @@ button{
 /* Wraps every bottomright floating map button (follow/pin/driving/heatmap/
    compass/report-FAB) as a single Leaflet control — see
    BottomRightStackControl — so their visual top-to-bottom order is exactly
-   the DOM order in #bottomRightStack, with the report FAB pinned last. */
+   the DOM order in #bottomRightStack, with the report FAB pinned last.
+   margin-bottom clears the status legend pill (now floating over the
+   bottom of the map — see .legend-row) so the stack never sits underneath
+   it: --legend-clear tracks the legend pill's own rendered height (see
+   initLegendHeightTracking) plus a bit of breathing room. This stacks on
+   top of Leaflet's own default ~10px corner margin, not instead of it. */
 .bottomright-stack{
   display:flex; flex-direction:column; align-items:center; gap:10px;
+  margin-bottom:calc(var(--legend-clear, 40px) + 14px);
 }
 .pin-map-btn{
   background:var(--floating-bg);
@@ -2724,9 +2736,9 @@ span.flatpickr-weekday {
 <div class="legend-row">
 <div id="mapLegend" class="map-legend-pill">
   <span class="legend-item"><span class="legend-badge" style="background:#ff4b4b"></span>
-  <span class="leg" data-en="Reported" data-sr="Prijavljeno">Prijavljeno</span><span class="legend-count" id="legendCountReported"></span></span>
-  <span class="legend-item"><span class="legend-badge" style="background:#f5a623"></span><span class="leg" data-en="In progress" data-sr="U toku">U toku</span><span class="legend-count" id="legendCountInProgress"></span></span>
-  <span class="legend-item"><span class="legend-badge" style="background:#2ecc71"></span><span class="leg" data-en="Fixed" data-sr="Popravljeno">Popravljeno</span><span class="legend-count" id="legendCountFixed"></span></span>
+  <span class="leg" data-en="Reported" data-sr="Prijavljeno">Prijavljeno</span><span class="legend-count" id="legendCountReported">0</span></span>
+  <span class="legend-item"><span class="legend-badge" style="background:#f5a623"></span><span class="leg" data-en="In progress" data-sr="U toku">U toku</span><span class="legend-count" id="legendCountInProgress">0</span></span>
+  <span class="legend-item"><span class="legend-badge" style="background:#2ecc71"></span><span class="leg" data-en="Fixed" data-sr="Popravljeno">Popravljeno</span><span class="legend-count" id="legendCountFixed">0</span></span>
 </div>
 </div>
 
@@ -5765,7 +5777,10 @@ function applyLang(){
   }
 
   document.querySelectorAll('.leg').forEach(el=>{
-    el.textContent = el.dataset[lang] || el.dataset.en;
+    const label = el.dataset[lang] || el.dataset.en;
+    el.textContent = label;
+    const item = el.closest('.legend-item');
+    if (item) item.title = label;
   });
 
   const gm = document.getElementById('gpsModal');
@@ -13107,19 +13122,19 @@ function refreshRenderedPopups() {
   });
 }
 
-// Drives the "(562)" style counts next to Reported/In progress/Fixed in
-// #mapLegend on the main screen — moved here from a plain total in
-// Settings so the breakdown is visible at a glance while browsing the map,
-// not tucked away in a menu. Counts come from globalActiveData, so (like
-// the total this replaced) they reflect whatever the current date-range
-// filter plus always-on open reports currently include.
+// Drives the counts next to each colored dot in #mapLegend on the main
+// screen — moved here from a plain total in Settings so the breakdown is
+// visible at a glance while browsing the map, not tucked away in a menu.
+// Counts come from globalActiveData, so (like the total this replaced) they
+// reflect whatever the current date-range filter plus always-on open
+// reports currently include.
 function updateReportCount() {
   const counts = { reported: 0, in_progress: 0, fixed: 0 };
   globalActiveData.forEach(r => { if (counts.hasOwnProperty(r.status)) counts[r.status]++; });
 
   const setCount = (id, n) => {
     const el = document.getElementById(id);
-    if (el) el.textContent = ` (${n})`;
+    if (el) el.textContent = n;
   };
   setCount('legendCountReported',   counts.reported);
   setCount('legendCountInProgress', counts.in_progress);
@@ -13455,6 +13470,23 @@ function updateHeaderHeightVar() {
   sync();
   if (window.ResizeObserver) {
     new ResizeObserver(sync).observe(panel);
+  } else {
+    window.addEventListener('resize', sync);
+    window.addEventListener('orientationchange', sync);
+  }
+})();
+
+// Keeps --legend-clear in sync with #mapLegend's own rendered height, so
+// .bottomright-stack (follow/pin/driving/categoryFilter/heatmap/compass/
+// report-FAB — see its CSS comment) always clears the status legend pill
+// instead of the two visually colliding in the bottom corner of the map.
+(function initLegendHeightTracking() {
+  const legend = document.getElementById('mapLegend');
+  if (!legend) return;
+  const sync = () => document.documentElement.style.setProperty('--legend-clear', legend.offsetHeight + 'px');
+  sync();
+  if (window.ResizeObserver) {
+    new ResizeObserver(sync).observe(legend);
   } else {
     window.addEventListener('resize', sync);
     window.addEventListener('orientationchange', sync);
