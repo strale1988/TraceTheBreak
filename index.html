@@ -72,6 +72,22 @@ button, [onclick], [role="button"]{
   --warn-text: #8a6212;
   --driving-tile-base: #232323;
   --driving-tile-text: #ffffff;
+  /* Semantic status colors — canonical "success"/"danger" tones. Several
+     places used to hardcode their own slightly different green (#2e7d32,
+     #3ecf6e, #28c76f) or dark red (#7a1f1f, for destructive buttons/badges
+     needing more contrast than the base danger red) for what was really the
+     same "good"/"bad" meaning; those have been pointed at these vars instead.
+     Left untouched on purpose: the heatmap gradient stops, driving-tile
+     category tints, and tier/rank colors — those reuse red/green/amber for
+     unrelated categorical or data-viz reasons, not status duplication.
+     Kept flat (no dark-theme override) to match STATUS_COLORS/PRIORITY_COLORS
+     in JS below, which are also theme-independent — these are floating
+     status indicators (pins, badges, buttons), not text-on-surface colors,
+     so they don't need to shift with light/dark like --accent does.
+     If you change these, keep UI_COLORS in the main script in sync. */
+  --success: #2ecc71;
+  --danger: #ff4b4b;
+  --danger-strong: #7a1f1f;
 }
 html[data-theme="dark"]{
   --bg-app:#121212;
@@ -241,10 +257,10 @@ header p{ font-size:11px; opacity:.7; margin-top:2px; }
   border:1px solid var(--border-color-strong);
   margin-bottom:8px;
 }
-.notification-item.unread{ border-color:#e16e11; }
+.notification-item.unread{ border-color:var(--accent); }
 .notification-item-top{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .notification-item-sender{ font-size:11.5px; font-weight:600; color:var(--text-secondary); }
-.notification-item-dot{ width:8px; height:8px; border-radius:50%; background:#e16e11; flex-shrink:0; }
+.notification-item-dot{ width:8px; height:8px; border-radius:50%; background:var(--accent); flex-shrink:0; }
 .notification-item-message{ font-size:13px; color:var(--text-primary); white-space:pre-wrap; }
 .notification-item-meta{ font-size:10.5px; color:var(--text-muted); }
 
@@ -926,7 +942,7 @@ body.nav-panel-open .driving-nav-card{
 .toast-msg{ flex:1 1 auto; }
 .toast.toast-show{ opacity:1; transform:translateY(0) scale(1); }
 .toast.toast-error .toast-icon{ background:#ff4b4b; }
-.toast.toast-success .toast-icon{ background:#2ecc71; }
+.toast.toast-success .toast-icon{ background:var(--success); }
 
 
 .driving-left-stack{
@@ -1282,7 +1298,7 @@ body.driving-active #appPanel{
   background:#ececeb; overflow:hidden;
 }
 .profile-progress-fill{
-  height:100%; background:#e16e11; border-radius:4px;
+  height:100%; background:var(--accent); border-radius:4px;
   transition:width .25s ease; width:0%;
 }
 
@@ -1311,7 +1327,7 @@ body.driving-active #appPanel{
   align-items:center; justify-content:flex-end;
 }
 .weekly-chart-value{ font-size:11px; font-weight:800; color:var(--text-primary); margin-bottom:3px; }
-.weekly-chart-bar{ width:60%; max-width:20px; border-radius:5px 5px 2px 2px; background:#28c76f; min-height:4px; }
+.weekly-chart-bar{ width:60%; max-width:20px; border-radius:5px 5px 2px 2px; background:var(--success); min-height:4px; }
 .weekly-chart-day{ font-size:9.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.02em; margin-top:6px; }
 .dashboard-badges-title{ font-size:12px; font-weight:700; color:var(--text-secondary); text-transform:uppercase; letter-spacing:.03em; margin-top:16px; }
 .badge-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(106px,1fr)); gap:12px 6px; margin-top:8px; }
@@ -1384,7 +1400,7 @@ body.driving-active #appPanel{
   background:#ff4b4b; transition:background .2s ease, box-shadow .2s ease;
 }
 .proximity-dot.near{
-  background:#3ecf6e; box-shadow:0 0 0 3px rgba(62,207,110,.2);
+  background:var(--success); box-shadow:0 0 0 3px rgba(46,204,113,.2);
 }
 
 /* --- Report pin status pulse -------------------------------------------
@@ -1450,7 +1466,7 @@ body.driving-active #appPanel{
 
 .auth-toggle-text {
   font-size: 11px;
-  color: #e16e11;
+  color: var(--accent);
   text-align: center;
   cursor: pointer;
   text-decoration: underline;
@@ -1655,7 +1671,7 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 .popup-edit-form select:focus,
 .popup-edit-form input[type="text"]:focus{
   outline:none;
-  border-color:#e16e11;
+  border-color:var(--accent);
   background:#fff !important;
 }
 
@@ -1683,7 +1699,7 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   touch-action:manipulation;
 }
 .status-action-btn.progress-btn{ background:#f5a623; }
-.status-action-btn.fixed-btn{ background:#2ecc71; }
+.status-action-btn.fixed-btn{ background:var(--success); }
 .status-action-btn:disabled{ opacity:.4; cursor:not-allowed; }
 
 .vote-progress-row{
@@ -1899,7 +1915,7 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   -webkit-tap-highlight-color:transparent;
 }
 .detail-edit-btn{ background:var(--bg-surface-alt); color:var(--text-primary); border:1px solid var(--border-color-strong); }
-.detail-delete-btn{ background:#7a1f1f; color:#fff; }
+.detail-delete-btn{ background:var(--danger-strong); color:#fff; }
 .detail-edit-field{ display:flex; flex-direction:column; gap:3px; margin-bottom:8px; }
 .detail-edit-field:last-of-type{ margin-bottom:0; }
 .detail-edit-field-label{
@@ -2005,7 +2021,7 @@ details[open] > summary .uc-group-chevron{ transform:rotate(180deg); /* point do
 .uc-country-count{ font-weight:400; font-size:11px; color:var(--text-muted); margin-left:auto; }
 .uc-muni-add-btn{
   flex-shrink:0; width:24px; height:24px; line-height:22px; padding:0;
-  border-radius:50%; border:none; background:#e16e11; color:#fff;
+  border-radius:50%; border:none; background:var(--accent); color:#fff;
   font-size:15px; font-weight:700; cursor:pointer;
 }
 .uc-form{
@@ -2036,11 +2052,11 @@ details[open] > summary .uc-group-chevron{ transform:rotate(180deg); /* point do
 .uc-verify-status{
   font-size:11.5px; font-weight:600; text-align:center; padding:2px 0;
 }
-.uc-verify-status.is-verified{ color:#2e7d32; }
+.uc-verify-status.is-verified{ color:var(--success); }
 .uc-verify-status.is-unverified{ color:var(--text-muted); }
 .uc-verified-chip{
   font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.2px;
-  padding:2px 6px; border-radius:10px; color:#fff; background:#2e7d32;
+  padding:2px 6px; border-radius:10px; color:#fff; background:var(--success);
 }
 .uc-unverified-chip{
   font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.2px;
@@ -2068,8 +2084,8 @@ details[open] > summary .uc-group-chevron{ transform:rotate(180deg); /* point do
   font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.2px;
   padding:2px 6px; border-radius:10px; color:#fff; margin-left:6px; vertical-align:middle;
 }
-.photo-status-badge.pending{ background:#e16e11; }
-.photo-status-badge.rejected{ background:#7a1f1f; }
+.photo-status-badge.pending{ background:var(--accent); }
+.photo-status-badge.rejected{ background:var(--danger-strong); }
 
 .photo-review-card, .flagged-report-card{
   display:flex; align-items:center; gap:10px; padding:10px; border-radius:8px;
@@ -2195,8 +2211,8 @@ span.flatpickr-weekday {
 .flatpickr-day.selected:hover,
 .flatpickr-day.startRange:hover,
 .flatpickr-day.endRange:hover {
-  background: #e16e11 !important;
-  border-color: #e16e11 !important;
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
   color: white !important;
 }
 .flatpickr-day.inRange,
@@ -2205,7 +2221,7 @@ span.flatpickr-weekday {
 .flatpickr-day.today.inRange,
 .flatpickr-day.prevMonthDay.today.inRange,
 .flatpickr-day.nextMonthDay.today.inRange {
-  background: #e16e11 !important;
+  background: var(--accent) !important;
   border-color: transparent !important;
   border-radius: 0 !important;
 }
@@ -2242,7 +2258,7 @@ span.flatpickr-weekday {
   <span class="legend-item" id="legendItemReported" data-status="reported" onclick="onStatusFilterToggle('reported')"><span class="legend-badge" style="background:#ff4b4b"></span>
   <span class="leg" data-en="Reported" data-sr="Prijavljeno">Prijavljeno</span><span class="legend-count" id="legendCountReported">0</span></span>
   <span class="legend-item" id="legendItemInProgress" data-status="in_progress" onclick="onStatusFilterToggle('in_progress')"><span class="legend-badge" style="background:#f5a623"></span><span class="leg" data-en="In progress" data-sr="U toku">U toku</span><span class="legend-count" id="legendCountInProgress">0</span></span>
-  <span class="legend-item" id="legendItemFixed" data-status="fixed" onclick="onStatusFilterToggle('fixed')"><span class="legend-badge" style="background:#2ecc71"></span><span class="leg" data-en="Fixed" data-sr="Popravljeno">Popravljeno</span><span class="legend-count" id="legendCountFixed">0</span></span>
+  <span class="legend-item" id="legendItemFixed" data-status="fixed" onclick="onStatusFilterToggle('fixed')"><span class="legend-badge" style="background:var(--success)"></span><span class="leg" data-en="Fixed" data-sr="Popravljeno">Popravljeno</span><span class="legend-count" id="legendCountFixed">0</span></span>
 </div>
 </div>
 
@@ -2570,7 +2586,7 @@ span.flatpickr-weekday {
         <textarea id="ucNotes" placeholder="Notes (optional)"></textarea>
         <div class="uc-form-row">
           <button type="button" class="settings-btn" style="flex:1;" onclick="cancelUcForm()" id="ucCancelBtn">Cancel</button>
-          <button type="button" style="background:#e16e11;color:white;flex:1;" onclick="saveUtilityCompany()" id="ucSaveBtn">Save</button>
+          <button type="button" style="background:var(--accent);color:white;flex:1;" onclick="saveUtilityCompany()" id="ucSaveBtn">Save</button>
         </div>
         <div class="uc-verify-status" id="ucVerifyStatus"></div>
         <button type="button" class="uc-verify-btn" onclick="verifyUtilityCompany()" id="ucVerifyBtn">Admin has checked the data</button>
@@ -2709,7 +2725,7 @@ span.flatpickr-weekday {
         <div id="notificationUsernameResults" class="navigate-results"></div>
       </div>
       <textarea id="notificationMessageInput" placeholder="Message" rows="3" style="width:100%;box-sizing:border-box;margin-top:8px;resize:vertical;"></textarea>
-      <button type="button" class="settings-btn" style="background:#e16e11;color:#fff;width:100%;margin-top:8px;" onclick="sendNotificationFromAdmin()" id="notificationSendBtn">Send</button>
+      <button type="button" class="settings-btn" style="background:var(--accent);color:#fff;width:100%;margin-top:8px;" onclick="sendNotificationFromAdmin()" id="notificationSendBtn">Send</button>
     </div>
 
     <div class="admin-section-title detail-section-title" id="notificationWaitingListSectionTitle" style="display:none;margin-top:18px;">Waiting for review</div>
@@ -6796,7 +6812,7 @@ function updateProximityUi() {
 
   const hasGps = !!userCoords;
   const near = hasGps && distMeters(userCoords, manualCoords) <= REPORT_PROXIMITY_MAX_M;
-  const color = near ? '#3ecf6e' : '#ff4b4b';
+  const color = near ? UI_COLORS.success : UI_COLORS.danger;
 
   if (hasGps) {
     if (!proximityCircle) {
@@ -6999,6 +7015,16 @@ const STATUS_COLORS = {
   'reported':    '#ff4b4b',
   'in_progress': '#f5a623',
   'fixed':       '#2ecc71',
+};
+// Generic success/danger colors for UI that isn't literally a report status
+// (proximity indicator, admin approve/reject actions, etc) but used to reach
+// for its own one-off green/red shade. Kept equal to STATUS_COLORS.fixed/
+// reported and to --success/--danger/--danger-strong in :root above — if you
+// change one, change all three.
+const UI_COLORS = {
+  success: '#2ecc71',
+  danger: '#ff4b4b',
+  dangerStrong: '#7a1f1f',
 };
 const PRIORITY_COLORS = {
   'low':    '#8a8a86',
@@ -8705,7 +8731,7 @@ function renderWaitingListInto(containerId) {
   listEl.innerHTML = filtered.map(item => {
     const r = item.report;
     const badgesHtml = item.reasons.map(reason =>
-      `<span class="photo-status-badge" style="background:#e16e11;">${escapeHtml(t(WAITING_REASON_LABEL[reason]))}</span>`).join(' ');
+      `<span class="photo-status-badge" style="background:var(--accent);">${escapeHtml(t(WAITING_REASON_LABEL[reason]))}</span>`).join(' ');
     const historyHtml = item.flags.length ? `
         <div class="report-flag-history">
           <div class="report-flag-history-meta">${t('reportFlagsHistoryLabel')} (${item.flags.length})</div>
@@ -8719,11 +8745,11 @@ function renderWaitingListInto(containerId) {
       ? `<div class="photo-review-thumb" id="photo-review-thumb-${containerId}-${r.id}"><div class="detail-loading">${t('detailLoading')}</div></div>` : '';
     const actionsHtml = [
       `<button type="button" class="settings-btn" onclick="viewReportFromAdminQueue('${r.id}')">${t('detailsBtn')}</button>`,
-      item.reasons.includes('photo') ? `<button type="button" style="background:#2e7d32;color:#fff;" onclick="approveReportPhoto('${r.id}')">${t('photoApproveBtn')}</button>` : '',
-      item.reasons.includes('photo') ? `<button type="button" style="background:#7a1f1f;color:#fff;" onclick="rejectReportPhoto('${r.id}')">${t('photoRejectBtn')}</button>` : '',
+      item.reasons.includes('photo') ? `<button type="button" style="background:${UI_COLORS.success};color:#fff;" onclick="approveReportPhoto('${r.id}')">${t('photoApproveBtn')}</button>` : '',
+      item.reasons.includes('photo') ? `<button type="button" style="background:${UI_COLORS.dangerStrong};color:#fff;" onclick="rejectReportPhoto('${r.id}')">${t('photoRejectBtn')}</button>` : '',
       item.reasons.includes('rejected_photo') ? `<button type="button" class="settings-btn" onclick="clearReportFlag('${r.id}')">${t('flagClearBtn')}</button>` : '',
-      item.reasons.includes('user_flag') ? `<button type="button" style="background:#2e7d32;color:#fff;" onclick="resolveReportFlags('${r.id}')">${t('reportFlagResolveBtn')}</button>` : '',
-      `<button type="button" style="background:#7a1f1f;color:#fff;" onclick="deleteReport('${r.id}')">${t('deleteBtn')}</button>`
+      item.reasons.includes('user_flag') ? `<button type="button" style="background:${UI_COLORS.success};color:#fff;" onclick="resolveReportFlags('${r.id}')">${t('reportFlagResolveBtn')}</button>` : '',
+      `<button type="button" style="background:${UI_COLORS.dangerStrong};color:#fff;" onclick="deleteReport('${r.id}')">${t('deleteBtn')}</button>`
     ].filter(Boolean).join('');
     return `
     <div class="flagged-report-card">
@@ -9003,8 +9029,8 @@ function renderUcList() {
               '<div class="uc-item-name">' + escapeHtml(c.name) + '</div>' +
             '</div>' +
             '<div class="uc-item-actions">' +
-              '<button type="button" style="background:#ececeb;color:#1a1a1a;" onclick="editUtilityCompany(\'' + c.id + '\')">' + t('editBtn') + '</button>' +
-              '<button type="button" style="background:#7a1f1f;color:#fff;" onclick="deleteUtilityCompany(\'' + c.id + '\')">' + t('deleteBtn') + '</button>' +
+              '<button type="button" style="background:var(--bg-surface-alt);color:var(--text-primary);" onclick="editUtilityCompany(\'' + c.id + '\')">' + t('editBtn') + '</button>' +
+              '<button type="button" style="background:var(--danger-strong);color:#fff;" onclick="deleteUtilityCompany(\'' + c.id + '\')">' + t('deleteBtn') + '</button>' +
             '</div>' +
           '</div>' +
           '<div class="uc-item-cats">' + verifiedChip + catsHtml + '</div>' +
@@ -9572,7 +9598,7 @@ function showFlagReportForm(reportId) {
       <textarea id="flagReportReason" placeholder="${t('flagReportPH')}"></textarea>
       <div class="flag-report-form-row">
         <button type="button" class="settings-btn" style="flex:1;" onclick="renderReportFlagSection('${reportId}', null)">${t('flagReportCancelBtn')}</button>
-        <button type="button" style="background:#e16e11;color:white;flex:1;" onclick="submitReportFlag('${reportId}')" id="flagReportSubmitBtn">${t('flagReportSubmitBtn')}</button>
+        <button type="button" style="background:var(--accent);color:white;flex:1;" onclick="submitReportFlag('${reportId}')" id="flagReportSubmitBtn">${t('flagReportSubmitBtn')}</button>
       </div>
     </div>`;
   const reasonEl = document.getElementById('flagReportReason');
@@ -9934,7 +9960,7 @@ function buildNoteEditPopupHtml(report) {
         <input type="text" id="edit-note-${uid}" value="${escapeHtml(report.comment || '')}" placeholder="${t('commentPH')}">
       </div>
       <div class="status-action-row" style="padding:2px 0 0 0;border-top:none;">
-        <button class="status-action-btn" style="background:#e16e11;" onclick="saveOwnerNote('${uid}')">${t('saveBtn')}</button>
+        <button class="status-action-btn" style="background:var(--accent);" onclick="saveOwnerNote('${uid}')">${t('saveBtn')}</button>
         <button class="status-action-btn" style="background:#3a3a3a;" onclick="cancelEdit('${uid}')">${t('cancelBtn')}</button>
       </div>
     </div>
