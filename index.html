@@ -183,6 +183,14 @@ button, [onclick], [role="button"]{
   --warn-bg: #fdf1da;
   --warn-border: #a67817;
   --warn-text: #8a6212;
+  /* Quick-report tiles (driving mode): deliberately the *inverse* surface
+     of the current theme rather than following it — a dark tile reads as
+     an obvious tappable button against the light floating sheet, the way
+     the pale/washed-out same-as-theme tint used to blend in and get missed
+     mid-drive. Dark theme flips this the other way (light tile on dark
+     sheet) for the same reason. */
+  --driving-tile-base: #232323;
+  --driving-tile-text: #ffffff;
 }
 html[data-theme="dark"]{
   --bg-app:#121212;
@@ -208,6 +216,8 @@ html[data-theme="dark"]{
   --warn-bg: #2a2308;
   --warn-border: #a67817;
   --warn-text: #f5c518;
+  --driving-tile-base: #ececea;
+  --driving-tile-text: #1a1a1a;
 }
 .leaflet-tile-pane{ filter:var(--map-tile-filter); }
 /* markerZoomAnimation:false (see the map init below) makes Leaflet leave
@@ -985,7 +995,10 @@ body.driving-active .report-fab-btn{ display:none !important; }
 .navigate-panel{
   display:none;
   position:fixed;
-  top:calc(12px + env(safe-area-inset-top, 0px));
+  /* Anchored below the always-visible header (like .driving-left-stack)
+     instead of the raw safe-area inset — otherwise it rendered underneath
+     the header bar rather than below it. */
+  top:calc(var(--header-h, 64px) + 12px);
   left:12px;
   right:12px;
   max-width:420px;
@@ -1375,7 +1388,7 @@ body.driving-active .driving-speed-widget{ display:flex; }
      semi-transparent fill now. */
   background:var(--floating-bg);
   border:1px solid var(--floating-border);
-  border-radius:10px;
+  border-radius:12px; /* matches .navigate-panel / .driving-nav-card */
   padding:8px 12px;
   box-shadow:0 3px 12px var(--floating-shadow);
   position:fixed;
@@ -1384,8 +1397,15 @@ body.driving-active .driving-speed-widget{ display:flex; }
   width:auto;
   z-index:2650; /* sits above the quick-report sheet (2550) */
   bottom:calc(var(--driving-sheet-height, 220px) + 12px + env(safe-area-inset-bottom, 0px));
+  /* Hidden by default and speed-aware faded in/out by JS (see
+     updateTurnByTurnDisplay / showTurnByTurnCard / fadeOutTurnByTurnCard) —
+     opacity is what animates, display is just flipped between none/flex by
+     JS so the fade has something to transition from/to. */
+  opacity:0;
+  transition:opacity .35s ease;
 }
 body.driving-active .turn-by-turn-card{ display:flex; }
+.turn-by-turn-card.tbt-visible{ opacity:1; }
 .turn-by-turn-icon{ width:40px; height:40px; flex-shrink:0; object-fit:contain; }
 .turn-by-turn-info{ display:flex; flex-direction:column; gap:1px; min-width:0; }
 .turn-by-turn-dist{ font-size:16px; font-weight:800; color:var(--nav-accent); line-height:1.1; }
@@ -1457,6 +1477,10 @@ body.driving-active .turn-by-turn-card{ display:flex; }
   border-bottom:1px solid var(--floating-border);
   padding:10px 16px;
   box-shadow:0 3px 12px var(--floating-shadow);
+  /* Sits flush against the header above it, so only the bottom corners can
+     round without leaving a gap — matches the 12px radius used on the
+     other floating HUD bars (.navigate-panel, .turn-by-turn-card). */
+  border-radius:0 0 12px 12px;
 }
 /* The destination header takes the strip right under the (always-visible)
    header, so the speed pill moves down out of its way while it's showing.
@@ -1532,17 +1556,17 @@ body.driving-active .driving-report-sheet{ display:flex; }
 .driving-tile{
   flex:1;
   min-width:0;
-  background:#232323;
-  border:1px solid #3a3a3a;
+  background:var(--driving-tile-base);
+  border:2px solid var(--border-color-strong); /* thicker than a hairline so the tap target reads as a button, not a label */
   border-radius:12px;
-  color:white;
+  color:var(--driving-tile-text);
   padding:13px 2px;
   display:flex;
   flex-direction:column;
   align-items:center;
   justify-content:center;
   cursor:pointer;
-  transition:background .15s, transform .1s;
+  transition:background .15s, border-color .15s, transform .1s;
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
 }
@@ -1553,18 +1577,34 @@ body.driving-active .driving-report-sheet{ display:flex; }
 .driving-tile .icon-img-tile{ width:26px; height:26px; }
 .driving-tile:active{ transform:scale(.96); }
 
-/* Distinct tint per report type — with the text labels gone, color is
-   what tells the five tiles apart quickly while driving. */
-.driving-tile.tile-pothole{  background:rgba(231,76,60,.22);  border-color:rgba(231,76,60,.6); }
-.driving-tile.tile-cracked{  background:rgba(230,126,34,.22); border-color:rgba(230,126,34,.6); }
-.driving-tile.tile-signage{  background:rgba(241,196,15,.22); border-color:rgba(241,196,15,.6); }
-.driving-tile.tile-flooding{ background:rgba(52,152,219,.22); border-color:rgba(52,152,219,.6); }
-.driving-tile.tile-other{    background:rgba(155,89,182,.22); border-color:rgba(155,89,182,.6); }
-.driving-tile.tile-pothole:active{  background:rgba(231,76,60,.38); }
-.driving-tile.tile-cracked:active{  background:rgba(230,126,34,.38); }
-.driving-tile.tile-signage:active{  background:rgba(241,196,15,.38); }
-.driving-tile.tile-flooding:active{ background:rgba(52,152,219,.38); }
-.driving-tile.tile-other:active{    background:rgba(155,89,182,.38); }
+/* Distinct tint per report type. Blended into the inverted tile base
+   (rather than replacing it with a translucent wash over whatever's behind
+   the sheet) so every tile stays a solid, equally-legible block in both
+   themes, and a full-strength border in the same hue makes the edge of
+   each button — the actual tap target — obvious at a glance. */
+.driving-tile.tile-pothole{  background:color-mix(in srgb, var(--driving-tile-base) 65%, #e74c3c 35%); border-color:#e74c3c; }
+.driving-tile.tile-cracked{  background:color-mix(in srgb, var(--driving-tile-base) 65%, #e67e22 35%); border-color:#e67e22; }
+.driving-tile.tile-signage{  background:color-mix(in srgb, var(--driving-tile-base) 65%, #f1c40f 35%); border-color:#f1c40f; }
+.driving-tile.tile-flooding{ background:color-mix(in srgb, var(--driving-tile-base) 65%, #3498db 35%); border-color:#3498db; }
+.driving-tile.tile-other{    background:color-mix(in srgb, var(--driving-tile-base) 65%, #9b59b6 35%); border-color:#9b59b6; }
+.driving-tile.tile-pothole:active{  background:color-mix(in srgb, var(--driving-tile-base) 45%, #e74c3c 55%); }
+.driving-tile.tile-cracked:active{  background:color-mix(in srgb, var(--driving-tile-base) 45%, #e67e22 55%); }
+.driving-tile.tile-signage:active{  background:color-mix(in srgb, var(--driving-tile-base) 45%, #f1c40f 55%); }
+.driving-tile.tile-flooding:active{ background:color-mix(in srgb, var(--driving-tile-base) 45%, #3498db 55%); }
+.driving-tile.tile-other:active{    background:color-mix(in srgb, var(--driving-tile-base) 45%, #9b59b6 55%); }
+
+/* Icons tinted to match each tile's own accent color instead of the
+   uniform gray/white theme tint (--icon-tint-filter), so the icon itself —
+   not just a faint background wash — tells the five types apart. Each is
+   the standard "black glyph -> target hue" filter recipe: brightness(0)
+   forces the icon to solid black first (regardless of its source color),
+   then invert/sepia/hue-rotate/saturate shifts that black to the hex color
+   noted alongside it. */
+.driving-tile.tile-pothole  .icon-img-tile{ filter:brightness(0) saturate(100%) invert(42%) sepia(87%) saturate(1801%) hue-rotate(340deg) brightness(101%) contrast(94%); } /* #e74c3c */
+.driving-tile.tile-cracked  .icon-img-tile{ filter:brightness(0) saturate(100%) invert(56%) sepia(75%) saturate(1729%) hue-rotate(1deg) brightness(101%) contrast(93%); } /* #e67e22 */
+.driving-tile.tile-signage  .icon-img-tile{ filter:brightness(0) saturate(100%) invert(76%) sepia(59%) saturate(1073%) hue-rotate(1deg) brightness(103%) contrast(105%); } /* #f1c40f */
+.driving-tile.tile-flooding .icon-img-tile{ filter:brightness(0) saturate(100%) invert(52%) sepia(35%) saturate(1826%) hue-rotate(169deg) brightness(93%) contrast(89%); } /* #3498db */
+.driving-tile.tile-other    .icon-img-tile{ filter:brightness(0) saturate(100%) invert(37%) sepia(21%) saturate(2489%) hue-rotate(240deg) brightness(93%) contrast(90%); } /* #9b59b6 */
 .driving-section-btn{
   width:100%;
   padding:14px;
@@ -7424,6 +7464,38 @@ function updateNavInfoText(meters, seconds, approximate) {
 // navRouteSteps) is currently closest ahead of the driver.
 const TURN_ARRIVE_RADIUS_M = 25; // close enough to a maneuver point to consider it "reached"
 
+// The card is hidden by default and only fades in once the upcoming turn is
+// "close enough to matter" — where "close enough" scales with current
+// speed, so it pops up sooner at highway speed (where 300m closes in a
+// few seconds) and later while crawling in traffic (where 300m is still a
+// couple of minutes away and would just be visual clutter). Aimed at
+// roughly TBT_LEAD_SECONDS of travel time before the turn, clamped to a
+// sane range so it never pops in absurdly early or absurdly late.
+const TBT_LEAD_SECONDS = 10;   // target lead time before a turn, in seconds of travel at current speed
+const TBT_MIN_POPIN_M  = 60;   // floor, for stopped/very slow driving
+const TBT_MAX_POPIN_M  = 500;  // ceiling, so it doesn't announce a turn half a km out
+const TBT_FADE_MS      = 350;  // must match .turn-by-turn-card's CSS transition duration
+
+// Fades the card in (adds the opacity-1 class; display was already flipped
+// to 'flex' by the caller so there's something to transition from).
+function showTurnByTurnCard() {
+  const card = document.getElementById('turnByTurnCard');
+  if (!card) return;
+  card.style.display = 'flex';
+  // Next frame, so the browser registers the 'flex' display before the
+  // opacity class change — otherwise the two land in the same paint and
+  // there's nothing to animate from.
+  requestAnimationFrame(() => card.classList.add('tbt-visible'));
+}
+
+// Fades the card out without removing it from layout — used both when we
+// just passed a maneuver (about to show the next one, if it's already
+// close enough) and when hiding it for good (see hideTurnByTurnDisplay).
+function fadeOutTurnByTurnCard() {
+  const card = document.getElementById('turnByTurnCard');
+  if (card) card.classList.remove('tbt-visible');
+}
+
 // Values here are filenames inside the icons/ folder (e.g. icons/turn-left.png)
 const TURN_ICONS = {
   'sharp left':  'turn-sharp-left.png', 'left':  'turn-left.png', 'slight left':  'turn-slight-left.png',
@@ -7479,12 +7551,19 @@ function updateTurnByTurnDisplay(from) {
   if (!drivingMode) { hideTurnByTurnDisplay(); return; }
   if (!from || !navRouteSteps.length || navState === NavState.PREVIEW) { hideTurnByTurnDisplay(); return; }
 
+  const prevStepIndex = navStepIndex;
   while (
     navStepIndex < navRouteSteps.length - 1 &&
     distMeters(from, navRouteSteps[navStepIndex].location) <= TURN_ARRIVE_RADIUS_M
   ) {
     navStepIndex++;
   }
+  // We just reached/passed a maneuver point — fade the card out rather than
+  // snapping straight to the next instruction's text. If the next turn is
+  // already inside its own pop-in distance (closely-spaced maneuvers), the
+  // check below will fade it straight back in with the new instruction.
+  const justTookTurn = navStepIndex !== prevStepIndex;
+  if (justTookTurn) fadeOutTurnByTurnCard();
 
   const step = navRouteSteps[navStepIndex];
   const info = instructionForStep(step);
@@ -7494,12 +7573,28 @@ function updateTurnByTurnDisplay(from) {
   document.getElementById('turnByTurnIcon').src = 'icons/' + info.icon;
   document.getElementById('turnByTurnText').textContent = info.text;
   document.getElementById('turnByTurnDist').textContent = formatDistance(distToTurn);
-  card.style.display = 'flex';
+
+  // Speed-scaled pop-in distance: faster travel = catch the turn sooner.
+  const speedMps = (smoothedSpeedKmh || 0) / 3.6;
+  const popInDistanceM = Math.min(TBT_MAX_POPIN_M, Math.max(TBT_MIN_POPIN_M, speedMps * TBT_LEAD_SECONDS));
+
+  if (distToTurn <= popInDistanceM) {
+    showTurnByTurnCard();
+  } else if (!justTookTurn) {
+    // Not close enough yet, and we didn't just pass a maneuver (which
+    // already handled its own fade-out above) — nothing to do, stay hidden.
+  }
 }
 
 function hideTurnByTurnDisplay() {
   const card = document.getElementById('turnByTurnCard');
-  if (card) card.style.display = 'none';
+  if (!card) return;
+  card.classList.remove('tbt-visible');
+  // Let the fade-out transition play before actually pulling it out of
+  // layout, instead of cutting it off mid-fade.
+  setTimeout(() => {
+    if (!card.classList.contains('tbt-visible')) card.style.display = 'none';
+  }, TBT_FADE_MS);
 }
 
 // Keeps the turn-by-turn card's --driving-sheet-height CSS var in sync with
