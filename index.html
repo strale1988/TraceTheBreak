@@ -745,18 +745,21 @@ button{
    compass/report-FAB) as a single Leaflet control — see
    BottomRightStackControl — so their visual top-to-bottom order is exactly
    the DOM order in #bottomRightStack, with the report FAB pinned last.
-   margin-bottom clears the WHOLE floating bottom stack — #appPanel plus
-   the legend bar sitting above it — so the buttons never sit underneath
-   either: --legend-bottom-gap tracks #appPanel's own rendered height (see
-   initAppPanelHeightTracking) and --legend-row-h tracks .legend-row's own
-   full rendered height, padding included, NOT just the pills inside it
-   (see initLegendHeightTracking) — .legend-row floats bottom:var(--legend-
-   bottom-gap) above the panel, so both have to be added together to reach
-   its actual top edge. This stacks on top of Leaflet's own default ~10px
-   corner margin, not instead of it. */
+   margin-bottom clears .legend-row, the status pill bar floating over the
+   bottom of the map. Only --legend-row-h (the bar's own full rendered
+   height, padding included — see initLegendHeightTracking) is needed here:
+   #map is flex:1 in the body's flex column, so its own rendered bottom
+   edge already stops exactly where #appPanel begins, and .legend-row's
+   `bottom` offset (--legend-bottom-gap) places ITS bottom edge at that
+   same exact point — the two coincide regardless of #appPanel's current
+   height. So from the Leaflet control's perspective (anchored to #map's
+   own bottom edge), only the legend bar's own height is ever in the way;
+   adding --legend-bottom-gap on top of it here would double-count the
+   same gap and just waste extra map space. This stacks on top of
+   Leaflet's own default ~10px corner margin, not instead of it. */
 .bottomright-stack{
   display:flex; flex-direction:column; align-items:center; gap:10px;
-  margin-bottom:calc(var(--legend-bottom-gap, 0px) + var(--legend-row-h, 56px) + 14px);
+  margin-bottom:calc(var(--legend-row-h, 72px) + 16px);
 }
 .pin-map-btn{
   background:var(--floating-bg);
@@ -1201,9 +1204,9 @@ body.nav-panel-open .driving-nav-card{
   display:flex; align-items:center; justify-content:center;
 }
 .map-loading-logo{
-  width:60px; height:60px;
+  width:82px; height:82px;
   object-fit:contain;
-  border-radius:18px;
+  border-radius:24px;
 }
 .map-loading-spinner{
   position:absolute;
