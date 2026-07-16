@@ -475,55 +475,55 @@ button{
 .report-btn:disabled{ opacity:.35; cursor:not-allowed; }
 .export-btn{ background:var(--accent); color:var(--accent-contrast); width:100%; }
 
-/* --- Map legend (status + category key) ---------------------------------
-   Two cards sitting side by side right under the map: status counts on the
-   left (#mapLegend), the full category key on the right (#categoryLegend —
-   wraps into a 2-col grid so all 14 categories fit without an endless
-   single column). Icon badges reuse the exact same colored-CSS-mask
-   technique as the report wizard tiles (see categoryColor()/
-   WIZ_CATEGORY_ICONS and .wiz-tile-icon) — a solid color circle with the
-   category's own glyph masked in white on top — instead of the old flat
-   9px dot, so color AND shape both carry meaning. Status rows (no
-   per-category icon of their own) use the same size circle, just without
-   a glyph layer, so every badge in both cards reads as the same visual
-   "weight" rather than the status dots looking like an afterthought next
-   to the bigger category icons. */
+/* --- Map legend (status key) ----------------------------------------------
+   Used to be two cards under the map (status counts + the full 14-category
+   key side by side). The category key is gone from here now — it moved into
+   #categoryFilterBtn's fullscreen picker (bottomright stack, same spot the
+   heatmap's old per-category picker used to live) since it needed to be
+   interactive (show/hide categories on the map) rather than a static key.
+   What's left is just the status pill, now floating over the bottom of the
+   map as a single horizontal row (see .legend-row) instead of sitting in
+   normal document flow above the panel. --legend-bottom-gap tracks
+   #appPanel's rendered height (see observeAppPanelHeight) so the row always
+   sits just above the panel, whatever the panel's current collapsed/expanded
+   state is. Icon badges reuse the exact same colored-CSS-mask technique as
+   the report wizard tiles (see categoryColor()/WIZ_CATEGORY_ICONS and
+   .wiz-tile-icon) — a solid color circle, glyph masked in white on top. */
 .legend-row{
+  position:fixed;
+  left:0; right:0;
+  bottom:calc(var(--legend-bottom-gap, 0px) + 10px);
   display:flex;
-  align-items:flex-start;
-  gap:8px;
+  justify-content:center;
   padding:0 10px;
+  z-index:410;
+  pointer-events:none;
+  transition:bottom .28s ease;
 }
 .map-legend-pill{
   background:var(--floating-bg);
   backdrop-filter:blur(10px);
   -webkit-backdrop-filter:blur(10px);
   border-radius:16px;
-  padding:8px;
+  padding:6px;
   display:flex;
-  flex-direction:column;
+  flex-direction:row;
+  align-items:center;
   gap:2px;
-  pointer-events:none;
+  pointer-events:auto;
   border:1px solid var(--floating-border);
   box-shadow:0 4px 16px var(--floating-shadow);
-  margin-bottom:8px;
+  max-width:100%;
 }
-#mapLegend{ flex:0 0 auto; min-width:148px; }
-#categoryLegend{
-  flex:1 1 auto;
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:2px;
-}
+#mapLegend{ flex:0 1 auto; }
 .legend-item{
-  display:flex; align-items:center; gap:8px;
-  padding:5px 6px;
+  display:flex; align-items:center; gap:6px;
+  padding:5px 8px;
   border-radius:10px;
   min-width:0;
 }
-#mapLegend .legend-item{ justify-content:space-between; }
 .legend-badge{
-  width:26px; height:26px; border-radius:50%; flex-shrink:0;
+  width:22px; height:22px; border-radius:50%; flex-shrink:0;
   box-shadow:0 1px 3px rgba(0,0,0,.25);
 }
 .legend-badge-icon{
@@ -550,15 +550,25 @@ button{
 }
 
 /* Heatmap toggle button (bottomright stack, same look/size as the other
-   .pin-map-btn floating buttons). Turning it on opens #heatmapFilterModal
-   (see the fullscreen-modal-overlay block below and toggleHeatmap()) so the
-   category picker gets a real full-viewport layout instead of being
-   crammed into a tiny popover anchored to this button — on a phone that
-   popover used to render at a fixed 190px width right in the corner,
-   half off-screen-feeling and fiddly to tap. */
+   .pin-map-btn floating buttons). No longer opens a modal of its own —
+   it just swaps the pin/cluster layers for a density blob built from
+   whatever reports are currently shown on the map (globalActiveData minus
+   whatever #categoryFilterBtn has hidden — see getHeatPoints()), so the
+   heatmap and the pins it replaces always agree on what's "on the map". */
 .pin-map-btn.heatmap-btn{ position:relative; }
 .pin-map-btn.heatmap-btn.active{ background:#e74c3c; border-color:#e74c3c; }
 .pin-map-btn.heatmap-btn.active .icon-img{ filter:none; }
+
+/* Category filter button (bottomright stack). Opens #categoryFilterModal —
+   the fullscreen show/hide picker that used to be the heatmap's own
+   category filter — but now it controls which categories' PINS are shown
+   on the map at all (categoryMarkerFilter), and the heatmap just inherits
+   whatever that leaves visible. Turns "active" (filled) whenever at least
+   one category is currently hidden, same visual language as the other
+   toggle buttons, so a narrowed view is visible at a glance even with the
+   picker closed. */
+.pin-map-btn.category-filter-btn.active{ background:#5c6bc0; border-color:#5c6bc0; }
+.pin-map-btn.category-filter-btn.active .icon-img{ filter:none; }
 
 /* Signed-out lockout for account-gated floating buttons (Rankings/user,
    driving mode, heatmap — see updateAuthUI). Greyed out and inert rather
@@ -567,14 +577,14 @@ button{
    keep this a plain visual "not right now" rather than a nag). */
 .map-btn-locked{ opacity:.35; pointer-events:none; filter:grayscale(60%); }
 
-/* Rows inside #heatmapFilterModal's .fullscreen-modal-body — same visual
+/* Rows inside #categoryFilterModal's .fullscreen-modal-body — same visual
    language as .detail-row elsewhere in the app, just with a checkbox/dot
    on the left instead of a label/value pair, and taller (44px-ish) tap
    targets since this is meant to be comfortably usable one-handed. */
-.heatmap-panel-row{ display:flex; align-items:center; gap:10px; font-size:14px; color:var(--text-primary); cursor:pointer; padding:11px 2px; }
-.heatmap-panel-row:not(:last-child){ border-bottom:1px solid var(--border-color); }
-.heatmap-panel-row input{ margin:0; flex-shrink:0; width:18px; height:18px; }
-.heatmap-panel-dot{ width:11px; height:11px; border-radius:50%; display:inline-block; flex-shrink:0; }
+.cat-filter-row{ display:flex; align-items:center; gap:10px; font-size:14px; color:var(--text-primary); cursor:pointer; padding:11px 2px; }
+.cat-filter-row:not(:last-child){ border-bottom:1px solid var(--border-color); }
+.cat-filter-row input{ margin:0; flex-shrink:0; width:18px; height:18px; }
+.cat-filter-dot{ width:11px; height:11px; border-radius:50%; display:inline-block; flex-shrink:0; }
 
 .leaflet-popup-content-wrapper{
   border-radius:10px !important;
@@ -1541,8 +1551,7 @@ body.driving-active .driving-report-sheet{ display:flex; }
    navigation app. Legends, header chrome, and the filter/report panel
    are hidden so only the map, compass, and quick-report sheet remain. --- */
 body.driving-active header,
-body.driving-active #mapLegend,
-body.driving-active #categoryLegend,
+body.driving-active .legend-row,
 body.driving-active .filter-label-row,
 body.driving-active .filter-select-row,
 body.driving-active #reportFormPanel,
@@ -1550,6 +1559,7 @@ body.driving-active #lockedFormPanel,
 body.driving-active #followLocationBtn,
 body.driving-active #pinMapBtn,
 body.driving-active #drivingModeBtn,
+body.driving-active #categoryFilterBtn,
 body.driving-active #heatmapBtn,
 body.driving-active #mainMapCompass{
   display:none !important;
@@ -2718,23 +2728,6 @@ span.flatpickr-weekday {
   <span class="legend-item"><span class="legend-badge" style="background:#f5a623"></span><span class="leg" data-en="In progress" data-sr="U toku">U toku</span><span class="legend-count" id="legendCountInProgress"></span></span>
   <span class="legend-item"><span class="legend-badge" style="background:#2ecc71"></span><span class="leg" data-en="Fixed" data-sr="Popravljeno">Popravljeno</span><span class="legend-count" id="legendCountFixed"></span></span>
 </div>
-
-<div class="map-legend-pill" id="categoryLegend">
-  <span class="legend-item"><span class="legend-badge" style="background:#1e90ff"><span class="legend-badge-icon" style="-webkit-mask-image:url('icons/reports/water.png');mask-image:url('icons/reports/water.png');"></span></span><span class="leg" data-en="Water" data-sr="Voda">Voda</span></span>
-  <span class="legend-item"><span class="legend-badge" style="background:#f5c518"><span class="legend-badge-icon" style="-webkit-mask-image:url('icons/reports/electricity.png');mask-image:url('icons/reports/electricity.png');"></span></span><span class="leg" data-en="Electricity" data-sr="Struja">Struja</span></span>
-  <span class="legend-item"><span class="legend-badge" style="background:#8b4513"><span class="legend-badge-icon" style="-webkit-mask-image:url('icons/reports/sewage.png');mask-image:url('icons/reports/sewage.png');"></span></span><span class="leg" data-en="Sewage" data-sr="Kanalizacija">Kanalizacija</span></span>
-  <span class="legend-item"><span class="legend-badge" style="background:#ff6b35"><span class="legend-badge-icon" style="-webkit-mask-image:url('icons/reports/gas.png');mask-image:url('icons/reports/gas.png');"></span></span><span class="leg" data-en="Gas" data-sr="Gas">Gas</span></span>
-  <span class="legend-item"><span class="legend-badge" style="background:#b71c1c"><span class="legend-badge-icon" style="-webkit-mask-image:url('icons/reports/heating.png');mask-image:url('icons/reports/heating.png');"></span></span><span class="leg" data-en="Heating" data-sr="Grejanje">Grejanje</span></span>
-  <span class="legend-item"><span class="legend-badge" style="background:#6b6b6b"><span class="legend-badge-icon" style="-webkit-mask-image:url('icons/reports/road.png');mask-image:url('icons/reports/road.png');"></span></span><span class="leg" data-en="Road" data-sr="Put">Put</span></span>
-  <span class="legend-item"><span class="legend-badge" style="background:#c9a227"><span class="legend-badge-icon" style="-webkit-mask-image:url('icons/reports/streetlight.png');mask-image:url('icons/reports/streetlight.png');"></span></span><span class="leg" data-en="Streetlight" data-sr="Ulična rasveta">Ulična rasveta</span></span>
-  <span class="legend-item"><span class="legend-badge" style="background:#6d8b3a"><span class="legend-badge-icon" style="-webkit-mask-image:url('icons/reports/waste.png');mask-image:url('icons/reports/waste.png');"></span></span><span class="leg" data-en="Waste" data-sr="Otpad">Otpad</span></span>
-  <span class="legend-item"><span class="legend-badge" style="background:#9c8570"><span class="legend-badge-icon" style="-webkit-mask-image:url('icons/reports/walkways.png');mask-image:url('icons/reports/walkways.png');"></span></span><span class="leg" data-en="Walkways" data-sr="Pešačke staze">Pešačke staze</span></span>
-  <span class="legend-item"><span class="legend-badge" style="background:#14b8a6"><span class="legend-badge-icon" style="-webkit-mask-image:url('icons/reports/bike_lanes.png');mask-image:url('icons/reports/bike_lanes.png');"></span></span><span class="leg" data-en="Bike Lanes" data-sr="Biciklističke staze">Biciklističke staze</span></span>
-  <span class="legend-item"><span class="legend-badge" style="background:#3fa34d"><span class="legend-badge-icon" style="-webkit-mask-image:url('icons/reports/green_spaces.png');mask-image:url('icons/reports/green_spaces.png');"></span></span><span class="leg" data-en="Green Spaces" data-sr="Zelene površine">Zelene površine</span></span>
-  <span class="legend-item"><span class="legend-badge" style="background:#5c6bc0"><span class="legend-badge-icon" style="-webkit-mask-image:url('icons/reports/parking.png');mask-image:url('icons/reports/parking.png');"></span></span><span class="leg" data-en="Frequent Parking Violations" data-sr="Često Nepropisno parkiranje">Često Nepropisno parkiranje</span></span>
-  <span class="legend-item"><span class="legend-badge" style="background:#26a69a"><span class="legend-badge-icon" style="-webkit-mask-image:url('icons/reports/ui_suggestion.png');mask-image:url('icons/reports/ui_suggestion.png');"></span></span><span class="leg" data-en="Suggest an Improvement" data-sr="Predlog za poboljšanje">Predlog za poboljšanje</span></span>
-  <span class="legend-item"><span class="legend-badge" style="background:#8342a1"><span class="legend-badge-icon" style="-webkit-mask-image:url('icons/reports/ui_other.png');mask-image:url('icons/reports/ui_other.png');"></span></span><span class="leg" data-en="Other" data-sr="Ostalo">Ostalo</span></span>
-</div>
 </div>
 
 <div id="appPanel" class="app-panel">
@@ -2895,13 +2888,23 @@ span.flatpickr-weekday {
   <div id="followLocationBtn" class="pin-map-btn" style="display:none" title="Follow my location" onclick="toggleFollowMode()"><img class="icon-img" src="icons/target.png" alt="Recenter"></div>
   <div id="pinMapBtn" class="pin-map-btn" style="display:none" title="Set location manually" onclick="togglePinMode()"><img class="icon-img" src="icons/pin.png" alt="Pin"></div>
   <div id="drivingModeBtn" class="pin-map-btn" style="display:none" title="Driving mode" onclick="toggleDrivingMode()"><img class="icon-img" src="icons/car.png" alt="Driving mode"></div>
+  <!-- Category filter: opens #categoryFilterModal (grouped with the app's
+       other fullscreen modals) so a person can show/hide individual report
+       categories on the map — potholes live under Road, broken lights under
+       Streetlight, water leaks under Water, trash under Waste, etc. Not
+       account-gated (unlike the buttons above/below it — see updateAuthUI),
+       since narrowing what you're looking at is basic map browsing, not an
+       account feature. See toggleCategoryFilterModal()/categoryMarkerFilter
+       near syncMarkers. -->
+  <div id="categoryFilterBtn" class="pin-map-btn category-filter-btn" style="display:none" title="Filter categories" onclick="toggleCategoryFilterModal()">
+    <img class="icon-img" src="icons/category-filter.png" alt="Categories">
+  </div>
   <!-- Heatmap toggle: swaps the pin/cluster layers for a density blob built
-       from globalActiveData (see toggleHeatmap/buildHeatLayer near
-       syncMarkers). Turning it on also opens #heatmapFilterModal (below,
-       grouped with the app's other fullscreen modals) so a person can narrow
-       the heatmap down to just the categories they care about (potholes live
-       under Road, broken lights under Streetlight, water leaks under Water,
-       trash under Waste, etc.) — same category set/colors as #categoryLegend. -->
+       from whatever reports are currently shown on the map — i.e.
+       globalActiveData minus anything #categoryFilterBtn has hidden (see
+       toggleHeatmap/buildHeatLayer/getHeatPoints near syncMarkers). No
+       picker of its own anymore; it just inherits the category filter
+       above, so heatmap and pins always agree on what's visible. -->
   <div id="heatmapBtn" class="pin-map-btn heatmap-btn" style="display:none" title="Heatmap" onclick="toggleHeatmap()">
     <img class="icon-img" src="icons/heatmap.png" alt="Heatmap">
   </div>
@@ -3367,28 +3370,30 @@ span.flatpickr-weekday {
 
 </div>
 
-<!-- Heatmap category filter: fullscreen modal (see the .heatmap-panel-row /
-     heatmap-btn CSS comments above for why this replaced a tiny anchored
-     popover). Opened by toggleHeatmap() when heatmap mode turns on, closed
-     either via the X here or by toggling heatmap mode back off — either way
-     the filter selection itself (heatmapCategoryFilter) persists across
-     opens, same as before. -->
-<div id="heatmapFilterModal" class="fullscreen-modal-overlay" style="display:none">
+<!-- Category filter: fullscreen modal (see the .cat-filter-row /
+     category-filter-btn CSS comments above for why this is a full-viewport
+     picker instead of a tiny anchored popover). Opened by
+     #categoryFilterBtn (bottomright stack). Controls categoryMarkerFilter,
+     which both syncMarkers() (pins) and getHeatPoints() (heatmap) read, so
+     hiding a category here hides it everywhere on the map at once. Closing
+     the modal (the X) just dismisses the picker — the filter itself
+     persists across opens. -->
+<div id="categoryFilterModal" class="fullscreen-modal-overlay" style="display:none">
   <div class="fullscreen-modal-header">
-    <h2 id="heatmapPanelTitle">Show on heatmap</h2>
-    <button class="fullscreen-modal-close" onclick="hideHeatmapFilterModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
+    <h2 id="categoryFilterPanelTitle">Show on map</h2>
+    <button class="fullscreen-modal-close" onclick="hideCategoryFilterModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
   </div>
   <div class="fullscreen-modal-body">
-    <!-- One continuous card so the row separators (.heatmap-panel-row's
+    <!-- One continuous card so the row separators (.cat-filter-row's
          :not(:last-child) border) read as a single list — "All categories"
          is just row zero, not a separate group above it. -->
     <div class="detail-section" style="overflow:hidden;">
-      <label class="heatmap-panel-row">
-        <input type="checkbox" id="heatmapCatAll" checked onchange="onHeatmapAllToggle(this.checked)">
-        <span class="heatmap-panel-dot" style="background:var(--text-muted)"></span>
-        <span id="heatmapCatAllLabel">All categories</span>
+      <label class="cat-filter-row">
+        <input type="checkbox" id="categoryFilterAll" checked onchange="onCategoryFilterAllToggle(this.checked)">
+        <span class="cat-filter-dot" style="background:var(--text-muted)"></span>
+        <span id="categoryFilterAllLabel">All categories</span>
       </label>
-      <div id="heatmapCategoryList"></div>
+      <div id="categoryFilterList"></div>
     </div>
   </div>
 </div>
@@ -5429,8 +5434,9 @@ const T = {
   badgeComingSoon:           { en:'coming soon',         sr:'uskoro' },
   badgeComingSoonShort:      { en:'Soon',                sr:'Uskoro' },
   heatmapBtnTitle:           { en:'Heatmap',             sr:'Toplotna mapa' },
-  heatmapPanelTitle:         { en:'Show on heatmap',     sr:'Prikaži na toplotnoj mapi' },
-  heatmapCatAllLabel:        { en:'All categories',      sr:'Sve kategorije' },
+  categoryFilterBtnTitle:    { en:'Filter categories',   sr:'Filtriraj kategorije' },
+  categoryFilterPanelTitle:  { en:'Show on map',         sr:'Prikaži na mapi' },
+  categoryFilterAllLabel:    { en:'All categories',      sr:'Sve kategorije' },
   dashboardStatPoints:       { en:'Civic points',        sr:'Građanski poeni' },
   dashboardStatSuccessful:   { en:'Successful votes',    sr:'Uspešni glasovi' },
   dashboardStatWeight:       { en:'Your vote weight',    sr:'Težina vašeg glasa' },
@@ -5840,11 +5846,13 @@ function applyLang(){
   if (dashWeekTitleEl) dashWeekTitleEl.textContent = t('dashboardWeekTitle');
   const heatmapBtnEl = document.getElementById('heatmapBtn');
   if (heatmapBtnEl) heatmapBtnEl.title = t('heatmapBtnTitle');
-  const heatmapPanelTitleEl = document.getElementById('heatmapPanelTitle');
-  if (heatmapPanelTitleEl) heatmapPanelTitleEl.textContent = t('heatmapPanelTitle');
-  const heatmapCatAllLabelEl = document.getElementById('heatmapCatAllLabel');
-  if (heatmapCatAllLabelEl) heatmapCatAllLabelEl.textContent = t('heatmapCatAllLabel');
-  populateHeatmapCategoryList();
+  const categoryFilterBtnEl = document.getElementById('categoryFilterBtn');
+  if (categoryFilterBtnEl) categoryFilterBtnEl.title = t('categoryFilterBtnTitle');
+  const categoryFilterPanelTitleEl = document.getElementById('categoryFilterPanelTitle');
+  if (categoryFilterPanelTitleEl) categoryFilterPanelTitleEl.textContent = t('categoryFilterPanelTitle');
+  const categoryFilterAllLabelEl = document.getElementById('categoryFilterAllLabel');
+  if (categoryFilterAllLabelEl) categoryFilterAllLabelEl.textContent = t('categoryFilterAllLabel');
+  populateCategoryFilterList();
   const adminDashTitleEl = document.getElementById('adminDashboardSectionTitle');
   if (adminDashTitleEl) adminDashTitleEl.textContent = t('adminDashboardSectionTitle');
   const adminDashTagLabel = document.getElementById('adminDashboardTagLabel');
@@ -7939,7 +7947,7 @@ function updateGpsModalText(){
   if (el('gpsModalBtn'))   el('gpsModalBtn').textContent   = t('gpsBtn');
 }
 // All modal overlays (gpsModal, helpModal, settingsModal, reportDetailModal,
-// companyDetailModal, leaderboardModal, notificationModal, heatmapFilterModal)
+// companyDetailModal, leaderboardModal, notificationModal, categoryFilterModal)
 // share one z-index tier (9999 — see the Z-INDEX SCALE at the top of
 // <style>), so when one is opened from inside another (e.g. tapping Help
 // from inside Settings, or Details on a report from inside the Notification
@@ -8453,6 +8461,7 @@ new BottomRightStackControl().addTo(map);
 document.getElementById('followLocationBtn').style.display = 'flex';
 document.getElementById('pinMapBtn').style.display = 'flex';
 document.getElementById('drivingModeBtn').style.display = 'flex';
+document.getElementById('categoryFilterBtn').style.display = 'flex';
 document.getElementById('heatmapBtn').style.display = 'flex';
 document.getElementById('mainMapCompass').style.display = 'flex';
 // reportFabBtn is intentionally NOT force-shown here — its visibility is
@@ -8742,55 +8751,96 @@ function categoryColor(cat) { return CATEGORY_COLORS[cat] || '#aaaaaa'; }
 function categoryIcon(cat)  { return CATEGORY_ICONS[cat] || CATEGORY_ICONS.Other; }
 
 // =============================================================================
-// HEATMAP — toggled by #heatmapBtn (bottomright control, see the
-// HeatmapControl registration near the other floating buttons). Swaps the
-// normal pin/cluster layers for a Leaflet.heat density layer built from
-// globalActiveData, the same dataset already driving the pins (so the
-// heatmap always matches whatever date range is currently loaded). The
-// fullscreen filter modal lets a person restrict the heatmap to specific categories
-// — e.g. just "Road" to see where the pothole reports cluster, or just
-// "Streetlight"/"Water"/"Waste" for broken lights/water leaks/trash —
-// instead of one undifferentiated blob of every report type at once.
-let heatmapActive = false;
-let heatLayer = null;
-// null = no per-category restriction (every category counts); once the
-// person unchecks anything it becomes a Set of the categories left checked.
-let heatmapCategoryFilter = null;
+// CATEGORY FILTER — controls which report categories are shown on the map
+// at all, both as pins (syncMarkers/reportInBounds) and on the heatmap
+// (getHeatPoints below). Opened via #categoryFilterBtn (bottomright
+// control). Used to be heatmap-only (heatmapCategoryFilter); now it's a
+// general map filter so a person can e.g. show just "Road" pins to see
+// where the potholes are, or hide "Suggest an Improvement"/"Other" clutter
+// while browsing — the heatmap, when turned on, just inherits whatever
+// this leaves visible instead of having its own separate picker.
+// null = no restriction (every category shown); once the person unchecks
+// anything it becomes a Set of the categories left checked.
+let categoryMarkerFilter = null;
 
-function heatmapCategoryList() { return Object.keys(CATEGORY_COLORS); }
+function categoryFilterList() { return Object.keys(CATEGORY_COLORS); }
 
-function populateHeatmapCategoryList() {
-  const el = document.getElementById('heatmapCategoryList');
+// A pin/heat-point should be hidden only if categoryMarkerFilter is active
+// AND this report's category isn't in the checked set. Reports with no
+// category (company/utility pins don't go through this) are unaffected.
+function isCategoryVisible(cat) {
+  return !categoryMarkerFilter || categoryMarkerFilter.has(cat);
+}
+
+function populateCategoryFilterList() {
+  const el = document.getElementById('categoryFilterList');
   if (!el) return;
-  el.innerHTML = heatmapCategoryList().map(cat => {
-    const checked = heatmapCategoryFilter === null || heatmapCategoryFilter.has(cat);
+  el.innerHTML = categoryFilterList().map(cat => {
+    const checked = isCategoryVisible(cat);
     return `
-    <label class="heatmap-panel-row">
-      <input type="checkbox" ${checked ? 'checked' : ''} data-cat="${cat}" onchange="onHeatmapCategoryToggle('${cat}', this.checked)">
-      <span class="heatmap-panel-dot" style="background:${categoryColor(cat)}"></span>
+    <label class="cat-filter-row">
+      <input type="checkbox" ${checked ? 'checked' : ''} data-cat="${cat}" onchange="onCategoryFilterToggle('${cat}', this.checked)">
+      <span class="cat-filter-dot" style="background:${categoryColor(cat)}"></span>
       <span>${escapeHtml(translateCategory(cat))}</span>
     </label>`;
   }).join('');
-  const allBox = document.getElementById('heatmapCatAll');
-  if (allBox) allBox.checked = heatmapCategoryFilter === null;
+  const allBox = document.getElementById('categoryFilterAll');
+  if (allBox) allBox.checked = categoryMarkerFilter === null;
 }
 
-function onHeatmapAllToggle(checked) {
-  heatmapCategoryFilter = checked ? null : new Set();
-  document.querySelectorAll('#heatmapCategoryList input[type=checkbox]').forEach(cb => { cb.checked = checked; });
+// Reflects the current filter on #categoryFilterBtn itself (filled/active
+// whenever anything is hidden) so the narrowed state is visible even with
+// the picker closed.
+function updateCategoryFilterBtnState() {
+  const btn = document.getElementById('categoryFilterBtn');
+  if (btn) btn.classList.toggle('active', categoryMarkerFilter !== null);
+}
+
+function applyCategoryFilterChange() {
+  syncMarkers(true);
   refreshHeatLayer();
+  updateCategoryFilterBtnState();
 }
 
-function onHeatmapCategoryToggle(cat, checked) {
+function onCategoryFilterAllToggle(checked) {
+  categoryMarkerFilter = checked ? null : new Set();
+  document.querySelectorAll('#categoryFilterList input[type=checkbox]').forEach(cb => { cb.checked = checked; });
+  applyCategoryFilterChange();
+}
+
+function onCategoryFilterToggle(cat, checked) {
   // Lazily materialize the filter set from "currently checked" the first
   // time any single box is touched, so unchecking one category out of an
   // "All" state doesn't have to know the full category list up front.
-  if (heatmapCategoryFilter === null) heatmapCategoryFilter = new Set(heatmapCategoryList());
-  if (checked) heatmapCategoryFilter.add(cat); else heatmapCategoryFilter.delete(cat);
-  const allBox = document.getElementById('heatmapCatAll');
-  if (allBox) allBox.checked = heatmapCategoryFilter.size === heatmapCategoryList().length;
-  refreshHeatLayer();
+  if (categoryMarkerFilter === null) categoryMarkerFilter = new Set(categoryFilterList());
+  if (checked) categoryMarkerFilter.add(cat); else categoryMarkerFilter.delete(cat);
+  const allBox = document.getElementById('categoryFilterAll');
+  if (allBox) allBox.checked = categoryMarkerFilter.size === categoryFilterList().length;
+  applyCategoryFilterChange();
 }
+
+// Opened directly by a tap on #categoryFilterBtn — unlike the old
+// heatmap-only picker, this isn't tied to any other mode turning on/off.
+function toggleCategoryFilterModal() {
+  populateCategoryFilterList();
+  const modal = document.getElementById('categoryFilterModal');
+  bringModalToFront(modal);
+  modal.style.display = 'flex';
+}
+function hideCategoryFilterModal() {
+  document.getElementById('categoryFilterModal').style.display = 'none';
+}
+
+// HEATMAP — toggled by #heatmapBtn (bottomright control, see the
+// BottomRightStackControl registration near the other floating buttons).
+// Swaps the normal pin/cluster layers for a Leaflet.heat density layer
+// built from whatever reports are currently shown on the map: the same
+// globalActiveData dataset already driving the pins, minus anything
+// #categoryFilterBtn has hidden (see getHeatPoints/isCategoryVisible) — so
+// the heatmap always matches the map's current view instead of needing its
+// own separate category picker.
+let heatmapActive = false;
+let heatLayer = null;
 
 // Point weight is intentionally uniform (every report counts the same) —
 // this is a "where do problems concentrate" view, not a severity map.
@@ -8801,7 +8851,7 @@ function onHeatmapCategoryToggle(cat, checked) {
 function getHeatPoints() {
   const pts = [];
   globalActiveData.forEach(r => {
-    if (heatmapCategoryFilter && !heatmapCategoryFilter.has(r.category)) return;
+    if (!isCategoryVisible(r.category)) return;
     if (isSectionReport(r)) {
       sanitizePath(r.path).forEach(([lat, lon]) => pts.push([lat, lon, 0.45]));
     } else if (isValidLatLng(r.latitude, r.longitude)) {
@@ -8818,8 +8868,9 @@ function buildHeatLayer() {
   });
 }
 
-// Called after any data reload (see loadPinsByWindow) so the heatmap stays
-// live even while it's the active layer; a no-op while heatmap mode is off.
+// Called after any data reload (see loadPinsByWindow) or category filter
+// change so the heatmap stays live even while it's the active layer; a
+// no-op while heatmap mode is off.
 function refreshHeatLayer() {
   if (!heatmapActive) return;
   if (heatLayer) map.removeLayer(heatLayer);
@@ -8834,28 +8885,12 @@ function toggleHeatmap() {
     if (map.hasLayer(companyMarkersLayer)) map.removeLayer(companyMarkersLayer);
     heatLayer = buildHeatLayer().addTo(map);
     btn.classList.add('active');
-    showHeatmapFilterModal();
   } else {
     if (heatLayer) { map.removeLayer(heatLayer); heatLayer = null; }
     if (!map.hasLayer(pinCluster)) map.addLayer(pinCluster);
     if (!map.hasLayer(companyMarkersLayer)) map.addLayer(companyMarkersLayer);
     btn.classList.remove('active');
-    hideHeatmapFilterModal();
   }
-}
-
-// Fullscreen category picker (see #heatmapFilterModal markup near the other
-// modals). Shown automatically whenever heatmap mode turns on. Closing it
-// (the X) leaves the heatmap layer itself running with whatever filter was
-// last set — it just dismisses the picker, it does not turn heatmap off.
-function showHeatmapFilterModal() {
-  populateHeatmapCategoryList();
-  const modal = document.getElementById('heatmapFilterModal');
-  bringModalToFront(modal);
-  modal.style.display = 'flex';
-}
-function hideHeatmapFilterModal() {
-  document.getElementById('heatmapFilterModal').style.display = 'none';
 }
 function subcategoryLabel(cat, subKey) {
   if (!subKey) return '';
@@ -13041,6 +13076,7 @@ function syncMarkers(refreshExisting) {
 
   globalActiveData.forEach(r => {
     if (!reportInBounds(r, bounds)) return;
+    if (!isCategoryVisible(r.category)) return;
     desiredIds.add(r.id);
     if (refreshExisting || !markerById.has(r.id)) upsertMarker(r);
   });
@@ -13402,6 +13438,26 @@ function updateHeaderHeightVar() {
   } else {
     window.addEventListener('resize', updateHeaderHeightVar);
     window.addEventListener('orientationchange', updateHeaderHeightVar);
+  }
+})();
+
+// Keeps --legend-bottom-gap in sync with #appPanel's real rendered height,
+// so .legend-row (the status pill, now fixed to the bottom of the screen —
+// see the "Map legend" CSS comment) always floats just above the panel
+// instead of getting buried under it. #appPanel's height changes constantly
+// (collapsing/expanding, the wizard steps, keyboard focus, etc. — see its
+// own height transition in CSS), so this uses the same ResizeObserver
+// pattern as updateHeaderHeightVar() above rather than a one-time read.
+(function initAppPanelHeightTracking() {
+  const panel = document.getElementById('appPanel');
+  if (!panel) return;
+  const sync = () => document.documentElement.style.setProperty('--legend-bottom-gap', panel.offsetHeight + 'px');
+  sync();
+  if (window.ResizeObserver) {
+    new ResizeObserver(sync).observe(panel);
+  } else {
+    window.addEventListener('resize', sync);
+    window.addEventListener('orientationchange', sync);
   }
 })();
 
