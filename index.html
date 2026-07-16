@@ -3651,11 +3651,25 @@ function updateHeaderHeightVar() {
   // change in header height (auth badge row appearing, text wrapping,
   // safe-area insets on rotation, etc.) silently resizes #map too.
   // Leaflet doesn't watch for that on its own — tell it to re-measure so
-  // the map canvas never lags behind its actual container size. `map` isn't
-  // defined yet the first time this runs (Leaflet init happens much further
-  // down) — the typeof guard just skips this line until it exists, and every
-  // later resize/orientation call (after `map` is real) picks it up as before.
-  if (typeof map !== 'undefined' && map.invalidateSize) map.invalidateSize({ animate: false, pan: false });
+  // the map canvas never lags behind its actual container size.
+  //
+  // `map` (the Leaflet instance) is declared with `const map = L.map(...)`
+  // thousands of lines further down this same script, and this function now
+  // runs for the first time at the very top, long before that line
+  // executes. A plain `typeof map !== 'undefined'` looks safe but ISN'T:
+  // for a `const`/`let` binding that's declared later in the same scope but
+  // not yet initialized (the "temporal dead zone"), even `typeof` throws a
+  // ReferenceError instead of returning 'undefined' — unlike a variable
+  // that was never declared at all. That threw synchronously on every page
+  // load the moment this moved to the top, which stopped everything below
+  // it from running (including the STARTUP block and the splash-screen
+  // safety net) — a strictly worse version of the exact bug this reordering
+  // was meant to fix. The try/catch below is what a bare `typeof` check
+  // can't do here: silently no-op until `map` is real, then behave
+  // identically to the old check on every call after that.
+  try {
+    if (typeof map !== 'undefined' && map.invalidateSize) map.invalidateSize({ animate: false, pan: false });
+  } catch (e) {}
 }
 (function initHeaderHeightTracking() {
   const header = document.querySelector('header');
