@@ -3673,8 +3673,37 @@ span.flatpickr-weekday {
 <script>
 
 // =============================================================================
-// CRITICAL LAYOUT TRACKING — deliberately the very first thing this script
-// does, before CONFIG/Supabase/Leaflet/anything else below.
+// SPLASH-SCREEN SAFETY NET — deliberately the VERY FIRST statement in this
+// entire ~10,000-line script, before even the layout-tracking block below.
+//
+// #mapLoadingOverlay is normally hidden by hideMapLoadingOverlay(), which is
+// only ever called from loadPinsByWindow().finally(...) in the STARTUP block
+// near the bottom of this same script. A single inline <script> executes its
+// top-level statements in order and simply stops at the first uncaught
+// synchronous error — so ANY earlier failure (a blocked/slow CDN, a Supabase
+// hiccup, a flaky mobile connection, or a plain bug like a TDZ access) means
+// that STARTUP block never runs, loadPinsByWindow() never fires,
+// hideMapLoadingOverlay() never gets called, and the splash (a full-viewport,
+// z-index:10001 overlay) is stuck on screen forever with no error shown to
+// the person staring at it.
+//
+// This used to sit further down, after the layout-tracking block — which
+// defeated the purpose: a synchronous throw in THAT block (as happened with
+// a temporal-dead-zone access on `map`) killed the script before this timer
+// was even registered, so the "hard ceiling" never fired. Being the literal
+// first statement means nothing that runs later in the script — no matter
+// how badly it breaks — can prevent this timer from being armed. The normal
+// path still runs too and usually wins this race (its own 500ms hold after a
+// fast/cached load resolves well under this ceiling); this only matters, and
+// only fires, when that normal path never happens.
+setTimeout(() => {
+  const el = document.getElementById('mapLoadingOverlay');
+  if (el) el.classList.add('map-loading-hidden');
+}, 8000);
+
+// =============================================================================
+// CRITICAL LAYOUT TRACKING — deliberately the second thing this script does,
+// before CONFIG/Supabase/Leaflet/anything else below.
 //
 // Why: this used to live at the bottom of this same (single, ~10,000-line)
 // <script> tag. That's fragile in a way that isn't obvious from reading it in
@@ -3707,9 +3736,17 @@ function updateHeaderHeightVar() {
   // Leaflet doesn't watch for that on its own — tell it to re-measure so
   // the map canvas never lags behind its actual container size. `map` isn't
   // defined yet the first time this runs (Leaflet init happens much further
-  // down) — the typeof guard just skips this line until it exists, and every
-  // later resize/orientation call (after `map` is real) picks it up as before.
-  if (typeof map !== 'undefined' && map.invalidateSize) map.invalidateSize({ animate: false, pan: false });
+  // down, via `const map = ...`). NOTE: a typeof guard does NOT work here —
+  // typeof only avoids a ReferenceError for a variable that's never declared
+  // anywhere in scope; `map` IS declared later in this same script (const),
+  // so it's in the temporal dead zone from the top of the script until that
+  // line runs, and `typeof map` itself throws "Cannot access 'map' before
+  // initialization" during that window. That thrown, uncaught error used to
+  // kill this entire top-level script right here — before the splash-screen
+  // safety-net timer below even got registered, so the splash never came
+  // down. try/catch is the only guard that actually survives the TDZ; every
+  // later resize/orientation call (after `map` is real) still picks it up.
+  try { if (map && map.invalidateSize) map.invalidateSize({ animate: false, pan: false }); } catch (e) { /* map still in temporal dead zone — safe to skip */ }
 }
 (function initHeaderHeightTracking() {
   const header = document.querySelector('header');
@@ -3760,26 +3797,6 @@ function updateHeaderHeightVar() {
   }
 })();
 
-// SPLASH-SCREEN SAFETY NET — #mapLoadingOverlay is only ever hidden by
-// hideMapLoadingOverlay(), which is only ever called from
-// loadPinsByWindow().finally(...) in the STARTUP block near the bottom of
-// this script (same file, same single top-level execution). That's the
-// same fragility called out above: if ANYTHING earlier in this ~10,000-line
-// script throws synchronously — a blocked/slow CDN, a Supabase hiccup, a
-// network drop mid-load — that STARTUP block never runs, loadPinsByWindow()
-// never fires, hideMapLoadingOverlay() never gets called, and the splash
-// (a full-viewport, z-index:10001 overlay) is stuck on screen forever with
-// no error shown to the person staring at it. This timer is a hard ceiling,
-// completely independent of that code path: whatever else does or doesn't
-// happen, the splash comes down on its own after a few seconds so the app
-// underneath is never permanently hidden behind a stuck loading screen.
-// The normal path still runs too and usually wins this race (its own
-// 500ms hold after a fast/cached load resolves well under this ceiling) —
-// this only matters, and only fires, when that normal path never happens.
-setTimeout(() => {
-  const el = document.getElementById('mapLoadingOverlay');
-  if (el) el.classList.add('map-loading-hidden');
-}, 8000);
 const SUPABASE_URL = 'https://fnkqmwweljsupbmerbkh.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZua3Ftd3dlbGpzdXBibWVyYmtoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3OTcwODUsImV4cCI6MjA5NzM3MzA4NX0.eX3mxnSpGmJ6Ebw7Y4F_jHiJarPH4ri9WNYXwmLi16I';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -9594,14 +9611,7 @@ function hideCategoryFilterModal() {
   closeOverlay('categoryFilterModal');
 }
 
-// HEATMAP — toggled by #heatmapBtn (bottomright control, see the
-// BottomRightStackControl registration near the other floating buttons).
-// Swaps the normal pin/cluster layers for a Leaflet.heat density layer
-// built from whatever reports are currently shown on the map: the same
-// globalActiveData dataset already driving the pins, minus anything
-// #categoryFilterBtn has hidden (see getHeatPoints/isCategoryVisible) — so
-// the heatmap always matches the map's current view instead of needing its
-// own separate category picker.
+
 let heatmapActive = false;
 let heatLayer = null;
 
@@ -9724,20 +9734,6 @@ function checkFormReady() {
   document.getElementById('reportBtn').disabled = !(category && priority && hasLoc && isAuthed && commentOk);
 }
 
-// =============================================================================
-// REPORT PHOTO EVIDENCE — capture/pick, client-side compress, upload.
-// Only wired into the full report form (reportBreak), not the one-tap
-// driving-mode tiles or section reports — those are meant to stay a single
-// glance, and a camera step would defeat that.
-//
-// Every photo is downscaled and re-encoded to JPEG client-side before
-// upload (see compressReportPhoto) — keeps storage/bandwidth sane and gives
-// every uploaded photo a consistent, predictable format regardless of what
-// the phone's camera produced. Newly uploaded photos start life as
-// 'pending' (see uploadReportPhoto) and are not shown to anyone but the
-// reporter/admins until an admin approves them from the Waiting list
-// in Settings (see loadWaitingListAdmin / approveReportPhoto / rejectReportPhoto).
-// =============================================================================
 const REPORT_PHOTO_BUCKET = 'report-photos';
 const REPORT_PHOTO_MAX_DIMENSION = 1280;        // px, longest side, after downscaling — plenty to see a pothole/leak/downed line clearly, well below what a phone camera shoots natively
 const REPORT_PHOTO_JPEG_QUALITY = 0.72;         // still visually clean at this size; the drop from 0.8 saves more here than it would at full resolution
@@ -9748,14 +9744,6 @@ const REPORT_PHOTO_EMAIL_SIGNED_URL_TTL = 60 * 60 * 24 * 7; // 7 days — an ema
 let pendingReportPhotoBlob = null;       // compressed Blob, uploaded only once the report itself is saved
 let pendingReportPhotoPreviewUrl = null; // object URL backing the on-screen thumbnail
 
-// Downscales + re-encodes a picked photo in the browser via <canvas>, so a
-// multi-MB camera original never gets uploaded as-is.
-// This re-encode is also what strips ALL metadata from the photo: EXIF data
-// (GPS coordinates, camera make/model, capture timestamp, etc.) lives in the
-// original file's binary container, not in the decoded pixel data — drawing
-// the decoded image onto a <canvas> and re-encoding via toBlob() produces a
-// brand-new JPEG with nothing but pixels in it, so none of that metadata
-// survives the round-trip. Nothing else needs to explicitly scrub it.
 function compressReportPhoto(file) {
   return new Promise((resolve, reject) => {
     if (!file.type || !file.type.startsWith('image/')) { reject(new Error('not-an-image')); return; }
@@ -9836,11 +9824,6 @@ function removePendingReportPhoto() {
   if (dropdown) dropdown.style.display = '';
 }
 
-// Uploads the already-compressed photo for a just-created report and
-// patches the row with where it landed. Called only *after* the report
-// insert itself has already succeeded, so a photo failure never costs the
-// person their report — worst case they end up with a report and no photo,
-// which we tell them about, rather than losing the whole submission.
 async function uploadReportPhoto(reportId, blob) {
   try {
     const path = `${currentSession.user.id}/${reportId}.jpg`;
@@ -9859,19 +9842,6 @@ async function uploadReportPhoto(reportId, blob) {
   }
 }
 
-// =============================================================================
-// ADD/REPLACE PHOTO LATER — the camera-icon button next to the comment (see
-// buildPopupHtml / buildDetailStatusReadonlyHtml) lets a photo be attached
-// to a report *after* it was created, not just at submission time. Every
-// photo goes through the same review path regardless of who uploads it —
-// the reporter attaching one for the first time, the reporter retrying
-// after a rejection, or an admin adding/replacing one on any report — all
-// land as photo_status: 'pending' and wait in the same admin review queue
-// (see loadWaitingListAdmin). Nobody's own upload — including an admin's —
-// is auto-approved; every image goes through the same approval process.
-// Reuses compressReportPhoto() so a later-added photo is downscaled/
-// re-encoded exactly the same way as one attached at submission.
-// =============================================================================
 async function addPhotoToReport(reportId) {
   const input = document.createElement('input');
   input.type = 'file';
@@ -9893,16 +9863,6 @@ async function addPhotoToReport(reportId) {
   input.click();
 }
 
-// Uploads/overwrites the photo on an already-existing report. Unlike
-// uploadReportPhoto() (only ever called right after a brand-new report is
-// inserted, by its own owner), this can run at any time and by someone other
-// than the report's owner — an admin replacing what the reporter originally
-// attached, or the reporter retrying after a rejection — so it also cleans
-// up whatever object used to live at the old photo_path, to avoid leaving
-// an orphaned file taking up space in the bucket once its path changes.
-// Always lands as photo_status: 'pending', no exceptions — including for an
-// admin's own upload, so every photo goes through the same review queue
-// (see loadWaitingListAdmin) rather than some being auto-approved.
 async function uploadOrReplaceReportPhoto(reportId, blob) {
   const report = globalActiveData.find(r => r.id === reportId);
   try {
@@ -9992,19 +9952,6 @@ function resetReportingForm() {
   closeReportWizard();
 }
 
-// =============================================================================
-// REPORT WIZARD — the FAB-driven step flow (category → subcategory →
-// priority → status → photo/comment) that replaced the old always-visible
-// dropdown form above. It's a UI layer only: every tile tap just sets the
-// value of the real #category/#subcategory/#priority/#comment fields
-// inside the (now permanently hidden) #reportFormPanel and calls the same
-// onCategoryChange()/checkFormReady() they always called, so reportBreak(),
-// the offline queue, and the proximity gate all needed zero changes.
-// =============================================================================
-
-// Big front-facing icons for the wizard tiles — deliberately separate from
-// CATEGORY_ICONS above, which are small monochrome glyphs tuned for map
-// pins. Filenames match icons/ exactly (see the icon-set reference).
 const WIZ_CATEGORY_ICONS = {
   Water: 'water.png', Electricity: 'electricity.png', Sewage: 'sewage.png',
   Gas: 'gas.png', Heating: 'heating.png', Road: 'road.png',
@@ -10275,33 +10222,6 @@ function wizRenderDetails(body) {
   document.getElementById('wizSubmitSlot').appendChild(document.getElementById('reportSubmitRow'));
 }
 
-// =============================================================================
-// OFFLINE REPORT QUEUE — lets a report be filed with no signal at all (the
-// common case in basements, tunnels, underground parking, etc.) by saving
-// it locally first and submitting it automatically once connectivity
-// returns, instead of just failing the submission outright.
-//
-// Storage: IndexedDB, not localStorage — a queued entry can carry an actual
-// photo Blob (already downscaled/compressed by compressReportPhoto before
-// it ever gets here), and localStorage can't hold binary data without a
-// lossy/bloated base64 round-trip and is capped far lower (~5-10MB) than
-// what a handful of queued photos could need.
-//
-// Flow:
-//   1. reportBreak() tries the normal insert first, same as always.
-//   2. Only if that insert fails in a way that looks like a connectivity
-//      problem (see isNetworkFailure) — not an RLS violation, bad data, or
-//      any other real rejection — the payload + photo blob are handed to
-//      queueOfflineReport() instead, and the person sees an "offline,
-//      saved locally" toast rather than an error.
-//   3. syncOfflineQueue() drains the queue in submission order whenever
-//      the browser's 'online' event fires, the tab regains visibility, on
-//      a slow periodic fallback timer (since 'online' isn't always
-//      reliable — a phone can report "online" the instant wifi
-//      reconnects, well before it actually has a working route to
-//      Supabase), and whenever the person taps the queue badge in the
-//      report form to retry manually.
-// =============================================================================
 const OFFLINE_DB_NAME = 'ttb_offline_queue';
 const OFFLINE_DB_VERSION = 1;
 const OFFLINE_STORE = 'pending_reports';
@@ -10398,13 +10318,6 @@ async function updateOfflineQueueBadge() {
 
 let offlineSyncInFlight = false;
 
-// Drains the offline queue in the order reports were originally filed.
-// Stops (rather than skipping ahead) the moment it hits another network
-// failure, so a still-flaky connection doesn't reorder submissions — the
-// next trigger (another 'online' event, the poll timer, or a manual tap)
-// picks up where this one left off. A non-network failure on a given
-// entry (e.g. the report's owner session no longer exists) drops just
-// that entry so one bad row can't jam the rest of the queue forever.
 async function syncOfflineQueue(manual) {
   if (offlineSyncInFlight) return;
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
@@ -10452,17 +10365,6 @@ document.addEventListener('visibilitychange', () => {
 });
 setInterval(() => syncOfflineQueue(false), OFFLINE_SYNC_POLL_MS);
 
-// Re-validates the session immediately before a write that depends on
-// auth.uid() matching owner_id (RLS: reports_insert_own). A backgrounded
-// mobile tab can miss the token auto-refresh entirely (throttled timers),
-// leaving currentSession pointing at a stale/expired JWT while the UI still
-// shows the person as signed in — the write then silently gets rejected by
-// Postgres with "42501 row-level security policy violation" because
-// auth.uid() resolves to null/mismatched for the actual request. Calling
-// sb.auth.getSession() here forces supabase-js to check expiry and refresh
-// if needed (or return null if the refresh token itself is dead), so we
-// either submit with a genuinely valid session or tell the person to sign
-// in again — instead of a confusing RLS error with no clear next step.
 async function ensureFreshSession() {
   try {
     const { data: { session }, error } = await sb.auth.getSession();
@@ -10476,12 +10378,7 @@ async function ensureFreshSession() {
     currentSession = session;
     return session;
   } catch (err) {
-    // A network failure here (e.g. filing a report with no signal at all)
-    // isn't the same thing as an actually-expired session — don't force a
-    // sign-out over it. Fall back to whatever session is already in memory
-    // so an offline report can still be queued (see queueOfflineReport
-    // below); if the token really had expired, the eventual sync attempt
-    // once back online will fail with a genuine auth error instead.
+
     if (isNetworkFailure(err) && currentSession) return currentSession;
     currentSession = null;
     updateAuthUI();
@@ -10506,12 +10403,6 @@ async function reportBreak(){
   const coords = pinMode && manualCoords ? manualCoords : userCoords;
   if (!coords) { toast(t('waitGps'), 'error'); return; }
 
-  // Non-admins, and admins dropping a pin OUTSIDE their own assigned
-  // domain, must be standing within REPORT_PROXIMITY_MAX_M of a
-  // manually-dropped pin to file against it — see updateProximityUi for
-  // the matching live ring/text feedback. An admin inside their own domain
-  // is exempt, same as before. A live-GPS report (pinMode off) never hits
-  // this: coords IS userCoords already, distance is always 0.
   const inOwnDomain = isAdmin && isMunicipalityInAdminDomain(manualPinMunicipality);
   if (!inOwnDomain && pinMode && manualCoords) {
     if (!userCoords) { toast(t('waitGps'), 'error'); return; }
@@ -10592,10 +10483,6 @@ async function reportBreak(){
     recordReportSubmission();
     resolveAndAttachMunicipality(data && data.id, lat, lon);
 
-    // Photo goes up only after the report row itself exists (its path is
-    // keyed off the report's id) and only after the insert has definitely
-    // succeeded — see uploadReportPhoto for why a photo failure here
-    // doesn't roll back or block the report.
     if (pendingReportPhotoBlob && data && data.id) {
       await uploadReportPhoto(data.id, pendingReportPhotoBlob);
     }
@@ -10608,60 +10495,14 @@ async function reportBreak(){
     toast(describeAuthError(err), 'error');
   } finally {
     reportSubmissionInFlight = false;
-    // resetReportingForm() (on success) already sets reportBtn.disabled via
-    // checkFormReady(); on failure the form still has valid data in it, so
-    // re-run checkFormReady() rather than force it back to enabled.
+
     checkFormReady();
   }
 }
 
-// =============================================================================
-// MUNICIPALITIES — administrative boundaries, resolved entirely from a local
-// Supabase-backed cache at runtime (point-in-polygon against boundaries
-// loaded once at startup). Used to (a) show a small "which municipality am
-// I in" badge, (b) tag each report with which municipality it falls in,
-// and (c) look up the right utility company contact for a report's
-// category + municipality. The boundary polygon itself is only ever used
-// for the point-in-polygon math — it's not drawn on the map (dropped that;
-// not worth the rendering cost next to the badge alone).
-//
-// Overpass is NOT queried for this anymore (see fetchMunicipalityFromNominatim
-// below for why) and Nominatim is likewise only ever called from the admin
-// "Add municipality from map center" tool (see addMunicipalityFromMapCenter /
-// fetchMunicipalityFromNominatim below), which imports a municipality's
-// boundary once and saves it to Supabase. Every other lookup — report
-// creation, opening a report, the badge — reads only from the in-memory
-// cache and never touches the network. If a point isn't covered by any
-// cached boundary yet, the lookup simply returns null; an admin needs to
-// import that municipality first via the map-center tool.
-//
-// Deliberately simplified: only OUTER rings of a boundary are used for the
-// point-in-polygon test (inner rings / holes are ignored — see
-// pointInBoundary below). For a point-in-polygon check, holes almost never
-// matter — the one edge case (a fully donut-shaped municipality) just ends
-// up including its hole, which is an acceptable trade-off against full
-// multipolygon hole-handling.
-// =============================================================================
 let municipalityCache = [];        // rows already loaded from Supabase this session
 let municipalityCacheLoaded = false;
 
-// Local persistence for the boundary cache. Boundaries are dozens of KB of
-// polygon geometry EACH, and re-downloading the entire table over the
-// network on every single page load (previous behavior) was the actual
-// source of "sometimes loads very slow" — not the point-in-polygon math,
-// which is cheap. Boundaries also basically never change once imported, so
-// a plain localStorage snapshot (no TTL) is safe here: it only ever goes
-// stale when an admin imports a new municipality, and that write path
-// (see fetchMunicipalityFromNominatim) updates this same storage key
-// immediately, so every tab picks up the addition on its next load.
-// Wrapped in try/catch throughout since localStorage can throw (private
-// browsing, quota, disabled storage) — none of that should ever block
-// municipality resolution, it should just fall back to a plain fetch.
-// Bumped to v2 because rows cached under v1 (before `slug` was added to the
-// select() below) are missing that field entirely — serving them as-is
-// would silently break every admin_municipality_id / getMunicipalityBySlug
-// lookup until the background network refresh landed. Bumping the key
-// forces every existing browser to skip straight to a fresh fetch once.
 const MUNICIPALITY_CACHE_STORAGE_KEY = 'ttb_municipality_cache_v2';
 
 function readMunicipalityCacheFromStorage() {
@@ -10681,17 +10522,6 @@ function writeMunicipalityCacheToStorage(rows) {
     // fine for this session, it just won't be instant next time.
   }
 }
-
-// Stale-while-revalidate: if a previous session already saved a local copy,
-// that copy is used immediately (near-instant, no network round trip) so
-// the map/badge/report form never sit around waiting on it, while a fresh
-// copy is still fetched in the background and swaps in once it lands. On a
-// genuinely first-ever load there's nothing local yet, so this just waits
-// on the network fetch like before.
-//
-// Call this as early as possible at startup (see STARTUP section below) —
-// don't wait for GPS or a manual pin to trigger it, so the cache is already
-// warm (or well underway) by the time either one needs it.
 let municipalityCacheLoadPromise = null;
 async function loadMunicipalityCache() {
   if (municipalityCacheLoadPromise) return municipalityCacheLoadPromise;
@@ -10710,8 +10540,6 @@ async function loadMunicipalityCache() {
       writeMunicipalityCacheToStorage(municipalityCache);
     } catch (err) {
       console.error('Failed to load municipality cache:', err.message);
-      // If a local copy was already loaded above, keep using it — only a
-      // real problem if neither the local copy nor the network came through.
     }
   })();
   return municipalityCacheLoadPromise;
@@ -10729,12 +10557,6 @@ function pointInRing(lat, lon, ring) {
   }
   return inside;
 }
-
-// Accepts our stored boundary (GeoJSON-ish Polygon or MultiPolygon, outer
-// rings only — see module comment above).
-// Tracks which municipality ids we've already warned about having an
-// empty/unusable boundary, so opening report pins in the same broken
-// municipality repeatedly doesn't spam the console — see findMunicipalityInCache.
 const _emptyBoundaryWarned = new Set();
 
 function pointInBoundary(lat, lon, boundary) {
@@ -10767,51 +10589,22 @@ function findMunicipalityInCache(lat, lon) {
       }
     }
     if (pointInBoundary(lat, lon, m.boundary)) {
-      // Prefer the most specific (highest admin_level) match if several
-      // cached boundaries happen to overlap at this point.
       if (!best || (m.admin_level || 0) > (best.admin_level || 0)) best = m;
     }
   }
   return best;
 }
 
-// Direct lookup by id — used once a report already has a municipality_id
-// stored, since that id is the source of truth and re-running the
-// point-in-polygon test every time it's opened would be redundant work
-// (and could disagree with the original assignment if boundaries changed).
 function getMunicipalityById(id) {
   if (id == null) return null;
   return municipalityCache.find(m => String(m.id) === String(id)) || null;
 }
 
-// Lookup by slug — not currently used for admin domain matching (see
-// isMunicipalityInAdminDomain, which now compares admin_municipality_id
-// against a plain municipality id via getMunicipalityById above). Kept
-// around as a general-purpose lookup in case a slug-based URL/lookup is
-// added later.
 function getMunicipalityBySlug(slug) {
   if (slug == null) return null;
   return municipalityCache.find(m => m.slug === slug) || null;
 }
 
-// =============================================================================
-// SHARED NOMINATIM REQUEST QUEUE
-// Nominatim's usage policy caps the public API at roughly 1 request/second.
-// This app has several independent features that each call it (destination
-// search, municipality boundary import, municipality name-match, utility-
-// company address geocoding, street/area lookup for the report-detail
-// modal) — each one individually reasonable, but with no coordination
-// between them a burst of activity (e.g. opening several report pins in a
-// row while a search is also in flight) can add up to well over 1 req/s
-// and trip the rate limit, anywhere in the world, not just in any one
-// region. When Nominatim does 429 a request, the response frequently comes
-// back with no CORS header at all, which the browser then misreports as a
-// CORS failure instead of a rate-limit one (see the "blocked by CORS
-// policy" + 429 pair in devtools — same underlying cause).
-// Every Nominatim call in the app now goes through nominatimFetch() below
-// instead of calling fetch() directly, so no matter how many features are
-// active at once, requests are always serialized with a safe gap between
-// them, and a 429 is retried with backoff instead of just failing.
 let _nominatimChain = Promise.resolve();
 let _nominatimLastCallAt = 0;
 const NOMINATIM_MIN_GAP_MS = 1100; // just over the 1 req/s ceiling
@@ -10837,42 +10630,12 @@ function nominatimFetch(url, options) {
     }
     return res;
   });
-  // The chain must keep moving even if this particular call ends up
-  // throwing/rejecting — otherwise one failed request would permanently
-  // wedge every Nominatim call queued after it.
   _nominatimChain = task.catch(() => {});
   return task;
 }
 
-// Reverse-geocodes a point to its enclosing municipality/administrative
-// area using Nominatim (https://nominatim.openstreetmap.org/reverse),
-// requesting polygon_geojson=1 so the exact boundary comes back in the
-// very same response — no separate geometry request, and no manual
-// way-segment stitching, needed at all.
-//
-// This replaces an earlier approach built on Overpass's is_in() statement,
-// which is what made "find the municipality at the current map center"
-// unreliable: is_in() only matches a point against Overpass's own
-// periodically-rebuilt spatial "area" index, and in practice that index
-// silently omits plenty of real, validly-tagged administrative relations
-// — for a lot of municipalities it just returned zero candidates, with no
-// error to react to, so the tool looked broken with no clue why.
-// Nominatim's reverse endpoint is purpose-built for exactly this "what
-// contains this point" question and is far more consistently populated.
-//
-// Nominatim's `zoom` parameter picks which admin level counts as "the"
-// result for a given point (see the OSM wiki's Nominatim zoom-to-address
-// -level table) — there's no single zoom that's the right municipality
-// level in every country, so this tries a short list biased toward
-// city/municipality first, then wider county/state levels, and accepts
-// the first result that's actually an administrative boundary polygon
-// rather than a point/road/building (which some zooms can return instead).
 const NOMINATIM_MUNICIPALITY_ZOOM_LEVELS = [10, 8, 12, 6];
 
-// ADMIN IMPORT TOOL ONLY — do not call this from any runtime report/viewing
-// flow. Fetches one municipality's boundary from Nominatim and upserts it
-// into Supabase so every future lookup for that area is a local cache hit.
-// Called from addMunicipalityFromMapCenter, gated behind the admin panel.
 async function fetchMunicipalityFromNominatim(lat, lon) {
   for (const zoom of NOMINATIM_MUNICIPALITY_ZOOM_LEVELS) {
     const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=${zoom}&addressdetails=1&polygon_geojson=1&${NOMINATIM_LATIN_LANG}`;
@@ -10890,22 +10653,9 @@ async function fetchMunicipalityFromNominatim(lat, lon) {
     }
     if (!json || json.error) continue;
 
-    // Only accept an actual boundary polygon — at some zooms Nominatim's
-    // best match is a point/way (an address, a road) instead, which we
-    // can't use as a municipality outline; try the next zoom level.
     const geo = json.geojson;
     if (!geo || (geo.type !== 'Polygon' && geo.type !== 'MultiPolygon')) continue;
-    // Belt-and-suspenders: Nominatim can (and, per a DB audit, routinely
-    // does for this app's data — 152 of 154 stored municipalities were
-    // affected) return a geometry with the right `type` but an EMPTY
-    // `coordinates` array — no rings at all. That used to get saved as-is:
-    // pointInBoundary() then silently treats it as "outside everywhere",
-    // permanently, for every point in that municipality, every time it's
-    // looked up — with nothing in the stored row itself signaling that
-    // anything is wrong. Reject it here and try the next zoom level
-    // instead, so an admin re-running the import actually has a chance of
-    // getting a usable polygon rather than re-persisting a fresh copy of
-    // the same broken one.
+
     const ringCount = geo.type === 'MultiPolygon'
       ? (geo.coordinates || []).reduce((n, poly) => n + (poly && poly.length ? 1 : 0), 0)
       : (geo.coordinates || []).length;
@@ -10935,12 +10685,7 @@ async function fetchMunicipalityFromNominatim(lat, lon) {
       centroid_lon: parseFloat(json.lon) || lon,
       boundary: geo,
       bbox,
-      // slug is NOT NULL with no DB-side default — omitting it here meant
-      // this insert (and even the ON CONFLICT DO UPDATE branch, since
-      // Postgres validates the row being inserted before conflict
-      // resolution kicks in) always failed for a genuinely new
-      // osm_type/osm_id pair. Only pre-existing rows that already had a
-      // slug from the original bulk import were ever safe from this.
+
       slug: generateMuniSlug()
     };
 
@@ -10961,21 +10706,6 @@ async function fetchMunicipalityFromNominatim(lat, lon) {
   return null;
 }
 
-// Runtime resolver: local cache ONLY (loaded once from Supabase, then a
-// point-in-polygon test in memory — see loadMunicipalityCache /
-// findMunicipalityInCache above). Never touches Overpass or Nominatim.
-// Returns null if no imported boundary covers this point yet; an admin
-// needs to import it first via "Add municipality from map center".
-// General-purpose resolver used for the live GPS badge and the manual-pin
-// badge/domain-check (see showMunicipalityBoundaryForPoint below): tries
-// the fast point-in-polygon lookup first, then falls back to the
-// name-match geocode for municipalities that don't have a boundary polygon
-// on file — which, per the note above, is every bulk-imported municipality
-// except the handful an admin has separately imported with a real boundary
-// via "Add municipality from map center". Without this fallback, a manual
-// pin (or an admin's own home municipality, for the admin-domain check)
-// would show "unknown" everywhere except those few imported boundaries —
-// which is exactly the symptom this fixes.
 async function resolveMunicipality(lat, lon) {
   if (!isValidLatLng(lat, lon)) return null;
   await loadMunicipalityCache();
@@ -10984,34 +10714,8 @@ async function resolveMunicipality(lat, lon) {
   return muni;
 }
 
-// --- Name-match fallback (no boundary storage required) ---------------------
-// Bulk-imported municipalities (see import_rs_municipalities.sql) carry no
-// boundary polygon at all — on purpose, to avoid pulling hundreds of KB of
-// GeoJSON per municipality into every visitor's loadMunicipalityCache().
-// So point-in-polygon can never match them. This is the alternative: a
-// single lightweight Nominatim reverse call (addressdetails only, no
-// polygon_geojson — much smaller/faster than fetchMunicipalityFromNominatim
-// above) to find out what municipality/city/town this point is *named*,
-// then match that name against municipalities we already have. It never
-// fetches geometry and never writes a new row — only ever attaches an
-// EXISTING municipality's id to a report.
-// Nominatim's default reply language follows the *local* tagging of
-// whatever OSM feature matched — for Vojvodina towns that's often Serbian
-// Cyrillic (e.g. addr.city = "Сомбор") even when a neighboring town's OSM
-// data happens to carry a Latin name tag instead (e.g. "Subotica"). That
-// inconsistency, not a real difference in behavior, is why some towns
-// resolved fine while others (Sombor) came back "Unknown" — the bulk-
-// imported municipality rows are all stored in Latin script, so a Cyrillic
-// reply could never match. Requesting `accept-language=sr-Latn,en` makes
-// Nominatim transliterate/localize its reply to Latin script consistently.
 const NOMINATIM_LATIN_LANG = 'accept-language=sr-Latn,en';
 
-// Belt-and-suspenders: even with accept-language above, a handful of OSM
-// address fields (particularly addr.county) are only ever tagged in
-// Cyrillic and aren't covered by Nominatim's localization. cyrillicToLatin()
-// (defined further down, near CYRILLIC_TO_LATIN_MAP — hoisted, so safe to
-// call from here) handles that before the diacritic-stripping pass below;
-// it's a no-op on strings that are already Latin.
 function normalizeMuniNameForMatch(s) {
   if (!s) return '';
   return cyrillicToLatin(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '')  // strip diacritics (č/ć/š/ž/đ etc.)
@@ -11020,19 +10724,6 @@ function normalizeMuniNameForMatch(s) {
     .replace(/^grad\s+/, '');                                  // Nominatim's official Serbian admin name for city-municipalities is "Grad X" (e.g. "Grad Novi Sad"), but our cache stores the bare name ("Novi Sad") — without this, an already-imported city never matches its own reverse-geocode result and gets needlessly pushed into auto-registration on every lookup.
 }
 
-// Successful lookups are cached per ~111m grid cell (3 decimal places is
-// plenty of precision for a municipality-level result) so opening several
-// pins in the same town — or the badge re-resolving as a marker nudges
-// slightly — doesn't re-hit Nominatim for something already known this
-// session. Failures are deliberately NOT cached, so a transient rate-limit
-// or network hiccup gets a clean retry next time instead of being stuck.
-// municipalities.slug is a NOT NULL column with no DB-side default or
-// trigger to fill it in — every INSERT (auto-register below, and the admin
-// "Add municipality from map center" tool further down) must supply one
-// itself or the insert fails outright, before RLS or ON CONFLICT even come
-// into play. Existing rows (e.g. Beočin) got their slug from the original
-// bulk import; this mirrors that same short random-token shape for new
-// rows created at runtime.
 function generateMuniSlug() {
   return Math.random().toString(36).slice(2, 10);
 }
@@ -11053,34 +10744,15 @@ async function reverseGeocodeMunicipalityCandidates(lat, lon) {
     const json = await res.json();
     if (!json || json.error) return { candidates: [], countryCode: null, bestName: null };
     const addr = json.address || {};
-    // Ordered to try real municipality/city-level names BEFORE
-    // city_district. Our municipalityCache is registered at
-    // municipality/city granularity (e.g. "Novi Sad"), so a sub-area like
-    // a city_district ("Sremska Kamenica", a gradska opština within Grad
-    // Novi Sad) will almost never have its own cache row. Trying it first
-    // used to mean findMunicipalityByNameMatch failed on every candidate
-    // before it (since it never got to addr.city) — that missed match then
-    // fell through to autoRegisterMunicipality, which created a brand-new,
-    // contact-less "Sremska Kamenica" municipality instead of resolving to
-    // the already-configured "Novi Sad" — so any report from that area lost
-    // its municipality/contacts even though the city itself resolves fine
-    // elsewhere in the modal (see fetchAddressForPoint's Opština field).
-    // city_district is now a fallback, tried only if nothing more
-    // municipality-level matched anything cached.
+
     const candidates = [addr.municipality, addr.city, addr.town, addr.city_district, addr.county, json.name].filter(Boolean);
-    // Separate "best name" for auto-registration (see autoRegisterMunicipality
-    // below) — deliberately skips city_district, which is usually a
-    // neighborhood/borough rather than a real municipality-level place, so
-    // an unimported town doesn't get registered under one of its districts.
+
     const bestName = addr.municipality || addr.city || addr.town || addr.county || json.name || null;
     result = {
       candidates,
       countryCode: (addr.country_code || '').toUpperCase() || null,
       bestName: bestName ? cyrillicToLatin(bestName) : null,
-      // jsonv2 always includes these at the top level (distinct from
-      // addr.*) — needed so autoRegisterMunicipality can satisfy
-      // municipalities.osm_type/osm_id (both NOT NULL) instead of nulling
-      // them out.
+
       osmType: json.osm_type || null,
       osmId: json.osm_id != null ? json.osm_id : null
     };
@@ -11092,10 +10764,6 @@ async function reverseGeocodeMunicipalityCandidates(lat, lon) {
   return result;
 }
 
-// Tracks candidate/pool mismatches we've already logged once, same pattern
-// as _adminMuniLookupWarned above, so a spot with no matching municipality
-// (e.g. a point outside Serbia entirely) doesn't spam the console every
-// time its pin/badge is viewed again.
 const _muniNameMatchWarned = new Set();
 function findMunicipalityByNameMatch(candidateNames, countryCode) {
   const pool = countryCode
@@ -11119,31 +10787,8 @@ function findMunicipalityByNameMatch(candidateNames, countryCode) {
   return null;
 }
 
-// Guards against firing two auto-registration inserts for the same place
-// at once (e.g. the municipality badge and a report-detail modal both
-// resolving the same unimported point within a few hundred ms of each
-// other) — keyed by normalized name + country so a second caller just
-// awaits the first one's in-flight insert instead of racing it.
 const _autoRegisterInFlight = new Map();
 
-// Creates a lightweight municipality row on the spot — name and centroid
-// only, no boundary polygon (that requires the heavier polygon_geojson
-// Nominatim call reserved for the admin "Add municipality from map center"
-// tool) — the first time a pin resolves to a place with no cached row.
-// This is what makes a brand-new town show its real name immediately
-// instead of "Unknown", and removes the need to hand-import every
-// municipality before its pins mean anything: the boundary/point-in-polygon
-// lookup stays empty for it, but the name-match fallback above will find
-// this row on every future lookup for the same place, and once it exists
-// an admin can attach utility contacts to it like any other municipality.
-//
-// Note this INSERT runs as whichever user triggered the lookup (not
-// necessarily an admin) — if the municipalities table's RLS only allows
-// admin writes, this will fail for regular users and fall back to a
-// session-only, unpersisted row (still shown correctly this session, just
-// not saved for next time or other users). Loosen that INSERT policy if
-// you want auto-registration to persist regardless of who triggers it
-// first.
 async function autoRegisterMunicipality(name, countryCode, lat, lon, osmType, osmId) {
   if (!name) return null;
   const key = normalizeMuniNameForMatch(name) + '|' + (countryCode || '');
@@ -11151,15 +10796,6 @@ async function autoRegisterMunicipality(name, countryCode, lat, lon, osmType, os
 
   const promise = (async () => {
     const row = {
-      // osm_type/osm_id/slug/boundary are all NOT NULL on this table with
-      // no DB-side default — this insert used to hardcode osm_type/osm_id
-      // to null and never set slug at all, which meant it failed with a
-      // not-null constraint violation on every single call, before RLS was
-      // even evaluated. osmType/osmId come from the reverse-geocode call
-      // that led here; if Nominatim's response didn't include them for
-      // some reason, fall back to a synthetic-but-non-null placeholder
-      // scoped to this name+country so it still can't collide with a real
-      // OSM way/relation id.
       osm_type: osmType || 'unknown',
       osm_id: osmId != null ? osmId : -Math.floor(Math.random() * 1e9), // real OSM ids are always positive, so a negative placeholder can never collide with one
       admin_level: null,
@@ -11168,11 +10804,6 @@ async function autoRegisterMunicipality(name, countryCode, lat, lon, osmType, os
       country_code: countryCode || null,
       centroid_lat: lat,
       centroid_lon: lon,
-      // No polygon_geojson call is made for this lightweight path (that's
-      // reserved for the heavier admin import tool) — an empty-ring
-      // Polygon is the same placeholder shape the bulk import already used
-      // for boundary-less rows, which findMunicipalityInCache already
-      // knows how to warn about and safely skip rather than crash on.
       boundary: { type: 'Polygon', coordinates: [] },
       bbox: null,
       slug: generateMuniSlug()
@@ -11184,15 +10815,6 @@ async function autoRegisterMunicipality(name, countryCode, lat, lon, osmType, os
       writeMunicipalityCacheToStorage(municipalityCache);
       return data;
     } catch (err) {
-      // Most common cause: the caller is a regular (non-admin) user and
-      // the municipalities table's RLS only allows admin writes — a report
-      // submitted by a regular user can absolutely hit this path. That
-      // used to leave `row` with no `id` field, and every downstream
-      // `muni.id == null` check (report-detail contacts, etc.) treated
-      // that exactly like "municipality unresolved", silently hiding the
-      // resolved name (and any contacts) even though the name WAS found.
-      // A session-local id keeps this row usable for this session's checks
-      // without pretending it's a real, persisted municipality row.
       console.error('Failed to auto-register municipality (showing it for this session only):', err.message);
       row.id = 'session:' + key;
       return row;
@@ -11216,29 +10838,11 @@ async function resolveMunicipalityViaGeocode(lat, lon) {
   return autoRegisterMunicipality(bestName, countryCode, lat, lon, osmType, osmId);
 }
 
-// Report-specific resolver: municipality_id, once stored on a report, is
-// the source of truth (see design note at top of file) — so this looks it
-// up directly by id instead of re-running point-in-polygon every time the
-// report is opened. Falls back to the point-in-polygon lookup, then to the
-// name-match geocode fallback above, for reports that don't have a
-// municipality_id yet (older reports created before this field existed, a
-// point not covered by any real boundary, or one of the boundary-less
-// bulk-imported municipalities) — and backfills the id onto the report once
-// found so this only ever happens the one time per report.
 async function resolveReportMunicipality(report) {
   await loadMunicipalityCache();
   if (report.municipality_id != null) {
     const stored = getMunicipalityById(report.municipality_id);
     if (stored) return stored;
-    // Stored id no longer resolves to a real cached municipality (e.g. the
-    // row was merged/deleted/renamed since it was attached to this report)
-    // — this used to just return null here and give up, permanently
-    // showing "Could not determine the municipality for this location"
-    // even though the point itself is perfectly resolvable and even
-    // though a matching contact might exist for the correct municipality.
-    // Fall through to re-resolving from scratch instead, same as a report
-    // that never had an id attached; the update below will overwrite the
-    // stale id once a fresh one is found.
   }
   let muni = findMunicipalityInCache(report.latitude, report.longitude);
   if (!muni) muni = await resolveMunicipalityViaGeocode(report.latitude, report.longitude);
@@ -11249,12 +10853,6 @@ async function resolveReportMunicipality(report) {
   return muni;
 }
 
-// Fire-and-forget: called right after a report is inserted so submission
-// itself never has to wait on this lookup (the cache hit is local/instant
-// in practice; the name-match geocode fallback below does add a real
-// network round-trip, but this is still detached from the submit flow so
-// it never blocks it). Silently does nothing if a municipality can't be
-// resolved for this point at all.
 function resolveAndAttachMunicipality(reportId, lat, lon) {
   resolveMunicipality(lat, lon).then(muni => {
     if (!muni || muni.id == null || !reportId) return;
@@ -11263,15 +10861,6 @@ function resolveAndAttachMunicipality(reportId, lat, lon) {
   }).catch(err => console.error('resolveAndAttachMunicipality error:', err.message));
 }
 
-
-// Shared renderer: draws (or clears) the boundary + floating name pill for
-// a given resolved municipality (or null). Used by both the live-location
-// point lookup below and the report-detail flow (resolveReportMunicipality).
-// The badge auto-hides 5s after it (re)appears, but the dashed boundary
-// outline on the map is left alone — it stays until the location/pin
-// changes municipality. Only one hide timer is ever live at a time so a
-// fresh resolution (new GPS fix, manual pin drop) always gets its own
-// full 5s rather than inheriting whatever was left on a previous timer.
 let municipalityLabelHideTimer = null;
 
 function showMunicipalityLabel(muni) {
@@ -11300,10 +10889,6 @@ function hideMunicipalityLabel() {
   label.style.display = 'none';
 }
 
-// Shows (or hides) just the small floating name pill for a resolved
-// municipality. Used to draw a dashed outline on the map too, but that was
-// dropped: it added real rendering cost for what turned out to be low
-// value next to the popup badge alone, so this is now just the badge.
 function renderMunicipalityBoundary(muni) {
   if (!muni) {
     hideMunicipalityLabel();
@@ -11312,40 +10897,13 @@ function renderMunicipalityBoundary(muni) {
   showMunicipalityLabel(muni);
 }
 
-// =============================================================================
-// PUBLIC UTILITY COMPANY PINS — shown on the map alongside report pins for
-// every verified company that has an address on file, regardless of which
-// municipality is currently active. Company addresses are free text
-// entered by an admin, so there's no lat/lon on file for them — each one is
-// forward-geocoded via Nominatim once at startup (see loadAllCompanyMarkers,
-// called near STARTUP below) and cached in memory so a given address is
-// never re-geocoded twice in the same session.
-// =============================================================================
 const companyGeocodeCache = {}; // "query|countrycode" -> {lat,lon} | null
 
-// Utility companies as rendered into contact rows (map popup or the detail
-// modal's contacts list) keyed by id, so a click on the address — which can
-// only carry a short id through an onclick="" attribute, not an arbitrary
-// string full of quotes/diacritics — can look the full row back up.
 const utilityCompanyRegistry = new Map();
 
 function buildCompanyMarkerHtml() {
-  // Same circle-plus-centered-glyph structure as a report pin
-  // (buildPinIconHtml) — a fixed green circle (see .company-marker-icon-wrap)
-  // with the public.png glyph masked white on top, so it reads as "the same
-  // family of POI as a report pin" rather than a whole different marker
-  // language, while the green + public.png silhouette still say "this one's
-  // a service, not a reported break" at a glance.
   return '<div class="company-marker-icon-wrap"><span class="company-marker-icon"></span></div>';
 }
-
-// Forward-geocodes one free-text address via Nominatim. Used to only ever
-// be called sequentially by loadAllCompanyMarkers, which alone was enough
-// to respect Nominatim's ~1 request/second limit — but that assumption
-// breaks the moment any other feature (a pin's municipality lookup, the
-// destination search box) is also active, so this now goes through the
-// same shared nominatimFetch queue as everything else instead of relying
-// on this being the only caller.
 async function geocodeAddress(address, muniName, countryCode) {
   const query = [address, muniName].filter(Boolean).join(', ');
   const cacheKey = `${query}|${countryCode || ''}`;
@@ -11364,12 +10922,6 @@ async function geocodeAddress(address, muniName, countryCode) {
   companyGeocodeCache[cacheKey] = result;
   return result;
 }
-
-// Backs the clickable address in a utility company's contact row (map
-// popup or the detail modal's contacts list) — uses the coordinates
-// stored on the row (see persistUcRow) if present, so this is normally
-// instant with no network call at all; only falls back to a live,
-// one-off geocode for an older row that predates stored coordinates.
 async function focusUtilityCompanyAddress(id) {
   const c = utilityCompanyRegistry.get(String(id));
   if (!c || !c.address) return;
@@ -11379,17 +10931,6 @@ async function focusUtilityCompanyAddress(id) {
   if (!pos || !isValidLatLng(pos.lat, pos.lon)) return;
   viewLocationOnMap(pos.lat, pos.lon);
 }
-
-// Loads every verified utility company that already has stored coordinates
-// (see persistUcRow, which geocodes once at save time) and drops a pin for
-// each. Called once at STARTUP for every visitor — this deliberately never
-// calls Nominatim itself anymore: doing that here, for every company, on
-// every single page load, for every visitor, was bulk geocoding against
-// Nominatim's usage policy and is what caused persistent 429s regardless of
-// how carefully individual requests were throttled. A company with an
-// address but no coordinates yet (an older row saved before this existed)
-// simply has no pin until an admin runs "Geocode missing addresses" in the
-// Settings contacts panel (see backfillUcCoordinates) or re-saves it.
 async function loadAllCompanyMarkers() {
   let companies;
   try {
@@ -11414,10 +10955,6 @@ async function loadAllCompanyMarkers() {
     });
     marker._utilityCompany = { c, lat: c.lat, lon: c.lon };
     marker.bindPopup(buildCompanyPopupHtml(c, c.lat, c.lon), { autoPan: false, closeButton: false });
-    // bindPopup() above wires its own default "click opens the popup"
-    // handler; strip it so we can decide per-tap instead — while driving,
-    // tapping the pin should go straight into routing/navigation rather
-    // than showing the contact-card popup with a Navigate button inside it.
     marker.off('click');
     marker.on('click', () => {
       if (drivingMode) navigateToUtilityCompany(String(c.id), c.lat, c.lon);
@@ -11427,16 +10964,6 @@ async function loadAllCompanyMarkers() {
   }
 }
 
-// Popup for a municipality's own map pin (distinct from buildMunicipalityPopupHtml
-// Shared cache of municipality_report_stats rows, keyed by municipality_id.
-// Loaded once and reused by both the municipality centroid pins below and
-// the utility-company ("responsible service") pins further down, so a
-// company's popup can show the same numbers without a second network round
-// trip. Synchronous lookups (municipalityStatsCache.get(...)) are safe from
-// popup-build code because popup content is always rebuilt fresh at
-// popupopen time (see the map.on('popupopen', ...) handler) — by the time a
-// person actually taps a pin, this fire-and-forget startup load has almost
-// always already landed.
 let municipalityStatsCache = new Map();
 let municipalityStatsLoadPromise = null;
 async function loadMunicipalityStatsCache() {
@@ -11453,10 +10980,6 @@ async function loadMunicipalityStatsCache() {
   return municipalityStatsLoadPromise;
 }
 
-// Renders the Reports / Fixed / Average repair / Response rate grid shared
-// by the municipality centroid popup and the utility-company popup. Returns
-// '' (so callers can cleanly omit the whole section) when there's no stats
-// row yet or it has no reports on file.
 function buildMuniStatsGridHtml(stats) {
   if (!stats || !stats.total_reports) return '';
   const avgRepair = stats.avg_repair_days != null
@@ -11482,14 +11005,6 @@ function buildMuniStatsGridHtml(stats) {
     </div>
   </div>`;
 }
-
-// ADMIN TOOL — one-time, explicitly-triggered backfill for contacts that
-// were saved before persistUcRow started geocoding+storing coordinates at
-// save time. Geocodes each missing address one at a time (through the
-// shared nominatimFetch queue, so it's still properly throttled) and
-// writes the result straight to the row. Meant to be run once after
-// upgrading, or whenever an older, address-only row is noticed missing its
-// pin — not something that runs automatically for visitors.
 async function backfillUcCoordinates() {
   if (!currentProfile || !currentProfile.is_admin) return;
   const btn = document.getElementById('ucGeocodeBackfillBtn');
@@ -11526,21 +11041,8 @@ async function backfillUcCoordinates() {
   loadAllCompanyMarkers();
 }
 
-// Popup for a utility-company ("responsible service") map pin — matches the
-// report pin popup's header/body/close-button chrome (see buildPopupHtml):
-// same popup-card/popup-header/popup-body/status-action-row classes, and
-// now the header is colored by the company's own category the same way a
-// report pin's header is colored by its category, instead of a flat grey.
-// Contact info itself isn't spelled out here anymore — just icon-only
-// quick-action buttons (call / email / open site), same "glance, then
-// tap through for more" shape as a report pin's popup. Everything else
-// (address, notes, and the Reports/Fixed/Average repair/Response rate
-// stats grid) lives one tap away in the company's own fullscreen "Detalji"
-// view — see showCompanyDetailModal.
 function buildCompanyPopupHtml(c, lat, lon) {
-  // Only offered while actively driving — browsing pins on the regular map
-  // already has "Details"-style ways to look at a place; drive mode is
-  // specifically where "get me there" is the useful action.
+
   const navigateBtnHtml = (drivingMode && isValidLatLng(lat, lon) && c.id != null)
     ? `<button class="status-action-btn" style="background:#2a2a2a;" onclick="navigateToUtilityCompany('${escapeHtml(String(c.id))}', ${lat}, ${lon})">${t('navigatePinPopupBtn')}</button>`
     : '';
@@ -11549,11 +11051,6 @@ function buildCompanyPopupHtml(c, lat, lon) {
     ? `<div class="uc-item-cats" style="margin-bottom:8px;">${c.categories.map(cat =>
         `<span class="uc-cat-chip" style="background:${categoryColor(cat)};">${escapeHtml(translateCategory(cat))}</span>`).join('')}</div>`
     : '';
-  // Icon-only quick actions — only rendered for whichever of phone/email/
-  // website this company actually has on file, so the row is never left
-  // with empty gaps. Registers the row into utilityCompanyRegistry the
-  // same way renderContactRows() used to, so the Details button (and
-  // anything else keyed by id) can still look this company back up.
   if (c && c.id != null) utilityCompanyRegistry.set(String(c.id), c);
   const iconBtnsHtml = [
     c.phone   ? `<a class="poi-contact-icon-btn" href="tel:${escapeHtml(c.phone)}" title="${escapeHtml(c.phone)}"><img src="icons/phone.png" alt="phone"></a>` : '',
@@ -11576,13 +11073,6 @@ function buildCompanyPopupHtml(c, lat, lon) {
     </div>
   </div>`;
 }
-
-// Fullscreen "Detalji" view for a utility-company (POI) pin — same shell/
-// pattern as showReportDetailModal(), opened by the Details button in
-// buildCompanyPopupHtml above. Holds everything the popup itself no longer
-// spells out: full contact rows (phone/email/website/address/notes) plus
-// the municipality this company belongs to and its Reports/Fixed/Average
-// repair/Response rate stats grid.
 function hideCompanyDetailModal() {
   const modal = document.getElementById('companyDetailModal');
   if (modal) modal.style.display = 'none';
@@ -11599,10 +11089,6 @@ function showCompanyDetailModal(id) {
   if (!modal || !body || !titleEl) return;
 
   titleEl.textContent = c.name;
-  // Same "status-colored" header treatment as the report detail modal —
-  // filled with this company's own category color (its first category,
-  // same convention as the popup header above) rather than a flat grey, so
-  // this reads as the same family of fullscreen view as a report's.
   if (headerEl) {
     headerEl.style.background = (c.categories && c.categories[0]) ? categoryColor(c.categories[0]) : '#3a3a3a';
     headerEl.classList.add('status-colored');
@@ -11643,20 +11129,10 @@ function showCompanyDetailModal(id) {
   modal.style.display = 'flex';
   openOverlay('companyDetailModal', hideCompanyDetailModal);
 }
-// Backs the popup's Navigate button — only an id and plain numbers ever
-// travel through the onclick="" attribute (company names are free text an
-// admin can type, including quotes, so they never go directly into inline
-// JS); the label for the driving HUD is looked up from the registry here.
 function navigateToUtilityCompany(id, lat, lon) {
   const c = utilityCompanyRegistry.get(String(id));
   selectDestination(lat, lon, c ? c.name : '');
 }
-
-// Small popup card for the GPS/manual-pin marker — the floating badge above
-// already flashes the municipality name for 5s, but a tap-and-hold-visible
-// popup (matching the look of a report pin's popup) is more useful for
-// actually reading it and the coordinates at a glance, especially once the
-// badge has already faded.
 function buildMunicipalityPopupHtml(muni, lat, lon) {
   const name = muni ? municipalityDisplayName(muni) : t('detailUnknown');
   return `<div class="popup-inner popup-card">
@@ -11676,25 +11152,12 @@ function buildMunicipalityPopupHtml(muni, lat, lon) {
   </div>`;
 }
 
-// Binds (or refreshes, if already bound) a municipality popup onto a live
-// location marker — the GPS puck or the manually-dropped pin — so tapping
-// it shows exactly what municipality it's currently resolved to.
 function bindMunicipalityPopupToMarker(marker, muni, lat, lon) {
   if (!marker) return;
   const html = buildMunicipalityPopupHtml(muni, lat, lon);
   if (marker.getPopup()) marker.setPopupContent(html);
   else marker.bindPopup(html, { autoPan: false, closeButton: false }); // reparented into #mobilePopupOverlay on open, same as report pins
 }
-
-// Resolves the municipality containing a given point and updates the small
-// floating name badge. Called once GPS gets its first fix, whenever a
-// manual pin is dropped/cleared, and whenever the map is otherwise tracking
-// a live point rather than an already-saved report (see
-// resolveReportMunicipality for the report-detail case, which resolves by
-// stored municipality_id). Pass the marker that this point belongs to
-// (userMarker or manualMarker) to also bind/refresh its tap-to-view
-// municipality popup — omit it for callers that don't have one, such as an
-// already-saved report.
 async function showMunicipalityBoundaryForPoint(lat, lon, marker) {
   const muni = await resolveMunicipality(lat, lon);
   renderMunicipalityBoundary(muni);
@@ -11702,14 +11165,6 @@ async function showMunicipalityBoundaryForPoint(lat, lon, marker) {
   return muni;
 }
 
-// =============================================================================
-// ADMIN: UTILITY COMPANY CONTACTS PANEL (Settings modal, admins only)
-// =============================================================================
-// Includes 'Suggestion' (Suggest an Improvement) alongside the fault
-// categories — even though a suggestion isn't a utility fault, admins still
-// want somewhere to route it (e.g. the municipality's civic-engagement
-// office or public-works suggestion line), so it gets a contacts tag like
-// everything else rather than being silently excluded.
 const UC_CATEGORIES = ['Water','Electricity','Sewage','Gas','Heating','Road','Streetlight','Waste','Walkways','BikeLanes','GreenSpaces','Parking','Suggestion','Other'];
 let ucCompaniesCache = [];
 let ucEditingId = null;
@@ -11720,22 +11175,6 @@ function municipalityDisplayName(m) {
   if (!m) return '';
   return (lang === 'sr' ? m.name : (m.name_en || m.name)) || m.name;
 }
-
-// True if the signed-in admin is allowed to view/add/edit/delete utility
-// contacts for the given municipality — same domain rule as reports (own
-// municipality for a Controller, every municipality in the own country for
-// a Director, everywhere for an Overseer — see isMunicipalityInAdminDomain).
-// Unlike reports there's no "physically on-site" override here: an admin
-// isn't expected to travel to a utility company's office just to fix its
-// phone number, so contacts management is domain-only, always.
-//
-// Note this is a client-side gate only (this file has no server-side
-// component). It correctly hides/blocks the UI for a well-behaved client,
-// but a determined user could still call the Supabase REST API directly —
-// real enforcement of "a level-1 admin can only touch their own
-// municipality's contacts" needs a matching Row Level Security policy on
-// the utility_companies table in Supabase, keyed off the same
-// admin_level/admin_municipality_id/admin_country_code columns.
 function canManageContactsForMunicipality(municipalityId) {
   if (!currentProfile || !currentProfile.is_admin) return false;
   if (currentAdminLevel() >= 3) return true;
@@ -11761,10 +11200,6 @@ async function loadUtilityCompaniesAdmin() {
   try {
     const { data, error } = await sb.from(UTILITY_COMPANIES_TABLE).select('*').order('name');
     if (error) throw error;
-    // Scope the visible list down to the admin's own domain — a Municipal
-    // Controller sees only their municipality's contacts, a Regional
-    // Director sees every municipality in their country, and a Global
-    // Overseer (or a legacy admin with no admin_level set) sees everything.
     ucCompaniesCache = (data || []).filter(c => canManageContactsForMunicipality(c.municipality_id));
   } catch (err) {
     console.error('Failed to load utility companies:', err.message);
@@ -11772,42 +11207,6 @@ async function loadUtilityCompaniesAdmin() {
   }
   renderUcList();
 }
-
-// =============================================================================
-// ADMIN: WAITING LIST — everything currently needing attention (Settings,
-// admin-only), merged into ONE oldest-first list instead of three separate
-// tabs. Three underlying sources, all driven off brake_reports / report_flags:
-//   photo_status = 'pending'   — a photo just got uploaded and hasn't been
-//                                 approved/rejected yet (see uploadReportPhoto).
-//   flagged_for_review = true  — a standing "needs follow-up" marker, set by
-//                                 rejectReportPhoto() when a photo is rejected
-//                                 as spam/inaccurate.
-//   report_flags(resolved=false) — one row per user who flagged a report via
-//                                 submitReportFlag; several users can flag the
-//                                 same report, so these are grouped by report.
-// A single report can be waiting for more than one reason at once (e.g. a
-// rejected photo AND a user flag) — those are merged into ONE card rather
-// than shown twice, with a badge per reason and the actions for all of them.
-// "Waiting since" for a merged card is the EARLIEST of its reasons' own
-// timestamps, so a report doesn't jump the queue just because a second,
-// newer reason got added on top of an older one.
-//
-// This is a lightweight preview, not the full queue: each source query is
-// capped, and the merged result is trimmed to WAITING_LIST_PREVIEW_LIMIT
-// items (oldest-first) rather than pulling in everything waiting — the
-// full set is still reachable through All reports search below for anyone
-// who needs to dig further. It also refreshes on its own on a short
-// interval while Settings is open (see startWaitingListAutoRefresh /
-// stopWaitingListAutoRefresh, wired into show/hideSettingsModal), instead
-// of only ever updating on modal open or after an admin's own action —
-// so a flag from someone else shows up without needing to close and
-// reopen Settings.
-//
-// VISIBILITY: 'photo' items (pending photo review) are shown to every
-// admin, not just ones whose domain covers that report — see the filter
-// at the bottom of loadWaitingListAdmin. 'rejected_photo' and 'user_flag'
-// stay domain-gated via hasFullPowerOverReport.
-// =============================================================================
 let waitingListCache = []; // [{ report, waitingSince: Date, reasons: ['photo'|'rejected_photo'|'user_flag'], flags: [...] }]
 const WAITING_LIST_PREVIEW_LIMIT = 5;
 
@@ -11825,14 +11224,9 @@ async function loadWaitingListAdmin() {
     if (sinceDate < item.waitingSince) item.waitingSince = sinceDate;
     if (!item.reasons.includes(type)) item.reasons.push(type);
     if (extra && extra.flag) item.flags.push(extra.flag);
-    // A later addReason call may see a fresher report row (e.g. photo-pending
-    // pass runs after user-flags pass) — keep whichever has more on it.
     item.report = report;
   }
 
-  // Each source is capped and pulled oldest-first so the preview limit
-  // below is actually trimming from the right end, not an arbitrary
-  // unordered slice of whatever Postgres happened to return first.
   try {
     const { data, error } = await sb.from(TABLE).select('*')
       .eq('photo_status', 'pending')
@@ -11862,15 +11256,6 @@ async function loadWaitingListAdmin() {
       .order('created_at', { ascending: true })
       .limit(WAITING_LIST_PREVIEW_LIMIT);
     if (error) throw error;
-    // A user-submitted flag is global, same as photo review — any admin
-    // can see and resolve it (see the report_flags "admins can read/resolve
-    // flags" RLS policies), not just the admin whose domain covers this
-    // report's municipality. Used to be gated behind hasFullPowerOverReport,
-    // which meant any report whose municipality_id was null/broken (a
-    // boundary re-import gone wrong, a geocode failure, etc.) had its flags
-    // silently vanish from every admin's queue with no way to ever surface
-    // them again — same failure mode as the photo-review domain gate below,
-    // just for a different reason type.
     (data || []).forEach(row => {
       const report = row.brake_reports;
       if (!report) return;
@@ -11880,19 +11265,6 @@ async function loadWaitingListAdmin() {
     console.error('Failed to load report flags:', err.message);
   }
 
-  // Visibility rule: pending PHOTO REVIEW and USER FLAGS are both global —
-  // any admin can see and act on them (approveReportPhoto/rejectReportPhoto
-  // and resolveReportFlags never domain-check the report either), so
-  // neither is hidden by the domain gate. This is also what fixes reports
-  // whose municipality failed to resolve (or resolved to the wrong place,
-  // e.g. a city_district instead of its parent municipality — see
-  // reverseGeocodeMunicipalityCandidates): those used to silently vanish
-  // from every non-Overseer admin's queue, because isReportInAdminDomain
-  // has nothing to match against without a correct municipality_id, leaving
-  // the item waiting for review forever with no admin ever seeing it.
-  // rejected_photo stays domain-gated, since resolving it is tied to
-  // actually managing that specific report (clearing its flag, following
-  // up locally), not just triaging whether an image/flag needs attention.
   waitingListCache = Array.from(items.values())
     .filter(item => item.reasons.includes('photo') || item.reasons.includes('user_flag') || hasFullPowerOverReport(item.report))
     .sort((a, b) => a.waitingSince - b.waitingSince) // oldest first
@@ -11900,10 +11272,6 @@ async function loadWaitingListAdmin() {
   renderWaitingList();
 }
 
-// Keeps the Waiting list current while Settings is open, without the
-// admin needing to close/reopen it to see a flag someone else just
-// submitted. Started in showSettingsModal, stopped in hideSettingsModal
-// so it never polls in the background once the panel isn't visible.
 let waitingListRefreshIntervalId = null;
 const WAITING_LIST_REFRESH_MS = 15000;
 // True while the Notification Center (the only surface that now shows the
@@ -11935,11 +11303,6 @@ function reportSummaryTitle(r) {
 
 const WAITING_REASON_LABEL = { photo: 'queueTypePhoto', rejected_photo: 'flagReasonRejectedPhoto', user_flag: 'reportFlagsSectionTitle' };
 
-// Rendered into the Notification Center's waiting-list container (admins
-// only — see showNotificationModal). Used to live in Settings too, but
-// that copy was removed once the Notification Center took over as the
-// admin's one queue view; kept as a list of container ids (rather than a
-// single hardcoded id) in case another surface wants it again later.
 const WAITING_LIST_CONTAINER_IDS = ['notificationWaitingList'];
 
 function renderWaitingList() {
@@ -12004,11 +11367,6 @@ function renderWaitingListInto(containerId) {
     });
   });
 }
-
-// Client-side filter for the Waiting list — it's already fully loaded in
-// memory, so no need to re-query Supabase, just narrow down what's rendered
-// by comment/category/owner/ID. Shares the same #adminSearchInput box as
-// the live All-reports search below (see onAdminSearchInput).
 function filterWaitingListBySearch(cache) {
   const inputEl = document.getElementById('adminSearchInput');
   const rawQuery = inputEl ? inputEl.value.trim() : '';
@@ -12041,10 +11399,6 @@ async function resolveReportFlags(reportId) {
   }
 }
 
-// The Waiting list can include reports outside the current map window (and
-// so outside globalActiveData) — stash the cached row there first so
-// showReportDetailModal() has something to find. Also checks the All
-// reports search results cache, for the same reason.
 function viewReportFromAdminQueue(reportId) {
   const waitingItem = waitingListCache.find(item => item.report.id === reportId);
   const cached = (waitingItem && waitingItem.report) || allReportsSearchCache.find(r => r.id === reportId);
@@ -12052,24 +11406,7 @@ function viewReportFromAdminQueue(reportId) {
   showReportDetailModal(reportId);
 }
 
-// =============================================================================
-// ADMIN: ALL-REPORTS SEARCH (Settings)
-// Unlike the Waiting list above (small, fully-preloaded), this searches the
-// entire brake_reports table live via Supabase — there's no reason to load
-// every report just to sit in memory unused. Debounced so each keystroke
-// doesn't fire its own request, and scoped to the signed-in admin's own
-// domain (isReportInAdminDomain) the same way the Waiting list and
-// utility-contacts panel already are, so a Municipal Controller doesn't see
-// (or get tempted to delete) reports outside their own municipality.
-// Driven off the SAME #adminSearchInput box as the Waiting list filter above
-// — one keystroke narrows both at once (see onAdminSearchInput).
-// =============================================================================
 let allReportsSearchCache = [];
-
-// Single search box for the admin panel: filters the already-loaded
-// Waiting list instantly (client-side). The debounced live query against
-// every other report (the old "All reports"/"Sve prijave" section) was
-// removed along with that section — see the Settings HTML.
 function onAdminSearchInput() {
   renderWaitingList();
 }
@@ -12082,12 +11419,6 @@ function resetAdminSearch() {
 
 async function approveReportPhoto(reportId) {
   try {
-    // .select().single() forces PostgREST to return the row it actually
-    // touched. If an RLS USING clause silently excludes this row (e.g. a
-    // domain-scoped UPDATE policy), zero rows match and Postgres/PostgREST
-    // report that as *success* with an empty result — without .select() we
-    // had no way to tell that apart from a real approval, so the toast lied
-    // and the row just sat unchanged in the queue.
     const { data, error } = await sb.from(TABLE).update({
       photo_status: 'approved',
       photo_reviewed_at: new Date().toISOString(),
@@ -12158,9 +11489,6 @@ function applyUcFormTranslations() {
   renderUcVerifyStatus();
 }
 
-// Reflects the currently-loaded contact's verified state above the red
-// verify button. `ucEditingVerified`/`ucEditingVerifiedAt` are set in
-// resetUcForm()/editUtilityCompany() and kept in sync by save/verify calls.
 function renderUcVerifyStatus() {
   const el = document.getElementById('ucVerifyStatus');
   if (!el) return;
@@ -12177,9 +11505,7 @@ function populateUcMunicipalitySelect() {
   const sel = document.getElementById('ucMunicipalitySelect');
   if (!sel) return;
   const prevValue = sel.value;
-  // Only offer municipalities the signed-in admin is actually allowed to
-  // manage contacts for — own municipality / own country / everywhere,
-  // same rule as canManageContactsForMunicipality above.
+
   const selectable = currentAdminLevel() >= 3
     ? municipalityCache
     : municipalityCache.filter(m => isMunicipalityInAdminDomain(m));
@@ -12207,11 +11533,6 @@ function populateUcCatChecks() {
   ).join('');
 }
 
-// Full country name for a municipality's stored ISO country_code, in the
-// current UI language. Intl.DisplayNames (built into every modern browser)
-// covers this without us having to ship/maintain our own code->name table;
-// falls back to the raw code if the runtime doesn't support it or the code
-// is missing/unrecognized.
 let _countryNameDisplay = null;
 function countryDisplayName(code) {
   if (!code) return t('detailUnknown');
@@ -12226,12 +11547,6 @@ function countryDisplayName(code) {
   }
 }
 
-// renderUcList() is called after every save/delete (via loadUtilityCompaniesAdmin),
-// which rebuilds the whole <details> tree from scratch. Without this, every
-// admin edit would silently re-collapse every country/municipality group the
-// admin had open — annoying when you're working through a long list. We
-// snapshot which groups are currently open before wiping the innerHTML, then
-// re-apply that same open state to the freshly rendered groups afterward.
 function getOpenUcGroupIds() {
   return Array.from(document.querySelectorAll('#ucList details[open]')).map(d => d.id).filter(Boolean);
 }
@@ -12251,10 +11566,6 @@ function renderUcList() {
     return;
   }
 
-  // Search filter — matches on company name, municipality name (either
-  // language), and category (either language). Diacritic/Cyrillic-insensitive
-  // via normalizeMuniNameForMatch, same normalizer used for municipality
-  // name matching elsewhere.
   const searchEl = document.getElementById('ucSearchInput');
   const rawQuery = searchEl ? searchEl.value.trim() : '';
   const query = rawQuery ? normalizeMuniNameForMatch(rawQuery) : '';
@@ -12273,9 +11584,6 @@ function renderUcList() {
     return;
   }
 
-  // Group: country_code -> municipality_id -> [companies]. Companies whose
-  // municipality isn't in the cache (or has no municipality_id at all) fall
-  // under an "Unknown" country/municipality bucket rather than disappearing.
   const countryGroups = new Map();
   visibleCompanies.forEach(c => {
     const muni = municipalityCache.find(m => String(m.id) === String(c.municipality_id)) || null;
@@ -12321,9 +11629,6 @@ function renderUcList() {
           '<div class="uc-item-cats">' + verifiedChip + catsHtml + '</div>' +
         '</div>';
       }).join('');
-      // Add button only makes sense for a real municipality — the "Unknown"
-      // bucket (companies whose municipality_id doesn't resolve, or is
-      // missing) has nothing to pin a new contact to.
       const addBtnHtml = muni
         ? '<button type="button" class="uc-muni-add-btn" title="' + t('ucAddContactBtn') + '" ' +
           'onclick="event.preventDefault(); event.stopPropagation(); addContactForMunicipality(\'' + muni.id + '\');">+</button>'
@@ -12345,15 +11650,6 @@ function renderUcList() {
 
   restoreOpenUcGroupIds(openIds);
 }
-
-// Shows/hides the municipality <select> + "Add municipality from map center"
-// button + empty-state hint as one unit. Hidden when adding a contact via
-// the per-municipality + button (addContactForMunicipality), since the
-// municipality is already fixed by which + was clicked — nothing to pick,
-// and no reason to offer importing a *different* municipality's boundary
-// from the current map center in that flow. Shown again for the plain
-// "+ Add contact" flow and for editing an existing contact (where
-// reassigning municipality is still a legitimate thing to do).
 function setUcMuniPickerVisible(visible) {
   const picker = document.getElementById('ucMuniPicker');
   if (picker) picker.style.display = visible ? '' : 'none';
@@ -12384,15 +11680,6 @@ function addContactForMunicipality(municipalityId) {
   }
 }
 
-// The form is a single shared node that gets physically relocated in the
-// DOM: editUtilityCompany() moves it to sit right under the row being
-// edited, so this snaps it back to its default spot (right after the
-// "+ Add contact" button, via the invisible #ucFormAnchor marker) for the
-// "add new" flow and whenever the form is closed. Doing this on close
-// (cancelUcForm) rather than only on open matters because
-// loadUtilityCompaniesAdmin() re-renders #ucList's innerHTML after every
-// save/delete — if the form were still parented inside a uc-item's group
-// at that point, it'd be wiped out along with the old list markup.
 function moveUcFormToAnchor() {
   const form = document.getElementById('ucForm');
   const anchor = document.getElementById('ucFormAnchor');
@@ -12460,18 +11747,14 @@ function editUtilityCompany(id) {
   });
   renderUcVerifyStatus();
   const form = document.getElementById('ucForm');
-  // Open the form right under the row that was clicked, instead of always
-  // at the bottom of the list — the row lives inside a collapsible
-  // per-municipality <details> group, so this also naturally keeps it
-  // visible within that open group.
+
   const itemEl = document.getElementById('uc-item-' + id);
   if (itemEl) itemEl.insertAdjacentElement('afterend', form);
   form.style.display = 'flex';
   form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
-// Reads + validates the form fields shared by both the plain Save and the
-// verify action. Returns null (after toasting) if required fields are missing.
+
 function readUcFormRow() {
   const municipalityId = document.getElementById('ucMunicipalitySelect').value;
   const name = cyrillicToLatin(document.getElementById('ucName').value.trim());
@@ -12494,14 +11777,6 @@ function readUcFormRow() {
   };
 }
 
-// Single insert/update path for the contact form. `verified` controls
-// whether the saved row is allowed to show its name/phone/email/etc. in a
-// reporter's report-detail contacts list (see showReportDetailModal):
-//  - Plain Save (verified=false) always clears verification — editing a
-//    previously-checked contact takes it off public view again until an
-//    admin explicitly re-confirms the new data.
-//  - The red "Admin has checked the data" button is the only path that can
-//    set verified=true.
 async function persistUcRow(verified) {
   const row = readUcFormRow();
   if (!row) return;
@@ -12514,14 +11789,6 @@ async function persistUcRow(verified) {
   row.verified_at = verified ? new Date().toISOString() : null;
   row.verified_by = verified ? (currentSession ? currentSession.user.id : null) : null;
 
-  // Geocode the address once here, at save time, and store the result —
-  // loadAllCompanyMarkers (map pins, run for every visitor on every load)
-  // now only ever reads these stored coordinates and never calls Nominatim
-  // itself; re-geocoding on every page load for every visitor was bulk
-  // geocoding against Nominatim's usage policy and is what caused the
-  // persistent 429s. Skipped when the address hasn't actually changed from
-  // what's already on file, so re-saving other fields doesn't cost an
-  // extra geocode call.
   const existing = ucEditingId ? ucCompaniesCache.find(c => String(c.id) === String(ucEditingId)) : null;
   if (!row.address) {
     row.lat = null;
@@ -12550,23 +11817,14 @@ async function persistUcRow(verified) {
     }
     if (error) throw error;
     const wasEditingId = ucEditingId;
-    // Unlike cancelUcForm(), we don't hide the form here — after a save the
-    // admin is often about to add/edit another contact right away, so we
-    // keep it open. We do still need to move it back to its default anchor
-    // (out of whichever uc-item/uc-muni-items it was living in) before
-    // loadUtilityCompaniesAdmin() rebuilds #ucList's innerHTML, or the form
-    // node itself would be wiped out along with the old list markup.
+
     moveUcFormToAnchor();
     await loadUtilityCompaniesAdmin();
     if (wasEditingId) {
-      // This was an edit, not a fresh add — reopen the form right back
-      // under that same row, pre-filled with the freshly-saved data, so the
-      // admin can immediately hit "Admin has checked the data" to confirm
-      // it, instead of having to find and click Edit on the row again.
+
       editUtilityCompany(wasEditingId);
     } else {
-      // A brand-new contact: reset to a blank "add" state and keep the
-      // form open, ready for the next one.
+
       resetUcForm();
       setUcMuniPickerVisible(true);
     }
@@ -12607,14 +11865,9 @@ async function deleteUtilityCompany(id) {
   }
 }
 
-// ADMIN IMPORT TOOL — the one place in the app allowed to call Overpass.
-// Checks the local cache first (an earlier admin may have already
-// imported this municipality); only fetches from Overpass for a point not
-// yet covered by any cached boundary.
 async function addMunicipalityFromMapCenter() {
   const btn = document.getElementById('ucAddMuniBtn');
-  // innerHTML (not textContent) so the pin icon survives the round trip —
-  // textContent would silently drop the <img> when restored afterwards.
+
   const original = btn ? btn.innerHTML : '';
   if (btn) { btn.disabled = true; btn.innerHTML = t('ucAddMuniLoading'); }
   try {
@@ -12677,12 +11930,7 @@ function buildPopupHtml(report) {
   const hasFullPower = hasFullPowerOverReport(report);
   let actionsHtml = '';
   if (hasFullPower) {
-    // Full-power admins (home domain, or physically on-site with a report
-    // outside it — see hasFullPowerOverReport) get a quick status jump
-    // right in the popup for fast triage; full editing (category/
-    // subcategory/priority/comment) and delete now live in the report
-    // detail modal (see showReportDetailModal) instead of a separate
-    // cramped popup edit form.
+
     const statuses = [
       { key: 'reported',    label: t('markReported'),   bg: STATUS_COLORS.reported },
       { key: 'in_progress', label: t('markInProgress'), bg: STATUS_COLORS.in_progress },
@@ -12692,14 +11940,6 @@ function buildPopupHtml(report) {
       ${statuses.map(s => `<button class="status-action-btn" style="background:${s.bg};" onclick="updateReportStatus('${report.id}','${s.key}')">${s.label}</button>`).join('')}
     </div>`;
   } else if (currentSession && report.status !== 'fixed') {
-    // Everyone else — including a regular reporter, and an admin who is
-    // both outside their own domain and not standing on-site right now —
-    // suggests a status by voting instead of a direct overwrite. A
-    // regular vote only takes effect once it, and others agreeing with it,
-    // reach the 3-point threshold, and only while standing within 50m of
-    // the pin; an admin's vote here skips that on-site requirement and
-    // carries the strongest possible weight instead (see castStatusVote
-    // and cast_status_vote() in Supabase).
     const statuses = [
       { key: 'reported',    label: t('markReported'),   bg: STATUS_COLORS.reported },
       { key: 'in_progress', label: t('markInProgress'), bg: STATUS_COLORS.in_progress },
@@ -12711,10 +11951,6 @@ function buildPopupHtml(report) {
     ${buildVoteProgressHtml(report)}`;
   }
 
-  // The reporter can edit just their own optional note, regardless of status
-  // or the voting flow above — admins skip this since their in-place edit
-  // form in the detail modal (see enterReportDetailEditMode) already covers
-  // the comment field.
   let noteActionHtml = '';
   if (isOwner && !isAdmin) {
     noteActionHtml = `<div class="status-action-row" style="border-top:none;padding-top:0;">
@@ -12755,9 +11991,6 @@ function buildPopupHtml(report) {
   </div>`;
 }
 
-// Small "⏳ Popravljeno? (2/3 glasa)"-style badges for any suggested status
-// on this report that already has votes but hasn't hit the 3-point
-// threshold yet — nudges nearby neighbors to go confirm it in person.
 function buildVoteProgressHtml(report) {
   const progress = voteProgressByReport.get(report.id);
   if (!progress) return '';
@@ -12767,12 +12000,6 @@ function buildVoteProgressHtml(report) {
   return rows.length ? `<div class="vote-progress-row">${rows.join('')}</div>` : '';
 }
 
-// =============================================================================
-// STREET / AREA LOOKUP — lightweight reverse-geocode for the report-detail
-// modal's Location section. Deliberately separate from, and much cheaper
-// than, the municipality resolution above (no polygon_geojson, no caching,
-// no DB write) — this is purely descriptive text, thrown away once shown.
-// =============================================================================
 async function fetchAddressForPoint(lat, lon) {
   if (!isValidLatLng(lat, lon)) return null;
   try {
@@ -12793,13 +12020,6 @@ async function fetchAddressForPoint(lat, lon) {
   }
 }
 
-// =============================================================================
-// REPORT DETAIL MODAL — fullscreen view opened from a popup's "Detalji" row.
-// Shows exact coordinates, street/area, the municipality the pin falls in
-// (resolved via the municipality cache above, drawing its boundary on the
-// map as a side effect), and any utility company contacts responsible for
-// that report's category in that municipality.
-// =============================================================================
 async function showReportDetailModal(reportId) {
   const report = globalActiveData.find(r => r.id === reportId);
   if (!report || !isValidLatLng(report.latitude, report.longitude)) return;
@@ -12812,24 +12032,13 @@ async function showReportDetailModal(reportId) {
     ? `${translateCategory(report.category)} / ${subcategoryLabel(report.category, report.subcategory)}`
     : translateCategory(report.category);
   titleEl.textContent = headerTitle;
-  // Header is filled with this report's status color (same colors as the
-  // #mapLegend status pills) rather than its category color, so the
-  // fullscreen view's very first impression is "what state is this in" —
-  // text/close-button are pinned to light via .status-colored (see CSS).
+
   if (headerEl) {
     headerEl.style.background = statusColor(report.status);
     headerEl.classList.add('status-colored');
   }
   const reporterName = report.owner_username || (lang === 'sr' ? 'Nepoznato' : 'Unknown');
 
-  // Photo section — who gets to see what depends on photo_status:
-  //  - approved:  everyone sees the photo, no badge needed.
-  //  - pending:   only the reporter or an admin see it (with a badge),
-  //               everyone else gets no photo section at all.
-  //  - rejected:  only an admin still sees the image (for moderation
-  //               reference); the reporter gets a plain text note instead
-  //               (no image) so a rejected upload isn't just re-shown to
-  //               them at a different URL; anyone else sees nothing.
   const isOwner = !!(currentSession && report.owner_id === currentSession.user.id);
   const isAdmin = !!(currentProfile && currentProfile.is_admin);
   let photoSectionHtml = '';
@@ -12867,11 +12076,6 @@ async function showReportDetailModal(reportId) {
     </div>`;
   }
 
-  // "Flag for review" — any logged-in user except the report's own owner.
-  // Not shown to guests (login required to flag) or to the reporter
-  // themselves (can't flag your own report). The actual "already flagged?"
-  // state is resolved asynchronously below (loadReportFlagSection), since
-  // it needs a DB round-trip; this just decides whether the section exists.
   const canFlagReport = !!(currentSession && !isOwner);
   const flagSectionHtml = canFlagReport ? `
     <div class="detail-section" id="reportFlagSection">
@@ -12923,16 +12127,11 @@ async function showReportDetailModal(reportId) {
     });
   }
 
-  // Street/area is a separate, independent lookup from the municipality
-  // resolution below — it's purely descriptive detail, not tied to the
-  // contacts feature, so it runs in parallel rather than blocking on it.
   fetchAddressForPoint(report.latitude, report.longitude).then(addr => {
     const streetEl = document.getElementById('detailStreetValue');
     const areaEl   = document.getElementById('detailAreaValue');
     if (streetEl) {
-      // Clickable when we actually have a street to show — re-centers our
-      // own map on this report's exact location rather than linking out to
-      // a third-party maps app.
+
       streetEl.innerHTML = (addr && addr.street)
         ? `<a href="javascript:void(0)" onclick="viewLocationOnMap(${report.latitude}, ${report.longitude})">${escapeHtml(addr.street)}</a>`
         : escapeHtml(t('detailUnknown'));
@@ -12940,19 +12139,12 @@ async function showReportDetailModal(reportId) {
     if (areaEl) areaEl.textContent = (addr && addr.area) ? addr.area : t('detailUnknown');
   });
 
-  // Resolves by stored municipality_id when present (source of truth);
-  // only falls back to a point-in-polygon lookup — and backfills the id —
-  // for older reports that don't have one yet. Also draws this report's
-  // municipality boundary on the map as a side effect, so closing the
-  // modal leaves you looking at the right opština outline.
   const muni = await resolveReportMunicipality(report);
   const muniEl = document.getElementById('detailMunicipalityValue');
   if (muniEl) {
     muniEl.textContent = muni ? municipalityDisplayName(muni) : t('detailUnknown');
   }
-  // Drawing the boundary outline is a map side-effect, not part of the
-  // detail data itself — a malformed/legacy boundary geometry must never
-  // be able to throw here and abort the contacts lookup below it.
+
   try {
     renderMunicipalityBoundary(muni);
   } catch (err) {
@@ -12961,15 +12153,7 @@ async function showReportDetailModal(reportId) {
 
   const contactsEl = document.getElementById('detailContactsContainer');
   if (!muni || muni.id == null) {
-    // Municipality resolution failed for this report (bad/missing boundary
-    // data, point outside every cached polygon, etc — see
-    // resolveReportMunicipality). Rather than give up on contacts entirely,
-    // fall back to the same lookup the map's utility-company POI pins use:
-    // match by the company's own stored coordinates + category, not by
-    // municipality_id. This is a strictly worse match than a real
-    // municipality lookup (nearest-by-distance instead of "which admin
-    // boundary contains this point"), so it's only ever used when the real
-    // lookup has nothing to go on.
+
     const fallbackContacts = await getReportContactsByProximity(report);
     if (contactsEl) contactsEl.innerHTML = fallbackContacts.length
       ? renderContactCards(fallbackContacts)
@@ -12980,21 +12164,6 @@ async function showReportDetailModal(reportId) {
   if (contactsEl) contactsEl.innerHTML = renderContactCards(contacts);
 }
 
-// =============================================================================
-// REPORT DETAIL: "Flag for review" (user-submitted, distinct from the
-// admin-only rejected-photo flag on brake_reports.flagged_for_review).
-// One flag per user per report, enforced by a unique constraint on
-// report_flags(report_id, flagged_by) — see the Supabase migration. Only the
-// flagger's own row is readable by them (RLS), so "already flagged?" is
-// resolved with a direct row lookup rather than any local/session state.
-//
-// Resolving a flag (see resolveReportFlags) never deletes the row — it just
-// sets resolved=true — so that (report_id, flagged_by) slot stays occupied
-// forever after someone's very first flag on a given report. A resolved row
-// still counts as "already flagged" here so the person can flag the SAME
-// report again later if the issue comes back, instead of being silently
-// locked out the moment their first-ever flag on it got resolved.
-// =============================================================================
 async function loadReportFlagSection(reportId) {
   const contentEl = document.getElementById('reportFlagContent');
   if (!contentEl || !currentSession) return;
@@ -13005,9 +12174,6 @@ async function loadReportFlagSection(reportId) {
     renderReportFlagSection(reportId, data || null);
   } catch (err) {
     console.error('Failed to load flag status:', err.message);
-    // Fail open to the "not yet flagged" button rather than leaving a
-    // permanent spinner — worst case a duplicate insert attempt is still
-    // safely rejected by the unique constraint.
     renderReportFlagSection(reportId, null);
   }
 }
@@ -13015,9 +12181,6 @@ async function loadReportFlagSection(reportId) {
 function renderReportFlagSection(reportId, existingFlag) {
   const contentEl = document.getElementById('reportFlagContent');
   if (!contentEl) return;
-  // Only an UNRESOLVED flag blocks a fresh one — a resolved row is history,
-  // not a still-open flag, and shouldn't stop the person from flagging this
-  // report again (see the big comment above loadReportFlagSection).
   if (existingFlag && !existingFlag.resolved) {
     contentEl.innerHTML = `<div class="flag-report-note">
       ${t('flagReportAlreadyFlaggedNote').replace('{date}', formatDate(existingFlag.created_at))}<br>
@@ -13051,19 +12214,6 @@ async function submitReportFlag(reportId) {
   const submitBtn = document.getElementById('flagReportSubmitBtn');
   if (submitBtn) submitBtn.disabled = true;
   try {
-    // upsert (not insert) — if this person already has a row on this
-    // report from a previous, since-resolved flag, a plain insert would
-    // hit the unique (report_id, flagged_by) constraint and fail every
-    // single time, which is exactly the "can't flag this anymore" bug.
-    // Upserting on that same constraint reopens the old row instead:
-    // resolved/resolved_at/resolved_by are explicitly reset and created_at
-    // is bumped to now so it correctly re-enters the Waiting list as a
-    // fresh "waiting since", rather than keeping a stale years-old date.
-    // NOTE: Supabase performs this as INSERT ... ON CONFLICT DO UPDATE, so
-    // the reopen path needs an UPDATE RLS policy on report_flags letting
-    // flagged_by = auth.uid() update their own row, alongside whatever
-    // INSERT policy already covers the first-ever flag — add one if it's
-    // not already there, or the reopen half of this will fail RLS.
     const { error } = await sb.from('report_flags').upsert({
       report_id: reportId,
       flagged_by: currentSession.user.id,
@@ -13083,25 +12233,6 @@ async function submitReportFlag(reportId) {
   }
 }
 
-// Shared by showReportDetailModal and emailReport so both always agree
-// on exactly which contacts count (verified + matching category) — resolving
-// this two different ways in two places would risk them drifting apart.
-// Once resolved for a report/pin, a NON-EMPTY result is cached directly on
-// the report object (report.contacts) so reopening the same pin later in
-// the session — or emailing right after viewing it — reuses it instead of
-// re-querying Supabase every time. This mirrors the municipality_id
-// backfill elsewhere: resolve once, keep it on the pin.
-//
-// Deliberately NOT caching an empty result: `if (report.contacts)` used to
-// gate the cache, but `[]` is truthy in JS, so the very first time a report
-// was opened before its contact existed (or before an admin had verified
-// it), that empty array got cached and every later reopen in the same
-// session kept returning "no contacts" — even after the contact was added
-// and verified — because the truthy-but-empty cache short-circuited the
-// query before it ever ran again. Only caching non-empty results means an
-// empty lookup simply retries next time instead of sticking for the rest
-// of the session; it costs one extra query for reports that genuinely have
-// no contacts, which is a fair trade for not silently hiding real ones.
 async function getReportContacts(report, muni) {
   if (report.contacts && report.contacts.length) return report.contacts;
   if (!muni || muni.id == null) { report.contacts = []; return report.contacts; }
@@ -13123,17 +12254,6 @@ async function getReportContacts(report, muni) {
   return report.contacts;
 }
 
-// Fallback contact lookup for reports whose municipality can't be resolved
-// (see resolveReportMunicipality / showReportDetailModal). Mirrors what the
-// utility-company POI pins already do on the map — match by the company's
-// OWN stored coordinates + category, never by municipality_id — so a report
-// sitting right next to a verified company still shows its contact info even
-// though the point-in-polygon lookup has nothing to match against.
-// Weaker than the real lookup (nearest-by-distance instead of "which admin
-// boundary actually contains this point"), so it's only ever used once the
-// real lookup has already given up, and it's capped to a generous-but-not-
-// unbounded radius so a report in one region never picks up a company from
-// somewhere else entirely if nothing nearby exists.
 const REPORT_CONTACT_FALLBACK_MAX_M = 50000; // 50km — "same general area", not a strict boundary match
 const REPORT_CONTACT_FALLBACK_LIMIT = 3;
 async function getReportContactsByProximity(report) {
@@ -13162,11 +12282,6 @@ async function getReportContactsByProximity(report) {
   }
 }
 
-// Just the phone/email/website/address/notes rows for a single company —
-// no name, no outer .contact-card box. Shared by renderContactCards()
-// below (detail modal's contacts list, one card per company, name included)
-// and buildCompanyPopupHtml() (map pin popup, where the name already lives
-// in the popup-header so repeating it in a nested card would be redundant).
 function renderContactRows(c) {
   if (c && c.id != null) utilityCompanyRegistry.set(String(c.id), c);
   return `
@@ -13255,12 +12370,6 @@ async function shareReport(reportId) {
   }
 }
 
-// Opens straight into a single report's detail view when the page is loaded
-// via a link produced by shareReport() above. Called once at STARTUP after
-// the normal viewport-window load. The report is always fetched directly by
-// id (not read out of globalActiveData), so a shared link still opens
-// correctly even if that report falls outside the current date filter or
-// map viewport that loadPinsByWindow() just populated.
 async function openSharedReportFromUrl() {
   const params = new URLSearchParams(window.location.search);
   const reportId = params.get('report');
@@ -13279,18 +12388,6 @@ async function openSharedReportFromUrl() {
   }
 }
 
-// =============================================================================
-// REPORT DETAIL MODAL — EMAIL TO RESPONSIBLE UTILITY
-// Builds a pre-filled email covering everything a utility company contact
-// would need to act on a report: category/status/priority, who reported it
-// and when, its resolved address/municipality/coordinates, the reporter's
-// note, and a link back to the live report on the map. The utility's own
-// contact details aren't repeated in the body — they're the recipient, so
-// restating their own phone/email/address back to them adds nothing.
-// mailto: is addressed to every verified contact on file for that report's
-// category in that municipality (reusing getReportContacts() so this can
-// never disagree with what the detail modal's Contacts section shows).
-// =============================================================================
 async function emailReport(reportId) {
   const report = globalActiveData.find(r => r.id === reportId);
   if (!report) return;
@@ -13314,13 +12411,6 @@ async function emailReport(reportId) {
     const muni = await resolveReportMunicipality(report);
     const contacts = muni ? await getReportContacts(report, muni) : [];
     const toEmails = contacts.map(c => c.email).filter(Boolean).join(',');
-
-    // Only an approved photo is fair game to hand to an outside recipient —
-    // same bar as showPhotoImage uses for showing it on-screen to anyone
-    // other than the owner/an admin. mailto: can't carry a real file
-    // attachment (there's no such thing as an attachment param in the
-    // scheme), so a signed link is the closest equivalent — given a much
-    // longer TTL than the in-app default since it may sit unread for days.
     let photoUrl = null;
     if (report.photo_path && report.photo_status === 'approved') {
       photoUrl = await getReportPhotoSignedUrl(report.photo_path, REPORT_PHOTO_EMAIL_SIGNED_URL_TTL);
@@ -13362,20 +12452,6 @@ async function emailReport(reportId) {
 }
 
 
-// =============================================================================
-// REPORT DETAIL MODAL — ADMIN IN-PLACE EDIT
-// Admins used to get a separate, cramped popup edit form on the map pin
-// itself. That's gone now — editing (and deleting) a report happens right
-// inside the full-screen detail modal's Status section instead, which has
-// room to show every field at once. Toggled by swapping the innerHTML of
-// #reportDetailStatusSection between the read-only and editable templates
-// below, rather than re-running the whole modal (which would re-trigger the
-// address/municipality/contacts network calls for no reason).
-// =============================================================================
-
-// Read-only Status section: status/priority pills, reporter, timeline,
-// comment, and — for admins only — the Edit/Delete controls that swap this
-// same section into buildDetailEditFieldsHtml below.
 function buildDetailStatusReadonlyHtml(report, reporterName) {
   const isAdmin = !!(currentProfile && currentProfile.is_admin);
   const hasFullPower = hasFullPowerOverReport(report);
@@ -13501,9 +12577,7 @@ async function saveReportDetailEdits(reportId) {
       .eq('id', reportId);
     if (error) throw error;
     await loadPinsByWindow();
-    // Re-render the whole modal from the freshly-reloaded report data so
-    // the header title/color, status pill, priority pill, and timeline all
-    // reflect the save — not just the section that was being edited.
+
     await showReportDetailModal(reportId);
   } catch (err) {
     console.error('Detail edit save error (full):', err);
@@ -13511,9 +12585,6 @@ async function saveReportDetailEdits(reportId) {
   }
 }
 
-// Lightweight popup for the reporter to edit just their own optional note —
-// full editing (category/subcategory/status/priority) for admins now lives
-// in the report detail modal's Status section instead of a popup form.
 function buildNoteEditPopupHtml(report) {
   const uid = report.id;
   const catCol = categoryColor(report.category);
@@ -13568,10 +12639,6 @@ function cancelEdit(reportId) {
   if (pin) pin.setPopupContent(buildPopupHtml(report));
 }
 
-// Computes which timeline timestamp(s) to set/clear for a given status transition.
-// Moving to in_progress stamps in_progress_at; moving to fixed stamps fixed_at
-// (leaving in_progress_at as-is in case a report skipped straight to fixed);
-// reverting to reported clears both, since the report is back at square one.
 function buildStatusPatch(newStatus) {
   const now = new Date().toISOString();
   if (newStatus === 'reported')    return { status: 'reported',    in_progress_at: null, fixed_at: null };
@@ -13580,10 +12647,6 @@ function buildStatusPatch(newStatus) {
   return { status: newStatus };
 }
 
-// Called from the detail modal's Status section (admin only). Closing the
-// modal on success matters here in a way it didn't for the old popup-based
-// delete button: the modal would otherwise be left open showing a report
-// that no longer exists in globalActiveData.
 async function deleteReport(reportId) {
   if (!confirm(t('deleteConfirm'))) return;
   try {
@@ -13611,21 +12674,6 @@ async function updateReportStatus(reportId, newStatus) {
   }
 }
 
-// Community-verification vote. The proximity gate and the weighted-points
-// tally both happen server-side in cast_status_vote() (see the Supabase
-// SQL) so a client can't fake either — this only does a quick client-side
-// distance check first purely so someone standing nowhere near the pin
-// gets the friendly message instantly, before even making the round trip.
-//
-// An admin only ever reaches this function for a report OUTSIDE their own
-// domain that they're not currently standing next to either (see
-// hasFullPowerOverReport / buildPopupHtml) — in that situation they still
-// get to vote same as anyone, just skipping the on-site requirement, since
-// "elsewhere has the strongest voting power" per the 3-tier admin design.
-// NOTE: cast_status_vote() needs a matching server-side update so it (a)
-// skips its own on-site check for an admin voting outside their domain, and
-// (b) gives that vote the strongest possible weight (e.g. enough to resolve
-// on its own) rather than the normal tier-based multiplier.
 async function castStatusVote(reportId, suggestedStatus) {
   if (!currentSession || !currentProfile) { toast(t('signInFirst'), 'error'); return; }
   if (!userCoords) { toast(t('waitGps'), 'error'); return; }
@@ -13669,16 +12717,6 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-// =============================================================================
-// PLAIN-TEXT "BOLD" — mailto: bodies are plain text (RFC 6068), so there's
-// no HTML/CSS available to bold a field label like "Status" the way the
-// rest of the app would with font-weight. Unicode's Mathematical Bold
-// letters/digits (U+1D400 range) are genuinely distinct code points rather
-// than a style, so swapping plain ASCII for their bold look-alikes reads as
-// bold in any mail client without needing any markup at all. Only used on
-// our own hardcoded field-name words (all plain ASCII), never on
-// user-entered values, which may contain characters outside A-Z/a-z/0-9.
-// =============================================================================
 const BOLD_UNICODE_MAP = (() => {
   const map = {};
   for (let i = 0; i < 26; i++) {
@@ -13692,17 +12730,6 @@ function boldText(str) {
   return String(str).replace(/[A-Za-z0-9]/g, ch => BOLD_UNICODE_MAP[ch] ?? ch);
 }
 
-// =============================================================================
-// CYRILLIC -> LATIN TRANSLITERATION
-// Serbian can be typed in either script; everything downstream of here
-// (the map, admin lists, emails) is Latin-only, so free-text fields are
-// transliterated to Latin at the point they're saved (see reportBreak(),
-// saveOwnerNote(), saveReportDetailEdits(), persistUcRow(), and
-// submitUsername() below) rather than trying to detect/convert script on
-// every future read. That also means older rows saved before this existed
-// can still legitimately contain Cyrillic — cyrillicToLatin() is safe to
-// run on already-Latin text (a no-op) so it's fine to call defensively
-// wherever Cyrillic might still show up.
 const CYRILLIC_TO_LATIN_MAP = {
   'А':'A','Б':'B','В':'V','Г':'G','Д':'D','Ђ':'Đ','Е':'E','Ж':'Ž','З':'Z','И':'I',
   'Ј':'J','К':'K','Л':'L','Љ':'Lj','М':'M','Н':'N','Њ':'Nj','О':'O','П':'P','Р':'R',
@@ -13720,18 +12747,6 @@ function cyrillicToLatin(str) {
   return String(str).replace(/[А-Яа-яЂђЈјЉљЊњЋћЏџ]/g, ch => CYRILLIC_TO_LATIN_MAP[ch] ?? ch);
 }
 
-// Creates the marker for a report if it isn't rendered yet, or updates an
-// already-rendered marker's icon/popup in place (e.g. after a status change)
-// without tearing it down and rebuilding it from scratch.
-// A report is a "section" report (drawn as a spline/polyline instead of a
-// single pin) when it carries a `path` array with more than one point,
-// e.g. produced by the driving-mode section recorder.
-// Section-report lines are drawn thin (see upsertSectionLine) so they read
-// as a road overlay rather than a fat highlighter stroke, but a 6px-wide
-// line is a genuinely hard target to tap on a phone. This renderer adds an
-// invisible padding around every path it draws for hit-testing purposes
-// only — the visual stroke width is untouched, just what counts as "on
-// the line" for taps/clicks.
 const sectionLineRenderer = L.svg({ tolerance: 32 });
 
 function isSectionReport(report) {
@@ -13761,12 +12776,6 @@ function upsertSectionLine(report) {
   return line;
 }
 
-// Builds the HTML for a report pin: a circle in the status color (so the
-// ring/fill you see at a glance is "what state is this in") with the
-// category's icon centered on top, tinted to the category color via a CSS
-// mask (works with any single-color glyph PNG that has a transparent
-// background, which is what's in icons/ for each category — see the
-// CATEGORY_ICONS map above).
 function buildPinIconHtml(category, status) {
   const catCol  = categoryColor(category);
   const sCol    = statusColor(status);
@@ -13799,10 +12808,7 @@ function upsertMarker(report) {
     marker.setLatLng([report.latitude, report.longitude]);
     marker.setPopupContent(buildPopupHtml(report));
     marker.setZIndexOffset(zOffset);
-    // Re-icon/re-position doesn't automatically re-run clustering — this
-    // tells pinCluster to recompute that marker's cluster membership/icon
-    // in place, so a status change (which can change the pin icon) is
-    // reflected immediately even while the marker is grouped into a bubble.
+
     if (pinCluster.hasLayer(marker)) pinCluster.refreshClusters(marker);
     return marker;
   }
@@ -13818,10 +12824,6 @@ function upsertMarker(report) {
   markerById.set(report.id, marker);
   return marker;
 }
-
-// True if a report should be considered "in view" for the current bounds —
-// point reports check their single coordinate, section reports check
-// whether any part of their traced path intersects the viewport.
 function reportInBounds(report, bounds) {
   if (isSectionReport(report)) {
     return sanitizePath(report.path).some(([lat, lon]) => bounds.contains(L.latLng(lat, lon)));
@@ -13829,17 +12831,6 @@ function reportInBounds(report, bounds) {
   if (!isValidLatLng(report.latitude, report.longitude)) return false;
   return bounds.contains(L.latLng(report.latitude, report.longitude));
 }
-
-// Keeps the on-map markers in sync with globalActiveData, but only ever
-// attaches markers for reports inside (a small buffer around) the current
-// viewport. This is what keeps things fast with a lot of pins: panning and
-// zooming just add/remove the handful of markers at the edge of view instead
-// of touching the whole dataset.
-// - refreshExisting=true also re-applies icon/popup content to markers that
-//   are already on the map (used after a data reload, since a report's
-//   status/category/comment may have changed).
-// - refreshExisting=false (pan/zoom) only adds newly-visible markers and
-//   removes ones that scrolled out of view; unaffected markers are untouched.
 function syncMarkers(refreshExisting) {
   const bounds = map.getBounds().pad(0.2);
   const desiredIds = new Set();
@@ -13878,12 +12869,6 @@ function refreshRenderedPopups() {
   });
 }
 
-// Drives the counts next to each colored dot in #mapLegend on the main
-// screen — moved here from a plain total in Settings so the breakdown is
-// visible at a glance while browsing the map, not tucked away in a menu.
-// Counts come from globalActiveData, so (like the total this replaced) they
-// reflect whatever the current date-range filter plus always-on open
-// reports currently include.
 function updateReportCount() {
   const counts = { reported: 0, in_progress: 0, fixed: 0 };
   globalActiveData.forEach(r => { if (counts.hasOwnProperty(r.status)) counts[r.status]++; });
@@ -13906,9 +12891,6 @@ async function loadPinsByWindow() {
   end.setHours(23,59,59,999);
 
   try {
-    // Reports inside the selected date range, plus - regardless of the date
-    // filter - any report that isn't fixed yet, so open issues never
-    // disappear from the map just because they fall outside the window.
     const [dateRangeRes, alwaysOnRes] = await Promise.all([
       sb.from(TABLE).select('*')
         .gte('created_at', start.toISOString())
@@ -13938,11 +12920,6 @@ async function loadPinsByWindow() {
   }
 }
 
-// Pulls the current weighted-points tally per (report, suggested status)
-// from the report_status_vote_progress view so popups can show "⏳ 2/3
-// votes" badges without a separate round trip per pin. Skipped while
-// signed out — the view is only granted to authenticated, and a logged-out
-// visitor can't vote anyway.
 async function loadVoteProgress(reportIds) {
   if (!currentSession || !reportIds.length) { voteProgressByReport = new Map(); return; }
   try {
@@ -13962,9 +12939,6 @@ async function loadVoteProgress(reportIds) {
 }
 
 function downloadCSV() {
-  // Exactly what the name on the button implies: reports in the selected
-  // date range AND currently visible on screen (not the always-on open
-  // reports that may be outside the date filter, nor pins off-screen).
   const bounds = map.getBounds();
   const visible = dateRangeOnlyData.filter(r =>
     isValidLatLng(r.latitude, r.longitude) && bounds.contains(L.latLng(r.latitude, r.longitude))
@@ -14006,10 +12980,6 @@ function downloadCSV() {
   document.body.removeChild(a);
 }
 
-// --- Keep screen awake ---------------------------------------------------
-// Requests a screen wake lock so the display doesn't dim/sleep while the
-// map is open. Re-requests automatically when the tab regains visibility
-// (the lock is released by the browser whenever the tab is hidden).
 let wakeLock = null;
 
 async function requestWakeLock() {
@@ -14059,25 +13029,6 @@ function updateFullscreenBtn() {
   })
 );
 
-// --- Portrait orientation lock ----------------------------------------
-// Replaces the old "please rotate back" blocking overlay: instead of
-// telling the person to fix it themselves, actually ask the platform to
-// keep the app in portrait. screen.orientation.lock() only works while
-// the page is in fullscreen (it throws SecurityError otherwise in every
-// browser that implements it), so this rides the existing fullscreen
-// button as its trigger — same reasoning as requestOrientationPermission()
-// piggybacking on the driving-mode tap for its own iOS permission prompt.
-// Also tried once at startup for the case where the page is already
-// fullscreen on load (e.g. installed as a home-screen PWA, which counts
-// as fullscreen/standalone without the button ever being pressed).
-//
-// iOS Safari doesn't implement the Orientation Lock API at all (same gap
-// noted in the removed overlay's old comment) — on those devices this is
-// a silent no-op and the phone will still physically rotate to landscape
-// if turned sideways. There's no JS-only way around that on iOS short of
-// installing the app from a manifest with "orientation": "portrait" set,
-// which locks orientation automatically for a home-screen install without
-// needing this function at all.
 function requestPortraitLock() {
   const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement;
   if (!isFullscreen) return;
@@ -14092,25 +13043,6 @@ function requestPortraitLock() {
 }
 requestPortraitLock();
 
-// --- Auto portrait lock on mobile, without waiting for the fullscreen
-// button ------------------------------------------------------------------
-// requestPortraitLock() above can only ever succeed once the page is
-// ALREADY in fullscreen (a hard platform restriction, not a bug — see its
-// comment), and fullscreen itself can only be entered from a genuine user
-// gesture. Previously that meant orientation stayed fully unlocked — the
-// device autorotating normally — for the very common case of someone just
-// using the site in a regular mobile browser tab and never noticing/
-// tapping the dedicated fullscreen button. This turns the person's very
-// first tap anywhere into that gesture: it requests fullscreen once, and
-// the existing 'fullscreenchange' listener above then calls
-// requestPortraitLock() as soon as that succeeds — the two combine into an
-// automatic, no-button-needed lock. If the person later exits fullscreen
-// themselves (back gesture, browser chrome), autorotation resumes until
-// they tap the fullscreen button again, same as always.
-// Still a no-op on iOS Safari, which doesn't implement the Orientation
-// Lock API at all (see requestPortraitLock's comment) — nothing on the
-// web platform can force a lock there short of a home-screen PWA install
-// with "orientation":"portrait" in its manifest.
 if (isMobileDevice()) {
   document.addEventListener('pointerdown', function autoLockOnFirstTap() {
     document.removeEventListener('pointerdown', autoLockOnFirstTap);
@@ -14125,14 +13057,6 @@ if (isMobileDevice()) {
   }, { once: true });
 }
 
-// =============================================================================
-// THEME — Light / Dark / Auto (Settings)
-// =============================================================================
-// See the THEME comment block near the top of <style> for the CSS-variable
-// side of this. A tiny inline script in <head> already applied the saved
-// (or system) theme before first paint to avoid a flash; everything here is
-// the ongoing part — the Settings UI, persisting a change, and staying in
-// sync with the OS while in Auto mode.
 const THEME_STORAGE_KEY = 'ttb_theme_mode'; // localStorage value: 'light' | 'dark' | 'auto'
 let themeMode = (function () {
   try { return localStorage.getItem(THEME_STORAGE_KEY) || 'auto'; } catch (e) { return 'auto'; }
@@ -14153,10 +13077,6 @@ function updateThemeSegmentUI() {
   });
 }
 
-// Applies `mode` (without persisting it — see setThemeMode for the
-// persisted, user-facing entry point) to <html data-theme>. flatpickr is
-// themed directly via CSS vars (see .flatpickr-calendar rules) rather than
-// swapping stylesheets, so this is the only thing that needs to happen.
 function applyTheme(mode) {
   themeMode = mode;
   const resolved = resolveThemeMode(mode);
@@ -14172,9 +13092,6 @@ function setThemeMode(mode) {
 
 function initTheme() {
   applyTheme(themeMode);
-  // Only matters in Auto mode, but cheap to always listen — applyTheme()
-  // re-resolves against themeMode every time anyway, so a change firing
-  // while in Light/Dark mode is just a harmless no-op re-apply.
   if (systemDarkModeMQ) {
     const onSystemThemeChange = () => applyTheme(themeMode);
     if (systemDarkModeMQ.addEventListener) systemDarkModeMQ.addEventListener('change', onSystemThemeChange);
@@ -14182,33 +13099,6 @@ function initTheme() {
   }
 }
 
-// Keeps the --header-h CSS var in sync with the header's real rendered
-// height, so fixed-position elements below it (currently just
-// #municipalityLabel) can sit right underneath instead of using a guessed
-// fixed offset. Height isn't constant: it depends on the safe-area inset
-// (device/rotation), text wrapping at narrow widths, and whether the
-// user-badge row is showing. A ResizeObserver on the header picks up all of
-// those automatically instead of needing a manual recompute call wired into
-// every place that could change it.
-//
-// NOTE: the actual tracking (updateHeaderHeightVar/initHeaderHeightTracking)
-// now runs at the very TOP of this script, alongside initAppPanelHeightTracking/
-// initLegendHeightTracking — see the CRITICAL LAYOUT TRACKING block right
-// after <script> opens for why. The `typeof map !== 'undefined'` guard inside
-// updateHeaderHeightVar already made it safe to run before `map` exists (the
-// very first call just skips the invalidateSize line), so nothing else about
-// the function needed to change to move it this early.
-
-// Initial map-loading overlay is visible by default (see CSS) so first
-// paint never shows a bare, empty map with no feedback. Faded out once the
-// very first loadPinsByWindow() call settles — success or failure, since a
-// failed fetch still gets its own toast(t('loadFailed')) and shouldn't
-// leave the spinner stuck on screen forever — plus a fixed 0.5s hold on
-// top of that settle, so on a fast/cached load the screen doesn't just
-// flash the logo for a single frame before yanking it away. Every later
-// loadPinsByWindow() call (filter changes, edits, etc.) deliberately does
-// NOT touch this — it's a one-time first-load affordance, not a spinner
-// for every refresh.
 const MAP_LOADING_OVERLAY_MIN_HOLD_MS = 500;
 function hideMapLoadingOverlay() {
   setTimeout(() => {
