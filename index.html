@@ -754,7 +754,6 @@ body.driving-active .report-fab-btn{ display:none !important; }
   box-shadow:0 1px 4px var(--floating-shadow);
 }
 .icon-img{ width:22px; height:22px; object-fit:contain; vertical-align:middle; }
-.icon-img.icon-img-tile{ width:19px; height:19px; }
 .icon-img.icon-img-inline{ width:16px; height:16px; margin:0 1px -3px; }
 .icon-img.icon-img-modal{ width:28px; height:28px; }
 
@@ -762,8 +761,7 @@ body.driving-active .report-fab-btn{ display:none !important; }
 .help-icon-btn .icon-img,
 .generic-modal .icon-img,
 .fullscreen-modal-body .icon-img,
-.turn-by-turn-icon,
-.driving-tile .icon-img-tile{ filter:var(--icon-tint-filter); }
+.turn-by-turn-icon{ filter:var(--icon-tint-filter); }
 
 .settings-btn{
   background:var(--bg-surface-alt); color:var(--text-primary); border:none; border-radius:var(--radius-xl);
@@ -1215,7 +1213,13 @@ body.driving-active .driving-report-sheet{ display:flex; }
   touch-action:manipulation;
 }
 .driving-tile span{ display:none; }
-.driving-tile .icon-img-tile{ width:26px; height:26px; }
+.driving-tile .icon-img-tile{
+  width:26px; height:26px;
+  background-color:var(--driving-tile-text);
+  -webkit-mask-position:center; mask-position:center;
+  -webkit-mask-size:contain; mask-size:contain;
+  -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
+}
 .driving-tile:active{ transform:scale(.96); }
 
 .driving-tile.tile-pothole{  background:color-mix(in srgb, var(--driving-tile-base) 65%, #e74c3c 35%); border-color:#e74c3c; }
@@ -1229,11 +1233,15 @@ body.driving-active .driving-report-sheet{ display:flex; }
 .driving-tile.tile-flooding:active{ background:color-mix(in srgb, var(--driving-tile-base) 45%, #3498db 55%); }
 .driving-tile.tile-other:active{    background:color-mix(in srgb, var(--driving-tile-base) 45%, #9b59b6 55%); }
 
-.driving-tile.tile-pothole  .icon-img-tile{ filter:brightness(0) saturate(100%) invert(42%) sepia(87%) saturate(1801%) hue-rotate(340deg) brightness(101%) contrast(94%); } /* #e74c3c */
-.driving-tile.tile-cracked  .icon-img-tile{ filter:brightness(0) saturate(100%) invert(56%) sepia(75%) saturate(1729%) hue-rotate(1deg) brightness(101%) contrast(93%); } /* #e67e22 */
-.driving-tile.tile-signage  .icon-img-tile{ filter:brightness(0) saturate(100%) invert(76%) sepia(59%) saturate(1073%) hue-rotate(1deg) brightness(103%) contrast(105%); } /* #f1c40f */
-.driving-tile.tile-flooding .icon-img-tile{ filter:brightness(0) saturate(100%) invert(52%) sepia(35%) saturate(1826%) hue-rotate(169deg) brightness(93%) contrast(89%); } /* #3498db */
-.driving-tile.tile-other    .icon-img-tile{ filter:brightness(0) saturate(100%) invert(37%) sepia(21%) saturate(2489%) hue-rotate(240deg) brightness(93%) contrast(90%); } /* #9b59b6 */
+/* Each tile's icon glyph is now a mask (see .icon-img-tile above) tinted with
+   a plain background-color matching the tile's own border-color one line up
+   — replaces 5 separate brightness/sepia/hue-rotate filter chains that each
+   needed a code comment to say which color they actually produced. */
+.driving-tile.tile-pothole  .icon-img-tile{ background-color:#e74c3c; }
+.driving-tile.tile-cracked  .icon-img-tile{ background-color:#e67e22; }
+.driving-tile.tile-signage  .icon-img-tile{ background-color:#f1c40f; }
+.driving-tile.tile-flooding .icon-img-tile{ background-color:#3498db; }
+.driving-tile.tile-other    .icon-img-tile{ background-color:#9b59b6; }
 .driving-section-btn{
   width:100%;
   padding:14px;
@@ -2567,11 +2575,11 @@ span.flatpickr-weekday {
     <span id="sectionRecordBtnLabel">Start Section Report</span>
   </button>
   <div class="driving-tile-row">
-    <div class="driving-tile tile-pothole" onclick="handleTileTap('pothole')" title="Pothole"><img class="icon-img icon-img-tile" src="icons/pothole.png" alt="Pothole"><span id="dTilePothole">Pothole</span></div>
-    <div class="driving-tile tile-cracked" onclick="handleTileTap('cracked')" title="Damaged pavement"><img class="icon-img icon-img-tile" src="icons/road-damaged.png" alt="Damaged pavement"><span id="dTileCracked">Damaged pavement</span></div>
-    <div class="driving-tile tile-signage" onclick="handleTileTap('signage')" title="Bad signage"><img class="icon-img icon-img-tile" src="icons/traffic-cone.png" alt="Bad signage"><span id="dTileSignage">Bad signage</span></div>
-    <div class="driving-tile tile-flooding" onclick="handleTileTap('flooding')" title="Flooding"><img class="icon-img icon-img-tile" src="icons/flood-risk.png" alt="Flooding"><span id="dTileFlooding">Flooding</span></div>
-    <div class="driving-tile tile-other" onclick="handleTileTap(null)" title="Other road issue"><img class="icon-img icon-img-tile" src="icons/warning-symbol.png" alt="Other road issue"><span id="dTileOther">Other road issue</span></div>
+    <div class="driving-tile tile-pothole" onclick="handleTileTap('pothole')" title="Pothole" aria-label="Pothole"><div class="icon-img-tile" aria-hidden="true" style="-webkit-mask-image:url('icons/pothole.png');mask-image:url('icons/pothole.png');"></div><span id="dTilePothole">Pothole</span></div>
+    <div class="driving-tile tile-cracked" onclick="handleTileTap('cracked')" title="Damaged pavement" aria-label="Damaged pavement"><div class="icon-img-tile" aria-hidden="true" style="-webkit-mask-image:url('icons/road-damaged.png');mask-image:url('icons/road-damaged.png');"></div><span id="dTileCracked">Damaged pavement</span></div>
+    <div class="driving-tile tile-signage" onclick="handleTileTap('signage')" title="Bad signage" aria-label="Bad signage"><div class="icon-img-tile" aria-hidden="true" style="-webkit-mask-image:url('icons/traffic-cone.png');mask-image:url('icons/traffic-cone.png');"></div><span id="dTileSignage">Bad signage</span></div>
+    <div class="driving-tile tile-flooding" onclick="handleTileTap('flooding')" title="Flooding" aria-label="Flooding"><div class="icon-img-tile" aria-hidden="true" style="-webkit-mask-image:url('icons/flood-risk.png');mask-image:url('icons/flood-risk.png');"></div><span id="dTileFlooding">Flooding</span></div>
+    <div class="driving-tile tile-other" onclick="handleTileTap(null)" title="Other road issue" aria-label="Other road issue"><div class="icon-img-tile" aria-hidden="true" style="-webkit-mask-image:url('icons/warning-symbol.png');mask-image:url('icons/warning-symbol.png');"></div><span id="dTileOther">Other road issue</span></div>
   </div>
 </div>
 
@@ -5205,9 +5213,9 @@ function makeClusterIcon(cluster) {
   else if (count >= 100) { size = 48; fontSize = 14; }
   return L.divIcon({
     html: `<div style="width:${size}px;height:${size}px;box-sizing:border-box;border-radius:50%;` +
-      `background:var(--nav-accent);border:3px solid var(--accent-contrast);` +
+      `background:var(--nav-accent);border:3px solid #fff;` +
       `display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.5);` +
-      `color:var(--accent-contrast);font-weight:var(--fw-bold);font-size:${fontSize}px;">${count}</div>`,
+      `color:#fff;font-weight:var(--fw-bold);font-size:${fontSize}px;">${count}</div>`,
     className: '',
     iconSize: [size, size]
   });
@@ -5232,9 +5240,9 @@ function makePublicClusterIcon(cluster) {
   else if (count >= 100) { size = 48; fontSize = 14; }
   return L.divIcon({
     html: `<div style="width:${size}px;height:${size}px;box-sizing:border-box;border-radius:50%;` +
-      `background:#2f8f5b;border:3px solid var(--accent-contrast);` +
+      `background:#2f8f5b;border:3px solid #fff;` +
       `display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.5);` +
-      `color:var(--accent-contrast);font-weight:var(--fw-bold);font-size:${fontSize}px;">${count}</div>`,
+      `color:#fff;font-weight:var(--fw-bold);font-size:${fontSize}px;">${count}</div>`,
     className: '',
     iconSize: [size, size]
   });
@@ -7331,7 +7339,6 @@ const REPORT_PHOTO_MAX_DIMENSION = 1280;        // px, longest side, after downs
 const REPORT_PHOTO_JPEG_QUALITY = 0.72;         // still visually clean at this size; the drop from 0.8 saves more here than it would at full resolution
 const REPORT_PHOTO_MAX_INPUT_BYTES = 15 * 1024 * 1024; // reject absurd originals before even trying to decode them
 const REPORT_PHOTO_SIGNED_URL_TTL = 300;        // seconds a viewing link stays valid for — fine for in-app viewing, where the link is used right away
-const REPORT_PHOTO_EMAIL_SIGNED_URL_TTL = 60 * 60 * 24 * 7; // 7 days — an emailed link may sit unread in an inbox for a while, so it needs to outlive the in-app default
 
 let pendingReportPhotoBlob = null;       // compressed Blob, uploaded only once the report itself is saved
 let pendingReportPhotoPreviewUrl = null; // object URL backing the on-screen thumbnail
@@ -9883,10 +9890,6 @@ async function emailReport(reportId) {
     const muni = await resolveReportMunicipality(report);
     const contacts = muni ? await getReportContacts(report, muni) : [];
     const toEmails = contacts.map(c => c.email).filter(Boolean).join(',');
-    let photoUrl = null;
-    if (report.photo_path && report.photo_status === 'approved') {
-      photoUrl = await getReportPhotoSignedUrl(report.photo_path, REPORT_PHOTO_EMAIL_SIGNED_URL_TTL);
-    }
 
     const shareUrl = reportShareUrl(report.id);
     const subject = encodeURIComponent(headerTitle);
@@ -9906,7 +9909,6 @@ async function emailReport(reportId) {
       `${boldText(t('detailMunicipalityLabel'))}: ${muniText}`,
       `${boldText(t('detailCoordsLabel'))}: ${report.latitude.toFixed(6)}, ${report.longitude.toFixed(6)}`,
       ...(report.comment ? ['', `${boldText(lang === 'sr' ? 'Opis' : 'Description')}: ${report.comment}`] : []),
-      ...(photoUrl ? ['', `${boldText(lang === 'sr' ? 'Fotografija' : 'Photo')}: ${photoUrl}`] : []),
       '',
       lang === 'sr' ? `Detaljan izveštaj i mapa: ${shareUrl}` : `Full report and map: ${shareUrl}`,
       '',
