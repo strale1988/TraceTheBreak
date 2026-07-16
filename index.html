@@ -1499,7 +1499,11 @@ body.driving-active #appPanel{
   -webkit-tap-highlight-color:transparent; touch-action:manipulation;
 }
 .offline-queue-dot{
-  width:9px; height:9px; border-radius:50%; flex-shrink:0; background:#f0a020;
+  /* Not a map marker, but echoes the same white-ring-on-color language as
+     .map-pin-badge (report/company pins) at a much smaller scale, so all
+     status/marker iconography reads as one family. */
+  width:9px; height:9px; box-sizing:border-box; border-radius:50%; flex-shrink:0; background:#f0a020;
+  border:1.5px solid #fff;
   box-shadow:0 0 0 3px rgba(240,160,32,.2);
   animation:offlineQueuePulse 1.6s ease-in-out infinite;
 }
@@ -1781,6 +1785,29 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   font-weight:var(--fw-bold);
 }
 
+/* ============================================================
+   Two modal systems — pick based on content, not habit:
+
+   .generic-modal(-overlay)   Small centered card. Use for short,
+     single-purpose content the user just acknowledges: GPS
+     permission prompt, help text, badge info. Has a built-in
+     title/body/single-close-button layout (see .generic-modal
+     h2/p/-close below) — not meant to scroll a long list or hold
+     a header action bar.
+
+   .fullscreen-modal(-overlay)  Full-height sheet with its own
+     header (title + close, optional share) and scrollable body.
+     Use for anything with real content to browse or that needs
+     header actions: settings, rankings, report/company detail,
+     admin panels. The header supports a `.status-colored`
+     modifier (adds ${status.bg} inline) for detail views that
+     want to tint the header to match a report's status — reuse
+     that instead of inventing a new header treatment.
+
+   Rule of thumb: if it fits in a couple of sentences and one
+   button, generic-modal. If it needs scrolling, a header action,
+   or is itself a screen the user navigates within, fullscreen-modal.
+   ============================================================ */
 .generic-modal-overlay{
   position:fixed; inset:0;
   background:rgba(0,0,0,.75);
@@ -1883,17 +1910,37 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 .contact-card-row a{ color:#4ea1ff; text-decoration:none; }
 .contact-card-row > *:last-child{ min-width:0; overflow-wrap:anywhere; word-break:break-word; }
 .contact-card-icon{ width:15px; height:15px; flex-shrink:0; filter:var(--icon-tint-filter); margin-top:1px; }
-.company-marker-icon-wrap{
+/* ============================================================
+   Shared "white icon on colored circle" map-marker language
+   .map-pin-badge = the colored circle + white ring + shadow
+   .map-pin-glyph = the white masked icon centered inside it
+   Used by report pins (buildPinIconHtml, JS) and utility-company
+   pins (.company-marker-icon-wrap/.company-marker-icon below).
+   Ring/glyph are hardcoded #fff (not var(--accent-contrast)) on
+   purpose: these sit on the map tile, not app chrome, so they
+   must stay white regardless of light/dark theme. New marker
+   types (e.g. future POI pins) should reuse these two classes
+   instead of re-deriving the circle/ring/glyph proportions.
+   ============================================================ */
+.map-pin-badge{
   width:26px; height:26px; box-sizing:border-box; border-radius:50%;
-  background:#2f8f5b; border:3px solid var(--accent-contrast);
+  border:3px solid #fff;
   box-shadow:0 2px 6px rgba(0,0,0,.5);
   display:flex; align-items:center; justify-content:center;
 }
-.company-marker-icon{
+.map-pin-glyph{
   width:14px; height:14px; display:inline-block;
-  background-color:var(--accent-contrast);
-  -webkit-mask:url(icons/public.png) center/contain no-repeat;
-  mask:url(icons/public.png) center/contain no-repeat;
+  background-color:#fff;
+  -webkit-mask-position:center; mask-position:center;
+  -webkit-mask-size:contain; mask-size:contain;
+  -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
+}
+.company-marker-icon-wrap{
+  background:#2f8f5b;
+}
+.company-marker-icon{
+  -webkit-mask-image:url(icons/public.png);
+  mask-image:url(icons/public.png);
 }
 .muni-stats-grid{
   display:grid; grid-template-columns:1fr 1fr; gap:8px 14px;
@@ -8368,7 +8415,7 @@ const companyGeocodeCache = {}; // "query|countrycode" -> {lat,lon} | null
 const utilityCompanyRegistry = new Map();
 
 function buildCompanyMarkerHtml() {
-  return '<div class="company-marker-icon-wrap"><span class="company-marker-icon"></span></div>';
+  return '<div class="map-pin-badge company-marker-icon-wrap"><span class="map-pin-glyph company-marker-icon"></span></div>';
 }
 async function geocodeAddress(address, muniName, countryCode) {
   const query = [address, muniName].filter(Boolean).join(', ');
@@ -10203,11 +10250,8 @@ function buildPinIconHtml(category, status) {
     `<span class="pin-status-halo" style="background:${sCol};animation-duration:${pulseDuration};"></span>`;
   return `<div style="position:relative;width:40px;height:40px;">` +
     halo +
-    `<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:26px;height:26px;box-sizing:border-box;border-radius:50%;background:${catCol};` +
-    `border:3px solid #fff;opacity:${opacity};box-shadow:0 2px 6px rgba(0,0,0,.5);` +
-    `display:flex;align-items:center;justify-content:center;">` +
-    `<span style="width:14px;height:14px;display:inline-block;background-color:#fff;` +
-    `-webkit-mask:url('${iconSrc}') center / contain no-repeat;mask:url('${iconSrc}') center / contain no-repeat;"></span>` +
+    `<div class="map-pin-badge" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:${catCol};opacity:${opacity};">` +
+    `<span class="map-pin-glyph" style="-webkit-mask-image:url('${iconSrc}');mask-image:url('${iconSrc}');"></span>` +
     `</div>` +
     `</div>`;
 }
