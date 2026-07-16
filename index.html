@@ -3681,6 +3681,20 @@ span.flatpickr-weekday {
 // of code that does depend on those. Running them first means the floating
 // buttons are correctly positioned even if everything after this point blows
 // up.
+// Declared here (as `let`, unassigned) rather than left to its later
+// `const map = L.map(...)` further down, purely so updateHeaderHeightVar()
+// below can safely check `typeof map !== 'undefined'` this early in the
+// script. `const`/`let` bindings are hoisted to the top of their scope but
+// stay in the "temporal dead zone" until their declaration line actually
+// runs — referencing them before that, even inside `typeof`, throws
+// "Cannot access 'map' before initialization" instead of just being
+// falsy/undefined. That thrown error used to abort this entire top-level
+// <script> right here, which silently skipped EVERYTHING after it,
+// including the splash-screen safety-net timer and the whole STARTUP block
+// — which is why the splash screen never came down. Declaring `map` here
+// with `let` (so it's simply `undefined` until assigned) keeps the guard
+// below working as originally intended.
+let map;
 function updateHeaderHeightVar() {
   const header = document.querySelector('header');
   if (header) document.documentElement.style.setProperty('--header-h', header.offsetHeight + 'px');
@@ -6051,25 +6065,11 @@ let lang = 'sr';
 let globalActiveData = [];
 let fp = null;
 
-function toggleLangDropdown(){
-  document.getElementById('langDdMenu').classList.toggle('open');
-}
-function closeLangDropdown(){
-  document.getElementById('langDdMenu').classList.remove('open');
-}
-document.addEventListener('click', (e) => {
-  const dd = document.getElementById('langDropdown');
-  if (dd && !dd.contains(e.target)) closeLangDropdown();
-});
-
 function setLang(l){
   lang = l;
   document.querySelectorAll('.lang-btn').forEach(b=>{
     b.classList.toggle('active', b.getAttribute('onclick').includes("'"+l+"'"));
   });
-  const flagEl = document.getElementById('langDdFlag');
-  if (flagEl) flagEl.textContent = l === 'sr' ? '🇷🇸' : '🇬🇧';
-  closeLangDropdown();
   applyLang();
 
   if (fp) {
@@ -6377,7 +6377,7 @@ const savedMapView = loadSavedMapView();
 // (~250ms) duration of the zoom animation and snaps them straight to
 // their correct final size/position the instant it ends — tiles still
 // zoom smoothly, only the marker scaling animation is skipped.
-const map = L.map('map', { zoomControl: false, markerZoomAnimation: false }).setView(
+map = L.map('map', { zoomControl: false, markerZoomAnimation: false }).setView(
   savedMapView ? [savedMapView.lat, savedMapView.lng] : EUROPE_DEFAULT_CENTER,
   savedMapView ? savedMapView.zoom : EUROPE_DEFAULT_ZOOM
 );
