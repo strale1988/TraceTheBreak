@@ -78,10 +78,13 @@ button, [onclick], [role="button"]{
    ------------------------------------------------------------
      1      #map                    Leaflet base layer
      100    header                  site chrome — only needs to
-                                     clear the map (1); hidden
-                                     entirely in driving mode so
-                                     it never competes with the
-                                     driving HUD below
+                                     clear the map (1); stays
+                                     visible even in driving mode
+                                     (see body.driving-active rules
+                                     further down) so it's never
+                                     hidden, just always cleared by
+                                     the driving HUD elements below
+                                     via --header-h
      2400   #drivingTopFade
      2550   .driving-report-sheet   bottom sheet
      2600   .navigate-panel /
@@ -109,6 +112,16 @@ button, [onclick], [role="button"]{
                                      that edge case is accepted
                                      rather than solved with a
                                      portal.)
+     10001  #mapLoadingOverlay      first-load screen — covers the
+                                     ENTIRE viewport, header included,
+                                     until the first pin load settles
+                                     (plus a short hold after — see
+                                     hideMapLoadingOverlay). Above
+                                     everything else in the app so
+                                     nothing peeks through, but still
+                                     below #toastContainer so a
+                                     load-failure toast can surface
+                                     over it.
      10002  #toastContainer         ABOVE EVERYTHING, including
                                      every modal overlay above. A
                                      toast fired while a modal is
@@ -732,14 +745,18 @@ button{
    compass/report-FAB) as a single Leaflet control — see
    BottomRightStackControl — so their visual top-to-bottom order is exactly
    the DOM order in #bottomRightStack, with the report FAB pinned last.
-   margin-bottom clears the status legend pill (now floating over the
-   bottom of the map — see .legend-row) so the stack never sits underneath
-   it: --legend-clear tracks the legend pill's own rendered height (see
-   initLegendHeightTracking) plus a bit of breathing room. This stacks on
-   top of Leaflet's own default ~10px corner margin, not instead of it. */
+   margin-bottom clears the WHOLE floating bottom stack — #appPanel plus
+   the legend bar sitting above it — so the buttons never sit underneath
+   either: --legend-bottom-gap tracks #appPanel's own rendered height (see
+   initAppPanelHeightTracking) and --legend-row-h tracks .legend-row's own
+   full rendered height, padding included, NOT just the pills inside it
+   (see initLegendHeightTracking) — .legend-row floats bottom:var(--legend-
+   bottom-gap) above the panel, so both have to be added together to reach
+   its actual top edge. This stacks on top of Leaflet's own default ~10px
+   corner margin, not instead of it. */
 .bottomright-stack{
   display:flex; flex-direction:column; align-items:center; gap:10px;
-  margin-bottom:calc(var(--legend-clear, 40px) + 14px);
+  margin-bottom:calc(var(--legend-bottom-gap, 0px) + var(--legend-row-h, 56px) + 14px);
 }
 .pin-map-btn{
   background:var(--floating-bg);
@@ -1152,21 +1169,22 @@ body.nav-panel-open .driving-nav-card{
 }
 
 /* --- Initial map-loading overlay ---
-   Covers only the map's own area (never the header) while the first
-   loadPinsByWindow() call is in flight, so first paint doesn't just dump an
-   empty map on screen with no feedback. Sits above #map (1) but below
-   header (100) — see Z-INDEX SCALE above — so header controls (lang
-   switch, sign-in) stay usable even during this initial fetch. */
+   Covers the ENTIRE screen (header included) while the first
+   loadPinsByWindow() call is in flight, so first paint never shows any
+   part of the app — chrome or map — before there's real data to show.
+   z-index:10001 puts it above every modal (9999) and the language dropdown
+   (10000) — see the Z-INDEX SCALE above — but still below #toastContainer
+   (10002), so a load-failure toast can still surface through it during the
+   extra 0.5s hold after loading settles (see hideMapLoadingOverlay). */
 #mapLoadingOverlay{
   position:fixed;
   inset:0;
-  top:var(--header-h, 56px);
-  z-index:50;
+  z-index:10001;
   display:flex;
   flex-direction:column;
   align-items:center;
   justify-content:center;
-  gap:14px;
+  gap:18px;
   background:var(--bg-surface);
   opacity:1;
   transition:opacity .25s ease;
@@ -1175,11 +1193,23 @@ body.nav-panel-open .driving-nav-card{
   opacity:0;
   pointer-events:none;
 }
+/* Ring spinner wrapped around the centered app logo, rather than a small
+   bare spinner off on its own. */
+.map-loading-spinner-wrap{
+  position:relative;
+  width:96px; height:96px;
+  display:flex; align-items:center; justify-content:center;
+}
+.map-loading-logo{
+  width:60px; height:60px;
+  object-fit:contain;
+  border-radius:18px;
+}
 .map-loading-spinner{
-  width:34px;
-  height:34px;
+  position:absolute;
+  inset:0;
   border-radius:50%;
-  border:3px solid var(--border-color-strong);
+  border:4px solid var(--border-color-strong);
   border-top-color:var(--accent);
   animation:map-loading-spin .8s linear infinite;
 }
@@ -2771,7 +2801,10 @@ span.flatpickr-weekday {
 
 <div id="map"></div>
 <div id="mapLoadingOverlay">
-  <div class="map-loading-spinner"></div>
+  <div class="map-loading-spinner-wrap">
+    <img src="./icons/TraceTheBreak.png" alt="TraceTheBreak" class="map-loading-logo">
+    <div class="map-loading-spinner"></div>
+  </div>
   <div class="map-loading-text" id="mapLoadingText"></div>
 </div>
 <div id="municipalityLabel" class="municipality-label"></div>
@@ -13569,17 +13602,20 @@ function updateHeaderHeightVar() {
   }
 })();
 
-// Keeps --legend-clear in sync with #mapLegend's own rendered height, so
-// .bottomright-stack (follow/pin/driving/categoryFilter/heatmap/compass/
-// report-FAB — see its CSS comment) always clears the status legend pill
-// instead of the two visually colliding in the bottom corner of the map.
+// Keeps --legend-row-h in sync with .legend-row's own full rendered height
+// (padding included, not just the pills inside it), so .bottomright-stack
+// (follow/pin/driving/categoryFilter/heatmap/compass/report-FAB — see its
+// CSS comment) always clears the WHOLE status legend bar instead of the
+// two visually colliding in the bottom corner of the map. Was previously
+// tracking #mapLegend's own inner height only, which left out the bar's
+// own vertical padding entirely — close but not quite enough clearance.
 (function initLegendHeightTracking() {
-  const legend = document.getElementById('mapLegend');
-  if (!legend) return;
-  const sync = () => document.documentElement.style.setProperty('--legend-clear', legend.offsetHeight + 'px');
+  const legendRow = document.querySelector('.legend-row');
+  if (!legendRow) return;
+  const sync = () => document.documentElement.style.setProperty('--legend-row-h', legendRow.offsetHeight + 'px');
   sync();
   if (window.ResizeObserver) {
-    new ResizeObserver(sync).observe(legend);
+    new ResizeObserver(sync).observe(legendRow);
   } else {
     window.addEventListener('resize', sync);
     window.addEventListener('orientationchange', sync);
@@ -13590,12 +13626,18 @@ function updateHeaderHeightVar() {
 // paint never shows a bare, empty map with no feedback. Faded out once the
 // very first loadPinsByWindow() call settles — success or failure, since a
 // failed fetch still gets its own toast(t('loadFailed')) and shouldn't
-// leave the spinner stuck on screen forever. Every later loadPinsByWindow()
-// call (filter changes, edits, etc.) deliberately does NOT touch this —
-// it's a one-time first-load affordance, not a spinner for every refresh.
+// leave the spinner stuck on screen forever — plus a fixed 0.5s hold on
+// top of that settle, so on a fast/cached load the screen doesn't just
+// flash the logo for a single frame before yanking it away. Every later
+// loadPinsByWindow() call (filter changes, edits, etc.) deliberately does
+// NOT touch this — it's a one-time first-load affordance, not a spinner
+// for every refresh.
+const MAP_LOADING_OVERLAY_MIN_HOLD_MS = 500;
 function hideMapLoadingOverlay() {
-  const el = document.getElementById('mapLoadingOverlay');
-  if (el) el.classList.add('map-loading-hidden');
+  setTimeout(() => {
+    const el = document.getElementById('mapLoadingOverlay');
+    if (el) el.classList.add('map-loading-hidden');
+  }, MAP_LOADING_OVERLAY_MIN_HOLD_MS);
 }
 
 // =============================================================================
