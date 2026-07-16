@@ -18,6 +18,12 @@
   <meta http-equiv="Expires" content="0">
 
   <link rel="icon" type="image/png" href="./icons/TraceTheBreak.png">
+  <!-- Preloaded because it's the very first thing painted (the splash
+       screen logo) but its <img> tag doesn't show up until deep in <body>.
+       Without this hint, the browser only discovers it after parsing past
+       the render-blocking Leaflet/markercluster/flatpickr CSS below; this
+       lets it start downloading in parallel with those instead. -->
+  <link rel="preload" as="image" href="./icons/TraceTheBreak.png">
   <meta property="og:image" content="https://github.io"/>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <!-- Leaflet.markercluster — groups overlapping pins into a single numbered
