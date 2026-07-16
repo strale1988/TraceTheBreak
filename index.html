@@ -18,13 +18,24 @@
   <meta http-equiv="Expires" content="0">
 
   <link rel="icon" type="image/png" href="./icons/TraceTheBreak.png">
-  <!-- Preloaded because it's the very first thing painted (the splash
-       screen logo) but its <img> tag doesn't show up until deep in <body>.
-       Without this hint, the browser only discovers it after parsing past
-       the render-blocking Leaflet/markercluster/flatpickr CSS below; this
-       lets it start downloading in parallel with those instead. -->
-  <link rel="preload" as="image" href="./icons/TraceTheBreak.png">
   <meta property="og:image" content="https://github.io"/>
+
+  <!-- Preload the icons that are visible the instant the map screen paints
+       (header buttons + the floating map controls), so the browser starts
+       fetching them in parallel with everything else instead of waiting
+       until it parses down to each <img> tag. Everything else (badges,
+       modals, driving-mode tiles, etc.) is warmed a moment later by the
+       ICON CACHING block further down, once the app is interactive — see
+       initIconCaching(). -->
+  <link rel="preload" as="image" href="icons/settings.png">
+  <link rel="preload" as="image" href="icons/fullscreen-enter.png">
+  <link rel="preload" as="image" href="icons/user.png">
+  <link rel="preload" as="image" href="icons/notification.png">
+  <link rel="preload" as="image" href="icons/target.png">
+  <link rel="preload" as="image" href="icons/pin.png">
+  <link rel="preload" as="image" href="icons/car.png">
+  <link rel="preload" as="image" href="icons/category-filter.png">
+  <link rel="preload" as="image" href="icons/heatmap.png">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <!-- Leaflet.markercluster — groups overlapping pins into a single numbered
        bubble when zoomed out, so a busy area doesn't render dozens of
@@ -877,37 +888,23 @@ body.driving-active .report-fab-btn{ display:none !important; }
 }
 .wiz-tile{
   background:var(--bg-surface);
-  border:none;
+  border:1px solid var(--border-color);
   border-radius:14px;
-  padding:12px 6px;
-  aspect-ratio:1/1;
-  display:flex; flex-direction:column; align-items:center; justify-content:center;
-  gap:10px;
+  padding:16px 6px;
+  display:flex; flex-direction:column; align-items:center; gap:10px;
   cursor:pointer; text-align:center;
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
 }
-.wiz-tile:active{ filter:brightness(.85); }
+.wiz-tile:active{ background:var(--bg-surface-alt); }
 .wiz-tile img{ width:44px; height:44px; }
-.wiz-tile span{
-  font-size:12.5px; font-weight:600; line-height:1.25; color:#fff;
-  text-shadow:0 1px 2px rgba(0,0,0,.35);
-  /* Long labels ("Često Nepropisno parkiranje") used to just wrap to a
-     third line and push the tile taller — not an option now that the tile
-     is a fixed square, so clamp instead of overflowing it. */
-  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
-  overflow:hidden;
-}
+.wiz-tile span{ font-size:12.5px; color:var(--text-primary); line-height:1.25; }
 /* Category/subcategory glyphs are rendered as a CSS mask (not a plain
-   <img>) so they can be tinted — see categoryColor() / CATEGORY_COLORS and
-   wizRenderCategory/Subcategory. Sized up from the old flat 30px <img> per
-   the "bigger icons" request. The category color now lives on the tile
-   itself (set inline per-render, see wizRenderCategory/Subcategory) so the
-   glyph is always plain white on top of it, rather than a colored glyph on
-   a neutral card. */
+   <img>) so they can be tinted with the category's own color — see
+   categoryColor() / CATEGORY_COLORS and wizRenderCategory/Subcategory.
+   Sized up from the old flat 30px <img> per the "bigger icons" request. */
 .wiz-tile-icon{
   width:44px; height:44px; flex:0 0 auto;
-  background-color:#fff;
   -webkit-mask-size:contain; mask-size:contain;
   -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
   -webkit-mask-position:center; mask-position:center;
@@ -3701,20 +3698,6 @@ span.flatpickr-weekday {
 // of code that does depend on those. Running them first means the floating
 // buttons are correctly positioned even if everything after this point blows
 // up.
-// Declared here (as `let`, unassigned) rather than left to its later
-// `const map = L.map(...)` further down, purely so updateHeaderHeightVar()
-// below can safely check `typeof map !== 'undefined'` this early in the
-// script. `const`/`let` bindings are hoisted to the top of their scope but
-// stay in the "temporal dead zone" until their declaration line actually
-// runs — referencing them before that, even inside `typeof`, throws
-// "Cannot access 'map' before initialization" instead of just being
-// falsy/undefined. That thrown error used to abort this entire top-level
-// <script> right here, which silently skipped EVERYTHING after it,
-// including the splash-screen safety-net timer and the whole STARTUP block
-// — which is why the splash screen never came down. Declaring `map` here
-// with `let` (so it's simply `undefined` until assigned) keeps the guard
-// below working as originally intended.
-let map;
 function updateHeaderHeightVar() {
   const header = document.querySelector('header');
   if (header) document.documentElement.style.setProperty('--header-h', header.offsetHeight + 'px');
@@ -4339,7 +4322,7 @@ function levelBadgeIcon(level) {
 function buildBadgeIconHtml(badge, earnedIn) {
   const soon = !!badge.comingSoon;
   const earned = soon ? false : earnedIn;
-  const iconSrc = `icons/badges/${badge.icon}`;
+  const iconSrc = cachedIconUrl(`icons/badges/${badge.icon}`);
   const bg    = earned ? 'var(--accent)' : 'var(--bg-surface-alt)';
   const glyph = earned ? 'var(--accent-contrast)' : 'var(--text-secondary)';
   const titleSuffix = soon ? ` (${t('badgeComingSoon')})` : '';
@@ -4366,7 +4349,7 @@ function findBadgeById(id) {
 function showBadgeInfo(id, earned, soon) {
   const badge = findBadgeById(id);
   if (!badge) return;
-  const iconSrc = `icons/badges/${badge.icon}`;
+  const iconSrc = cachedIconUrl(`icons/badges/${badge.icon}`);
   const bg    = earned ? 'var(--accent)' : 'var(--bg-surface-alt)';
   const glyph = earned ? 'var(--accent-contrast)' : 'var(--text-secondary)';
   document.getElementById('badgeInfoIconCircle').style.background = bg;
@@ -6081,20 +6064,15 @@ function t(k){ return T[k]?.[lang] ?? k; }
 // =============================================================================
 // GLOBAL STATE
 // =============================================================================
-// Persisted the same way as THEME_STORAGE_KEY/themeMode (see the THEME
-// block further down) — read the saved choice (or fall back to 'sr') once
-// at startup, instead of always resetting to 'sr' on every visit.
-const LANG_STORAGE_KEY = 'ttb_lang';
-let lang = (function () {
-  try { return localStorage.getItem(LANG_STORAGE_KEY) || 'sr'; } catch (e) { return 'sr'; }
-})();
+let lang = 'sr';
 let globalActiveData = [];
 let fp = null;
 
 function setLang(l){
   lang = l;
-  try { localStorage.setItem(LANG_STORAGE_KEY, l); } catch (e) {}
-  syncLangSegmentUI();
+  document.querySelectorAll('.lang-btn').forEach(b=>{
+    b.classList.toggle('active', b.getAttribute('onclick').includes("'"+l+"'"));
+  });
   applyLang();
 
   if (fp) {
@@ -6103,18 +6081,6 @@ function setLang(l){
     initCalendarFilter(savedDates);
     loadPinsByWindow();
   }
-}
-
-// Highlights whichever .lang-btn matches the current `lang`. Split out of
-// setLang() so startup can call it too: the saved language is read straight
-// into `lang` above (no setLang() call, to avoid its calendar-reset side
-// effects before the calendar even exists yet), which would otherwise leave
-// the Settings segment showing "SR" active even when a saved 'en' is really
-// in effect.
-function syncLangSegmentUI(){
-  document.querySelectorAll('.lang-btn').forEach(b=>{
-    b.classList.toggle('active', b.getAttribute('onclick').includes("'"+lang+"'"));
-  });
 }
 
 function applyLang(){
@@ -6414,7 +6380,7 @@ const savedMapView = loadSavedMapView();
 // (~250ms) duration of the zoom animation and snaps them straight to
 // their correct final size/position the instant it ends — tiles still
 // zoom smoothly, only the marker scaling animation is skipped.
-map = L.map('map', { zoomControl: false, markerZoomAnimation: false }).setView(
+const map = L.map('map', { zoomControl: false, markerZoomAnimation: false }).setView(
   savedMapView ? [savedMapView.lat, savedMapView.lng] : EUROPE_DEFAULT_CENTER,
   savedMapView ? savedMapView.zoom : EUROPE_DEFAULT_ZOOM
 );
@@ -6534,6 +6500,142 @@ new CachedTileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
   // of only ever fetching exactly the visible area.
   keepBuffer: 6
 }).addTo(map);
+
+// =============================================================================
+// ICON CACHING — same Cache Storage pattern as TILE CACHING above, applied to
+// the app's own UI icons (icons/*.png: header buttons, map controls, driving
+// tiles, badges, turn-by-turn arrows, etc.) instead of map tiles. Unlike the
+// OSM tiles, these are same-origin static assets we ship ourselves, so there's
+// no "bulk downloading someone else's server" concern — fetching the whole set
+// once is fine.
+//
+// Why this is needed on top of the browser's normal HTTP cache: this page is
+// served with Cache-Control: no-cache/no-store (see the <meta> tags in <head>)
+// so the *document* always re-checks for updates — but some hosts apply
+// similarly aggressive no-cache headers to every static asset on the same
+// origin, including these icons, which would mean re-downloading dozens of
+// small PNGs from scratch on every navigation/reload. Storing the bytes in
+// Cache Storage ourselves guarantees they're instant after the first load
+// regardless of what headers the host sends, exactly like the tile cache does
+// for map tiles.
+//
+// Two things happen once the cache is warm:
+//   1. Every <img src="icons/..."> already in the DOM gets its src swapped to
+//      a local blob: URL (see applyCachedIconSrc). A MutationObserver keeps
+//      doing this for icons injected later (badge grids, report tiles, admin
+//      badge rows, etc.) so every call site gets the speedup for free without
+//      having to touch each of the render functions individually.
+//   2. cachedIconUrl(path) is available for the couple of spots that set an
+//      icon via inline CSS mask (badge glyphs) rather than an <img> tag, so
+//      those can opt in explicitly — see buildBadgeIconHtml/showBadgeInfo.
+// =============================================================================
+const ICON_CACHE_NAME = 'ttb-icons-v1';
+const iconObjectUrlCache = new Map(); // 'icons/foo.png' -> blob: URL, warm for this page load
+
+async function fetchIconCached(url) {
+  const cache = await caches.open(ICON_CACHE_NAME);
+  const cached = await cache.match(url);
+  if (cached) return cached;
+  const response = await fetch(url);
+  if (response && response.ok) {
+    cache.put(url, response.clone()).catch(() => {}); // best-effort; a full/blocked cache shouldn't break icons
+  }
+  return response;
+}
+
+async function warmIconObjectUrl(path) {
+  if (iconObjectUrlCache.has(path)) return iconObjectUrlCache.get(path);
+  try {
+    const res = await fetchIconCached(path);
+    if (!res || !res.ok) return null;
+    const blob = await res.blob();
+    const objUrl = URL.createObjectURL(blob);
+    iconObjectUrlCache.set(path, objUrl);
+    return objUrl;
+  } catch (e) {
+    return null; // offline/unsupported/CORS hiccup — the plain <img src> path still works untouched
+  }
+}
+
+// Synchronous lookup for call sites that build icon URLs into inline CSS
+// (mask-image) rather than an <img> tag. Returns the cached blob URL once
+// warm, otherwise the original path — so it degrades to a normal network
+// fetch instead of ever showing a broken/missing icon.
+function cachedIconUrl(path) {
+  return iconObjectUrlCache.get(path) || path;
+}
+
+// Swaps every icons/*.png <img> under `root` over to its cached blob URL,
+// once one exists. Safe to call repeatedly/before the cache is warm — it's a
+// no-op for any path that hasn't resolved yet, and each subsequent pass (or
+// the MutationObserver below) picks it up as soon as it does.
+function applyCachedIconSrc(root) {
+  const imgs = root.matches && root.matches('img[src^="icons/"], img[src^="./icons/"]')
+    ? [root]
+    : Array.from(root.querySelectorAll ? root.querySelectorAll('img[src^="icons/"], img[src^="./icons/"]') : []);
+  imgs.forEach(img => {
+    const path = img.getAttribute('src').replace(/^\.\//, '');
+    const cachedUrl = iconObjectUrlCache.get(path);
+    if (cachedUrl && img.src !== cachedUrl) img.src = cachedUrl;
+  });
+}
+
+// Builds the full list of icon paths the app can ever show, pulling badge
+// filenames straight off the BADGES/USER_BADGES_EXTRA/ADMIN_BADGES/
+// ADMIN_BADGES_EXTRA arrays (and the turn-by-turn TURN_ICONS map) instead of
+// hand-duplicating them here — so a badge or turn-icon added later is
+// automatically included without this list going stale.
+function collectAllIconPaths() {
+  const staticIcons = [
+    'icons/TraceTheBreak.png', 'icons/settings.png', 'icons/fullscreen-enter.png', 'icons/fullscreen-exit.png',
+    'icons/user.png', 'icons/notification.png', 'icons/target.png', 'icons/pin.png', 'icons/car.png',
+    'icons/category-filter.png', 'icons/heatmap.png', 'icons/camera.png', 'icons/gallery.png',
+    'icons/reports/camera.png', 'icons/reports/gallery.png', 'icons/reports/report_new.png',
+    'icons/google.png', 'icons/github.png', 'icons/osm.png', 'icons/close.png', 'icons/help.png',
+    'icons/arrow.png', 'icons/search.png', 'icons/pothole.png', 'icons/road-damaged.png',
+    'icons/traffic-cone.png', 'icons/flood-risk.png', 'icons/warning-symbol.png', 'icons/trophy.png',
+    'icons/public.png', 'icons/email.png', 'icons/phone.png', 'icons/link.png',
+    'icons/badge-admin-admin-1.png', 'icons/badge-admin-admin-2.png', 'icons/badge-admin-admin-3.png',
+    // Turn types instructionForStep() sets directly rather than via TURN_ICONS:
+    'icons/turn-arrive.png', 'icons/turn-roundabout.png', 'icons/turn-merge.png',
+    'icons/turn-fork.png', 'icons/turn-end-of-road.png', 'icons/turn-ramp.png',
+  ];
+  const badgeArrays = [
+    (typeof BADGES !== 'undefined') ? BADGES : [],
+    (typeof USER_BADGES_EXTRA !== 'undefined') ? USER_BADGES_EXTRA : [],
+    (typeof ADMIN_BADGES !== 'undefined') ? ADMIN_BADGES : [],
+    (typeof ADMIN_BADGES_EXTRA !== 'undefined') ? ADMIN_BADGES_EXTRA : [],
+  ];
+  const badgeIcons = badgeArrays.flat().map(b => `icons/badges/${b.icon}`);
+  const turnIcons = (typeof TURN_ICONS !== 'undefined')
+    ? Object.values(TURN_ICONS).map(f => `icons/${f}`)
+    : [];
+  return [...new Set([...staticIcons, ...badgeIcons, ...turnIcons])];
+}
+
+async function initIconCaching() {
+  if (!('caches' in window)) return; // unsupported browser — icons still load normally via plain <img src>
+  const paths = collectAllIconPaths();
+  await Promise.all(paths.map(p => warmIconObjectUrl(p)));
+  applyCachedIconSrc(document.body);
+
+  // Keep dynamically-injected icons (badge grids, report tiles, admin rows,
+  // etc. — anything rendered via innerHTML after this point) pointed at the
+  // cached blob too, without needing to edit each render function.
+  new MutationObserver(mutations => {
+    for (const m of mutations) {
+      m.addedNodes.forEach(node => {
+        if (node.nodeType !== 1) return;
+        applyCachedIconSrc(node);
+      });
+    }
+  }).observe(document.body, { childList: true, subtree: true });
+}
+
+// Runs after the current script finishes evaluating (badge arrays etc. are
+// all defined by then) without blocking first paint or map init.
+if ('requestIdleCallback' in window) requestIdleCallback(initIconCaching);
+else setTimeout(initIconCaching, 0);
 
 // --- Pin clustering -------------------------------------------------------
 // Report pins (not section spline lines — those aren't point features and
@@ -8496,6 +8598,18 @@ function bringModalToFront(el){
 // stack duplicate history entries — see the .some() guard below.
 let overlayStack = [];
 let suppressOverlayPopstate = false;
+// True for the one popstate event that closeOverlay() itself triggers (via
+// history.back(), below) to consume its own history entry after a "manual"
+// close (X button / backdrop tap / Cancel). Without this flag, that
+// popstate looked identical to a real back-button press: the handler would
+// see the *next* overlay still on the stack and pop that one too, closing
+// two windows for one tap and — with two or more nested overlays open (e.g.
+// tapping a badge inside the Rankings modal, then closing just the badge
+// popup) — cascading all the way back to the main map. This flag makes a
+// self-triggered popstate a no-op, so closing one overlay only ever closes
+// that one overlay, and back-button/close-button behave identically: each
+// press/tap closes exactly the top of the stack, one level at a time.
+let closingViaOverlayStack = false;
 
 function openOverlay(key, closeFn) {
   if (overlayStack.some(o => o.key === key)) return; // already open/tracked
@@ -8513,9 +8627,21 @@ function closeOverlay(key) {
   const idx = overlayStack.findIndex(o => o.key === key);
   if (idx === -1) return; // not tracked — already closed via back button
   overlayStack.splice(idx, 1);
-  if (!suppressOverlayPopstate) history.back();
+  if (!suppressOverlayPopstate) {
+    closingViaOverlayStack = true;
+    history.back();
+  }
 }
 window.addEventListener('popstate', () => {
+  if (closingViaOverlayStack) {
+    // This is the history.back() that closeOverlay() just fired to consume
+    // its own entry — the overlay it belonged to was already removed from
+    // overlayStack above, so there's nothing left to do here. Critically,
+    // do NOT fall through and pop whatever overlay is now on top; that
+    // overlay was never asked to close.
+    closingViaOverlayStack = false;
+    return;
+  }
   if (overlayStack.length) {
     const top = overlayStack.pop();
     suppressOverlayPopstate = true;
@@ -9911,14 +10037,7 @@ let wizOwnsPinDrop = false;
 function wizStepsFor(cat) {
   const steps = ['category'];
   if (cat && (SUBCATEGORIES[cat] || []).length) steps.push('subcategory');
-  steps.push('priority');
-  // Reported/in-progress only makes sense for an actual fault that's either
-  // just been noticed or already being worked on. A Suggestion isn't a
-  // fault with that lifecycle, so skip asking — reportBreak() defaults a
-  // status-less Suggestion straight to 'in_progress' (see there for why not
-  // 'reported').
-  if (cat !== 'Suggestion') steps.push('status');
-  steps.push('details');
+  steps.push('priority', 'status', 'details');
   return steps;
 }
 
@@ -10035,8 +10154,8 @@ function wizRenderCategory(body) {
     <h3 class="wiz-step-title">${t('wizCategoryTitle') || "What's the issue?"}</h3>
     <div class="wiz-grid">
       ${cats.map(cat => `
-        <div class="wiz-tile" style="background-color:${categoryColor(cat)};" onclick="wizSelectCategory('${cat}')">
-          <div class="wiz-tile-icon" style="-webkit-mask-image:url('icons/reports/${WIZ_CATEGORY_ICONS[cat]}');mask-image:url('icons/reports/${WIZ_CATEGORY_ICONS[cat]}');"></div>
+        <div class="wiz-tile" onclick="wizSelectCategory('${cat}')">
+          <div class="wiz-tile-icon" style="background-color:${categoryColor(cat)};-webkit-mask-image:url('icons/reports/${WIZ_CATEGORY_ICONS[cat]}');mask-image:url('icons/reports/${WIZ_CATEGORY_ICONS[cat]}');"></div>
           <span>${translateCategory(cat)}</span>
         </div>`).join('')}
     </div>`;
@@ -10059,8 +10178,8 @@ function wizRenderSubcategory(body) {
     <h3 class="wiz-step-title">${t('wizSubcategoryTitle') || 'Which one?'}</h3>
     <div class="wiz-grid">
       ${list.map(s => `
-        <div class="wiz-tile" style="background-color:${categoryColor(wizState.category)};" onclick="wizSelectSubcategory('${s.key}')">
-          ${icons[s.key] ? `<div class="wiz-tile-icon" style="-webkit-mask-image:url('icons/reports/${icons[s.key]}');mask-image:url('icons/reports/${icons[s.key]}');"></div>` : ""}
+        <div class="wiz-tile" onclick="wizSelectSubcategory('${s.key}')">
+          ${icons[s.key] ? `<div class="wiz-tile-icon" style="background-color:${categoryColor(wizState.category)};-webkit-mask-image:url('icons/reports/${icons[s.key]}');mask-image:url('icons/reports/${icons[s.key]}');"></div>` : ""}
           <span>${lang === 'sr' ? s.sr : s.en}</span>
         </div>`).join('')}
     </div>`;
@@ -10132,11 +10251,11 @@ function wizRenderDetails(body) {
       <label>${t('wizPhotoLabel') || 'Photo (optional)'}</label>
       <div class="wiz-photo-row">
         <div class="wiz-photo-btn" onclick="triggerReportPhotoCamera()">
-          <img src="icons/camera.png" alt="">
+          <img src="icons/reports/camera.png" alt="">
           <span>${t('wizTakePhoto') || 'Take photo'}</span>
         </div>
         <div class="wiz-photo-btn" onclick="triggerReportPhotoGallery()">
-          <img src="icons/gallery.png" alt="">
+          <img src="icons/reports/gallery.png" alt="">
           <span>${t('wizChoosePhoto') || 'Choose photo'}</span>
         </div>
       </div>
@@ -10417,14 +10536,10 @@ async function reportBreak(){
   const priority     = document.getElementById('priority').value || 'normal';
   const comment      = cyrillicToLatin(document.getElementById('comment').value);
   // Set by the wizard's status step (see wizSelectStatus) — reported or
-  // in_progress only, same restriction as the wizard UI itself. Suggestion
-  // never gets that step at all (see wizStepsFor), so wizState.status is
-  // always null for it here — default it straight to 'in_progress' rather
-  // than the general 'reported' fallback below, since "reported" describes
-  // a fault someone just noticed, not a suggestion that was just submitted.
-  const status = (category === 'Suggestion')
-    ? 'in_progress'
-    : (wizState.status === 'in_progress') ? 'in_progress' : 'reported';
+  // in_progress only, same restriction as the wizard UI itself. Anything
+  // else reaching reportBreak() (there shouldn't be another path) falls
+  // back to 'reported', same as before this field existed.
+  const status = (wizState.status === 'in_progress') ? 'in_progress' : 'reported';
 
   // Defense in depth, same reasoning as every other guard here — the
   // button is already disabled without a comment for these categories
@@ -14107,7 +14222,6 @@ function hideMapLoadingOverlay() {
 // =============================================================================
 initTheme();
 initCalendarFilter();
-syncLangSegmentUI();
 applyLang();
 // openSharedReportFromUrl() fetches its report directly by id (it doesn't
 // wait on or depend on globalActiveData), so it can safely run right
