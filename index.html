@@ -53,6 +53,23 @@
 
 *{ margin:0; padding:0; box-sizing:border-box; }
 
+/* Buttons and every custom clickable control (the app has very few native
+   <button> elements — most "buttons" are divs/spans with an onclick, e.g.
+   .pin-map-btn, .legend-item, .driving-*-btn) shouldn't be text-selectable.
+   Without this, a slightly-too-long tap/drag on one (easy to do on mobile)
+   selects its label text instead of firing the tap, and on Android that
+   selection pops up the native "Search Google for '...'" bar over the app.
+   [onclick] catches all the custom button-like elements in one shot since
+   they're exactly the elements wired up to actually do something on click;
+   normal readable text (report descriptions, addresses, popups) has no
+   onclick and is untouched. -webkit-touch-callout:none also suppresses
+   iOS's equivalent long-press callout menu on the same elements. */
+button, [onclick], [role="button"]{
+  -webkit-user-select:none;
+  user-select:none;
+  -webkit-touch-callout:none;
+}
+
 /* ============================================================
    Z-INDEX SCALE — single source of truth. Every fixed/floating
    layer in the app uses one of these numbers so "does X sit
@@ -223,10 +240,22 @@ body{
   flex-direction:column;
 }
 
+/* Same floating-pill look as .legend-row at the bottom of the screen
+   (blurred translucent background, curved corners, soft shadow) — just
+   mirrored: rounded on the bottom edge instead of the top, since this bar
+   sits at the top of the screen. Left in normal document flow (not fixed)
+   since the map already sits directly below it and doesn't need to run
+   underneath — see body.driving-active header below for how it stays
+   visible in driving mode too, and --header-h (initHeaderHeightTracking)
+   for how other fixed elements avoid sitting under it. */
 header{
   padding:10px 12px;
-  background:var(--bg-surface);
-  border-bottom:1px solid var(--border-color);
+  background:var(--floating-bg);
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+  border-bottom:1px solid var(--floating-border);
+  border-radius:0 0 20px 20px;
+  box-shadow:0 6px 24px var(--floating-shadow);
   position:relative;
   z-index:100; /* see Z-INDEX SCALE above — just needs to clear #map (1) */
 }
@@ -1106,9 +1135,12 @@ body.nav-panel-open .driving-nav-card{
 }
 
 /* --- Driving-mode HUD vignette ---
-   With the header hidden, a subtle top fade keeps the compass/status
-   readable and gives the full-screen map a proper heads-up-display feel
-   instead of an abrupt hard edge. */
+   Used to compensate for the header being hidden in driving mode (kept the
+   compass/status readable against a bare map edge). The header now stays
+   visible at all times (see body.driving-active header removal above) and
+   already has its own opaque/blurred background, so this fade is no longer
+   needed — left in the DOM/CSS but permanently off, rather than deleted
+   outright, in case a fully-hidden-header mode comes back later. */
 #drivingTopFade{
   position:fixed;
   top:0; left:0; right:0;
@@ -1118,7 +1150,6 @@ body.nav-panel-open .driving-nav-card{
   pointer-events:none;
   display:none;
 }
-body.driving-active #drivingTopFade{ display:block; }
 
 /* --- Initial map-loading overlay ---
    Covers only the map's own area (never the header) while the first
@@ -1239,7 +1270,7 @@ body.driving-active #drivingTopFade{ display:block; }
    sheet. */
 .driving-left-stack{
   position:fixed;
-  top:calc(12px + env(safe-area-inset-top, 0px));
+  top:calc(var(--header-h, 64px) + 12px);
   left:12px;
   z-index:2600;
   display:none;
@@ -1382,7 +1413,7 @@ body.driving-active .turn-by-turn-card{ display:flex; }
 .driving-nav-card{
   display:none;
   position:fixed;
-  top:0;
+  top:var(--header-h, 64px);
   left:0;
   right:0;
   z-index:2700;
@@ -1391,15 +1422,15 @@ body.driving-active .turn-by-turn-card{ display:flex; }
   gap:10px;
   background:var(--floating-bg);
   border-bottom:1px solid var(--floating-border);
-  padding:calc(10px + env(safe-area-inset-top, 0px)) 16px 10px 16px;
+  padding:10px 16px;
   box-shadow:0 3px 12px var(--floating-shadow);
 }
-/* The destination header takes the top strip, so the speed pill
-   moves down out of its way while it's showing. The action cluster
-   (including the compass) no longer needs this — it now lives at the
-   bottom, embedded in the report bar. */
+/* The destination header takes the strip right under the (always-visible)
+   header, so the speed pill moves down out of its way while it's showing.
+   The action cluster (including the compass) no longer needs this — it
+   now lives at the bottom, embedded in the report bar. */
 body.nav-card-open .driving-left-stack{
-  top: calc(64px + 12px + env(safe-area-inset-top, 0px)) !important;
+  top: calc(var(--header-h, 64px) + 64px + 12px) !important;
 }
 
 /* --- Always-visible road-report bar: sits pinned to the bottom of the
@@ -1569,10 +1600,12 @@ body.driving-active .driving-report-sheet{ display:flex; }
 }
 .driving-nav-close-btn:active{ background:var(--border-color-strong); }
 
-/* --- Driving mode: decluttered, full-screen map like a dedicated
-   navigation app. Legends, header chrome, and the filter/report panel
-   are hidden so only the map, compass, and quick-report sheet remain. --- */
-body.driving-active header,
+/* --- Driving mode: decluttered, full-screen-ish map like a dedicated
+   navigation app. The header now stays put (see the comment on `header`
+   above and .driving-left-stack's top offset below) so it's always
+   visible; everything else — legends, filter row, report/auth forms — is
+   still hidden so only the map, header, compass, and quick-report sheet
+   remain. --- */
 body.driving-active .legend-row,
 body.driving-active .filter-label-row,
 body.driving-active .filter-select-row,
@@ -2745,10 +2778,10 @@ span.flatpickr-weekday {
 
 <div class="legend-row">
 <div id="mapLegend" class="map-legend-pill">
-  <span class="legend-item"><span class="legend-badge" style="background:#ff4b4b"></span>
+  <span class="legend-item" id="legendItemReported" data-status="reported" onclick="onStatusFilterToggle('reported')"><span class="legend-badge" style="background:#ff4b4b"></span>
   <span class="leg" data-en="Reported" data-sr="Prijavljeno">Prijavljeno</span><span class="legend-count" id="legendCountReported">0</span></span>
-  <span class="legend-item"><span class="legend-badge" style="background:#f5a623"></span><span class="leg" data-en="In progress" data-sr="U toku">U toku</span><span class="legend-count" id="legendCountInProgress">0</span></span>
-  <span class="legend-item"><span class="legend-badge" style="background:#2ecc71"></span><span class="leg" data-en="Fixed" data-sr="Popravljeno">Popravljeno</span><span class="legend-count" id="legendCountFixed">0</span></span>
+  <span class="legend-item" id="legendItemInProgress" data-status="in_progress" onclick="onStatusFilterToggle('in_progress')"><span class="legend-badge" style="background:#f5a623"></span><span class="leg" data-en="In progress" data-sr="U toku">U toku</span><span class="legend-count" id="legendCountInProgress">0</span></span>
+  <span class="legend-item" id="legendItemFixed" data-status="fixed" onclick="onStatusFilterToggle('fixed')"><span class="legend-badge" style="background:#2ecc71"></span><span class="leg" data-en="Fixed" data-sr="Popravljeno">Popravljeno</span><span class="legend-count" id="legendCountFixed">0</span></span>
 </div>
 </div>
 
@@ -7986,9 +8019,19 @@ function bringModalToFront(el){
   if (el && el.parentNode) document.body.appendChild(el);
 }
 
+// gpsModalShownOnce used to mean "ever, for the whole page load" — which
+// meant that once GPS dropped once and later recovered (a real fix came
+// in, userMarker placed), a SECOND drop later in the same session would
+// never re-show this: the gate stayed permanently tripped. Now it only
+// guards against re-showing while we're already in the middle of the same
+// down episode (repeat error callbacks, watchdog ticks, etc.) — it gets
+// cleared by resetGpsModalGate() below, which only fires on an actual
+// successful fix, not on the user tapping "Got it". So: still just one
+// popup per outage, but a fresh outage after a recovery is treated as a
+// new, distinct episode and gets its own notification.
 let gpsModalShownOnce = false;
 function showGpsModal(){
-  if (gpsModalShownOnce) return; // only ever shown once per page load — see hideGpsModal() note
+  if (gpsModalShownOnce) return; // already notified for this down episode
   const modal = document.getElementById('gpsModal');
   if (!modal) return;
   gpsModalShownOnce = true;
@@ -7999,6 +8042,14 @@ function showGpsModal(){
 function hideGpsModal(){
   const modal = document.getElementById('gpsModal');
   if (modal) modal.style.display = 'none';
+}
+// Called only from the watchPosition success path (a fix actually came
+// in) — distinct from hideGpsModal() alone, which also runs when the user
+// just dismisses the modal by hand while GPS is still down. Re-arms
+// showGpsModal() so the *next* time GPS drops (a new episode) gets
+// registered and surfaced again, instead of being silently swallowed.
+function resetGpsModalGate(){
+  gpsModalShownOnce = false;
 }
 
 function enableManualPinMode() {
@@ -8239,6 +8290,7 @@ function startWatching() {
 
       userCoords = smoothPositionFix(candidate);
       hideGpsModal();
+      resetGpsModalGate();
       stopGpsRetryLoop();
       updateDrivingGpsStatus();
       updateProximityUi();
@@ -8427,6 +8479,7 @@ function initGps() {
           showGpsModal();
         } else {
           hideGpsModal();
+          resetGpsModalGate();
           stopGpsRetryLoop();
           startWatching();
         }
@@ -8797,6 +8850,34 @@ function isCategoryVisible(cat) {
   return !categoryMarkerFilter || categoryMarkerFilter.has(cat);
 }
 
+// Status filter driven by tapping the #mapLegend pills (see onStatusFilterToggle
+// below). Unlike categoryMarkerFilter this starts as a plain Set of every
+// status rather than null="everything", since there are only three fixed
+// statuses and no separate "All" control to reconcile against — each pill
+// just tracks its own on/off state directly.
+let statusMarkerFilter = new Set(['reported', 'in_progress', 'fixed']);
+
+function isStatusVisible(status) {
+  return statusMarkerFilter.has(status);
+}
+
+// Tapping a legend pill flips that status on/off the map (pins + heatmap),
+// same idea as the category picker's onCategoryFilterToggle but inline
+// instead of behind a modal, since there are only three statuses to choose
+// from. Dims the pill (.status-off, see CSS) rather than hiding it so it
+// stays visible as a tap target and the count still reads.
+function onStatusFilterToggle(status) {
+  if (statusMarkerFilter.has(status)) statusMarkerFilter.delete(status);
+  else statusMarkerFilter.add(status);
+
+  const idByStatus = { reported: 'legendItemReported', in_progress: 'legendItemInProgress', fixed: 'legendItemFixed' };
+  const el = document.getElementById(idByStatus[status]);
+  if (el) el.classList.toggle('status-off', !isStatusVisible(status));
+
+  syncMarkers(true);
+  refreshHeatLayer();
+}
+
 function populateCategoryFilterList() {
   const el = document.getElementById('categoryFilterList');
   if (!el) return;
@@ -8877,6 +8958,7 @@ function getHeatPoints() {
   const pts = [];
   globalActiveData.forEach(r => {
     if (!isCategoryVisible(r.category)) return;
+    if (!isStatusVisible(r.status)) return;
     if (isSectionReport(r)) {
       sanitizePath(r.path).forEach(([lat, lon]) => pts.push([lat, lon, 0.45]));
     } else if (isValidLatLng(r.latitude, r.longitude)) {
@@ -13102,6 +13184,7 @@ function syncMarkers(refreshExisting) {
   globalActiveData.forEach(r => {
     if (!reportInBounds(r, bounds)) return;
     if (!isCategoryVisible(r.category)) return;
+    if (!isStatusVisible(r.status)) return;
     desiredIds.add(r.id);
     if (refreshExisting || !markerById.has(r.id)) upsertMarker(r);
   });
