@@ -475,39 +475,78 @@ button{
 .report-btn:disabled{ opacity:.35; cursor:not-allowed; }
 .export-btn{ background:var(--accent); color:var(--accent-contrast); width:100%; }
 
-.legend{
+/* --- Map legend (status + category key) ---------------------------------
+   Two cards sitting side by side right under the map: status counts on the
+   left (#mapLegend), the full category key on the right (#categoryLegend —
+   wraps into a 2-col grid so all 14 categories fit without an endless
+   single column). Icon badges reuse the exact same colored-CSS-mask
+   technique as the report wizard tiles (see categoryColor()/
+   WIZ_CATEGORY_ICONS and .wiz-tile-icon) — a solid color circle with the
+   category's own glyph masked in white on top — instead of the old flat
+   9px dot, so color AND shape both carry meaning. Status rows (no
+   per-category icon of their own) use the same size circle, just without
+   a glyph layer, so every badge in both cards reads as the same visual
+   "weight" rather than the status dots looking like an afterthought next
+   to the bigger category icons. */
+.legend-row{
   display:flex;
+  align-items:flex-start;
   gap:8px;
-  font-size:10px;
-  align-items:center;
-  flex-wrap:wrap;
-  opacity:.9;
+  padding:0 10px;
 }
-.legend-item{ display:flex; align-items:center; gap:3px; }
-.legend-dot{ width:9px; height:9px; border-radius:50%; display:inline-block; flex-shrink:0; }
-.leg{ color:var(--text-primary); font-size:10px; }
-/* Per-status counts next to the Reported/In progress/Fixed labels in
-   #mapLegend — e.g. "Reported (562)". Muted and slightly smaller than the
-   label itself so the label stays the visually primary thing and the
-   count reads as supporting detail, not a competing headline. */
-.legend-count{ color:var(--text-muted); font-size:9px; margin-left:1px; }
-
-/* Shared floating pill look for both status/category legends — background,
-   border, and shadow all pull from the theme's floating-widget tokens so
-   they read correctly in light or dark. */
 .map-legend-pill{
   background:var(--floating-bg);
-  backdrop-filter:blur(4px);
-  -webkit-backdrop-filter:blur(4px);
-  border-radius:10px;
-  padding:5px 10px;
+  backdrop-filter:blur(10px);
+  -webkit-backdrop-filter:blur(10px);
+  border-radius:16px;
+  padding:8px;
   display:flex;
-  align-items:center;
-  gap:6px;
+  flex-direction:column;
+  gap:2px;
   pointer-events:none;
   border:1px solid var(--floating-border);
-  box-shadow:0 2px 10px var(--floating-shadow);
-  margin-bottom:4px;
+  box-shadow:0 4px 16px var(--floating-shadow);
+  margin-bottom:8px;
+}
+#mapLegend{ flex:0 0 auto; min-width:148px; }
+#categoryLegend{
+  flex:1 1 auto;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:2px;
+}
+.legend-item{
+  display:flex; align-items:center; gap:8px;
+  padding:5px 6px;
+  border-radius:10px;
+  min-width:0;
+}
+#mapLegend .legend-item{ justify-content:space-between; }
+.legend-badge{
+  width:26px; height:26px; border-radius:50%; flex-shrink:0;
+  box-shadow:0 1px 3px rgba(0,0,0,.25);
+}
+.legend-badge-icon{
+  width:100%; height:100%;
+  background-color:#fff;
+  -webkit-mask-size:45%; mask-size:45%;
+  -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
+  -webkit-mask-position:center; mask-position:center;
+}
+.leg{ color:var(--text-primary); font-size:12px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* Per-status counts next to the Reported/In progress/Fixed labels in
+   #mapLegend — e.g. "Reported (562)" shown as its own rounded pill on the
+   row's trailing edge rather than plain muted text, so it reads as a
+   distinct data point next to the label instead of a trailing afterthought. */
+.legend-count{
+  color:var(--text-primary);
+  font-size:11px; font-weight:700;
+  background:var(--bg-surface-alt);
+  padding:2px 8px;
+  border-radius:20px;
+  flex-shrink:0;
+  min-width:20px;
+  text-align:center;
 }
 
 /* Heatmap toggle button (bottomright stack, same look/size as the other
@@ -2672,28 +2711,30 @@ span.flatpickr-weekday {
 </div>
 <div id="municipalityLabel" class="municipality-label"></div>
 
-<div id="mapLegend" class="map-legend-pill" style="flex-wrap:nowrap;">
-  <span class="legend-item"><span class="legend-dot" style="background:#ff4b4b"></span>
+<div class="legend-row">
+<div id="mapLegend" class="map-legend-pill">
+  <span class="legend-item"><span class="legend-badge" style="background:#ff4b4b"></span>
   <span class="leg" data-en="Reported" data-sr="Prijavljeno">Prijavljeno</span><span class="legend-count" id="legendCountReported"></span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#f5a623"></span><span class="leg" data-en="In progress" data-sr="U toku">U toku</span><span class="legend-count" id="legendCountInProgress"></span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#2ecc71"></span><span class="leg" data-en="Fixed" data-sr="Popravljeno">Popravljeno</span><span class="legend-count" id="legendCountFixed"></span></span>
+  <span class="legend-item"><span class="legend-badge" style="background:#f5a623"></span><span class="leg" data-en="In progress" data-sr="U toku">U toku</span><span class="legend-count" id="legendCountInProgress"></span></span>
+  <span class="legend-item"><span class="legend-badge" style="background:#2ecc71"></span><span class="leg" data-en="Fixed" data-sr="Popravljeno">Popravljeno</span><span class="legend-count" id="legendCountFixed"></span></span>
 </div>
 
-<div class="legend map-legend-pill" id="categoryLegend" style="flex-wrap:wrap;">
-  <span class="legend-item"><span class="legend-dot" style="background:#1e90ff"></span><span class="leg" data-en="Water" data-sr="Voda">Voda</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#f5c518"></span><span class="leg" data-en="Electricity" data-sr="Struja">Struja</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#8b4513"></span><span class="leg" data-en="Sewage" data-sr="Kanalizacija">Kanalizacija</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#ff6b35"></span><span class="leg" data-en="Gas" data-sr="Gas">Gas</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#b71c1c"></span><span class="leg" data-en="Heating" data-sr="Grejanje">Grejanje</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#6b6b6b"></span><span class="leg" data-en="Road" data-sr="Put">Put</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#c9a227"></span><span class="leg" data-en="Streetlight" data-sr="Ulična rasveta">Ulična rasveta</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#6d8b3a"></span><span class="leg" data-en="Waste" data-sr="Otpad">Otpad</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#9c8570"></span><span class="leg" data-en="Walkways" data-sr="Pešačke staze">Pešačke staze</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#14b8a6"></span><span class="leg" data-en="Bike Lanes" data-sr="Biciklističke staze">Biciklističke staze</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#3fa34d"></span><span class="leg" data-en="Green Spaces" data-sr="Zelene površine">Zelene površine</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#5c6bc0"></span><span class="leg" data-en="Frequent Parking Violations" data-sr="Često Nepropisno parkiranje">Često Nepropisno parkiranje</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#26a69a"></span><span class="leg" data-en="Suggest an Improvement" data-sr="Predlog za poboljšanje">Predlog za poboljšanje</span></span>
-  <span class="legend-item"><span class="legend-dot" style="background:#8342a1"></span><span class="leg" data-en="Other" data-sr="Ostalo">Ostalo</span></span>
+<div class="map-legend-pill" id="categoryLegend">
+  <span class="legend-item"><span class="legend-badge" style="background:#1e90ff"><span class="legend-badge-icon" style="-webkit-mask-image:url('icons/reports/water.png');mask-image:url('icons/reports/water.png');"></span></span><span class="leg" data-en="Water" data-sr="Voda">Voda</span></span>
+  <span class="legend-item"><span class="legend-badge" style="background:#f5c518"><span class="legend-badge-icon" style="-webkit-mask-image:url('icons/reports/electricity.png');mask-image:url('icons/reports/electricity.png');"></span></span><span class="leg" data-en="Electricity" data-sr="Struja">Struja</span></span>
+  <span class="legend-item"><span class="legend-badge" style="background:#8b4513"><span class="legend-badge-icon" style="-webkit-mask-image:url('icons/reports/sewage.png');mask-image:url('icons/reports/sewage.png');"></span></span><span class="leg" data-en="Sewage" data-sr="Kanalizacija">Kanalizacija</span></span>
+  <span class="legend-item"><span class="legend-badge" style="background:#ff6b35"><span class="legend-badge-icon" style="-webkit-mask-image:url('icons/reports/gas.png');mask-image:url('icons/reports/gas.png');"></span></span><span class="leg" data-en="Gas" data-sr="Gas">Gas</span></span>
+  <span class="legend-item"><span class="legend-badge" style="background:#b71c1c"><span class="legend-badge-icon" style="-webkit-mask-image:url('icons/reports/heating.png');mask-image:url('icons/reports/heating.png');"></span></span><span class="leg" data-en="Heating" data-sr="Grejanje">Grejanje</span></span>
+  <span class="legend-item"><span class="legend-badge" style="background:#6b6b6b"><span class="legend-badge-icon" style="-webkit-mask-image:url('icons/reports/road.png');mask-image:url('icons/reports/road.png');"></span></span><span class="leg" data-en="Road" data-sr="Put">Put</span></span>
+  <span class="legend-item"><span class="legend-badge" style="background:#c9a227"><span class="legend-badge-icon" style="-webkit-mask-image:url('icons/reports/streetlight.png');mask-image:url('icons/reports/streetlight.png');"></span></span><span class="leg" data-en="Streetlight" data-sr="Ulična rasveta">Ulična rasveta</span></span>
+  <span class="legend-item"><span class="legend-badge" style="background:#6d8b3a"><span class="legend-badge-icon" style="-webkit-mask-image:url('icons/reports/waste.png');mask-image:url('icons/reports/waste.png');"></span></span><span class="leg" data-en="Waste" data-sr="Otpad">Otpad</span></span>
+  <span class="legend-item"><span class="legend-badge" style="background:#9c8570"><span class="legend-badge-icon" style="-webkit-mask-image:url('icons/reports/walkways.png');mask-image:url('icons/reports/walkways.png');"></span></span><span class="leg" data-en="Walkways" data-sr="Pešačke staze">Pešačke staze</span></span>
+  <span class="legend-item"><span class="legend-badge" style="background:#14b8a6"><span class="legend-badge-icon" style="-webkit-mask-image:url('icons/reports/bike_lanes.png');mask-image:url('icons/reports/bike_lanes.png');"></span></span><span class="leg" data-en="Bike Lanes" data-sr="Biciklističke staze">Biciklističke staze</span></span>
+  <span class="legend-item"><span class="legend-badge" style="background:#3fa34d"><span class="legend-badge-icon" style="-webkit-mask-image:url('icons/reports/green_spaces.png');mask-image:url('icons/reports/green_spaces.png');"></span></span><span class="leg" data-en="Green Spaces" data-sr="Zelene površine">Zelene površine</span></span>
+  <span class="legend-item"><span class="legend-badge" style="background:#5c6bc0"><span class="legend-badge-icon" style="-webkit-mask-image:url('icons/reports/parking.png');mask-image:url('icons/reports/parking.png');"></span></span><span class="leg" data-en="Frequent Parking Violations" data-sr="Često Nepropisno parkiranje">Često Nepropisno parkiranje</span></span>
+  <span class="legend-item"><span class="legend-badge" style="background:#26a69a"><span class="legend-badge-icon" style="-webkit-mask-image:url('icons/reports/ui_suggestion.png');mask-image:url('icons/reports/ui_suggestion.png');"></span></span><span class="leg" data-en="Suggest an Improvement" data-sr="Predlog za poboljšanje">Predlog za poboljšanje</span></span>
+  <span class="legend-item"><span class="legend-badge" style="background:#8342a1"><span class="legend-badge-icon" style="-webkit-mask-image:url('icons/reports/ui_other.png');mask-image:url('icons/reports/ui_other.png');"></span></span><span class="leg" data-en="Other" data-sr="Ostalo">Ostalo</span></span>
+</div>
 </div>
 
 <div id="appPanel" class="app-panel">
