@@ -73,6 +73,7 @@ button, [onclick], [role="button"]{
   --driving-tile-base: #232323;
   --driving-tile-text: #ffffff;
   --pill-radius: 999px;
+  --popup-radius: 26px;
 }
 html[data-theme="dark"]{
   --bg-app:#121212;
@@ -430,13 +431,16 @@ button{
 .cat-filter-dot{ width:11px; height:11px; border-radius:50%; display:inline-block; flex-shrink:0; }
 
 .leaflet-popup-content-wrapper{
-  border-radius:var(--pill-radius) !important;
+  border-radius:var(--popup-radius) !important;
   padding:0 !important;
   overflow:hidden;
   min-width:170px;
   background: var(--floating-bg) !important;
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
+  /* Safari/WebKit sometimes fails to clip backdrop-filter to border-radius, showing square
+     corners despite the radius above — this mask forces correct corner clipping. */
+  -webkit-mask-image: -webkit-radial-gradient(white, black);
 }
 .leaflet-popup-content{ margin:0 !important; width:auto !important; }
 .leaflet-popup-tip{ background: var(--floating-bg) !important; box-shadow:none !important; }
@@ -1355,7 +1359,7 @@ body.driving-active #appPanel{
   display:flex; align-items:center; justify-content:center;
   box-shadow:0 2px 6px rgba(0,0,0,.35);
 }
-.badge-info-icon-glyph{ width:20px; height:20px; display:inline-block; }
+.badge-info-icon-glyph{ width:60px; height:60px; display:inline-block; }
 .badge-info-status{
   font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
   margin-bottom:10px; display:inline-block; padding:3px 10px; border-radius:20px;
@@ -1653,7 +1657,7 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 .status-action-btn{
   flex:1 1 auto;
   min-width:72px;
-  padding:6px 12px;
+  padding:11px 16px;
   border:none;
   border-radius:var(--pill-radius);
   font-size:9.5px;
