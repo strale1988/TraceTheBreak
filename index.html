@@ -57,7 +57,7 @@ button, [onclick], [role="button"]{
   --text-primary:#1a1a1a;
   --text-secondary:#555;
   --text-muted:#999;
-  --accent:#a67817;
+  --accent:#e16e11;
   --accent-contrast:#ffffff;
   --form-control-h: 40px;
   --icon-tint-filter: brightness(0) invert(32%);
@@ -68,7 +68,7 @@ button, [onclick], [role="button"]{
   --native-color-scheme: light;
   --nav-accent: #0090ab;
   --warn-bg: #fdf1da;
-  --warn-border: #a67817;
+  --warn-border: #e16e11;
   --warn-text: #8a6212;
   --driving-tile-base: #232323;
   --driving-tile-text: #ffffff;
@@ -82,7 +82,7 @@ html[data-theme="dark"]{
   --text-primary:#f0f0ee;
   --text-secondary:#b7b7b2;
   --text-muted:#8a8a86;
-  --accent:#c99a3a;
+  --accent:#ff9034;
   --accent-contrast:#1a1a1a;
   --icon-tint-filter: brightness(0) invert(88%);
   --floating-bg: rgba(28,28,28,.92);
@@ -92,7 +92,7 @@ html[data-theme="dark"]{
   --native-color-scheme: dark;
   --nav-accent: #00d0ff;
   --warn-bg: #2a2308;
-  --warn-border: #a67817;
+  --warn-border: #e16e11;
   --warn-text: #f5c518;
   --driving-tile-base: #ececea;
   --driving-tile-text: #1a1a1a;
@@ -241,10 +241,10 @@ header p{ font-size:11px; opacity:.7; margin-top:2px; }
   border:1px solid var(--border-color-strong);
   margin-bottom:8px;
 }
-.notification-item.unread{ border-color:#a67817; }
+.notification-item.unread{ border-color:#e16e11; }
 .notification-item-top{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .notification-item-sender{ font-size:11.5px; font-weight:600; color:var(--text-secondary); }
-.notification-item-dot{ width:8px; height:8px; border-radius:50%; background:#a67817; flex-shrink:0; }
+.notification-item-dot{ width:8px; height:8px; border-radius:50%; background:#e16e11; flex-shrink:0; }
 .notification-item-message{ font-size:13px; color:var(--text-primary); white-space:pre-wrap; }
 .notification-item-meta{ font-size:10.5px; color:var(--text-muted); }
 
@@ -1282,7 +1282,7 @@ body.driving-active #appPanel{
   background:#ececeb; overflow:hidden;
 }
 .profile-progress-fill{
-  height:100%; background:#a67817; border-radius:4px;
+  height:100%; background:#e16e11; border-radius:4px;
   transition:width .25s ease; width:0%;
 }
 
@@ -1319,7 +1319,7 @@ body.driving-active #appPanel{
 .badge-tile.earned{ opacity:1; }
 .badge-tile-circle-wrap{ position:relative; width:65.5px; height:65.5px; flex-shrink:0; }
 .badge-tile-circle{ width:65.5px; height:65.5px; border-radius:50%; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,.35); flex-shrink:0; position:relative; }
-.badge-tile-glyph{ width:31px; height:31px; display:inline-block; }
+.badge-tile-glyph{ width:15.5px; height:15.5px; display:inline-block; }
 .badge-tile-name{ font-size:10px; line-height:1.2; color:var(--text-secondary); }
 .badge-tile.earned .badge-tile-name{ color:var(--text-primary); font-weight:600; }
 .badge-tile-soon{ opacity:.28; }
@@ -1354,7 +1354,7 @@ body.driving-active #appPanel{
   display:flex; align-items:center; justify-content:center;
   box-shadow:0 2px 6px rgba(0,0,0,.35);
 }
-.badge-info-icon-glyph{ width:40px; height:40px; display:inline-block; }
+.badge-info-icon-glyph{ width:20px; height:20px; display:inline-block; }
 .badge-info-status{
   font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
   margin-bottom:10px; display:inline-block; padding:3px 10px; border-radius:20px;
@@ -1432,7 +1432,7 @@ body.driving-active #appPanel{
 
 .auth-toggle-text {
   font-size: 11px;
-  color: #a67817;
+  color: #e16e11;
   text-align: center;
   cursor: pointer;
   text-decoration: underline;
@@ -1637,7 +1637,7 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 .popup-edit-form select:focus,
 .popup-edit-form input[type="text"]:focus{
   outline:none;
-  border-color:#a67817;
+  border-color:#e16e11;
   background:#fff !important;
 }
 
@@ -1987,7 +1987,7 @@ details[open] > summary .uc-group-chevron{ transform:rotate(180deg); /* point do
 .uc-country-count{ font-weight:400; font-size:11px; color:var(--text-muted); margin-left:auto; }
 .uc-muni-add-btn{
   flex-shrink:0; width:24px; height:24px; line-height:22px; padding:0;
-  border-radius:50%; border:none; background:#a67817; color:#fff;
+  border-radius:50%; border:none; background:#e16e11; color:#fff;
   font-size:15px; font-weight:700; cursor:pointer;
 }
 .uc-form{
@@ -2050,7 +2050,7 @@ details[open] > summary .uc-group-chevron{ transform:rotate(180deg); /* point do
   font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.2px;
   padding:2px 6px; border-radius:10px; color:#fff; margin-left:6px; vertical-align:middle;
 }
-.photo-status-badge.pending{ background:#a67817; }
+.photo-status-badge.pending{ background:#e16e11; }
 .photo-status-badge.rejected{ background:#7a1f1f; }
 
 .photo-review-card, .flagged-report-card{
@@ -2177,8 +2177,8 @@ span.flatpickr-weekday {
 .flatpickr-day.selected:hover,
 .flatpickr-day.startRange:hover,
 .flatpickr-day.endRange:hover {
-  background: #a67817 !important;
-  border-color: #a67817 !important;
+  background: #e16e11 !important;
+  border-color: #e16e11 !important;
   color: white !important;
 }
 .flatpickr-day.inRange,
@@ -2187,7 +2187,7 @@ span.flatpickr-weekday {
 .flatpickr-day.today.inRange,
 .flatpickr-day.prevMonthDay.today.inRange,
 .flatpickr-day.nextMonthDay.today.inRange {
-  background: #a67817 !important;
+  background: #e16e11 !important;
   border-color: transparent !important;
   border-radius: 0 !important;
 }
@@ -2199,7 +2199,6 @@ span.flatpickr-weekday {
   <div class="header-top">
     <div>
       <h1>TraceTheBreak</h1>
-      <p id="subtitle">Community Infrastructure Reporting Network</p>
     </div>
     <div class="right-controls">
       <button class="help-icon-btn" id="settingsBtn" title="Settings" onclick="showSettingsModal()"><img class="icon-img" src="icons/settings.png" alt="Settings"></button>
@@ -2553,7 +2552,7 @@ span.flatpickr-weekday {
         <textarea id="ucNotes" placeholder="Notes (optional)"></textarea>
         <div class="uc-form-row">
           <button type="button" class="settings-btn" style="flex:1;" onclick="cancelUcForm()" id="ucCancelBtn">Cancel</button>
-          <button type="button" style="background:#a67817;color:white;flex:1;" onclick="saveUtilityCompany()" id="ucSaveBtn">Save</button>
+          <button type="button" style="background:#e16e11;color:white;flex:1;" onclick="saveUtilityCompany()" id="ucSaveBtn">Save</button>
         </div>
         <div class="uc-verify-status" id="ucVerifyStatus"></div>
         <button type="button" class="uc-verify-btn" onclick="verifyUtilityCompany()" id="ucVerifyBtn">Admin has checked the data</button>
@@ -2692,7 +2691,7 @@ span.flatpickr-weekday {
         <div id="notificationUsernameResults" class="navigate-results"></div>
       </div>
       <textarea id="notificationMessageInput" placeholder="Message" rows="3" style="width:100%;box-sizing:border-box;margin-top:8px;resize:vertical;"></textarea>
-      <button type="button" class="settings-btn" style="background:#a67817;color:#fff;width:100%;margin-top:8px;" onclick="sendNotificationFromAdmin()" id="notificationSendBtn">Send</button>
+      <button type="button" class="settings-btn" style="background:#e16e11;color:#fff;width:100%;margin-top:8px;" onclick="sendNotificationFromAdmin()" id="notificationSendBtn">Send</button>
     </div>
 
     <div class="admin-section-title detail-section-title" id="notificationWaitingListSectionTitle" style="display:none;margin-top:18px;">Waiting for review</div>
@@ -3184,7 +3183,7 @@ function buildBadgeIconHtml(badge, earnedIn, profile, stats) {
   const fraction = soon ? 0 : badgeProgressFraction(badge, earned, profile, stats);
   return `<div class="badge-tile${earned ? ' earned' : ''}${soon ? ' badge-tile-soon' : ''}" title="${escapeHtml(badgeName(badge))} — ${escapeHtml(badgeDesc(badge))}${titleSuffix}" onclick="showBadgeInfo('${badge.id}', ${earned}, ${soon}, ${fraction})">
     <div class="badge-tile-circle-wrap">
-      ${badgeProgressRingSvg(fraction)}
+      ${earned ? '' : badgeProgressRingSvg(fraction)}
       <div class="badge-tile-circle" style="background:${bg};">
         <span class="badge-tile-glyph" style="background-color:${glyph};-webkit-mask:url('${iconSrc}') center / contain no-repeat;mask:url('${iconSrc}') center / contain no-repeat;"></span>
         ${soon ? `<span class="badge-tile-soon-ribbon">${escapeHtml(t('badgeComingSoonShort'))}</span>` : ''}
@@ -3209,7 +3208,8 @@ function showBadgeInfo(id, earned, soon, fraction) {
   glyphEl.style.webkitMask = `url('${iconSrc}') center / contain no-repeat`;
   glyphEl.style.mask = `url('${iconSrc}') center / contain no-repeat`;
   const ringSlot = document.getElementById('badgeInfoIconRing');
-  if (ringSlot) ringSlot.innerHTML = badgeProgressRingSvg(typeof fraction === 'number' ? fraction : (earned ? 1 : 0));
+  const isEarnedForRing = soon ? false : earned;
+  if (ringSlot) ringSlot.innerHTML = isEarnedForRing ? '' : badgeProgressRingSvg(typeof fraction === 'number' ? fraction : 0);
   document.getElementById('badgeInfoName').textContent = badgeName(badge);
   document.getElementById('badgeInfoDesc').textContent = badgeDesc(badge) + (soon ? ` (${t('badgeComingSoon')})` : '');
   const statusEl = document.getElementById('badgeInfoStatus');
@@ -4242,7 +4242,6 @@ function stripAuthHashFromUrl() {
 }
 
 const T = {
-  subtitle:     { en:'Community Infrastructure Reporting Network', sr:'Mreža za prijavu kvarova' },
   reportCount:  { en:'Reports',                          sr:'Prijava' },
   drivingGpsLabel:   { en:'GPS ready',                     sr:'GPS spreman' },
   drivingNoGps:      { en:'No GPS',                        sr:'Nema GPS-a' },
@@ -4611,7 +4610,6 @@ function initLang(){
 }
 
 function applyLang(){
-  document.getElementById('subtitle').textContent         = t('subtitle');
   const mapLoadingTextEl = document.getElementById('mapLoadingText');
   if (mapLoadingTextEl) mapLoadingTextEl.textContent = t('loadingMap');
   document.getElementById('reportBtnLabel').textContent   = t('reportBtn');
@@ -5007,7 +5005,7 @@ function collectAllIconPaths() {
     'icons/TraceTheBreak.png', 'icons/settings.png', 'icons/fullscreen-enter.png', 'icons/fullscreen-exit.png',
     'icons/user.png', 'icons/notification.png', 'icons/target.png', 'icons/pin.png', 'icons/car.png',
     'icons/category-filter.png', 'icons/heatmap.png', 'icons/camera.png', 'icons/gallery.png',
-    'icons/camera.png', 'icons/reports/gallery.png', 'icons/reports/report_new.png',
+    'icons/reports/report_new.png',
     'icons/google.png', 'icons/github.png', 'icons/osm.png', 'icons/close.png', 'icons/help.png',
     'icons/arrow.png', 'icons/search.png', 'icons/pothole.png', 'icons/road-damaged.png',
     'icons/traffic-cone.png', 'icons/flood-risk.png', 'icons/warning-symbol.png', 'icons/trophy.png',
@@ -7604,7 +7602,7 @@ function wizRenderDetails(body) {
           <span>${t('wizTakePhoto') || 'Take photo'}</span>
         </div>
         <div class="wiz-photo-btn" onclick="triggerReportPhotoGallery()">
-          <img src="icons/reports/gallery.png" alt="">
+          <img src="icons/gallery.png" alt="">
           <span>${t('wizChoosePhoto') || 'Choose photo'}</span>
         </div>
       </div>
@@ -8689,7 +8687,7 @@ function renderWaitingListInto(containerId) {
   listEl.innerHTML = filtered.map(item => {
     const r = item.report;
     const badgesHtml = item.reasons.map(reason =>
-      `<span class="photo-status-badge" style="background:#a67817;">${escapeHtml(t(WAITING_REASON_LABEL[reason]))}</span>`).join(' ');
+      `<span class="photo-status-badge" style="background:#e16e11;">${escapeHtml(t(WAITING_REASON_LABEL[reason]))}</span>`).join(' ');
     const historyHtml = item.flags.length ? `
         <div class="report-flag-history">
           <div class="report-flag-history-meta">${t('reportFlagsHistoryLabel')} (${item.flags.length})</div>
@@ -9556,7 +9554,7 @@ function showFlagReportForm(reportId) {
       <textarea id="flagReportReason" placeholder="${t('flagReportPH')}"></textarea>
       <div class="flag-report-form-row">
         <button type="button" class="settings-btn" style="flex:1;" onclick="renderReportFlagSection('${reportId}', null)">${t('flagReportCancelBtn')}</button>
-        <button type="button" style="background:#a67817;color:white;flex:1;" onclick="submitReportFlag('${reportId}')" id="flagReportSubmitBtn">${t('flagReportSubmitBtn')}</button>
+        <button type="button" style="background:#e16e11;color:white;flex:1;" onclick="submitReportFlag('${reportId}')" id="flagReportSubmitBtn">${t('flagReportSubmitBtn')}</button>
       </div>
     </div>`;
   const reasonEl = document.getElementById('flagReportReason');
@@ -9918,7 +9916,7 @@ function buildNoteEditPopupHtml(report) {
         <input type="text" id="edit-note-${uid}" value="${escapeHtml(report.comment || '')}" placeholder="${t('commentPH')}">
       </div>
       <div class="status-action-row" style="padding:2px 0 0 0;border-top:none;">
-        <button class="status-action-btn" style="background:#a67817;" onclick="saveOwnerNote('${uid}')">${t('saveBtn')}</button>
+        <button class="status-action-btn" style="background:#e16e11;" onclick="saveOwnerNote('${uid}')">${t('saveBtn')}</button>
         <button class="status-action-btn" style="background:#3a3a3a;" onclick="cancelEdit('${uid}')">${t('cancelBtn')}</button>
       </div>
     </div>
