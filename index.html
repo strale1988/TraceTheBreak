@@ -769,7 +769,13 @@ button{
    Leaflet's own default ~10px corner margin, not instead of it. */
 .bottomright-stack{
   display:flex; flex-direction:column; align-items:center; gap:10px;
-  margin-bottom:calc(var(--legend-row-h, 72px) + 16px);
+  /* Was legend-row-h + 16px, which in practice still let the bottom of
+     the stack (the report FAB, being the largest button) sit under the
+     legend bar on some screens. Bumped the buffer and added the safe-area
+     inset explicitly (belt-and-suspenders alongside legend-row's own
+     offsetHeight, which should already include it) so the stack always
+     clears the bar with room to spare instead of grazing it. */
+  margin-bottom:calc(var(--legend-row-h, 72px) + 28px + env(safe-area-inset-bottom, 0px));
 }
 .pin-map-btn{
   background:var(--floating-bg);
@@ -1310,10 +1316,10 @@ body.nav-panel-open .driving-nav-card{
    in it currently, but it keeps room for more later without needing a
    layout rework). The compass sits inline in the action row between the
    search and recenter buttons (see .driving-action-row-right further
-   below and the HTML in #drivingReportSheet), so it no longer needs its
-   own fixed position. The back, search and recenter buttons live lower
-   down, as a row sitting right above the report buttons in the bottom
-   sheet. */
+   below and #drivingFloatActionRow's HTML), so it no longer needs its
+   own fixed position. The back, search, compass and recenter buttons
+   float in their own row just above the report sheet (see
+   .driving-float-action-row). */
 .driving-left-stack{
   position:fixed;
   top:calc(var(--header-h, 64px) + 12px);
@@ -1396,7 +1402,11 @@ body.driving-active .driving-speed-widget{ display:flex; }
   right:12px; /* stretch full-width, mirroring the left margin on the right */
   width:auto;
   z-index:2650; /* sits above the quick-report sheet (2550) */
-  bottom:calc(var(--driving-sheet-height, 220px) + 12px + env(safe-area-inset-bottom, 0px));
+  /* Stacks above both the sheet AND the floating action row that now
+     sits between them (back/search/compass/recenter — see
+     .driving-float-action-row), tracked the same ResizeObserver way via
+     --driving-action-row-h. */
+  bottom:calc(var(--driving-sheet-height, 220px) + var(--driving-action-row-h, 52px) + 20px + env(safe-area-inset-bottom, 0px));
   /* Hidden by default and speed-aware faded in/out by JS (see
      updateTurnByTurnDisplay / showTurnByTurnCard / fadeOutTurnByTurnCard) —
      opacity is what animates, display is just flipped between none/flex by
@@ -1418,17 +1428,25 @@ body.driving-active .turn-by-turn-card{ display:flex; }
   white-space:nowrap;
 }
 
-/* --- Action row: back button (left) + search/recenter buttons (right),
-   sitting directly above the section-record button and quick-report
-   tiles inside the bottom sheet. Embedded in the sheet (rather than
-   floating separately) so it always sits right above the report
-   buttons no matter how tall the sheet currently is (e.g. while
-   awaiting a section category). */
-.driving-action-row{
-  display:flex;
+/* --- Action row: back button (left) + search/recenter/compass buttons
+   (right). Used to live embedded inside the bottom sheet, pushing the
+   sheet taller than it needed to be for buttons that don't need to sit
+   with the reporting controls at all. Now a separate floating row of its
+   own, pinned just above the (now shorter) sheet — same idea as
+   .turn-by-turn-card floating above it, tracked the same way via
+   --driving-sheet-height so it always sits flush no matter how tall the
+   sheet currently is (e.g. while awaiting a section category). */
+.driving-float-action-row{
+  display:none;
+  position:fixed;
+  left:12px;
+  right:12px;
+  z-index:2600;
+  bottom:calc(var(--driving-sheet-height, 160px) + 12px + env(safe-area-inset-bottom, 0px));
   align-items:center;
   justify-content:space-between;
 }
+body.driving-active .driving-float-action-row{ display:flex; }
 .driving-action-row-right{ display:flex; gap:8px; }
 .driving-back-btn, .driving-search-btn{
   background:var(--bg-surface-alt);
@@ -1849,8 +1867,10 @@ body.driving-active #appPanel{
    Shown only while a non-admin has a manually-dropped report pin active
    (see togglePinMode / the map click handler) — live-GPS reports are
    inherently "at" the person's own location, so there's nothing to
-   measure there. Mirrors the dashed map ring drawn around the dropped
-   pin (see updateProximityRing) with matching red/green coloring. */
+   measure there. Mirrors the dashed map ring drawn around the live GPS
+   position (see updateProximityUi/proximityCircle) with matching
+   red/green coloring, which the dropped pin itself is also tinted to
+   match. */
 .proximity-indicator{
   display:flex; align-items:center; gap:7px;
   background:var(--bg-surface-alt); border-radius:8px;
@@ -1863,6 +1883,26 @@ body.driving-active #appPanel{
 }
 .proximity-dot.near{
   background:#3ecf6e; box-shadow:0 0 0 3px rgba(62,207,110,.2);
+}
+
+/* --- Dropped-pin marker (manual location / destination pins) -----------
+   Base look for both usages of buildDroppedPinHtml(). The color variants
+   below are only ever applied to the manual-location pin (see
+   updateProximityUi) — now that the proximity circle is centered on the
+   live GPS fix instead of on the pin itself (see proximityCircle below),
+   the pin can actually land inside or outside it, so tinting the pin to
+   match the circle's red/green gives the same feedback right at the pin,
+   not just in the circle color and the text indicator. */
+.dropped-pin-icon{
+  width:30px; height:36px; object-fit:contain;
+  filter:drop-shadow(0 3px 6px rgba(0,0,0,.45));
+  transition:filter .15s ease;
+}
+.dropped-pin-icon.pin-in-range{
+  filter:brightness(0) saturate(100%) invert(66%) sepia(69%) saturate(407%) hue-rotate(88deg) brightness(93%) contrast(87%) drop-shadow(0 3px 6px rgba(0,0,0,.45)); /* #3ecf6e */
+}
+.dropped-pin-icon.pin-out-of-range{
+  filter:brightness(0) saturate(100%) invert(41%) sepia(89%) saturate(3223%) hue-rotate(346deg) brightness(100%) contrast(101%) drop-shadow(0 3px 6px rgba(0,0,0,.45)); /* #ff4b4b */
 }
 
 /* --- Offline report queue badge -----------------------------------------
@@ -3078,9 +3118,9 @@ span.flatpickr-weekday {
 <!-- Driving mode: map-first floating HUD. Nothing here permanently covers
      the map except the always-visible report bar pinned to the bottom;
      the speed/GPS readout and compass are small floating widgets over
-     the map itself, top-left and top-right. The back, search and
-     recenter buttons sit lower down, right above the report buttons
-     (see .driving-action-row inside #drivingReportSheet below). -->
+     the map itself, top-left and top-right. The back, search, compass
+     and recenter buttons float in their own row just above the report
+     bar (see #drivingFloatActionRow below). -->
 <div class="driving-left-stack">
   <div class="driving-speed-widget">
     <span class="driving-status-dot" id="drivingStatusLabel" title="GPS status"></span>
@@ -3117,28 +3157,33 @@ span.flatpickr-weekday {
   <button id="navigateClearBtn" class="driving-nav-close-btn" onclick="clearNavigation()" title="Close">✕</button>
 </div>
 
-<!-- Always-visible road-report bar: follow/search/back buttons, the
-     section-record button, and one row of quick-report tiles. No
-     expand/collapse step. The same tiles are reused after a section
-     recording is stopped — tapping one then categorizes and submits
-     the section instead of logging a new point. -->
-<div id="drivingReportSheet" class="driving-report-sheet">
-  <div class="driving-action-row">
-    <button class="driving-back-btn" onclick="toggleDrivingMode()" title="Back">
-      <img class="icon-img" src="icons/arrow.png" alt="Back">
-    </button>
-    <div class="driving-action-row-right">
-      <button class="driving-search-btn" id="drivingSearchBtn" onclick="toggleNavigatePanel()" title="Search destination"><img class="icon-img" src="icons/search.png" alt="Search"></button>
-      <div id="mapCompass" class="map-compass" title="Heading — tap to toggle map rotation" onclick="toggleHeadingUpMode()">
-        <div class="compass-face">
-          <div class="compass-needle" id="compassNeedle">
-            <svg viewBox="0 0 24 24"><path d="M12 2 L16 13 L12 11 L8 13 Z" fill="#ff4b4b"/><path d="M12 22 L16 13 L12 15 L8 13 Z" fill="#ccc"/></svg>
-          </div>
+<!-- Floating action row: back/search/compass/recenter — used to live
+     embedded in #drivingReportSheet below, which just made the sheet
+     taller than it needed to be for buttons that aren't reporting
+     controls. Floats on the map just above the sheet instead now (see
+     .driving-float-action-row). -->
+<div id="drivingFloatActionRow" class="driving-float-action-row">
+  <button class="driving-back-btn" onclick="toggleDrivingMode()" title="Back">
+    <img class="icon-img" src="icons/arrow.png" alt="Back">
+  </button>
+  <div class="driving-action-row-right">
+    <button class="driving-search-btn" id="drivingSearchBtn" onclick="toggleNavigatePanel()" title="Search destination"><img class="icon-img" src="icons/search.png" alt="Search"></button>
+    <div id="mapCompass" class="map-compass" title="Heading — tap to toggle map rotation" onclick="toggleHeadingUpMode()">
+      <div class="compass-face">
+        <div class="compass-needle" id="compassNeedle">
+          <svg viewBox="0 0 24 24"><path d="M12 2 L16 13 L12 11 L8 13 Z" fill="#ff4b4b"/><path d="M12 22 L16 13 L12 15 L8 13 Z" fill="#ccc"/></svg>
         </div>
       </div>
-      <button class="driving-search-btn" id="drivingCenterBtn" onclick="toggleFollowMode()" title="Center on me"><img class="icon-img" src="icons/target.png" alt="Center"></button>
     </div>
+    <button class="driving-search-btn" id="drivingCenterBtn" onclick="toggleFollowMode()" title="Center on me"><img class="icon-img" src="icons/target.png" alt="Center"></button>
   </div>
+</div>
+
+<!-- Always-visible road-report bar: the section-record button and one row
+     of quick-report tiles. No expand/collapse step. The same tiles are
+     reused after a section recording is stopped — tapping one then
+     categorizes and submits the section instead of logging a new point. -->
+<div id="drivingReportSheet" class="driving-report-sheet">
   <div id="sectionAwaitingBar" class="section-awaiting-bar" style="display:none">
     <span id="sectionAwaitingText">Tap a type below to save this section</span>
     <button class="section-awaiting-cancel" onclick="cancelPendingSection()" title="Discard">✕</button>
@@ -6576,10 +6621,13 @@ function followMapTo(lat, lon, options) {
 // my location manually" and "place destination pin manually". Same
 // icons/pin.png used everywhere else in the UI (buttons, modals), so a
 // pin dropped on the map matches what the person already recognizes as
-// "the pin" instead of introducing a separate marker style.
+// "the pin" instead of introducing a separate marker style. The
+// .dropped-pin-icon class carries the base look (see CSS); updateProximityUi
+// toggles .pin-in-range/.pin-out-of-range on top of it for the
+// manual-location pin specifically, once it knows whether the pin sits
+// inside the GPS proximity circle.
 function buildDroppedPinHtml() {
-  return '<img src="icons/pin.png" alt="pin" ' +
-         'style="width:30px;height:36px;object-fit:contain;filter:drop-shadow(0 3px 6px rgba(0,0,0,.45));">';
+  return '<img src="icons/pin.png" alt="pin" class="dropped-pin-icon">';
 }
 
 // Builds the marker HTML for the user's location: a plain dot for normal
@@ -7605,6 +7653,19 @@ function hideTurnByTurnDisplay() {
   if (!sheet || typeof ResizeObserver === 'undefined') return;
   const sync = () => document.documentElement.style.setProperty('--driving-sheet-height', sheet.offsetHeight + 'px');
   new ResizeObserver(sync).observe(sheet);
+  sync();
+})();
+
+// Same idea, for the floating back/search/compass/recenter row that now
+// sits between the sheet and the turn-by-turn card (see
+// .driving-float-action-row) — keeps --driving-action-row-h in sync so the
+// turn-by-turn card's bottom offset always clears it exactly, however wide
+// the buttons render on a given screen.
+(function observeDrivingActionRowHeight() {
+  const row = document.getElementById('drivingFloatActionRow');
+  if (!row || typeof ResizeObserver === 'undefined') return;
+  const sync = () => document.documentElement.style.setProperty('--driving-action-row-h', row.offsetHeight + 'px');
+  new ResizeObserver(sync).observe(row);
   sync();
 })();
 
@@ -8713,17 +8774,40 @@ function updateProximityUi() {
     return;
   }
 
-  const near = !!userCoords && distMeters(userCoords, manualCoords) <= REPORT_PROXIMITY_MAX_M;
+  // The circle marks the range around where you're actually standing (the
+  // live GPS fix) rather than around the pin — the pin is what you're
+  // placing, the GPS position is the fixed reference it has to land near,
+  // so the ring belongs on the reference point. With no GPS fix yet there's
+  // nowhere to anchor it, so it's hidden until one comes in.
+  const hasGps = !!userCoords;
+  const near = hasGps && distMeters(userCoords, manualCoords) <= REPORT_PROXIMITY_MAX_M;
   const color = near ? '#3ecf6e' : '#ff4b4b';
 
-  if (!proximityCircle) {
-    proximityCircle = L.circle([manualCoords.lat, manualCoords.lon], {
-      radius: REPORT_PROXIMITY_MAX_M, color, weight: 2, dashArray: '6 6',
-      fillColor: color, fillOpacity: 0.12, interactive: false
-    }).addTo(map);
-  } else {
-    proximityCircle.setLatLng([manualCoords.lat, manualCoords.lon]);
-    proximityCircle.setStyle({ color, fillColor: color });
+  if (hasGps) {
+    if (!proximityCircle) {
+      proximityCircle = L.circle([userCoords.lat, userCoords.lon], {
+        radius: REPORT_PROXIMITY_MAX_M, color, weight: 2, dashArray: '6 6',
+        fillColor: color, fillOpacity: 0.12, interactive: false
+      }).addTo(map);
+    } else {
+      proximityCircle.setLatLng([userCoords.lat, userCoords.lon]);
+      proximityCircle.setStyle({ color, fillColor: color });
+    }
+  } else if (proximityCircle) {
+    map.removeLayer(proximityCircle);
+    proximityCircle = null;
+  }
+
+  // Tint the pin itself to match — now that the circle is centered on GPS
+  // rather than the pin, the pin can visibly sit inside or outside it, so
+  // color it the same red/green rather than leaving it neutral.
+  if (manualMarker) {
+    const el = manualMarker.getElement();
+    const img = el && el.querySelector('img.dropped-pin-icon');
+    if (img) {
+      img.classList.toggle('pin-in-range', hasGps && near);
+      img.classList.toggle('pin-out-of-range', hasGps && !near);
+    }
   }
 
   if (indicator) {
