@@ -3717,17 +3717,7 @@ function updateHeaderHeightVar() {
   // later resize/orientation call (after `map` is real) picks it up as before.
   if (typeof map !== 'undefined' && map.invalidateSize) map.invalidateSize({ animate: false, pan: false });
 }
-(function initHeaderHeightTracking() {
-  const header = document.querySelector('header');
-  if (!header) return;
-  updateHeaderHeightVar();
-  if (window.ResizeObserver) {
-    new ResizeObserver(updateHeaderHeightVar).observe(header);
-  } else {
-    window.addEventListener('resize', updateHeaderHeightVar);
-    window.addEventListener('orientationchange', updateHeaderHeightVar);
-  }
-})();
+
 
 // Keeps --legend-bottom-gap in sync with #appPanel's real rendered height,
 // so .legend-row (the status pill, fixed to the bottom of the screen) always
@@ -6390,7 +6380,17 @@ const map = L.map('map', { zoomControl: false, markerZoomAnimation: false }).set
   savedMapView ? [savedMapView.lat, savedMapView.lng] : EUROPE_DEFAULT_CENTER,
   savedMapView ? savedMapView.zoom : EUROPE_DEFAULT_ZOOM
 );
-
+(function initHeaderHeightTracking() {
+  const header = document.querySelector('header');
+  if (!header) return;
+  updateHeaderHeightVar();
+  if (window.ResizeObserver) {
+    new ResizeObserver(updateHeaderHeightVar).observe(header);
+  } else {
+    window.addEventListener('resize', updateHeaderHeightVar);
+    window.addEventListener('orientationchange', updateHeaderHeightVar);
+  }
+})();
 map.on('moveend', saveMapView);
 
 // #map is sized by flexbox (flex:1 / height:0 — see CSS) inside a column
