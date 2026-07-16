@@ -245,6 +245,47 @@ header p{ font-size:var(--fs-11); opacity:.7; margin-top:2px; }
   text-align:left;
 }
 
+/* ============================================================
+   Shared icon-button base
+   .btn-icon   = common behavior for any icon-only button (flex-
+                 centered, pointer cursor, no tap flash/callout)
+   .btn-icon-round = circular variant (adds border-radius:50%)
+   Component classes below (.help-icon-btn, .pin-map-btn, etc.)
+   are grouped into these selectors for their shared declarations,
+   then keep their own rule for size/color/border only. New icon
+   buttons should reuse .btn-icon (+ .btn-icon-round if circular)
+   instead of redeclaring these properties again.
+   ============================================================ */
+.btn-icon,
+.help-icon-btn,
+.pin-map-btn,
+.report-fab-btn,
+.wiz-back-btn, .wiz-close-btn,
+.driving-back-btn, .driving-search-btn,
+.driving-nav-close-btn,
+.navigate-search-btn, .navigate-close-btn,
+.section-awaiting-cancel,
+.icon-only-btn,
+.poi-contact-icon-btn{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+.btn-icon-round,
+.help-icon-btn,
+.pin-map-btn,
+.report-fab-btn,
+.wiz-back-btn, .wiz-close-btn,
+.driving-back-btn, .driving-search-btn,
+.driving-nav-close-btn,
+.section-awaiting-cancel,
+.poi-contact-icon-btn{
+  border-radius:50%;
+}
+
 .lang-btn{
   background:var(--bg-surface-alt);
   color:var(--text-secondary);
@@ -263,19 +304,12 @@ header p{ font-size:var(--fs-11); opacity:.7; margin-top:2px; }
 .help-icon-btn{
   background:var(--bg-surface-alt);
   border:none;
-  border-radius:50%;
   font-size:var(--fs-14);
   width:36px;
   height:36px;
   padding:0;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  cursor:pointer;
   box-shadow:0 1px 3px var(--floating-shadow);
   transition:transform .12s ease, background .15s ease, box-shadow .15s ease;
-  -webkit-tap-highlight-color:transparent;
-  touch-action:manipulation;
 }
 .help-icon-btn:active{ background:var(--border-color-strong); transform:scale(.9); box-shadow:0 1px 2px var(--floating-shadow); }
 
@@ -575,15 +609,11 @@ body.driving-active .bottomright-stack{ display:none !important; }
 .pin-map-btn{
   background:var(--floating-bg);
   border:1px solid var(--floating-border);
-  border-radius:50%;
   width:44px; height:44px;
-  display:flex; align-items:center; justify-content:center;
-  cursor:pointer; font-size:var(--fs-22);
+  font-size:var(--fs-22);
   box-shadow:0 2px 8px var(--floating-shadow);
   transition:background .15s ease, transform .12s ease, box-shadow .15s ease;
   user-select:none;
-  -webkit-tap-highlight-color:transparent;
-  touch-action:manipulation;
 }
 .pin-map-btn:active{ background:var(--bg-surface-alt); transform:scale(.9); box-shadow:0 1px 4px var(--floating-shadow); }
 .pin-map-btn .icon-img{ filter:var(--icon-tint-filter); }
@@ -594,15 +624,10 @@ body.driving-active .bottomright-stack{ display:none !important; }
 
 .report-fab-btn{
   width:60px; height:60px;
-  border-radius:50%;
   background:#ff4b4b;
   color:#fff;
-  display:flex; align-items:center; justify-content:center;
   box-shadow:0 4px 14px rgba(0,0,0,.3);
-  cursor:pointer;
   border:none;
-  -webkit-tap-highlight-color:transparent;
-  touch-action:manipulation;
   transition:transform .12s ease, box-shadow .12s ease;
 }
 .report-fab-btn:active{ transform:scale(.9); box-shadow:0 2px 8px rgba(0,0,0,.3); }
@@ -621,9 +646,8 @@ body.driving-active .report-fab-btn{ display:none !important; }
   padding:14px 16px; flex:0 0 auto;
 }
 .wiz-back-btn, .wiz-close-btn{
-  width:34px; height:34px; border-radius:50%;
-  display:flex; align-items:center; justify-content:center;
-  background:var(--bg-surface-alt); border:none; cursor:pointer;
+  width:34px; height:34px;
+  background:var(--bg-surface-alt); border:none;
   color:var(--text-primary); font-size:var(--fs-18);
 }
 .wiz-progress{
@@ -790,10 +814,6 @@ body.nav-panel-open .driving-nav-card{
   background:var(--bg-surface-alt);
   color:var(--text-secondary);
   font-size:var(--fs-13);
-  display:flex; align-items:center; justify-content:center;
-  cursor:pointer;
-  -webkit-tap-highlight-color:transparent;
-  touch-action:manipulation;
 }
 #navigatePinBtn.active{ background:#f5a623; color:#111; }
 .navigate-pin-hint{
@@ -1098,15 +1118,10 @@ body.driving-active .driving-float-action-row{ display:flex; }
   background:var(--bg-surface-alt);
   border:1px solid var(--nav-accent);
   color:var(--nav-accent);
-  border-radius:50%;
   width:40px; height:40px;
   font-size:var(--fs-16);
-  display:flex; align-items:center; justify-content:center;
-  cursor:pointer;
   box-shadow:0 3px 10px var(--floating-shadow);
   transition:background .15s;
-  -webkit-tap-highlight-color:transparent;
-  touch-action:manipulation;
 }
 .driving-back-btn img{ transform: rotate(-90deg); } /* arrow.png points up natively; rotate to point left */
 .driving-search-btn.active{ background:var(--nav-accent); border-color:var(--nav-accent); color:var(--bg-surface); }
@@ -1168,15 +1183,10 @@ body.driving-active .driving-report-sheet{ display:flex; }
 .section-awaiting-cancel{
   flex-shrink:0;
   width:30px; height:30px;
-  border-radius:50%;
   background:var(--bg-surface-alt);
   border:1px solid var(--border-color-strong);
   color:var(--text-primary);
   font-size:var(--fs-13);
-  display:flex; align-items:center; justify-content:center;
-  cursor:pointer;
-  -webkit-tap-highlight-color:transparent;
-  touch-action:manipulation;
 }
 .section-awaiting-cancel:active{ background:var(--border-color-strong); }
 .driving-tile-row{
@@ -1287,15 +1297,10 @@ body.driving-active .driving-report-sheet{ display:flex; }
 .driving-nav-close-btn{
   flex-shrink:0;
   width:34px; height:34px;
-  border-radius:50%;
   background:var(--bg-surface-alt);
   border:1px solid var(--border-color-strong);
   color:var(--text-secondary);
   font-size:var(--fs-15);
-  display:flex; align-items:center; justify-content:center;
-  cursor:pointer;
-  -webkit-tap-highlight-color:transparent;
-  touch-action:manipulation;
 }
 .driving-nav-close-btn:active{ background:var(--border-color-strong); }
 
@@ -2033,10 +2038,10 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   padding:2px 6px; border-radius:var(--radius-lg); color:white;
 }
 .uc-item-actions{ display:flex; gap:var(--space-6); flex-shrink:0; }
-.admin-action-btn{
-  border:none; border-radius:var(--radius-sm); padding:7px 10px; font-size:var(--fs-12); font-weight:var(--fw-semibold); cursor:pointer;
-}
-.uc-item-actions button, .photo-review-actions button{
+/* .btn-pill-sm: shared base for small text-label action buttons (uc/admin lists,
+   photo review). admin-action-btn and the uc-item/photo-review button rules were
+   previously identical blocks defined twice — merged here. */
+.admin-action-btn, .uc-item-actions button, .photo-review-actions button{
   border:none; border-radius:var(--radius-sm); padding:7px 10px; font-size:var(--fs-12); font-weight:var(--fw-semibold); cursor:pointer;
 }
 .uc-group-list{ display:flex; flex-direction:column; gap:var(--space-8); }
@@ -2183,7 +2188,7 @@ details[open] > summary .uc-group-chevron{ transform:rotate(180deg); /* point do
 .icon-only-btn{
   flex:0 0 auto; width:28px; height:28px; border-radius:var(--radius-sm);
   border:1px solid var(--border-color-strong); background:var(--bg-surface);
-  display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0;
+  padding:0;
 }
 .icon-only-btn .icon-img{ width:16px; height:16px; filter:var(--icon-tint-filter); }
 .icon-only-btn:hover{ background:var(--bg-surface-alt); }
@@ -2192,11 +2197,9 @@ details[open] > summary .uc-group-chevron{ transform:rotate(180deg); /* point do
   display:flex; gap:var(--space-8); padding:2px 0 4px 0;
 }
 .poi-contact-icon-btn{
-  flex:0 0 auto; width:36px; height:36px; border-radius:50%;
+  flex:0 0 auto; width:36px; height:36px;
   border:1px solid #ddd; background:#f5f5f5;
-  display:flex; align-items:center; justify-content:center;
-  cursor:pointer; text-decoration:none;
-  -webkit-tap-highlight-color:transparent; touch-action:manipulation;
+  text-decoration:none;
 }
 .poi-contact-icon-btn img{ width:17px; height:17px; filter:brightness(0); opacity:.75; }
 .poi-contact-icon-btn:active{ background:#e8e8e8; }
