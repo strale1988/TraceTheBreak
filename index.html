@@ -10324,6 +10324,16 @@ function recordContactAttempt(reportId, type, companyId) {
   } catch (err) {
     console.error('Failed to stage contact attempt:', err.message);
   }
+  scheduleFallbackContactCheck();
+}
+
+const CONTACT_FALLBACK_DELAYS_MS = [1200, 3000, 6000];
+function scheduleFallbackContactCheck() {
+  CONTACT_FALLBACK_DELAYS_MS.forEach(delay => {
+    setTimeout(() => {
+      if (document.visibilityState === 'visible') checkPendingContactAttempt();
+    }, delay);
+  });
 }
 
 function checkPendingContactAttempt() {
@@ -11244,6 +11254,7 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') checkPendingContactAttempt();
 });
 window.addEventListener('pageshow', checkPendingContactAttempt);
+window.addEventListener('focus', checkPendingContactAttempt);
 
 requestWakeLock();
 
