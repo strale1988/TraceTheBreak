@@ -10686,6 +10686,7 @@ async function emailReport(reportId) {
       lang === 'sr' ? `Detaljan izveštaj i mapa: ${shareUrl}` : `Full report and map: ${shareUrl}`,
       '',
       lang === 'sr' ? 'Hvala unapred,' : 'Thank you,',
+      (currentSession && currentProfile && currentProfile.username) ? currentProfile.username : (lang === 'sr' ? 'Vaš komšija' : 'Your neighbor'),
     ];
     const body = encodeURIComponent(bodyLines.join('\n'));
     if (toEmails) recordContactAttempt(reportId, 'email', null);
