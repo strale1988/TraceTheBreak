@@ -197,8 +197,13 @@ header{
   border-bottom:1px solid var(--floating-border);
   border-radius:0 0 20px 20px;
   box-shadow:0 6px 24px var(--floating-shadow);
-  position:relative;
+  position:fixed;
+  top:0; left:0; right:0;
   z-index:100; /* see Z-INDEX SCALE above — just needs to clear #map (1) */
+  /* Safari/iOS renders backdrop-filter as a square, ignoring border-radius,
+     unless the element is forced into its own masked compositing layer. */
+  -webkit-mask-image:-webkit-radial-gradient(white,black);
+  mask-image:radial-gradient(white,black);
 }
 
 .header-top{
@@ -473,6 +478,8 @@ button{
   border-top:1px solid var(--floating-border);
   border-radius:20px 20px 0 0;
   box-shadow:0 -6px 24px var(--floating-shadow);
+  -webkit-mask-image:-webkit-radial-gradient(white,black);
+  mask-image:radial-gradient(white,black);
   display:flex;
   justify-content:space-around;
   align-items:center;
@@ -934,11 +941,17 @@ body.nav-panel-open .driving-nav-card{
   0%{ transform:scale(.5); opacity:.8; }
   100%{ transform:scale(1.05); opacity:0; }
 }
+.user-nav-halo{
+  position:absolute;
+  width:34px; height:34px;
+  border-radius:50%;
+  background:rgba(255,255,255,.92);
+  box-shadow:0 2px 8px rgba(0,0,0,.35), 0 0 0 1px rgba(0,0,0,.06);
+}
 .user-nav-arrow{
   position:relative;
-  width:27px; height:27px;
+  width:20px; height:20px;
   transition:transform .25s linear;
-  filter:drop-shadow(0 2px 5px rgba(0,0,0,.55));
 }
 
 #drivingTopFade{
@@ -1019,6 +1032,8 @@ body.nav-panel-open .driving-nav-card{
   color:var(--text-primary);
   padding:12px 16px;
   border-radius:16px;
+  -webkit-mask-image:-webkit-radial-gradient(white,black);
+  mask-image:radial-gradient(white,black);
   font-size:var(--fs-13);
   font-weight:var(--fw-semibold);
   line-height:1.35;
@@ -1187,6 +1202,8 @@ body.nav-card-open .driving-left-stack{
   border-top:1px solid var(--floating-border);
   border-radius:20px 20px 0 0;
   box-shadow:0 -6px 24px var(--floating-shadow);
+  -webkit-mask-image:-webkit-radial-gradient(white,black);
+  mask-image:radial-gradient(white,black);
   padding:12px 14px calc(14px + env(safe-area-inset-bottom, 0px)) 14px;
   display:none;
   flex-direction:column;
@@ -3120,7 +3137,17 @@ function updateHeaderHeightVar() {
 (function initAppPanelHeightTracking() {
   const panel = document.getElementById('appPanel');
   if (!panel) return;
-  const sync = () => document.documentElement.style.setProperty('--legend-bottom-gap', panel.offsetHeight + 'px');
+  const sync = () => {
+    document.documentElement.style.setProperty('--legend-bottom-gap', panel.offsetHeight + 'px');
+    // #appPanel is a flex sibling of #map (flex:1), so any change in its
+    // height resizes #map too. Leaflet caches its container size, so
+    // without this it keeps painting tiles at the old size and leaves
+    // the newly-revealed strip at the bottom gray/untiled.
+    // (try/catch: `map` is declared later in this script with `const`, so
+    // referencing it here — even via typeof — throws while in its TDZ
+    // during the very first, immediate sync() call below.)
+    try { if (map && map.invalidateSize) map.invalidateSize({ animate: false, pan: false }); } catch (e) {}
+  };
   sync();
   if (window.ResizeObserver) {
     new ResizeObserver(sync).observe(panel);
@@ -5898,9 +5925,10 @@ function buildUserMarkerHtml(navStyle) {
   if (navStyle) {
     return '<div class="user-nav-marker">' +
              '<div class="user-nav-pulse"></div>' +
+             '<div class="user-nav-halo"></div>' +
              '<div class="user-nav-arrow">' +
-               '<svg viewBox="0 0 24 24" width="27" height="27">' +
-                 '<path d="M12 1.5 L20.5 21 L12 16.2 L3.5 21 Z" fill="#00d0ff" stroke="white" stroke-width="1.1"/>' +
+               '<svg viewBox="0 0 24 24" width="20" height="20">' +
+                 '<path d="M12 2.2 L19.3 20 L12 15.6 L4.7 20 Z" fill="var(--nav-accent)" stroke="#0092b8" stroke-width="1" stroke-linejoin="round"/>' +
                '</svg>' +
              '</div>' +
            '</div>';
