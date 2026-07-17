@@ -197,13 +197,8 @@ header{
   border-bottom:1px solid var(--floating-border);
   border-radius:0 0 20px 20px;
   box-shadow:0 6px 24px var(--floating-shadow);
-  position:fixed;
-  top:0; left:0; right:0;
+  position:relative;
   z-index:100; /* see Z-INDEX SCALE above — just needs to clear #map (1) */
-  /* Safari/iOS renders backdrop-filter as a square, ignoring border-radius,
-     unless the element is forced into its own masked compositing layer. */
-  -webkit-mask-image:-webkit-radial-gradient(white,black);
-  mask-image:radial-gradient(white,black);
 }
 
 .header-top{
@@ -478,8 +473,6 @@ button{
   border-top:1px solid var(--floating-border);
   border-radius:20px 20px 0 0;
   box-shadow:0 -6px 24px var(--floating-shadow);
-  -webkit-mask-image:-webkit-radial-gradient(white,black);
-  mask-image:radial-gradient(white,black);
   display:flex;
   justify-content:space-around;
   align-items:center;
@@ -941,17 +934,11 @@ body.nav-panel-open .driving-nav-card{
   0%{ transform:scale(.5); opacity:.8; }
   100%{ transform:scale(1.05); opacity:0; }
 }
-.user-nav-halo{
-  position:absolute;
-  width:34px; height:34px;
-  border-radius:50%;
-  background:rgba(255,255,255,.92);
-  box-shadow:0 2px 8px rgba(0,0,0,.35), 0 0 0 1px rgba(0,0,0,.06);
-}
 .user-nav-arrow{
   position:relative;
-  width:20px; height:20px;
+  width:27px; height:27px;
   transition:transform .25s linear;
+  filter:drop-shadow(0 2px 5px rgba(0,0,0,.55));
 }
 
 #drivingTopFade{
@@ -1032,8 +1019,6 @@ body.nav-panel-open .driving-nav-card{
   color:var(--text-primary);
   padding:12px 16px;
   border-radius:16px;
-  -webkit-mask-image:-webkit-radial-gradient(white,black);
-  mask-image:radial-gradient(white,black);
   font-size:var(--fs-13);
   font-weight:var(--fw-semibold);
   line-height:1.35;
@@ -1202,8 +1187,6 @@ body.nav-card-open .driving-left-stack{
   border-top:1px solid var(--floating-border);
   border-radius:20px 20px 0 0;
   box-shadow:0 -6px 24px var(--floating-shadow);
-  -webkit-mask-image:-webkit-radial-gradient(white,black);
-  mask-image:radial-gradient(white,black);
   padding:12px 14px calc(14px + env(safe-area-inset-bottom, 0px)) 14px;
   display:none;
   flex-direction:column;
@@ -1415,7 +1398,11 @@ body.driving-active #appPanel{
 .dashboard-stat-box-sm .dashboard-stat-value{ font-size:var(--fs-15); }
 .dashboard-stat-box{
   background:var(--bg-surface-alt); border-radius:var(--radius-md); padding:8px 10px;
+  display:flex; align-items:center; gap:8px;
 }
+.dashboard-stat-icon-glyph{ width:22px; height:22px; display:inline-block; flex-shrink:0; }
+.dashboard-stat-box-sm .dashboard-stat-icon-glyph{ width:19px; height:19px; }
+.dashboard-stat-body{ min-width:0; }
 .dashboard-stat-value{ font-size:var(--fs-17); font-weight:var(--fw-heavy); color:var(--text-primary); }
 .dashboard-stat-label{ font-size:var(--fs-10); color:var(--text-muted); text-transform:uppercase; letter-spacing:.3px; margin-top:2px; }
 .weekly-chart{
@@ -1436,8 +1423,8 @@ body.driving-active #appPanel{
 .dashboard-badges-count{ font-size:var(--fs-11); font-weight:var(--fw-semibold); color:var(--text-muted); }
 .dashboard-see-all-btn{ background:none; border:none; color:var(--accent); font-size:var(--fs-11); font-weight:var(--fw-semibold); cursor:pointer; padding:0; -webkit-tap-highlight-color:transparent; }
 .dashboard-next-badge{ display:flex; align-items:center; gap:var(--space-10); background:var(--bg-surface-alt); border-radius:var(--radius-lg); padding:10px 12px; margin-top:8px; }
-.dashboard-next-badge-icon{ width:44px; height:44px; border-radius:50%; background:var(--bg-surface); display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 2px 6px rgba(0,0,0,.3); }
-.dashboard-next-badge-icon img{ width:26px; height:26px; object-fit:contain; }
+.dashboard-next-badge-icon{ width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 2px 6px rgba(0,0,0,.3); }
+.dashboard-next-badge-icon-glyph{ width:26px; height:26px; display:inline-block; }
 .dashboard-next-badge-info{ flex:1; min-width:0; }
 .dashboard-next-badge-label{ font-size:var(--fs-9-5); font-weight:var(--fw-heavy); color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em; }
 .dashboard-next-badge-name{ font-size:var(--fs-13); font-weight:var(--fw-bold); color:var(--text-primary); margin:2px 0 5px; }
@@ -1508,11 +1495,17 @@ body.driving-active #appPanel{
 .dashboard-identity-row{
   display:flex; align-items:center; gap:var(--space-8); min-width:0; flex:1;
 }
-.dashboard-identity-badge{
+.leaderboard-rank.dashboard-identity-badge,
+.leaderboard-admin-badge.dashboard-identity-badge{
   /* Same 36px/2px sizing as .leaderboard-rank and .leaderboard-admin-badge
      everywhere else — this one just sits in a tighter header row, so it's
      given its own class to size independently of either if that ever needs
-     to change, without disturbing the list-row badges. */
+     to change, without disturbing the list-row badges.
+     Compound selector (two classes) so this reliably overrides the base
+     36px .leaderboard-rank / .leaderboard-admin-badge rules regardless of
+     their order in the stylesheet — otherwise the badge renders at 36px
+     while the ring wrapper below stays sized for 30px, throwing the ring
+     off-center around the badge. */
   width:30px; height:30px; border-width:2px; flex-shrink:0;
 }
 .dashboard-identity-badge img{ padding:5px; }
@@ -2867,39 +2860,63 @@ span.flatpickr-weekday {
         <div class="dashboard-progress-text" id="dashboardProgressText"></div>
         <div class="dashboard-stats-grid">
           <div class="dashboard-stat-box">
-            <div class="dashboard-stat-value" id="dashboardStatPoints">0</div>
-            <div class="dashboard-stat-label" id="dashboardStatPointsLabel">Civic points</div>
+            <span class="dashboard-stat-icon-glyph" style="background-color:#f0b429;-webkit-mask:url('icons/badges/badge-civic-voice.png') center/contain no-repeat;mask:url('icons/badges/badge-civic-voice.png') center/contain no-repeat;"></span>
+            <div class="dashboard-stat-body">
+              <div class="dashboard-stat-value" id="dashboardStatPoints">0</div>
+              <div class="dashboard-stat-label" id="dashboardStatPointsLabel">Civic points</div>
+            </div>
           </div>
           <div class="dashboard-stat-box">
-            <div class="dashboard-stat-value" id="dashboardStatSuccessful">0</div>
-            <div class="dashboard-stat-label" id="dashboardStatSuccessfulLabel">Successful votes</div>
+            <span class="dashboard-stat-icon-glyph" style="background-color:#5ec98a;-webkit-mask:url('icons/badges/badge-problem-solver.png') center/contain no-repeat;mask:url('icons/badges/badge-problem-solver.png') center/contain no-repeat;"></span>
+            <div class="dashboard-stat-body">
+              <div class="dashboard-stat-value" id="dashboardStatSuccessful">0</div>
+              <div class="dashboard-stat-label" id="dashboardStatSuccessfulLabel">Successful votes</div>
+            </div>
           </div>
           <div class="dashboard-stat-box">
-            <div class="dashboard-stat-value" id="dashboardStatWeight">x1</div>
-            <div class="dashboard-stat-label" id="dashboardStatWeightLabel">Your vote weight</div>
+            <span class="dashboard-stat-icon-glyph" style="background-color:#c084fc;-webkit-mask:url('icons/badges/badge-local-legend.png') center/contain no-repeat;mask:url('icons/badges/badge-local-legend.png') center/contain no-repeat;"></span>
+            <div class="dashboard-stat-body">
+              <div class="dashboard-stat-value" id="dashboardStatWeight">x1</div>
+              <div class="dashboard-stat-label" id="dashboardStatWeightLabel">Your vote weight</div>
+            </div>
           </div>
         </div>
         <div class="dashboard-badges-title" id="dashboardActivityTitle">Activity</div>
         <div class="dashboard-stats-grid-3">
           <div class="dashboard-stat-box dashboard-stat-box-sm">
-            <div class="dashboard-stat-value" id="dashboardStatReports">0</div>
-            <div class="dashboard-stat-label" id="dashboardStatReportsLabel">Reports filed</div>
+            <span class="dashboard-stat-icon-glyph" style="background-color:#f87171;-webkit-mask:url('icons/badges/badge-street-scout.png') center/contain no-repeat;mask:url('icons/badges/badge-street-scout.png') center/contain no-repeat;"></span>
+            <div class="dashboard-stat-body">
+              <div class="dashboard-stat-value" id="dashboardStatReports">0</div>
+              <div class="dashboard-stat-label" id="dashboardStatReportsLabel">Reports filed</div>
+            </div>
           </div>
           <div class="dashboard-stat-box dashboard-stat-box-sm">
-            <div class="dashboard-stat-value" id="dashboardStatPhotos">0</div>
-            <div class="dashboard-stat-label" id="dashboardStatPhotosLabel">Photos added</div>
+            <span class="dashboard-stat-icon-glyph" style="background-color:#93c5fd;-webkit-mask:url('icons/badges/badge-photo-expert.png') center/contain no-repeat;mask:url('icons/badges/badge-photo-expert.png') center/contain no-repeat;"></span>
+            <div class="dashboard-stat-body">
+              <div class="dashboard-stat-value" id="dashboardStatPhotos">0</div>
+              <div class="dashboard-stat-label" id="dashboardStatPhotosLabel">Photos added</div>
+            </div>
           </div>
           <div class="dashboard-stat-box dashboard-stat-box-sm">
-            <div class="dashboard-stat-value" id="dashboardStatComments">0</div>
-            <div class="dashboard-stat-label" id="dashboardStatCommentsLabel">Comments left</div>
+            <span class="dashboard-stat-icon-glyph" style="background-color:#5eead4;-webkit-mask:url('icons/badges/badge-conversation-starter.png') center/contain no-repeat;mask:url('icons/badges/badge-conversation-starter.png') center/contain no-repeat;"></span>
+            <div class="dashboard-stat-body">
+              <div class="dashboard-stat-value" id="dashboardStatComments">0</div>
+              <div class="dashboard-stat-label" id="dashboardStatCommentsLabel">Comments left</div>
+            </div>
           </div>
           <div class="dashboard-stat-box dashboard-stat-box-sm">
-            <div class="dashboard-stat-value" id="dashboardStatCities">0</div>
-            <div class="dashboard-stat-label" id="dashboardStatCitiesLabel">Cities covered</div>
+            <span class="dashboard-stat-icon-glyph" style="background-color:#f472b6;-webkit-mask:url('icons/badges/badge-world-traveler.png') center/contain no-repeat;mask:url('icons/badges/badge-world-traveler.png') center/contain no-repeat;"></span>
+            <div class="dashboard-stat-body">
+              <div class="dashboard-stat-value" id="dashboardStatCities">0</div>
+              <div class="dashboard-stat-label" id="dashboardStatCitiesLabel">Cities covered</div>
+            </div>
           </div>
           <div class="dashboard-stat-box dashboard-stat-box-sm">
-            <div class="dashboard-stat-value" id="dashboardStatVotes">0</div>
-            <div class="dashboard-stat-label" id="dashboardStatVotesLabel">Votes cast</div>
+            <span class="dashboard-stat-icon-glyph" style="background-color:#fb923c;-webkit-mask:url('icons/badges/badge-the-upvoter.png') center/contain no-repeat;mask:url('icons/badges/badge-the-upvoter.png') center/contain no-repeat;"></span>
+            <div class="dashboard-stat-body">
+              <div class="dashboard-stat-value" id="dashboardStatVotes">0</div>
+              <div class="dashboard-stat-label" id="dashboardStatVotesLabel">Votes cast</div>
+            </div>
           </div>
         </div>
         <div class="dashboard-badges-title" id="dashboardWeekTitle">This Week</div>
@@ -2946,35 +2963,56 @@ span.flatpickr-weekday {
         <div class="detail-section-title" id="adminDashboardSectionTitle">My Admin Role</div>
         <div class="dashboard-stats-grid">
           <div class="dashboard-stat-box">
-            <div class="dashboard-stat-value" id="adminDashboardTagValue" style="font-size:var(--fs-14);">—</div>
-            <div class="dashboard-stat-label" id="adminDashboardTagLabel">Responsible for</div>
+            <span class="dashboard-stat-icon-glyph" style="background-color:#f472b6;-webkit-mask:url('icons/badges/badge-admin-district-keeper.png') center/contain no-repeat;mask:url('icons/badges/badge-admin-district-keeper.png') center/contain no-repeat;"></span>
+            <div class="dashboard-stat-body">
+              <div class="dashboard-stat-value" id="adminDashboardTagValue" style="font-size:var(--fs-14);">—</div>
+              <div class="dashboard-stat-label" id="adminDashboardTagLabel">Responsible for</div>
+            </div>
           </div>
           <div class="dashboard-stat-box">
-            <div class="dashboard-stat-value" id="adminDashboardResolvedValue">0</div>
-            <div class="dashboard-stat-label" id="adminDashboardResolvedLabel">Flags resolved</div>
+            <span class="dashboard-stat-icon-glyph" style="background-color:#f87171;-webkit-mask:url('icons/badges/badge-veteran-moderator.png') center/contain no-repeat;mask:url('icons/badges/badge-veteran-moderator.png') center/contain no-repeat;"></span>
+            <div class="dashboard-stat-body">
+              <div class="dashboard-stat-value" id="adminDashboardResolvedValue">0</div>
+              <div class="dashboard-stat-label" id="adminDashboardResolvedLabel">Flags resolved</div>
+            </div>
           </div>
         </div>
         <div class="dashboard-badges-title" id="adminDashboardActivityTitle">Moderation Stats</div>
         <div class="dashboard-stats-grid-3">
           <div class="dashboard-stat-box dashboard-stat-box-sm">
-            <div class="dashboard-stat-value" id="adminDashboardStatReviewed">0</div>
-            <div class="dashboard-stat-label" id="adminDashboardStatReviewedLabel">Reports reviewed</div>
+            <span class="dashboard-stat-icon-glyph" style="background-color:#93c5fd;-webkit-mask:url('icons/badges/badge-admin-cleanup-crew.png') center/contain no-repeat;mask:url('icons/badges/badge-admin-cleanup-crew.png') center/contain no-repeat;"></span>
+            <div class="dashboard-stat-body">
+              <div class="dashboard-stat-value" id="adminDashboardStatReviewed">0</div>
+              <div class="dashboard-stat-label" id="adminDashboardStatReviewedLabel">Reports reviewed</div>
+            </div>
           </div>
           <div class="dashboard-stat-box dashboard-stat-box-sm">
-            <div class="dashboard-stat-value" id="adminDashboardStatFast">0</div>
-            <div class="dashboard-stat-label" id="adminDashboardStatFastLabel">Fast resolves (&lt;1h)</div>
+            <span class="dashboard-stat-icon-glyph" style="background-color:#f0b429;-webkit-mask:url('icons/badges/badge-admin-fast-responder.png') center/contain no-repeat;mask:url('icons/badges/badge-admin-fast-responder.png') center/contain no-repeat;"></span>
+            <div class="dashboard-stat-body">
+              <div class="dashboard-stat-value" id="adminDashboardStatFast">0</div>
+              <div class="dashboard-stat-label" id="adminDashboardStatFastLabel">Fast resolves (&lt;1h)</div>
+            </div>
           </div>
           <div class="dashboard-stat-box dashboard-stat-box-sm">
-            <div class="dashboard-stat-value" id="adminDashboardStatStreak">0</div>
-            <div class="dashboard-stat-label" id="adminDashboardStatStreakLabel">Longest streak (days)</div>
+            <span class="dashboard-stat-icon-glyph" style="background-color:#c084fc;-webkit-mask:url('icons/badges/badge-admin-on-duty.png') center/contain no-repeat;mask:url('icons/badges/badge-admin-on-duty.png') center/contain no-repeat;"></span>
+            <div class="dashboard-stat-body">
+              <div class="dashboard-stat-value" id="adminDashboardStatStreak">0</div>
+              <div class="dashboard-stat-label" id="adminDashboardStatStreakLabel">Longest streak (days)</div>
+            </div>
           </div>
           <div class="dashboard-stat-box dashboard-stat-box-sm">
-            <div class="dashboard-stat-value" id="adminDashboardStatBusiest">0</div>
-            <div class="dashboard-stat-label" id="adminDashboardStatBusiestLabel">Busiest day</div>
+            <span class="dashboard-stat-icon-glyph" style="background-color:#5eead4;-webkit-mask:url('icons/badges/badge-admin-lightning-review.png') center/contain no-repeat;mask:url('icons/badges/badge-admin-lightning-review.png') center/contain no-repeat;"></span>
+            <div class="dashboard-stat-body">
+              <div class="dashboard-stat-value" id="adminDashboardStatBusiest">0</div>
+              <div class="dashboard-stat-label" id="adminDashboardStatBusiestLabel">Busiest day</div>
+            </div>
           </div>
           <div class="dashboard-stat-box dashboard-stat-box-sm">
-            <div class="dashboard-stat-value" id="adminDashboardStatNight">0</div>
-            <div class="dashboard-stat-label" id="adminDashboardStatNightLabel">Night shift resolves</div>
+            <span class="dashboard-stat-icon-glyph" style="background-color:#fb923c;-webkit-mask:url('icons/badges/badge-admin-night-shift.png') center/contain no-repeat;mask:url('icons/badges/badge-admin-night-shift.png') center/contain no-repeat;"></span>
+            <div class="dashboard-stat-body">
+              <div class="dashboard-stat-value" id="adminDashboardStatNight">0</div>
+              <div class="dashboard-stat-label" id="adminDashboardStatNightLabel">Night shift resolves</div>
+            </div>
           </div>
         </div>
         <div class="dashboard-badges-title" id="adminDashboardWeekTitle">This Week</div>
@@ -3082,17 +3120,7 @@ function updateHeaderHeightVar() {
 (function initAppPanelHeightTracking() {
   const panel = document.getElementById('appPanel');
   if (!panel) return;
-  const sync = () => {
-    document.documentElement.style.setProperty('--legend-bottom-gap', panel.offsetHeight + 'px');
-    // #appPanel is a flex sibling of #map (flex:1), so any change in its
-    // height resizes #map too. Leaflet caches its container size, so
-    // without this it keeps painting tiles at the old size and leaves
-    // the newly-revealed strip at the bottom gray/untiled.
-    // (try/catch: `map` is declared later in this script with `const`, so
-    // referencing it here — even via typeof — throws while in its TDZ
-    // during the very first, immediate sync() call below.)
-    try { if (map && map.invalidateSize) map.invalidateSize({ animate: false, pan: false }); } catch (e) {}
-  };
+  const sync = () => document.documentElement.style.setProperty('--legend-bottom-gap', panel.offsetHeight + 'px');
   sync();
   if (window.ResizeObserver) {
     new ResizeObserver(sync).observe(panel);
@@ -3531,12 +3559,17 @@ function renderNextBadgeCard(idPrefix, list, profile, stats) {
   if (!next) { card.style.display = 'none'; return; }
   card.style.display = 'flex';
   const iconSrc = cachedIconUrl(`icons/badges/${next.badge.icon}`);
+  const pair = badgeColorPair(next.badge);
   const iconEl = document.getElementById(idPrefix + 'NextBadgeIcon');
-  if (iconEl) iconEl.innerHTML = `<img src="${iconSrc}" alt="">`;
+  if (iconEl) {
+    iconEl.style.background = pair ? pair.fg : 'var(--accent)';
+    const glyph = pair ? pair.bg : 'var(--accent-contrast)';
+    iconEl.innerHTML = `<span class="dashboard-next-badge-icon-glyph" style="background-color:${glyph};-webkit-mask:url('${iconSrc}') center / contain no-repeat;mask:url('${iconSrc}') center / contain no-repeat;"></span>`;
+  }
   const nameEl = document.getElementById(idPrefix + 'NextBadgeName');
   if (nameEl) nameEl.textContent = badgeName(next.badge);
   const fillEl = document.getElementById(idPrefix + 'NextBadgeFill');
-  if (fillEl) fillEl.style.width = (next.fraction * 100) + '%';
+  if (fillEl) { fillEl.style.width = (next.fraction * 100) + '%'; fillEl.style.background = pair ? pair.fg : 'var(--accent)'; }
   const textEl = document.getElementById(idPrefix + 'NextBadgeText');
   if (textEl) textEl.textContent = `${Math.floor(next.current)} / ${next.threshold}`;
 }
@@ -3573,6 +3606,27 @@ function badgeProgressFraction(badge, earned, profile, stats) {
 }
 
 const DASHBOARD_TIER_COLORS = ['#9ca3af', '#93c5fd', '#5eead4', '#5ec98a', '#f0b429', '#c084fc'];
+// Each badge category gets its own colored "coin" (fg = the vivid fill, bg = the dark glyph
+// color drawn on top) so the earned badge grid, the badge info modal, and the next-badge
+// preview all look varied and modern instead of every badge being the same flat accent color.
+// Badges without a category (the core level/moderation badges) keep the original single
+// accent color — that's intentional, they're the "main line" progression badges.
+const BADGE_CATEGORY_COLORS = {
+  Reporting:   { fg:'#f0b429', bg:'#3a2a0f' },
+  Community:   { fg:'#93c5fd', bg:'#1f2937' },
+  Exploration: { fg:'#5ec98a', bg:'#123a26' },
+  Activity:    { fg:'#84cc16', bg:'#1a3a14' },
+  Streak:      { fg:'#c084fc', bg:'#2a1245' },
+  Fun:         { fg:'#f472b6', bg:'#3a1530' },
+  Secret:      { fg:'#5eead4', bg:'#0f3b36' },
+  Moderation:  { fg:'#818cf8', bg:'#1e1b4b' },
+  'Anti-Spam': { fg:'#f87171', bg:'#3a1414' },
+  Local:       { fg:'#ca8a04', bg:'#2e2410' },
+  Performance: { fg:'#fb923c', bg:'#3a2210' },
+  Development: { fg:'#a78bfa', bg:'#241a3a' },
+  Elite:       { fg:'#f0b429', bg:'#3a2a0f' },
+};
+function badgeColorPair(badge) { return BADGE_CATEGORY_COLORS[badge.category] || null; }
 function tierColorForLevel(level) {
   const i = Math.max(0, Math.min(DASHBOARD_TIER_COLORS.length - 1, Math.round(level)));
   return DASHBOARD_TIER_COLORS[i];
@@ -3596,13 +3650,14 @@ function setIdentityRingFraction(fraction, color) {
   if (color) ring.style.stroke = color;
 }
 
-function badgeProgressRingSvg(fraction) {
+function badgeProgressRingSvg(fraction, color) {
   const r = 46;
   const c = 2 * Math.PI * r;
   const offset = c * (1 - Math.max(0, Math.min(1, fraction)));
+  const fillStyle = `stroke-dasharray:${c.toFixed(2)};stroke-dashoffset:${offset.toFixed(2)};${color ? `stroke:${color};` : ''}`;
   return `<svg class="badge-progress-ring" viewBox="0 0 100 100" aria-hidden="true">
     <circle class="badge-progress-ring-track" cx="50" cy="50" r="${r}"></circle>
-    <circle class="badge-progress-ring-fill" cx="50" cy="50" r="${r}" style="stroke-dasharray:${c.toFixed(2)};stroke-dashoffset:${offset.toFixed(2)};"></circle>
+    <circle class="badge-progress-ring-fill" cx="50" cy="50" r="${r}" style="${fillStyle}"></circle>
   </svg>`;
 }
 function levelBadgeIcon(level) {
@@ -3613,13 +3668,15 @@ function buildBadgeIconHtml(badge, earnedIn, profile, stats) {
   const soon = !!badge.comingSoon;
   const earned = soon ? false : earnedIn;
   const iconSrc = cachedIconUrl(`icons/badges/${badge.icon}`);
-  const bg    = earned ? 'var(--accent)' : 'var(--bg-surface-alt)';
-  const glyph = earned ? 'var(--accent-contrast)' : 'var(--text-secondary)';
+  const pair = badgeColorPair(badge);
+  const bg    = earned ? (pair ? pair.fg : 'var(--accent)') : 'var(--bg-surface-alt)';
+  const glyph = earned ? (pair ? pair.bg : 'var(--accent-contrast)') : 'var(--text-secondary)';
+  const ringColor = pair ? pair.fg : null;
   const titleSuffix = soon ? ` (${t('badgeComingSoon')})` : '';
   const fraction = soon ? 0 : badgeProgressFraction(badge, earned, profile, stats);
   return `<div class="badge-tile${earned ? ' earned' : ''}${soon ? ' badge-tile-soon' : ''}" title="${escapeHtml(badgeName(badge))} — ${escapeHtml(badgeDesc(badge))}${titleSuffix}" onclick="showBadgeInfo('${badge.id}', ${earned}, ${soon}, ${fraction})">
     <div class="badge-tile-circle-wrap">
-      ${earned ? '' : badgeProgressRingSvg(fraction)}
+      ${earned ? '' : badgeProgressRingSvg(fraction, ringColor)}
       <div class="badge-tile-circle" style="background:${bg};">
         <span class="badge-tile-glyph" style="background-color:${glyph};-webkit-mask:url('${iconSrc}') center / contain no-repeat;mask:url('${iconSrc}') center / contain no-repeat;"></span>
         ${soon ? `<span class="badge-tile-soon-ribbon">${escapeHtml(t('badgeComingSoonShort'))}</span>` : ''}
@@ -3636,8 +3693,9 @@ function showBadgeInfo(id, earned, soon, fraction) {
   const badge = findBadgeById(id);
   if (!badge) return;
   const iconSrc = cachedIconUrl(`icons/badges/${badge.icon}`);
-  const bg    = earned ? 'var(--accent)' : 'var(--bg-surface-alt)';
-  const glyph = earned ? 'var(--accent-contrast)' : 'var(--text-secondary)';
+  const pair = badgeColorPair(badge);
+  const bg    = earned ? (pair ? pair.fg : 'var(--accent)') : 'var(--bg-surface-alt)';
+  const glyph = earned ? (pair ? pair.bg : 'var(--accent-contrast)') : 'var(--text-secondary)';
   document.getElementById('badgeInfoIconCircle').style.background = bg;
   const glyphEl = document.getElementById('badgeInfoIconGlyph');
   glyphEl.style.backgroundColor = glyph;
@@ -3645,7 +3703,7 @@ function showBadgeInfo(id, earned, soon, fraction) {
   glyphEl.style.mask = `url('${iconSrc}') center / contain no-repeat`;
   const ringSlot = document.getElementById('badgeInfoIconRing');
   const isEarnedForRing = soon ? false : earned;
-  if (ringSlot) ringSlot.innerHTML = isEarnedForRing ? '' : badgeProgressRingSvg(typeof fraction === 'number' ? fraction : 0);
+  if (ringSlot) ringSlot.innerHTML = isEarnedForRing ? '' : badgeProgressRingSvg(typeof fraction === 'number' ? fraction : 0, pair ? pair.fg : null);
   document.getElementById('badgeInfoName').textContent = badgeName(badge);
   document.getElementById('badgeInfoDesc').textContent = badgeDesc(badge) + (soon ? ` (${t('badgeComingSoon')})` : '');
   const statusEl = document.getElementById('badgeInfoStatus');
@@ -3687,28 +3745,28 @@ function currentAdminLevel() {
 const ADMIN_BADGES = [
   { id:'first_review',   icon:'badge-first-review.png',    nameEn:'First Review',      nameSr:'Prva provera',
     descEn:'Resolve your first flagged report.',                  descSr:'Rešite svoju prvu prijavljenu prijavu.',
-    check: s => s.resolvedFlagCount >= 1 },
+    check: (p, s) => s.resolvedFlagCount >= 1 },
   { id:'trusted_reviewer', icon:'badge-trusted-reviewer.png', nameEn:'Trusted Reviewer', nameSr:'Pouzdani proveravač',
     descEn:'Resolve 10 flagged reports.',                          descSr:'Rešite 10 prijavljenih prijava.',
-    check: s => s.resolvedFlagCount >= 10 },
+    check: (p, s) => s.resolvedFlagCount >= 10 },
   { id:'veteran_moderator', icon:'badge-veteran-moderator.png', nameEn:'Veteran Moderator', nameSr:'Iskusni moderator',
     descEn:'Resolve 50 flagged reports.',                          descSr:'Rešite 50 prijavljenih prijava.',
-    check: s => s.resolvedFlagCount >= 50 },
+    check: (p, s) => s.resolvedFlagCount >= 50 },
 ];
 
 const ADMIN_BADGES_EXTRA = [
   { id:'a_first_approval', icon:'badge-admin-first-approval.png', nameEn:'First Approval', nameSr:'Prvo odobrenje',
     descEn:'Approve your first report.', descSr:'Odobrite svoju prvu prijavu.',
-    category:'Moderation', check: s => s.resolvedReportCount >= 1 },
+    category:'Moderation', check: (p, s) => s.resolvedReportCount >= 1 },
   { id:'a_cleanup_crew', icon:'badge-admin-cleanup-crew.png', nameEn:'Cleanup Crew', nameSr:'Ekipa za čišćenje',
     descEn:'Resolve 100 reports.', descSr:'Rešite 100 prijava.',
-    category:'Moderation', check: s => s.resolvedReportCount >= 100 },
+    category:'Moderation', check: (p, s) => s.resolvedReportCount >= 100 },
   { id:'a_fair_judge', icon:'badge-admin-fair-judge.png', nameEn:'Fair Judge', nameSr:'Pravedan sudija',
     descEn:'Make 100 decisions with under 5% reversed.', descSr:'Donesite 100 odluka sa manje od 5% poništenih.',
     category:'Moderation', comingSoon:true, check: () => false },
   { id:'a_fast_responder', icon:'badge-admin-fast-responder.png', nameEn:'Fast Responder', nameSr:'Brz odgovor',
     descEn:'Resolve 25 reports within 1 hour.', descSr:'Rešite 25 prijava u roku od 1 sata.',
-    category:'Moderation', check: s => s.fastResolves >= 25 },
+    category:'Moderation', check: (p, s) => s.fastResolves >= 25 },
   { id:'a_precision_moderator', icon:'badge-admin-precision-moderator.png', nameEn:'Precision Moderator', nameSr:'Precizan moderator',
     descEn:'Make 500 decisions with 98% accuracy.', descSr:'Donesite 500 odluka sa 98% tačnosti.',
     category:'Moderation', comingSoon:true, check: () => false },
@@ -3717,10 +3775,10 @@ const ADMIN_BADGES_EXTRA = [
     category:'Moderation', comingSoon:true, check: () => false },
   { id:'a_guardian', icon:'badge-admin-guardian.png', nameEn:'Guardian', nameSr:'Čuvar',
     descEn:'Moderate 1000 reports.', descSr:'Modirajte 1000 prijava.',
-    category:'Moderation', check: s => s.moderationCount >= 1000 },
+    category:'Moderation', check: (p, s) => s.moderationCount >= 1000 },
   { id:'a_chief_moderator', icon:'badge-admin-chief-moderator.png', nameEn:'Chief Moderator', nameSr:'Šef moderator',
     descEn:'Moderate 10000 reports.', descSr:'Modirajte 10000 prijava.',
-    category:'Moderation', check: s => s.moderationCount >= 10000 },
+    category:'Moderation', check: (p, s) => s.moderationCount >= 10000 },
   { id:'a_detective', icon:'badge-admin-detective.png', nameEn:'Detective', nameSr:'Detektiv',
     descEn:'Identify 25 fake reports.', descSr:'Prepoznajte 25 lažnih prijava.',
     category:'Anti-Spam', comingSoon:true, check: () => false },
@@ -3753,16 +3811,16 @@ const ADMIN_BADGES_EXTRA = [
     category:'Local', comingSoon:true, check: () => false },
   { id:'a_on_duty', icon:'badge-admin-on-duty.png', nameEn:'On Duty', nameSr:'Na dužnosti',
     descEn:'Keep a 14-day moderation streak.', descSr:'Održite niz moderisanja od 14 dana.',
-    category:'Performance', check: s => s.streakDays >= 14 },
+    category:'Performance', check: (p, s) => s.streakDays >= 14 },
   { id:'a_dedicated', icon:'badge-admin-dedicated.png', nameEn:'Dedicated', nameSr:'Posvećen',
     descEn:'Moderate weekly for 3 months.', descSr:'Modirajte nedeljno 3 meseca.',
-    category:'Performance', check: s => s.streakWeeks >= 13 },
+    category:'Performance', check: (p, s) => s.streakWeeks >= 13 },
   { id:'a_lightning_review', icon:'badge-admin-lightning-review.png', nameEn:'Lightning Review', nameSr:'Munjevita provera',
     descEn:'Resolve 100 reports in one day.', descSr:'Rešite 100 prijava u jednom danu.',
-    category:'Performance', check: s => s.maxDayCount >= 100 },
+    category:'Performance', check: (p, s) => s.maxDayCount >= 100 },
   { id:'a_marathon_moderator', icon:'badge-admin-marathon-moderator.png', nameEn:'Marathon Moderator', nameSr:'Maratonski moderator',
     descEn:'Resolve 5000 reports.', descSr:'Rešite 5000 prijava.',
-    category:'Performance', check: s => s.moderationCount >= 5000 },
+    category:'Performance', check: (p, s) => s.moderationCount >= 5000 },
   { id:'a_builder', icon:'badge-admin-builder.png', nameEn:'Builder', nameSr:'Graditelj',
     descEn:'Create your first category.', descSr:'Napravite prvu kategoriju.',
     category:'Development', comingSoon:true, check: () => false },
@@ -3780,19 +3838,19 @@ const ADMIN_BADGES_EXTRA = [
     category:'Elite', comingSoon:true, check: () => false },
   { id:'a_diamond_admin', icon:'badge-admin-diamond-admin.png', nameEn:'Diamond Admin', nameSr:'Dijamantski administrator',
     descEn:'Reach level 100.', descSr:'Dostignite nivo 100.',
-    category:'Elite', check: s => s.adminXpLevelNum >= 8 },
+    category:'Elite', check: (p, s) => s.adminXpLevelNum >= 8 },
   { id:'a_hall_of_fame', icon:'badge-admin-hall-of-fame.png', nameEn:'Hall of Fame', nameSr:'Kuća slavnih',
     descEn:'Be top moderator for 12 months.', descSr:'Budite najbolji moderator 12 meseci.',
     category:'Elite', comingSoon:true, check: () => false },
   { id:'legend_admin', icon:'badge-admin-legend.png', nameEn:'Legend', nameSr:'Legenda',
     descEn:'Earn every admin badge.', descSr:'Osvojite svaku administratorsku značku.',
-    category:'Elite', check: s => s.allEarned },
+    category:'Elite', check: (p, s) => s.allEarned },
   { id:'a_super_admin', icon:'badge-admin-super-admin.png', nameEn:'Super Admin', nameSr:'Super administrator',
     descEn:'Resolve 100 reports in one day.', descSr:'Rešite 100 prijava u jednom danu.',
-    category:'Secret', check: s => s.maxDayCount >= 100 },
+    category:'Secret', check: (p, s) => s.maxDayCount >= 100 },
   { id:'a_night_shift', icon:'badge-admin-night-shift.png', nameEn:'Night Shift', nameSr:'Noćna smena',
     descEn:'Resolve 50 reports between midnight and 5 AM.', descSr:'Rešite 50 prijava između ponoći i 5 ujutru.',
-    category:'Secret', check: s => s.nightShiftCount >= 50 },
+    category:'Secret', check: (p, s) => s.nightShiftCount >= 50 },
   { id:'a_coffee_powered', icon:'badge-admin-coffee-powered.png', nameEn:'Coffee Powered', nameSr:'Na kafi',
     descEn:'Moderate for 4 continuous hours.', descSr:'Modirajte 4 sata neprekidno.',
     category:'Secret', comingSoon:true, check: () => false },
@@ -3898,7 +3956,7 @@ async function getAdminModerationStats() {
       allEarned:false,
     };
     const everyOtherAdminBadge = [...ADMIN_BADGES, ...ADMIN_BADGES_EXTRA].filter(b => b.id !== 'legend_admin');
-    stats.allEarned = everyOtherAdminBadge.every(b => b.check(stats));
+    stats.allEarned = everyOtherAdminBadge.every(b => b.check(null, stats));
     return stats;
   } catch (err) {
     console.error('Failed to load admin moderation stats:', err.message || err);
@@ -4704,7 +4762,7 @@ async function renderAdminDashboard() {
   renderBadgeCountHeader('adminDashboard', allAdminBadges, null, stats);
   renderNextBadgeCard('adminDashboard', allAdminBadges, null, stats);
   if (adminBadgeGrid) {
-    adminBadgeGrid.innerHTML = allAdminBadges.map(b => buildBadgeIconHtml(b, b.check(stats), null, stats)).join('');
+    adminBadgeGrid.innerHTML = allAdminBadges.map(b => buildBadgeIconHtml(b, b.check(null, stats), null, stats)).join('');
   }
 }
 
@@ -5840,10 +5898,9 @@ function buildUserMarkerHtml(navStyle) {
   if (navStyle) {
     return '<div class="user-nav-marker">' +
              '<div class="user-nav-pulse"></div>' +
-             '<div class="user-nav-halo"></div>' +
              '<div class="user-nav-arrow">' +
-               '<svg viewBox="0 0 24 24" width="20" height="20">' +
-                 '<path d="M12 2.2 L19.3 20 L12 15.6 L4.7 20 Z" fill="var(--nav-accent)" stroke="#0092b8" stroke-width="1" stroke-linejoin="round"/>' +
+               '<svg viewBox="0 0 24 24" width="27" height="27">' +
+                 '<path d="M12 1.5 L20.5 21 L12 16.2 L3.5 21 Z" fill="#00d0ff" stroke="white" stroke-width="1.1"/>' +
                '</svg>' +
              '</div>' +
            '</div>';
