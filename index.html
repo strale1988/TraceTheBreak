@@ -5620,18 +5620,22 @@ new CachedTileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
 
 //
 //
-const ICON_CACHE_NAME = 'ttb-icons-v1';
+const ICON_CACHE_NAME = 'ttb-icons-v2'; // bumped from v1 to flush any stale icons stuck under the old cache-forever logic
 const iconObjectUrlCache = new Map(); // 'icons/foo.png' -> blob: URL, warm for this page load
 
 async function fetchIconCached(url) {
   const cache = await caches.open(ICON_CACHE_NAME);
   const cached = await cache.match(url);
+  // Stale-while-revalidate: always kick off a fresh network fetch and update the cache with
+  // it in the background, so a changed icon (same filename, new bytes — e.g. a new logo) shows
+  // up on the *next* load instead of being served from this cache forever. We still return the
+  // cached copy immediately when we have one, so warm loads stay fast.
+  const networkFetch = fetch(url).then(response => {
+    if (response && response.ok) cache.put(url, response.clone()).catch(() => {}); // best-effort; a full/blocked cache shouldn't break icons
+    return response;
+  }).catch(() => null);
   if (cached) return cached;
-  const response = await fetch(url);
-  if (response && response.ok) {
-    cache.put(url, response.clone()).catch(() => {}); // best-effort; a full/blocked cache shouldn't break icons
-  }
-  return response;
+  return networkFetch;
 }
 
 async function warmIconObjectUrl(path) {
