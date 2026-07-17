@@ -1392,6 +1392,10 @@ body.driving-active #appPanel{
 .dashboard-stats-grid{
   display:grid; grid-template-columns:1fr 1fr; gap:var(--space-8);
 }
+.dashboard-stats-grid-3{
+  display:grid; grid-template-columns:repeat(3, 1fr); gap:var(--space-8);
+}
+.dashboard-stat-box-sm .dashboard-stat-value{ font-size:var(--fs-15); }
 .dashboard-stat-box{
   background:var(--bg-surface-alt); border-radius:var(--radius-md); padding:8px 10px;
 }
@@ -2832,6 +2836,29 @@ span.flatpickr-weekday {
             <div class="dashboard-stat-label" id="dashboardStatWeightLabel">Your vote weight</div>
           </div>
         </div>
+        <div class="dashboard-badges-title" id="dashboardActivityTitle">Activity</div>
+        <div class="dashboard-stats-grid-3">
+          <div class="dashboard-stat-box dashboard-stat-box-sm">
+            <div class="dashboard-stat-value" id="dashboardStatReports">0</div>
+            <div class="dashboard-stat-label" id="dashboardStatReportsLabel">Reports filed</div>
+          </div>
+          <div class="dashboard-stat-box dashboard-stat-box-sm">
+            <div class="dashboard-stat-value" id="dashboardStatPhotos">0</div>
+            <div class="dashboard-stat-label" id="dashboardStatPhotosLabel">Photos added</div>
+          </div>
+          <div class="dashboard-stat-box dashboard-stat-box-sm">
+            <div class="dashboard-stat-value" id="dashboardStatComments">0</div>
+            <div class="dashboard-stat-label" id="dashboardStatCommentsLabel">Comments left</div>
+          </div>
+          <div class="dashboard-stat-box dashboard-stat-box-sm">
+            <div class="dashboard-stat-value" id="dashboardStatCities">0</div>
+            <div class="dashboard-stat-label" id="dashboardStatCitiesLabel">Cities covered</div>
+          </div>
+          <div class="dashboard-stat-box dashboard-stat-box-sm">
+            <div class="dashboard-stat-value" id="dashboardStatVotes">0</div>
+            <div class="dashboard-stat-label" id="dashboardStatVotesLabel">Votes cast</div>
+          </div>
+        </div>
         <div class="dashboard-badges-title" id="dashboardWeekTitle">This Week</div>
         <div class="weekly-chart" id="dashboardWeeklyChart"></div>
         <div class="dashboard-badges-title" id="dashboardBadgesTitle">Badges</div>
@@ -2848,6 +2875,29 @@ span.flatpickr-weekday {
           <div class="dashboard-stat-box">
             <div class="dashboard-stat-value" id="adminDashboardResolvedValue">0</div>
             <div class="dashboard-stat-label" id="adminDashboardResolvedLabel">Flags resolved</div>
+          </div>
+        </div>
+        <div class="dashboard-badges-title" id="adminDashboardActivityTitle">Moderation Stats</div>
+        <div class="dashboard-stats-grid-3">
+          <div class="dashboard-stat-box dashboard-stat-box-sm">
+            <div class="dashboard-stat-value" id="adminDashboardStatReviewed">0</div>
+            <div class="dashboard-stat-label" id="adminDashboardStatReviewedLabel">Reports reviewed</div>
+          </div>
+          <div class="dashboard-stat-box dashboard-stat-box-sm">
+            <div class="dashboard-stat-value" id="adminDashboardStatFast">0</div>
+            <div class="dashboard-stat-label" id="adminDashboardStatFastLabel">Fast resolves (&lt;1h)</div>
+          </div>
+          <div class="dashboard-stat-box dashboard-stat-box-sm">
+            <div class="dashboard-stat-value" id="adminDashboardStatStreak">0</div>
+            <div class="dashboard-stat-label" id="adminDashboardStatStreakLabel">Longest streak (days)</div>
+          </div>
+          <div class="dashboard-stat-box dashboard-stat-box-sm">
+            <div class="dashboard-stat-value" id="adminDashboardStatBusiest">0</div>
+            <div class="dashboard-stat-label" id="adminDashboardStatBusiestLabel">Busiest day</div>
+          </div>
+          <div class="dashboard-stat-box dashboard-stat-box-sm">
+            <div class="dashboard-stat-value" id="adminDashboardStatNight">0</div>
+            <div class="dashboard-stat-label" id="adminDashboardStatNightLabel">Night shift resolves</div>
           </div>
         </div>
         <div class="dashboard-badges-title" id="adminDashboardWeekTitle">This Week</div>
@@ -4336,6 +4386,13 @@ async function renderUserDashboard() {
 
   renderWeeklyChart('dashboardWeeklyChart', stats.weeklyBreakdown);
 
+  const setStat = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  setStat('dashboardStatReports', stats.reportCount || 0);
+  setStat('dashboardStatPhotos', stats.photoCount || 0);
+  setStat('dashboardStatComments', stats.commentCount || 0);
+  setStat('dashboardStatCities', stats.distinctCities || 0);
+  setStat('dashboardStatVotes', stats.voteCount || 0);
+
   const badgeGrid = document.getElementById('dashboardBadgeGrid');
   if (badgeGrid) {
     const allBadges = [...BADGES, ...USER_BADGES_EXTRA];
@@ -4377,6 +4434,13 @@ async function renderAdminDashboard() {
 
   const resolvedValueEl = document.getElementById('adminDashboardResolvedValue');
   if (resolvedValueEl) resolvedValueEl.textContent = stats.resolvedFlagCount;
+
+  const setAdminStat = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  setAdminStat('adminDashboardStatReviewed', stats.resolvedReportCount || 0);
+  setAdminStat('adminDashboardStatFast', stats.fastResolves || 0);
+  setAdminStat('adminDashboardStatStreak', stats.streakDays || 0);
+  setAdminStat('adminDashboardStatBusiest', stats.maxDayCount || 0);
+  setAdminStat('adminDashboardStatNight', stats.nightShiftCount || 0);
 
   renderWeeklyChart('adminDashboardWeeklyChart', stats.weeklyBreakdown);
 
@@ -4597,6 +4661,18 @@ const T = {
   dashboardStatPoints:       { en:'Civic points',        sr:'Građanski poeni' },
   dashboardStatSuccessful:   { en:'Successful votes',    sr:'Uspešni glasovi' },
   dashboardStatWeight:       { en:'Your vote weight',    sr:'Težina vašeg glasa' },
+  dashboardActivityTitle:    { en:'Activity',            sr:'Aktivnost' },
+  dashboardStatReports:      { en:'Reports filed',       sr:'Podnete prijave' },
+  dashboardStatPhotos:       { en:'Photos added',        sr:'Dodate fotografije' },
+  dashboardStatComments:     { en:'Comments left',       sr:'Ostavljeni komentari' },
+  dashboardStatCities:       { en:'Cities covered',      sr:'Pokriveni gradovi' },
+  dashboardStatVotes:        { en:'Votes cast',          sr:'Dati glasovi' },
+  adminDashboardActivityTitle:   { en:'Moderation Stats',        sr:'Statistika moderacije' },
+  adminDashboardStatReviewed:    { en:'Reports reviewed',        sr:'Pregledani izveštaji' },
+  adminDashboardStatFast:        { en:'Fast resolves (<1h)',     sr:'Brza rešenja (<1č)' },
+  adminDashboardStatStreak:      { en:'Longest streak (days)',   sr:'Najduži niz (dana)' },
+  adminDashboardStatBusiest:     { en:'Busiest day',             sr:'Najprometniji dan' },
+  adminDashboardStatNight:       { en:'Night shift resolves',    sr:'Noćna rešenja' },
   tooFarToVote:  { en:'You must be on-site (within 50m) to vote for a status change.', sr:'Morate biti na licu mesta (u krugu od 50m) da biste glasali za izmenu statusa.' },
   voteRecorded:  { en:'Vote recorded.',                            sr:'Glas je zabeležen.' },
   voteResolved:  { en:'Status updated by community vote!',         sr:'Status je promenjen glasanjem zajednice!' },
@@ -4992,6 +5068,18 @@ function applyLang(){
   if (dashSuccLabel) dashSuccLabel.textContent = t('dashboardStatSuccessful');
   const dashWeightLabel = document.getElementById('dashboardStatWeightLabel');
   if (dashWeightLabel) dashWeightLabel.textContent = t('dashboardStatWeight');
+  const dashActivityTitleEl = document.getElementById('dashboardActivityTitle');
+  if (dashActivityTitleEl) dashActivityTitleEl.textContent = t('dashboardActivityTitle');
+  const dashReportsLabel = document.getElementById('dashboardStatReportsLabel');
+  if (dashReportsLabel) dashReportsLabel.textContent = t('dashboardStatReports');
+  const dashPhotosLabel = document.getElementById('dashboardStatPhotosLabel');
+  if (dashPhotosLabel) dashPhotosLabel.textContent = t('dashboardStatPhotos');
+  const dashCommentsLabel = document.getElementById('dashboardStatCommentsLabel');
+  if (dashCommentsLabel) dashCommentsLabel.textContent = t('dashboardStatComments');
+  const dashCitiesLabel = document.getElementById('dashboardStatCitiesLabel');
+  if (dashCitiesLabel) dashCitiesLabel.textContent = t('dashboardStatCities');
+  const dashVotesLabel = document.getElementById('dashboardStatVotesLabel');
+  if (dashVotesLabel) dashVotesLabel.textContent = t('dashboardStatVotes');
   const dashBadgesTitleEl = document.getElementById('dashboardBadgesTitle');
   if (dashBadgesTitleEl) dashBadgesTitleEl.textContent = t('dashboardBadgesTitle');
   const dashWeekTitleEl = document.getElementById('dashboardWeekTitle');
@@ -5009,6 +5097,18 @@ function applyLang(){
   if (adminDashTagLabel) adminDashTagLabel.textContent = t('adminDashboardTagLabel');
   const adminDashResolvedLabel = document.getElementById('adminDashboardResolvedLabel');
   if (adminDashResolvedLabel) adminDashResolvedLabel.textContent = t('adminDashboardResolvedLabel');
+  const adminDashActivityTitleEl = document.getElementById('adminDashboardActivityTitle');
+  if (adminDashActivityTitleEl) adminDashActivityTitleEl.textContent = t('adminDashboardActivityTitle');
+  const adminDashReviewedLabel = document.getElementById('adminDashboardStatReviewedLabel');
+  if (adminDashReviewedLabel) adminDashReviewedLabel.textContent = t('adminDashboardStatReviewed');
+  const adminDashFastLabel = document.getElementById('adminDashboardStatFastLabel');
+  if (adminDashFastLabel) adminDashFastLabel.textContent = t('adminDashboardStatFast');
+  const adminDashStreakLabel = document.getElementById('adminDashboardStatStreakLabel');
+  if (adminDashStreakLabel) adminDashStreakLabel.textContent = t('adminDashboardStatStreak');
+  const adminDashBusiestLabel = document.getElementById('adminDashboardStatBusiestLabel');
+  if (adminDashBusiestLabel) adminDashBusiestLabel.textContent = t('adminDashboardStatBusiest');
+  const adminDashNightLabel = document.getElementById('adminDashboardStatNightLabel');
+  if (adminDashNightLabel) adminDashNightLabel.textContent = t('adminDashboardStatNight');
   const adminDashWeekTitleEl = document.getElementById('adminDashboardWeekTitle');
   if (adminDashWeekTitleEl) adminDashWeekTitleEl.textContent = t('dashboardWeekTitle');
   const adminDashXpTitleEl = document.getElementById('adminDashboardXpTitle');
