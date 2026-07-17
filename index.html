@@ -521,9 +521,6 @@ button{
 .pin-map-btn.heatmap-btn.active{ background:#e74c3c; border-color:#e74c3c; }
 .pin-map-btn.heatmap-btn.active .icon-img{ filter:none; }
 
-.pin-map-btn.category-filter-btn.active{ background:#5c6bc0; border-color:#5c6bc0; }
-.pin-map-btn.category-filter-btn.active .icon-img{ filter:none; }
-
 .map-btn-locked{ opacity:.35; pointer-events:none; filter:grayscale(60%); }
 
 .cat-filter-row{ display:flex; align-items:center; gap:var(--space-10); font-size:var(--fs-14); color:var(--text-primary); cursor:pointer; padding:11px 2px; }
@@ -773,6 +770,29 @@ body.driving-active .report-fab-btn{ display:none !important; }
   touch-action:manipulation;
 }
 .settings-btn:active{ background:var(--border-color-strong); transform:scale(.98); }
+.settings-btn-active-dot{
+  width:8px; height:8px; border-radius:50%; flex-shrink:0;
+  background:var(--accent); margin-left:auto;
+}
+.settings-toggle-row{
+  display:flex; align-items:center; justify-content:space-between; gap:var(--space-10);
+  background:var(--bg-surface-alt); border-radius:var(--radius-xl);
+  padding:12px 14px; margin-top:8px;
+  font-size:var(--fs-13); font-weight:var(--fw-semibold); color:var(--text-primary);
+  cursor:pointer; -webkit-tap-highlight-color:transparent; touch-action:manipulation;
+}
+.toggle-switch{ position:relative; display:inline-block; width:42px; height:24px; flex-shrink:0; }
+.toggle-switch input{ position:absolute; inset:0; opacity:0; margin:0; cursor:pointer; }
+.toggle-switch-track{
+  position:absolute; inset:0; background:var(--border-color-strong); border-radius:999px;
+  transition:background .15s ease;
+}
+.toggle-switch-thumb{
+  position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%; background:#fff;
+  box-shadow:0 1px 3px rgba(0,0,0,.3); transition:transform .15s ease;
+}
+.toggle-switch input:checked + .toggle-switch-track{ background:var(--accent); }
+.toggle-switch input:checked + .toggle-switch-track .toggle-switch-thumb{ transform:translateX(18px); }
 
 .navigate-panel{
   display:none;
@@ -1196,52 +1216,50 @@ body.driving-active .driving-report-sheet{ display:flex; }
   pointer-events:none;
 }
 .driving-tile{
+  /* Same surface/border/radius language as .settings-btn elsewhere in the
+     app (instead of a bespoke driving-only palette) so drive mode reads as
+     part of the same app, not a different skin. Category is still spottable
+     at a glance via the colored icon chip below, not a colored card border. */
   flex:1;
   min-width:0;
-  background:var(--driving-tile-base);
-  border:2px solid var(--border-color-strong); /* thicker than a hairline so the tap target reads as a button, not a label */
+  background:var(--bg-surface-alt);
+  border:1px solid var(--border-color-strong);
   border-radius:var(--radius-xl);
-  color:var(--driving-tile-text);
-  padding:13px 2px;
+  color:var(--text-primary);
+  padding:10px 2px 12px;
   display:flex;
   flex-direction:column;
   align-items:center;
   justify-content:center;
+  gap:6px;
   cursor:pointer;
-  transition:background .15s, border-color .15s, transform .1s;
+  transition:background .15s, transform .1s;
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
 }
 .driving-tile span{ display:none; }
-.driving-tile .icon-img-tile{
-  width:26px; height:26px;
-  background-color:var(--driving-tile-text);
+.driving-tile-icon-chip{
+  width:34px; height:34px; border-radius:50%; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+}
+.driving-tile-icon-glyph{
+  width:18px; height:18px; display:inline-block;
+  background-color:#fff;
   -webkit-mask-position:center; mask-position:center;
   -webkit-mask-size:contain; mask-size:contain;
   -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
 }
-.driving-tile:active{ transform:scale(.96); }
+.driving-tile:active{ background:var(--border-color-strong); transform:scale(.96); }
 
-.driving-tile.tile-pothole{  background:color-mix(in srgb, var(--driving-tile-base) 65%, #e74c3c 35%); border-color:#e74c3c; }
-.driving-tile.tile-cracked{  background:color-mix(in srgb, var(--driving-tile-base) 65%, #e67e22 35%); border-color:#e67e22; }
-.driving-tile.tile-signage{  background:color-mix(in srgb, var(--driving-tile-base) 65%, #f1c40f 35%); border-color:#f1c40f; }
-.driving-tile.tile-flooding{ background:color-mix(in srgb, var(--driving-tile-base) 65%, #3498db 35%); border-color:#3498db; }
-.driving-tile.tile-other{    background:color-mix(in srgb, var(--driving-tile-base) 65%, #9b59b6 35%); border-color:#9b59b6; }
-.driving-tile.tile-pothole:active{  background:color-mix(in srgb, var(--driving-tile-base) 45%, #e74c3c 55%); }
-.driving-tile.tile-cracked:active{  background:color-mix(in srgb, var(--driving-tile-base) 45%, #e67e22 55%); }
-.driving-tile.tile-signage:active{  background:color-mix(in srgb, var(--driving-tile-base) 45%, #f1c40f 55%); }
-.driving-tile.tile-flooding:active{ background:color-mix(in srgb, var(--driving-tile-base) 45%, #3498db 55%); }
-.driving-tile.tile-other:active{    background:color-mix(in srgb, var(--driving-tile-base) 45%, #9b59b6 55%); }
-
-/* Each tile's icon glyph is now a mask (see .icon-img-tile above) tinted with
-   a plain background-color matching the tile's own border-color one line up
-   — replaces 5 separate brightness/sepia/hue-rotate filter chains that each
-   needed a code comment to say which color they actually produced. */
-.driving-tile.tile-pothole  .icon-img-tile{ background-color:#e74c3c; }
-.driving-tile.tile-cracked  .icon-img-tile{ background-color:#e67e22; }
-.driving-tile.tile-signage  .icon-img-tile{ background-color:#f1c40f; }
-.driving-tile.tile-flooding .icon-img-tile{ background-color:#3498db; }
-.driving-tile.tile-other    .icon-img-tile{ background-color:#9b59b6; }
+/* Category color lives entirely on the icon chip now — one line per
+   category, easy to eyeball-verify, and consistent with the same
+   mask + background-color technique used by the map-pin/company-marker
+   glyphs (see .map-pin-badge/.map-pin-glyph). */
+.driving-tile.tile-pothole  .driving-tile-icon-chip{ background:#e74c3c; }
+.driving-tile.tile-cracked  .driving-tile-icon-chip{ background:#e67e22; }
+.driving-tile.tile-signage  .driving-tile-icon-chip{ background:#f1c40f; }
+.driving-tile.tile-flooding .driving-tile-icon-chip{ background:#3498db; }
+.driving-tile.tile-other    .driving-tile-icon-chip{ background:#9b59b6; }
 .driving-section-btn{
   width:100%;
   padding:14px;
@@ -1320,7 +1338,6 @@ body.driving-active #lockedFormPanel,
 body.driving-active #followLocationBtn,
 body.driving-active #pinMapBtn,
 body.driving-active #drivingModeBtn,
-body.driving-active #categoryFilterBtn,
 body.driving-active #heatmapBtn,
 body.driving-active #mainMapCompass{
   display:none !important;
@@ -1472,18 +1489,26 @@ body.driving-active #appPanel{
 /* --- Report pin status pulse -------------------------------------------
    Used by buildPinIconHtml() for the map's report pins. The pin circle
    itself is always category-colored with a white ring (so category reads
-   clearly against any basemap); status is now conveyed by a soft pulsing
-   halo behind the circle instead of a thin colored border, which is much
-   easier to notice at a glance. 'fixed' reports render with no halo at all
-   (settled, nothing left to draw the eye) — see buildPinIconHtml. */
+   clearly against any basemap); status is conveyed either by a pulsing
+   halo behind the circle (default) or, if the person turns pulse animation
+   off in Settings, a static colored ring instead (.pin-status-ring) — same
+   status color, no motion. 'fixed' reports render with neither (settled,
+   nothing left to draw the eye) — see buildPinIconHtml. */
 @keyframes pinStatusPulse{
-  0%{ transform:translate(-50%,-50%) scale(.7); opacity:.55; }
-  70%{ transform:translate(-50%,-50%) scale(2.2); opacity:0; }
+  0%{ transform:translate(-50%,-50%) scale(.75); opacity:.85; }
+  70%{ transform:translate(-50%,-50%) scale(2.3); opacity:0; }
   100%{ opacity:0; }
 }
 .pin-status-halo{
   position:absolute; top:50%; left:50%; width:26px; height:26px; border-radius:50%;
   animation-name:pinStatusPulse; animation-timing-function:ease-out; animation-iteration-count:infinite;
+  pointer-events:none;
+}
+.pin-status-ring{
+  position:absolute; top:50%; left:50%; width:32px; height:32px; border-radius:50%;
+  transform:translate(-50%,-50%);
+  border-width:2.5px; border-style:solid;
+  box-sizing:border-box;
   pointer-events:none;
 }
 
@@ -2487,9 +2512,6 @@ span.flatpickr-weekday {
   <div id="followLocationBtn" class="pin-map-btn" style="display:none" title="Follow my location" onclick="toggleFollowMode()"><img class="icon-img" src="icons/target.png" alt="Recenter"></div>
   <div id="pinMapBtn" class="pin-map-btn" style="display:none" title="Set location manually" onclick="togglePinMode()"><img class="icon-img" src="icons/pin.png" alt="Pin"></div>
   <div id="drivingModeBtn" class="pin-map-btn" style="display:none" title="Driving mode" onclick="toggleDrivingMode()"><img class="icon-img" src="icons/car.png" alt="Driving mode"></div>
-  <div id="categoryFilterBtn" class="pin-map-btn category-filter-btn" style="display:none" title="Filter categories" onclick="toggleCategoryFilterModal()">
-    <img class="icon-img" src="icons/category-filter.png" alt="Categories">
-  </div>
   <div id="heatmapBtn" class="pin-map-btn heatmap-btn" style="display:none" title="Heatmap" onclick="toggleHeatmap()">
     <img class="icon-img" src="icons/heatmap.png" alt="Heatmap">
   </div>
@@ -2575,11 +2597,11 @@ span.flatpickr-weekday {
     <span id="sectionRecordBtnLabel">Start Section Report</span>
   </button>
   <div class="driving-tile-row">
-    <div class="driving-tile tile-pothole" onclick="handleTileTap('pothole')" title="Pothole" aria-label="Pothole"><div class="icon-img-tile" aria-hidden="true" style="-webkit-mask-image:url('icons/pothole.png');mask-image:url('icons/pothole.png');"></div><span id="dTilePothole">Pothole</span></div>
-    <div class="driving-tile tile-cracked" onclick="handleTileTap('cracked')" title="Damaged pavement" aria-label="Damaged pavement"><div class="icon-img-tile" aria-hidden="true" style="-webkit-mask-image:url('icons/road-damaged.png');mask-image:url('icons/road-damaged.png');"></div><span id="dTileCracked">Damaged pavement</span></div>
-    <div class="driving-tile tile-signage" onclick="handleTileTap('signage')" title="Bad signage" aria-label="Bad signage"><div class="icon-img-tile" aria-hidden="true" style="-webkit-mask-image:url('icons/traffic-cone.png');mask-image:url('icons/traffic-cone.png');"></div><span id="dTileSignage">Bad signage</span></div>
-    <div class="driving-tile tile-flooding" onclick="handleTileTap('flooding')" title="Flooding" aria-label="Flooding"><div class="icon-img-tile" aria-hidden="true" style="-webkit-mask-image:url('icons/flood-risk.png');mask-image:url('icons/flood-risk.png');"></div><span id="dTileFlooding">Flooding</span></div>
-    <div class="driving-tile tile-other" onclick="handleTileTap(null)" title="Other road issue" aria-label="Other road issue"><div class="icon-img-tile" aria-hidden="true" style="-webkit-mask-image:url('icons/warning-symbol.png');mask-image:url('icons/warning-symbol.png');"></div><span id="dTileOther">Other road issue</span></div>
+    <div class="driving-tile tile-pothole" onclick="handleTileTap('pothole')" title="Pothole" aria-label="Pothole"><div class="driving-tile-icon-chip"><div class="driving-tile-icon-glyph" aria-hidden="true" style="-webkit-mask-image:url('icons/pothole.png');mask-image:url('icons/pothole.png');"></div></div><span id="dTilePothole">Pothole</span></div>
+    <div class="driving-tile tile-cracked" onclick="handleTileTap('cracked')" title="Damaged pavement" aria-label="Damaged pavement"><div class="driving-tile-icon-chip"><div class="driving-tile-icon-glyph" aria-hidden="true" style="-webkit-mask-image:url('icons/road-damaged.png');mask-image:url('icons/road-damaged.png');"></div></div><span id="dTileCracked">Damaged pavement</span></div>
+    <div class="driving-tile tile-signage" onclick="handleTileTap('signage')" title="Bad signage" aria-label="Bad signage"><div class="driving-tile-icon-chip"><div class="driving-tile-icon-glyph" aria-hidden="true" style="-webkit-mask-image:url('icons/traffic-cone.png');mask-image:url('icons/traffic-cone.png');"></div></div><span id="dTileSignage">Bad signage</span></div>
+    <div class="driving-tile tile-flooding" onclick="handleTileTap('flooding')" title="Flooding" aria-label="Flooding"><div class="driving-tile-icon-chip"><div class="driving-tile-icon-glyph" aria-hidden="true" style="-webkit-mask-image:url('icons/flood-risk.png');mask-image:url('icons/flood-risk.png');"></div></div><span id="dTileFlooding">Flooding</span></div>
+    <div class="driving-tile tile-other" onclick="handleTileTap(null)" title="Other road issue" aria-label="Other road issue"><div class="driving-tile-icon-chip"><div class="driving-tile-icon-glyph" aria-hidden="true" style="-webkit-mask-image:url('icons/warning-symbol.png');mask-image:url('icons/warning-symbol.png');"></div></div><span id="dTileOther">Other road issue</span></div>
   </div>
 </div>
 
@@ -2651,6 +2673,21 @@ span.flatpickr-weekday {
       <button type="button" class="settings-btn" onclick="showHelpModal()" id="settingsHelpBtn">
         <img class="icon-img icon-img-inline icon-tint-dark" src="icons/help.png" alt=""> How to use TraceTheBreak
       </button>
+    </div>
+
+    <div class="detail-section" id="mapFilterSettingsSection">
+      <div class="detail-section-title" id="mapFilterSectionTitle">Map</div>
+      <button type="button" class="settings-btn" onclick="toggleCategoryFilterModal()" id="mapFilterSettingsBtn">
+        <img class="icon-img icon-img-inline icon-tint-dark" src="icons/category-filter.png" alt=""> <span id="mapFilterSettingsBtnLabel">Filter categories</span>
+        <span class="settings-btn-active-dot" id="mapFilterActiveDot" style="display:none"></span>
+      </button>
+      <label class="settings-toggle-row" id="pulseToggleRow">
+        <span id="pulseToggleLabel">Status pulse animation</span>
+        <span class="toggle-switch">
+          <input type="checkbox" id="pulseToggleInput" checked onchange="setPulseEnabled(this.checked)">
+          <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+        </span>
+      </label>
     </div>
 
     <div class="detail-section" style="padding:0;overflow:hidden;">
@@ -4440,6 +4477,8 @@ const T = {
   languageSectionTitle: { en:'Language',                 sr:'Jezik' },
   helpSectionTitle:  { en:'Help',                        sr:'Pomoć' },
   settingsHelpBtn:   { en:'How to use TraceTheBreak',    sr:'Kako se koristi TraceTheBreak' },
+  mapFilterSectionTitle: { en:'Map',                     sr:'Mapa' },
+  pulseToggleLabel:  { en:'Status pulse animation',      sr:'Animacija pulsiranja statusa' },
   mainCompassTitle:  { en:'Heading — tap to rotate the map with your direction of travel', sr:'Pravac — dodirnite da rotirate mapu prema pravcu kretanja' },
   catPH:        { en:'Select break type…',               sr:'Izaberite vrstu kvara…' },
   prioPH:       { en:'Select priority…',                 sr:'Izaberite prioritet…' },
@@ -4799,6 +4838,9 @@ function applyLang(){
   document.getElementById('languageSectionTitle').textContent = t('languageSectionTitle');
   document.getElementById('helpSectionTitle').textContent = t('helpSectionTitle');
   document.getElementById('settingsHelpBtn').lastChild.textContent = ' ' + t('settingsHelpBtn');
+  document.getElementById('mapFilterSectionTitle').textContent = t('mapFilterSectionTitle');
+  document.getElementById('mapFilterSettingsBtnLabel').textContent = t('categoryFilterBtnTitle');
+  document.getElementById('pulseToggleLabel').textContent = t('pulseToggleLabel');
   document.getElementById('mainMapCompass').title = t('mainCompassTitle');
   updateCommentPlaceholder();
   document.getElementById('dateRangePicker').placeholder  = t('calendarPH');
@@ -4908,8 +4950,6 @@ function applyLang(){
   if (dashWeekTitleEl) dashWeekTitleEl.textContent = t('dashboardWeekTitle');
   const heatmapBtnEl = document.getElementById('heatmapBtn');
   if (heatmapBtnEl) heatmapBtnEl.title = t('heatmapBtnTitle');
-  const categoryFilterBtnEl = document.getElementById('categoryFilterBtn');
-  if (categoryFilterBtnEl) categoryFilterBtnEl.title = t('categoryFilterBtnTitle');
   const categoryFilterPanelTitleEl = document.getElementById('categoryFilterPanelTitle');
   if (categoryFilterPanelTitleEl) categoryFilterPanelTitleEl.textContent = t('categoryFilterPanelTitle');
   const categoryFilterAllLabelEl = document.getElementById('categoryFilterAllLabel');
@@ -4949,6 +4989,8 @@ function showSettingsModal() {
   const modal = document.getElementById('settingsModal');
   bringModalToFront(modal);
   modal.style.display = 'flex';
+  const pulseToggleEl = document.getElementById('pulseToggleInput');
+  if (pulseToggleEl) pulseToggleEl.checked = statusPulseEnabled;
   if (currentProfile && currentProfile.is_admin) {
     cancelUcForm();
     loadUtilityCompaniesAdmin();
@@ -6893,7 +6935,6 @@ document.addEventListener('visibilitychange', () => {
 document.getElementById('followLocationBtn').style.display = 'flex';
 document.getElementById('pinMapBtn').style.display = 'flex';
 document.getElementById('drivingModeBtn').style.display = 'flex';
-document.getElementById('categoryFilterBtn').style.display = 'flex';
 document.getElementById('heatmapBtn').style.display = 'flex';
 document.getElementById('mainMapCompass').style.display = 'flex';
 
@@ -7161,6 +7202,17 @@ function isCategoryVisible(cat) {
 
 let statusMarkerFilter = new Set(['reported', 'in_progress', 'fixed']);
 
+const PULSE_STORAGE_KEY = 'ttb_status_pulse'; // localStorage value: '1' (on, default) | '0' (off — static status ring instead)
+function getPulseEnabledPref() {
+  try { return localStorage.getItem(PULSE_STORAGE_KEY) !== '0'; } catch (e) { return true; }
+}
+let statusPulseEnabled = getPulseEnabledPref();
+function setPulseEnabled(enabled) {
+  statusPulseEnabled = enabled;
+  try { localStorage.setItem(PULSE_STORAGE_KEY, enabled ? '1' : '0'); } catch (e) {}
+  syncMarkers(true); // re-render existing pins with the halo (pulse on) or ring (pulse off)
+}
+
 function isStatusVisible(status) {
   return statusMarkerFilter.has(status);
 }
@@ -7194,8 +7246,8 @@ function populateCategoryFilterList() {
 }
 
 function updateCategoryFilterBtnState() {
-  const btn = document.getElementById('categoryFilterBtn');
-  if (btn) btn.classList.toggle('active', categoryMarkerFilter !== null);
+  const dot = document.getElementById('mapFilterActiveDot');
+  if (dot) dot.style.display = categoryMarkerFilter !== null ? 'block' : 'none';
 }
 
 function applyCategoryFilterChange() {
@@ -10244,14 +10296,18 @@ function buildPinIconHtml(category, status) {
   const sCol    = statusColor(status);
   const iconSrc = `icons/${categoryIcon(category)}`;
   const opacity = status === 'fixed' ? 0.55 : 1;
-  // Fixed reports are settled — no pulse, nothing left to draw the eye to.
+  // Fixed reports are settled — no pulse/ring, nothing left to draw the eye to.
   // Reported (brand-new, needs attention) pulses faster than in_progress
   // (already being handled) so urgency still reads at a glance.
   const pulseDuration = status === 'reported' ? '1.6s' : '2.6s';
-  const halo = status === 'fixed' ? '' :
-    `<span class="pin-status-halo" style="background:${sCol};animation-duration:${pulseDuration};"></span>`;
+  let statusMarker = '';
+  if (status !== 'fixed') {
+    statusMarker = statusPulseEnabled
+      ? `<span class="pin-status-halo" style="background:${sCol};animation-duration:${pulseDuration};"></span>`
+      : `<span class="pin-status-ring" style="border-color:${sCol};"></span>`;
+  }
   return `<div style="position:relative;width:40px;height:40px;">` +
-    halo +
+    statusMarker +
     `<div class="map-pin-badge" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:${catCol};opacity:${opacity};">` +
     `<span class="map-pin-glyph" style="-webkit-mask-image:url('${iconSrc}');mask-image:url('${iconSrc}');"></span>` +
     `</div>` +
