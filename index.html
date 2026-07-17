@@ -1592,6 +1592,25 @@ body.driving-active #appPanel{
   pointer-events:none;
 }
 
+/* --- Grouped (clustered) report pin pulse -------------------------------
+   Used by makeClusterIcon(). Unlike individual pins, a cluster's halo is
+   the cluster's own badge color (var(--nav-accent)) rather than the status
+   color — it's flagging "this group still has open reports", not any one
+   report's status — and is deliberately subtler and slower than the
+   per-pin pulse (lower peak opacity, longer duration) since a cluster
+   sits on screen representing many reports at once and a strong pulse
+   there would be visually noisy. */
+@keyframes clusterStatusPulse{
+  0%{ transform:translate(-50%,-50%) scale(.75); opacity:.4; }
+  70%{ transform:translate(-50%,-50%) scale(2.1); opacity:0; }
+  100%{ opacity:0; }
+}
+.cluster-status-halo{
+  position:absolute; top:50%; left:50%; width:26px; height:26px; border-radius:50%;
+  animation-name:clusterStatusPulse; animation-timing-function:ease-out; animation-iteration-count:infinite;
+  pointer-events:none;
+}
+
 .dropped-pin-icon{
   width:30px; height:36px; object-fit:contain;
   filter:drop-shadow(0 3px 6px rgba(0,0,0,.45));
@@ -5785,19 +5804,20 @@ function makeClusterIcon(cluster) {
 
   // Same pulse/ring language as individual report pins (see buildPinIconHtml): a cluster
   // that contains only 'fixed' reports gets neither, since there's nothing left to draw
-  // the eye to; otherwise it pulses (or shows a static ring if pulse is off in Settings)
-  // using the color/speed/size of the single most urgent report inside it.
+  // the eye to; otherwise it pulses (or shows a static ring if pulse is off in Settings).
+  // Unlike individual pins, the color here is the cluster's own badge color (not the status
+  // color) and the animation is deliberately subtler/slower — see .cluster-status-halo.
   const { status, priority } = clusterWorstReport(cluster);
   const wrapSize = size + 16; // room for the halo/ring to sit outside the badge itself
   let statusMarker = '';
   if (status && status !== 'fixed') {
-    const sCol = statusColor(status);
-    const pulseDuration = status === 'reported' ? 1.6 : 2.6;
+    const groupCol = 'var(--nav-accent)';
+    const pulseDuration = status === 'reported' ? 3.2 : 4.4;
     const pulseSize = priority === 'high' ? size + 10 : priority === 'low' ? size - 4 : size + 2;
     const pulseDelay = -(Math.random() * pulseDuration).toFixed(2);
     statusMarker = statusPulseEnabled
-      ? `<span class="pin-status-halo" style="background:${sCol};width:${pulseSize}px;height:${pulseSize}px;animation-duration:${pulseDuration}s;animation-delay:${pulseDelay}s;"></span>`
-      : `<span class="pin-status-ring" style="border-color:${sCol};width:${size + 6}px;height:${size + 6}px;"></span>`;
+      ? `<span class="cluster-status-halo" style="background:${groupCol};width:${pulseSize}px;height:${pulseSize}px;animation-duration:${pulseDuration}s;animation-delay:${pulseDelay}s;"></span>`
+      : `<span class="pin-status-ring" style="border-color:${groupCol};width:${size + 6}px;height:${size + 6}px;opacity:.5;"></span>`;
   }
 
   return L.divIcon({
