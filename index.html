@@ -21,6 +21,7 @@
   <link rel="preload" as="image" href="icons/car.png">
   <link rel="preload" as="image" href="icons/category-filter.png">
   <link rel="preload" as="image" href="icons/heatmap.png">
+  <link rel="preload" as="image" href="icons/hourglass.png">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
@@ -1565,6 +1566,30 @@ body.driving-active #appPanel{
 }
 .offline-queue-retry{ margin-left:auto; color:var(--accent); font-weight:var(--fw-bold); flex-shrink:0; }
 
+.global-offline-banner{
+  position:fixed;
+  top:var(--header-h, 64px);
+  left:0; right:0;
+  z-index:630;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  background:#f0a020;
+  color:#1a1a1a;
+  font-size:var(--fs-11-5);
+  font-weight:var(--fw-semibold);
+  padding:7px 14px;
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+  box-shadow:0 3px 10px var(--floating-shadow);
+}
+.global-offline-banner .offline-queue-dot{ background:#fff; border-color:#1a1a1a; box-shadow:0 0 0 3px rgba(255,255,255,.35); }
+.global-offline-banner-retry{ margin-left:4px; color:#1a1a1a; text-decoration:underline; flex-shrink:0; }
+body.driving-active .global-offline-banner{ display:none !important; }
+body.offline-banner-visible .municipality-label{ top:calc(var(--header-h, 64px) + 42px); }
+
 .locked-panel{
   display:flex;
   flex-direction:column;
@@ -1824,12 +1849,69 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   padding:0 8px 8px 8px;
 }
 .vote-progress-badge{
+  display:flex;
+  flex-direction:column;
+  gap:var(--space-6);
   font-size:var(--fs-10-5);
   font-weight:var(--fw-semibold);
   color:#8a6d1a;
   background:#fdf3dc;
   border-radius:var(--radius-sm);
-  padding:4px 8px;
+  padding:6px 8px;
+}
+.vote-progress-badge-top{
+  display:flex;
+  align-items:center;
+  gap:var(--space-6);
+}
+.vote-progress-icon{
+  width:12px;
+  height:12px;
+  flex-shrink:0;
+  opacity:.85;
+}
+.vote-progress-track{
+  width:100%;
+  height:5px;
+  border-radius:var(--radius-xs);
+  background:rgba(0,0,0,.1);
+  overflow:hidden;
+}
+.vote-progress-fill{
+  height:100%;
+  background:#e0a734;
+  border-radius:var(--radius-xs);
+  transition:width .25s ease;
+}
+
+.wiz-duplicate-notice{
+  background:var(--warn-bg);
+  border:1px solid var(--warn-border);
+  color:var(--warn-text);
+  border-radius:var(--radius-md);
+  padding:10px 12px;
+  margin-bottom:var(--space-10);
+}
+.wiz-duplicate-notice-title{
+  font-size:var(--fs-12-5);
+  font-weight:var(--fw-bold);
+  margin-bottom:2px;
+}
+.wiz-duplicate-notice-hint{
+  font-size:var(--fs-11);
+  font-weight:var(--fw-regular);
+  opacity:.9;
+}
+
+.contact-nudge{
+  background:var(--warn-bg);
+  border:1px solid var(--warn-border);
+  color:var(--warn-text);
+  border-radius:var(--radius-sm);
+  padding:8px 10px;
+  font-size:var(--fs-11-5);
+  font-weight:var(--fw-medium);
+  margin-bottom:var(--space-8);
 }
 
 .owner-tag{
@@ -2793,6 +2875,7 @@ span.flatpickr-weekday {
       <button type="button" class="leaderboard-tab"        data-tab="week"  onclick="switchLeaderboardTab('week')"><span id="lbTabWeek">This Week</span></button>
       <button type="button" class="leaderboard-tab"        data-tab="city"  onclick="switchLeaderboardTab('city')"><span id="lbTabCity">This City</span></button>
       <button type="button" class="leaderboard-tab"        data-tab="admins" onclick="switchLeaderboardTab('admins')"><span id="lbTabAdmins">Admins</span></button>
+      <button type="button" class="leaderboard-tab"        data-tab="municipalities" onclick="switchLeaderboardTab('municipalities')"><span id="lbTabMunicipalities">Municipalities</span></button>
     </div>
     <div id="leaderboardCityLabel" class="leaderboard-city-label" style="display:none"></div>
 
@@ -4250,6 +4333,7 @@ async function loadLeaderboardTab(tab) {
   cityLabelEl.style.display = 'none';
 
   if (tab === 'admins') { loadAdminsTab(); return; }
+  if (tab === 'municipalities') { loadMunicipalitiesTab(); return; }
 
   let since = null;
   if (tab === 'month') since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -4428,6 +4512,56 @@ function renderAdminListRows(rows) {
           <span class="tier-pill tier-level-${lvl}">${escapeHtml(adminLevelName(lvl))}</span>
         </div>
         <div class="leaderboard-admin-tag">${escapeHtml(tag)}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function loadMunicipalitiesTab() {
+  const listEl = document.getElementById('leaderboardList');
+  try {
+    await loadMunicipalityCache();
+    await loadMunicipalityStatsCache();
+    const rows = municipalityCache
+      .map(muni => ({ muni, stats: municipalityStatsCache.get(muni.id) }))
+      .filter(row => row.stats && Number(row.stats.total_reports) > 0);
+    renderMunicipalityLeaderboardRows(rows);
+  } catch (err) {
+    console.error('Municipality leaderboard load failed:', err.message || err);
+    listEl.innerHTML = `<div class="detail-empty">${t('leaderboardLoadFailed')}</div>`;
+  }
+}
+
+function renderMunicipalityLeaderboardRows(rows) {
+  const listEl = document.getElementById('leaderboardList');
+  if (!rows.length) {
+    listEl.innerHTML = `<div class="detail-empty">${t('municipalityLbEmpty')}</div>`;
+    return;
+  }
+  const sorted = rows.slice().sort((a, b) => {
+    const da = a.stats.avg_repair_days != null ? parseFloat(a.stats.avg_repair_days) : Infinity;
+    const db = b.stats.avg_repair_days != null ? parseFloat(b.stats.avg_repair_days) : Infinity;
+    return da - db;
+  });
+  listEl.innerHTML = sorted.map((row, i) => {
+    const rank = i + 1;
+    const { muni, stats } = row;
+    const avgRepair = stats.avg_repair_days != null
+      ? t('muniStatsDaysUnit').replace('{n}', String(Math.round(parseFloat(stats.avg_repair_days) * 10) / 10))
+      : t('muniStatsNoRepairData');
+    const responseRate = stats.response_rate_pct != null ? `${Math.round(parseFloat(stats.response_rate_pct))}%` : '—';
+    return `
+    <div class="leaderboard-row${rank <= 3 ? ' rank-' + rank : ''}">
+      <div class="leaderboard-rank tier-level-0">${rank}</div>
+      <div class="leaderboard-info">
+        <div class="leaderboard-name-row">
+          <span class="leaderboard-name">${escapeHtml(municipalityDisplayName(muni))}</span>
+        </div>
+        <div class="leaderboard-reliability">${t('muniStatsReportsLabel')}: ${Number(stats.total_reports || 0).toLocaleString()} · ${t('muniStatsResponseRateLabel')}: ${escapeHtml(responseRate)}</div>
+      </div>
+      <div class="leaderboard-points">
+        <div class="leaderboard-points-value">${escapeHtml(avgRepair)}</div>
+        <div class="leaderboard-points-label">${t('muniStatsAvgRepairLabel')}</div>
       </div>
     </div>`;
   }).join('');
@@ -4952,6 +5086,9 @@ const T = {
   detailContactsError:   { en:'Could not load contacts.',                  sr:'Kontakti nisu učitani.' },
 
   contactCountsTitle:      { en:'Contact activity',                            sr:'Aktivnost kontaktiranja' },
+  contactNudgeText:        { en:'You haven\'t contacted the responsible service about this yet — use the contacts below.', sr:'Još niste kontaktirali nadležnu službu povodom ovoga — koristite kontakte ispod.' },
+  duplicateNoticeTitle:    { en:'{n} similar report(s) already nearby', sr:'{n} sličnih prijava već postoji u blizini' },
+  duplicateNoticeHint:     { en:'Check the map before submitting — this issue may already be logged.', sr:'Proverite mapu pre slanja — ovaj problem je možda već prijavljen.' },
   contactCountsEmailLabel: { en:'Contacted by email',                          sr:'Kontaktirano mejlom' },
   contactCountsPhoneLabel: { en:'Contacted by phone',                          sr:'Kontaktirano telefonom' },
   contactConfirmTitle:            { en:'Quick check',                                            sr:'Kratko pitanje' },
@@ -5106,6 +5243,8 @@ const T = {
   lbTabWeek:               { en:'This Week',                           sr:'Ova nedelja' },
   lbTabCity:               { en:'This City',                           sr:'Ovaj grad' },
   lbTabAdmins:             { en:'Admins',                              sr:'Administratori' },
+  lbTabMunicipalities:     { en:'Municipalities',                      sr:'Opštine' },
+  municipalityLbEmpty:     { en:'No municipality stats to show yet.',  sr:'Još nema statistike po opštinama.' },
   leaderboardAdminsEmpty:      { en:'No admins to show.',                          sr:'Nema administratora za prikaz.' },
   leaderboardAdminsLoadFailed: { en:'Could not load admins. Try again.',           sr:'Administratori nisu mogli da se učitaju. Pokušajte ponovo.' },
   signOutBtn:               { en:'Sign out',                          sr:'Odjavi se' },
@@ -5161,6 +5300,8 @@ function applyLang(){
   document.getElementById('reportPhotoGalleryBtn').setAttribute('aria-label', t('reportPhotoGalleryBtn'));
   const offlineRetryEl = document.getElementById('offlineQueueRetryLabel');
   if (offlineRetryEl) offlineRetryEl.textContent = t('offlineQueueRetry');
+  const globalOfflineRetryEl = document.getElementById('globalOfflineBannerRetryLabel');
+  if (globalOfflineRetryEl) globalOfflineRetryEl.textContent = t('offlineQueueRetry');
   updateOfflineQueueBadge();
 
   const lbBtn = document.getElementById('leaderboardBtn');
@@ -5182,6 +5323,8 @@ function applyLang(){
   if (lbTabCityEl) lbTabCityEl.textContent = t('lbTabCity');
   const lbTabAdminsEl = document.getElementById('lbTabAdmins');
   if (lbTabAdminsEl) lbTabAdminsEl.textContent = t('lbTabAdmins');
+  const lbTabMunicipalitiesEl = document.getElementById('lbTabMunicipalities');
+  if (lbTabMunicipalitiesEl) lbTabMunicipalitiesEl.textContent = t('lbTabMunicipalities');
   if (document.getElementById('leaderboardModal').style.display !== 'none') {
     loadLeaderboardTab(leaderboardTab);
   }
@@ -7401,6 +7544,7 @@ new NavigatePanelControl().addTo(map);
 let proximityCircle = null;
 
 function updateProximityUi() {
+  renderWizDuplicateNotice();
   const isAdmin = !!(currentProfile && currentProfile.is_admin);
   const inOwnDomain = isAdmin && isMunicipalityInAdminDomain(manualPinMunicipality);
   const indicator = document.getElementById('proximityIndicator');
@@ -8240,6 +8384,7 @@ function wizRenderDetails(body) {
   body.innerHTML = `
     <p class="wiz-step-label">${t('wizStepLabel') || 'Last step'}</p>
     <h3 class="wiz-step-title">${t('wizDetailsTitle') || 'Add a photo & note'}</h3>
+    <div id="wizDuplicateSlot"></div>
     <div id="wizProximitySlot" class="wiz-details-row"></div>
     <div class="wiz-details-row">
       <label>${t('wizNoteLabel') || 'Note (optional)'}</label>
@@ -8266,6 +8411,33 @@ function wizRenderDetails(body) {
   document.getElementById('wizPhotoPreviewSlot').appendChild(document.getElementById('reportPhotoPreview'));
   document.getElementById('wizOfflineBadgeSlot').appendChild(document.getElementById('offlineQueueBadge'));
   document.getElementById('wizSubmitSlot').appendChild(document.getElementById('reportSubmitRow'));
+  renderWizDuplicateNotice();
+}
+
+const DUPLICATE_REPORT_RADIUS_M = 100;
+const DUPLICATE_REPORT_MAX_SHOWN = 3;
+function findNearbyDuplicateReports(lat, lon, category) {
+  if (!isValidLatLng(lat, lon) || !category) return [];
+  return globalActiveData
+    .filter(r => r.category === category && r.status !== 'fixed' && isValidLatLng(r.latitude, r.longitude))
+    .map(r => ({ r, d: distMeters({ lat, lon }, { lat: r.latitude, lon: r.longitude }) }))
+    .filter(x => x.d <= DUPLICATE_REPORT_RADIUS_M)
+    .sort((a, b) => a.d - b.d)
+    .slice(0, DUPLICATE_REPORT_MAX_SHOWN)
+    .map(x => x.r);
+}
+
+function renderWizDuplicateNotice() {
+  const slot = document.getElementById('wizDuplicateSlot');
+  if (!slot) return;
+  const coords = pinMode && manualCoords ? manualCoords : userCoords;
+  if (!coords) { slot.innerHTML = ''; return; }
+  const dupes = findNearbyDuplicateReports(coords.lat, coords.lon, wizState.category);
+  if (!dupes.length) { slot.innerHTML = ''; return; }
+  slot.innerHTML = `<div class="wiz-duplicate-notice">
+    <div class="wiz-duplicate-notice-title">${t('duplicateNoticeTitle').replace('{n}', dupes.length)}</div>
+    <div class="wiz-duplicate-notice-hint">${t('duplicateNoticeHint')}</div>
+  </div>`;
 }
 
 const OFFLINE_DB_NAME = 'ttb_offline_queue';
@@ -8348,11 +8520,29 @@ function isNetworkFailure(err) {
 async function updateOfflineQueueBadge() {
   const badge = document.getElementById('offlineQueueBadge');
   const textEl = document.getElementById('offlineQueueBadgeText');
-  if (!badge || !textEl) return;
+  const banner = document.getElementById('globalOfflineBanner');
+  const bannerTextEl = document.getElementById('globalOfflineBannerText');
   const rows = await getQueuedReports();
-  if (!rows.length) { badge.style.display = 'none'; return; }
-  textEl.textContent = t('offlineQueueBadge').replace('{n}', rows.length);
-  badge.style.display = 'flex';
+
+  if (badge && textEl) {
+    if (!rows.length) {
+      badge.style.display = 'none';
+    } else {
+      textEl.textContent = t('offlineQueueBadge').replace('{n}', rows.length);
+      badge.style.display = 'flex';
+    }
+  }
+
+  if (banner && bannerTextEl) {
+    if (!rows.length) {
+      banner.style.display = 'none';
+      document.body.classList.remove('offline-banner-visible');
+    } else {
+      bannerTextEl.textContent = t('offlineQueueBadge').replace('{n}', rows.length);
+      banner.style.display = 'flex';
+      document.body.classList.add('offline-banner-visible');
+    }
+  }
 }
 
 let offlineSyncInFlight = false;
@@ -10000,12 +10190,23 @@ function buildPopupHtml(report) {
   </div>`;
 }
 
+const VOTE_THRESHOLD = 3;
 function buildVoteProgressHtml(report) {
   const progress = voteProgressByReport.get(report.id);
   if (!progress) return '';
   const rows = Object.keys(progress)
-    .filter(status => status !== report.status && progress[status] > 0 && progress[status] < 3)
-    .map(status => `<div class="vote-progress-badge">⏳ ${t('voteProgress').replace('{status}', statusLabel(status)).replace('{p}', progress[status])}</div>`);
+    .filter(status => status !== report.status && progress[status] > 0 && progress[status] < VOTE_THRESHOLD)
+    .map(status => {
+      const p = progress[status];
+      const pct = Math.min(100, Math.round((p / VOTE_THRESHOLD) * 100));
+      return `<div class="vote-progress-badge">
+        <div class="vote-progress-badge-top">
+          <img class="vote-progress-icon" src="icons/hourglass.png" alt="">
+          <span>${t('voteProgress').replace('{status}', statusLabel(status)).replace('{p}', p)}</span>
+        </div>
+        <div class="vote-progress-track"><div class="vote-progress-fill" style="width:${pct}%"></div></div>
+      </div>`;
+    });
   return rows.length ? `<div class="vote-progress-row">${rows.join('')}</div>` : '';
 }
 
@@ -10103,6 +10304,7 @@ async function showReportDetailModal(reportId) {
     ${photoSectionHtml}
     <div class="detail-section">
       <div class="detail-section-title">${t('detailContactsTitle')}</div>
+      <div id="detailContactNudge"></div>
       <div id="detailContactsContainer"><div class="detail-loading">${t('detailLoading')}</div></div>
     </div>
     <div class="detail-section">
@@ -10436,6 +10638,17 @@ async function loadReportContactCounts(reportId) {
   const modal = document.getElementById('reportDetailModal');
   if (!el || !modal || modal.dataset.openReportId !== reportId) return;
   el.innerHTML = renderContactCountsHtml(counts);
+  updateContactNudge(reportId, counts);
+}
+
+function updateContactNudge(reportId, counts) {
+  const nudgeEl = document.getElementById('detailContactNudge');
+  if (!nudgeEl) return;
+  const report = globalActiveData.find(r => r.id === reportId);
+  const isOwner = !!(currentSession && report && report.owner_id === currentSession.user.id);
+  const notContactedYet = counts.email === 0 && counts.phone === 0;
+  const showNudge = isOwner && report && report.status !== 'fixed' && notContactedYet;
+  nudgeEl.innerHTML = showNudge ? `<div class="contact-nudge">${t('contactNudgeText')}</div>` : '';
 }
 
 function refreshReportContactCounts(reportId) {
@@ -11379,6 +11592,12 @@ initAuth().then(() => {
 });
 
 </script>
+
+<div class="global-offline-banner" id="globalOfflineBanner" style="display:none" onclick="syncOfflineQueue(true)" title="Tap to retry now">
+  <span class="offline-queue-dot"></span>
+  <span id="globalOfflineBannerText"></span>
+  <span class="global-offline-banner-retry" id="globalOfflineBannerRetryLabel">Retry</span>
+</div>
 
 <div id="mobilePopupOverlay"></div>
 
