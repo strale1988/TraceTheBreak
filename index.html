@@ -2018,6 +2018,8 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 .contact-card:last-child{ margin-bottom:0; }
 .contact-card-name{ font-weight:var(--fw-bold); font-size:var(--fs-14); margin-bottom:8px; }
 .contact-card-row{ display:flex; align-items:flex-start; gap:9px; font-size:var(--fs-12-5); color:var(--text-secondary); padding:5px 0; min-width:0; }
+.contact-flag-btn{ margin-left:auto; flex-shrink:0; background:none; border:none; padding:2px 6px; font-size:var(--fs-11); color:var(--text-muted); text-decoration:underline; cursor:pointer; }
+.contact-flag-btn:disabled{ text-decoration:none; cursor:default; opacity:.7; }
 .contact-card-row:not(:last-child){ border-bottom:1px solid var(--border-color); }
 .contact-card-row a{ color:#4ea1ff; text-decoration:none; }
 .contact-card-row > *:last-child{ min-width:0; overflow-wrap:anywhere; word-break:break-word; }
@@ -2181,6 +2183,7 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 .uc-item-name{ font-weight:var(--fw-bold); font-size:var(--fs-13); }
 .uc-item-muni{ font-size:var(--fs-11); color:var(--text-muted); }
 .uc-item-cats{ display:flex; flex-wrap:wrap; gap:var(--space-4); margin-top:2px; }
+.uc-flag-warning{ margin-top:6px; font-size:var(--fs-12); color:var(--danger-strong); display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .uc-cat-chip{
   font-size:var(--fs-9-5); font-weight:var(--fw-bold); text-transform:uppercase; letter-spacing:.2px;
   padding:2px 6px; border-radius:var(--radius-lg); color:white;
@@ -2759,6 +2762,17 @@ span.flatpickr-weekday {
         <span id="pulseToggleLabel">Status pulse animation</span>
         <span class="toggle-switch">
           <input type="checkbox" id="pulseToggleInput" checked onchange="setPulseEnabled(this.checked)">
+          <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+        </span>
+      </label>
+    </div>
+
+    <div class="detail-section" id="soundSettingsSection">
+      <div class="detail-section-title" id="soundSectionTitle">Sound</div>
+      <label class="settings-toggle-row" id="soundToggleRow">
+        <span id="soundToggleLabel">Navigation & alert sounds</span>
+        <span class="toggle-switch">
+          <input type="checkbox" id="soundToggleInput" checked onchange="setSoundEnabled(this.checked)">
           <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
         </span>
       </label>
@@ -5123,6 +5137,10 @@ const T = {
   shareText:             { en:'Take a look at this reported issue: {category}', sr:'Pogledajte prijavljeni problem: {category}' },
   shareLinkCopied:       { en:'Link copied to clipboard.',                 sr:'Link je kopiran.' },
   shareReportNotFound:   { en:'That shared report could not be found.',    sr:'Deljena prijava nije pronađena.' },
+  shareImageBtn:         { en:'Share as image',                           sr:'Podeli kao sliku' },
+  shareImageGenerating:  { en:'Preparing image…',                         sr:'Priprema slike…' },
+  shareImageFailed:      { en:'Could not create the image. Try again.',   sr:'Slika nije mogla biti napravljena. Pokušajte ponovo.' },
+  shareImageSaved:       { en:'Image saved.',                             sr:'Slika sačuvana.' },
 
   ucSectionTitle:    { en:'Utility company contacts',            sr:'Kontakti javnih preduzeća' },
   ucSearchPH:        { en:'Search contacts (name, municipality, category)…', sr:'Pretraga kontakata (naziv, opština, kategorija)…' },
@@ -5179,6 +5197,14 @@ const T = {
   photoApproved:          { en:'Photo approved — now visible on the report.', sr:'Fotografija odobrena — sada je vidljiva na prijavi.' },
   photoRejected:          { en:'Photo rejected.',                             sr:'Fotografija odbijena.' },
   photoActionFailed:      { en:'Could not save that. Try again.',            sr:'Nije sačuvano. Pokušajte ponovo.' },
+  detailAfterPhotoTitle:  { en:'After (fixed)',                              sr:'Posle (popravljeno)' },
+  detailBeforePhotoTitle: { en:'Before',                                     sr:'Pre' },
+  afterPhotoPrompt:       { en:'Add an "after" photo to show it is fixed?',  sr:'Dodati fotografiju "posle" da pokažete da je popravljeno?' },
+  afterPhotoAddedPending: { en:'After photo added — waiting for admin review.', sr:'Fotografija "posle" dodata — čeka proveru administratora.' },
+  afterPhotoLoginPrompt:  { en:'Log in to see the after photo.',             sr:'Prijavite se da biste videli fotografiju "posle".' },
+  afterPhotoRejectedOwnerNote: { en:'Your after photo didn\'t pass review, so it isn\'t shown publicly.', sr:'Vaša fotografija "posle" nije prošla proveru, pa nije javno prikazana.' },
+  queueTypeAfterPhoto:    { en:'After-photo pending',                        sr:'Fotografija "posle" na čekanju' },
+  addAfterPhotoBtn:       { en:'Add after photo',                            sr:'Dodaj fotografiju "posle"' },
 
   flagReportTitle:        { en:'Something wrong with this report?',           sr:'Nešto nije u redu sa ovom prijavom?' },
   flagReportBtn:          { en:'Flag for review',                             sr:'Označi za proveru' },
@@ -5191,6 +5217,14 @@ const T = {
   flagReportSubmitted:    { en:'Flagged — an admin will review it.',          sr:'Označeno — administrator će pregledati.' },
   flagReportAlreadyFlaggedNote: { en:'You flagged this on {date}:',           sr:'Označili ste ovo {date}:' },
   flagReportError:        { en:'Could not submit. Try again.',                sr:'Slanje nije uspelo. Pokušajte ponovo.' },
+  contactFlagBtn:          { en:'Didn\'t work?',                              sr:'Nije uspelo?' },
+  contactFlagLoginRequired:{ en:'Sign in to flag this contact.',              sr:'Prijavite se da biste označili ovaj kontakt.' },
+  contactFlagSubmitted:    { en:'Thanks — flagged this contact for review.',  sr:'Hvala — kontakt je označen za proveru.' },
+  contactFlagAlready:      { en:'Already flagged',                            sr:'Već označeno' },
+  contactFlagError:        { en:'Could not submit. Try again.',               sr:'Slanje nije uspelo. Pokušajte ponovo.' },
+  ucFlagWarning:           { en:'{n} report(s) that this contact didn\'t work', sr:'{n} prijava(e) da ovaj kontakt ne radi' },
+  ucFlagClearBtn:          { en:'Clear flags',                                sr:'Obriši oznake' },
+  ucFlagCleared:           { en:'Flags cleared.',                             sr:'Oznake obrisane.' },
 
   reportFlagsSectionTitle:{ en:'Reported by users',                          sr:'Prijavili korisnici' },
   reportFlagsEmpty:       { en:'No user-flagged reports right now.',        sr:'Trenutno nema prijava koje su korisnici označili.' },
@@ -5235,6 +5269,8 @@ const T = {
   notificationLoadFailed: { en:'Could not load notifications.',         sr:'Obaveštenja nisu mogla biti učitana.' },
   queueTypePhoto:         { en:'Photo pending',                       sr:'Fotografija na čekanju' },
   queueTypeStale:         { en:'Aging, no activity',                  sr:'Zastarelo, bez aktivnosti' },
+  soundSectionTitle:      { en:'Sound',                               sr:'Zvuk' },
+  soundToggleLabel:       { en:'Navigation & alert sounds',           sr:'Zvukovi za navigaciju i upozorenja' },
 
   leaderboardBtnTitle:     { en:'Rankings',                           sr:'Rang lista' },
   leaderboardTitle:        { en:'Rankings',                           sr:'Rang lista' },
@@ -5343,6 +5379,10 @@ function applyLang(){
   document.getElementById('mapFilterSectionTitle').textContent = t('mapFilterSectionTitle');
   document.getElementById('mapFilterSettingsBtnLabel').textContent = t('categoryFilterBtnTitle');
   document.getElementById('pulseToggleLabel').textContent = t('pulseToggleLabel');
+  const soundSectionTitleEl = document.getElementById('soundSectionTitle');
+  if (soundSectionTitleEl) soundSectionTitleEl.textContent = t('soundSectionTitle');
+  const soundToggleLabelEl = document.getElementById('soundToggleLabel');
+  if (soundToggleLabelEl) soundToggleLabelEl.textContent = t('soundToggleLabel');
   const nearbyCheckinTitleEl = document.getElementById('nearbyCheckinSectionTitle');
   if (nearbyCheckinTitleEl) nearbyCheckinTitleEl.textContent = t('nearbyCheckinSectionTitle');
   const nearbyCheckinHintEl = document.getElementById('nearbyCheckinSectionHint');
@@ -5539,6 +5579,7 @@ function showSettingsModal() {
   modal.style.display = 'flex';
   const pulseToggleEl = document.getElementById('pulseToggleInput');
   if (pulseToggleEl) pulseToggleEl.checked = statusPulseEnabled;
+  initSoundSettingsUi();
   updateNearbyCheckinSegmentUI();
   if (currentProfile && currentProfile.is_admin) {
     cancelUcForm();
@@ -6679,6 +6720,85 @@ function updateNavInfoText(meters, seconds, approximate) {
   distText.textContent = str;
 }
 
+/* ---------- Sound engine (WebAudio, no external audio files) ---------- */
+const SOUND_PREF_KEY = 'ttb_sound_enabled';
+function getSoundEnabledPref() {
+  try {
+    const v = localStorage.getItem(SOUND_PREF_KEY);
+    return v === null ? true : v === '1';
+  } catch (err) { return true; }
+}
+let soundEnabled = getSoundEnabledPref();
+let sharedAudioCtx = null;
+function getAudioCtx() {
+  if (!sharedAudioCtx) {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return null;
+    sharedAudioCtx = new Ctx();
+  }
+  if (sharedAudioCtx.state === 'suspended') sharedAudioCtx.resume().catch(() => {});
+  return sharedAudioCtx;
+}
+function playTone(freq, durationMs, startDelayMs, gainLevel) {
+  if (!soundEnabled) return;
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  try {
+    const t0 = ctx.currentTime + (startDelayMs || 0) / 1000;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, t0);
+    const peak = gainLevel || 0.18;
+    gain.gain.setValueAtTime(0, t0);
+    gain.gain.linearRampToValueAtTime(peak, t0 + 0.02);
+    gain.gain.linearRampToValueAtTime(0, t0 + durationMs / 1000);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(t0);
+    osc.stop(t0 + durationMs / 1000 + 0.02);
+  } catch (err) {
+    console.warn('playTone failed:', err.message);
+  }
+}
+function setSoundEnabled(enabled) {
+  soundEnabled = !!enabled;
+  try { localStorage.setItem(SOUND_PREF_KEY, soundEnabled ? '1' : '0'); } catch (err) {}
+  if (soundEnabled) getAudioCtx();
+}
+function playTurnUpcomingChime() {
+  playTone(880, 110, 0, 0.16);
+  playTone(1175, 130, 130, 0.16);
+}
+function playMissedTurnChime() {
+  playTone(330, 180, 0, 0.2);
+  playTone(262, 220, 190, 0.2);
+}
+function playNearbyReportChime() {
+  playTone(660, 90, 0, 0.14);
+  playTone(660, 90, 160, 0.14);
+}
+function initSoundSettingsUi() {
+  const input = document.getElementById('soundToggleInput');
+  if (input) input.checked = soundEnabled;
+}
+
+const DRIVING_AUDIO_ALERT_COOLDOWN_MS = 10 * 60 * 1000;
+const drivingAudioAlertedAt = new Map();
+function maybeDrivingAudioAlert() {
+  if (!drivingMode || !soundEnabled || !userCoords) return;
+  const now = Date.now();
+  for (const r of globalActiveData) {
+    if (r.status === 'fixed' || !isValidLatLng(r.latitude, r.longitude)) continue;
+    const dist = distMeters(userCoords, { lat: r.latitude, lon: r.longitude });
+    if (dist > VOTE_PROXIMITY_MAX_M) continue;
+    const last = drivingAudioAlertedAt.get(r.id) || 0;
+    if (now - last < DRIVING_AUDIO_ALERT_COOLDOWN_MS) continue;
+    drivingAudioAlertedAt.set(r.id, now);
+    playNearbyReportChime();
+    break; // one chime per position update is enough
+  }
+}
+
 const TURN_ARRIVE_RADIUS_M = 25;
 
 const TBT_LEAD_SECONDS = 10;
@@ -6734,6 +6854,7 @@ function instructionForStep(step) {
   return { icon, text: name ? `${text} — ${name}` : text };
 }
 
+let tbtChimePlayedForStep = -1;
 function updateTurnByTurnDisplay(from) {
   const card = document.getElementById('turnByTurnCard');
   if (!card) return;
@@ -6754,6 +6875,8 @@ function updateTurnByTurnDisplay(from) {
   const info = instructionForStep(step);
   if (!info) { hideTurnByTurnDisplay(); return; }
 
+  if (justTookTurn) tbtChimePlayedForStep = -1;
+
   const distToTurn = distMeters(from, step.location);
   document.getElementById('turnByTurnIcon').src = 'icons/' + info.icon;
   document.getElementById('turnByTurnText').textContent = info.text;
@@ -6764,6 +6887,10 @@ function updateTurnByTurnDisplay(from) {
 
   if (distToTurn <= popInDistanceM) {
     showTurnByTurnCard();
+    if (tbtChimePlayedForStep !== navStepIndex) {
+      tbtChimePlayedForStep = navStepIndex;
+      playTurnUpcomingChime();
+    }
   } else if (!justTookTurn) {
   }
 }
@@ -6815,6 +6942,7 @@ function evaluateNavigationProgress() {
 
   if (isOffRoute && navState === NavState.NAVIGATING) {
     setNavState(NavState.OFF_ROUTE);
+    playMissedTurnChime();
   }
 
   if (isOffRoute && navState === NavState.OFF_ROUTE && !navRouteFetching) {
@@ -7404,6 +7532,7 @@ function startWatching() {
       updateDrivingGpsStatus();
       updateProximityUi();
       maybeShowNearbyCheckin();
+      maybeDrivingAudioAlert();
       if (!userMarker) {
         userMarker = L.marker([userCoords.lat, userCoords.lon], {
           icon: L.divIcon({
@@ -8126,6 +8255,59 @@ async function uploadOrReplaceReportPhoto(reportId, blob) {
     toast(t('reportPhotoUploadFailed'), 'error');
     return false;
   }
+}
+
+async function addAfterPhotoToReport(reportId) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.onchange = async () => {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    let blob;
+    try {
+      blob = await compressReportPhoto(file);
+    } catch (err) {
+      console.error('After-photo processing failed:', err.message || err);
+      toast(t('reportPhotoInvalid'), 'error');
+      return;
+    }
+    const ok = await uploadAfterReportPhoto(reportId, blob);
+    if (ok) refreshReportViews(reportId);
+  };
+  input.click();
+}
+
+async function uploadAfterReportPhoto(reportId, blob) {
+  try {
+    const path = `${currentSession.user.id}/${reportId}_after.jpg`;
+    const { error: uploadError } = await sb.storage.from(REPORT_PHOTO_BUCKET)
+      .upload(path, blob, { contentType: 'image/jpeg', upsert: true });
+    if (uploadError) throw uploadError;
+    const patch = {
+      after_photo_path: path,
+      after_photo_status: 'pending',
+      after_photo_uploaded_at: new Date().toISOString()
+    };
+    const { error: updateError } = await sb.from(TABLE).update(patch).eq('id', reportId);
+    if (updateError) throw updateError;
+    toast(t('afterPhotoAddedPending'), 'success');
+    await loadPinsByWindow();
+    return true;
+  } catch (err) {
+    console.error('After-photo upload failed:', err.message || err);
+    toast(t('reportPhotoUploadFailed'), 'error');
+    return false;
+  }
+}
+
+function maybeOfferAfterPhoto(reportId) {
+  const report = globalActiveData.find(r => r.id === reportId);
+  if (!currentSession || !report || report.after_photo_path) return;
+  const isOwner = report.owner_id === currentSession.user.id;
+  const isAdmin = !!(currentProfile && currentProfile.is_admin);
+  if (!isOwner && !isAdmin) return;
+  if (confirm(t('afterPhotoPrompt'))) addAfterPhotoToReport(reportId);
 }
 
 function refreshReportViews(reportId) {
@@ -9413,8 +9595,22 @@ async function loadUtilityCompaniesAdmin() {
     console.error('Failed to load utility companies:', err.message);
     ucCompaniesCache = [];
   }
+
+  ucContactFlagCountsCache = new Map();
+  try {
+    const { data, error } = await sb.from('utility_contact_flags').select('company_id').eq('resolved', false);
+    if (error) throw error;
+    (data || []).forEach(row => {
+      const key = String(row.company_id);
+      ucContactFlagCountsCache.set(key, (ucContactFlagCountsCache.get(key) || 0) + 1);
+    });
+  } catch (err) {
+    console.error('Failed to load utility contact flag counts:', err.message);
+  }
+
   renderUcList();
 }
+let ucContactFlagCountsCache = new Map();
 let waitingListCache = [];
 const WAITING_LIST_PREVIEW_LIMIT = 5;
 const STALE_REPORT_DAYS = 30;
@@ -9445,6 +9641,17 @@ async function loadWaitingListAdmin() {
     (data || []).forEach(r => addReason(r, 'photo', r.photo_uploaded_at || r.created_at));
   } catch (err) {
     console.error('Failed to load photo review queue:', err.message);
+  }
+
+  try {
+    const { data, error } = await sb.from(TABLE).select('*')
+      .eq('after_photo_status', 'pending')
+      .order('created_at', { ascending: true })
+      .limit(WAITING_LIST_PREVIEW_LIMIT);
+    if (error) throw error;
+    (data || []).forEach(r => addReason(r, 'after_photo', r.after_photo_uploaded_at || r.created_at));
+  } catch (err) {
+    console.error('Failed to load after-photo review queue:', err.message);
   }
 
   try {
@@ -9504,7 +9711,7 @@ async function loadWaitingListAdmin() {
   }
 
   waitingListCache = Array.from(items.values())
-    .filter(item => item.reasons.includes('photo') || item.reasons.includes('user_flag') || item.reasons.includes('stale') || hasFullPowerOverReport(item.report))
+    .filter(item => item.reasons.includes('photo') || item.reasons.includes('after_photo') || item.reasons.includes('user_flag') || item.reasons.includes('stale') || hasFullPowerOverReport(item.report))
     .sort((a, b) => a.waitingSince - b.waitingSince)
     .slice(0, WAITING_LIST_PREVIEW_LIMIT);
   renderWaitingList();
@@ -9536,7 +9743,7 @@ function reportSummaryTitle(r) {
     : translateCategory(r.category);
 }
 
-const WAITING_REASON_LABEL = { photo: 'queueTypePhoto', rejected_photo: 'flagReasonRejectedPhoto', user_flag: 'reportFlagsSectionTitle', stale: 'queueTypeStale' };
+const WAITING_REASON_LABEL = { photo: 'queueTypePhoto', after_photo: 'queueTypeAfterPhoto', rejected_photo: 'flagReasonRejectedPhoto', user_flag: 'reportFlagsSectionTitle', stale: 'queueTypeStale' };
 
 const WAITING_LIST_CONTAINER_IDS = ['notificationWaitingList'];
 
@@ -9570,11 +9777,15 @@ function renderWaitingListInto(containerId) {
             </div>`).join('')}
         </div>` : '';
     const thumbHtml = item.reasons.includes('photo')
-      ? `<div class="photo-review-thumb" id="photo-review-thumb-${containerId}-${r.id}"><div class="detail-loading">${t('detailLoading')}</div></div>` : '';
+      ? `<div class="photo-review-thumb" id="photo-review-thumb-${containerId}-${r.id}"><div class="detail-loading">${t('detailLoading')}</div></div>`
+      : item.reasons.includes('after_photo')
+        ? `<div class="photo-review-thumb" id="after-photo-review-thumb-${containerId}-${r.id}"><div class="detail-loading">${t('detailLoading')}</div></div>` : '';
     const actionsHtml = [
       `<button type="button" class="settings-btn" onclick="viewReportFromAdminQueue('${r.id}')">${t('detailsBtn')}</button>`,
       item.reasons.includes('photo') ? `<button type="button" style="background:${UI_COLORS.success};color:#fff;" onclick="approveReportPhoto('${r.id}')">${t('photoApproveBtn')}</button>` : '',
       item.reasons.includes('photo') ? `<button type="button" style="background:${UI_COLORS.dangerStrong};color:#fff;" onclick="rejectReportPhoto('${r.id}')">${t('photoRejectBtn')}</button>` : '',
+      item.reasons.includes('after_photo') ? `<button type="button" style="background:${UI_COLORS.success};color:#fff;" onclick="approveAfterReportPhoto('${r.id}')">${t('photoApproveBtn')}</button>` : '',
+      item.reasons.includes('after_photo') ? `<button type="button" style="background:${UI_COLORS.dangerStrong};color:#fff;" onclick="rejectAfterReportPhoto('${r.id}')">${t('photoRejectBtn')}</button>` : '',
       item.reasons.includes('rejected_photo') ? `<button type="button" class="settings-btn" onclick="clearReportFlag('${r.id}')">${t('flagClearBtn')}</button>` : '',
       item.reasons.includes('user_flag') ? `<button type="button" style="background:${UI_COLORS.success};color:#fff;" onclick="resolveReportFlags('${r.id}')">${t('reportFlagResolveBtn')}</button>` : '',
       `<button type="button" style="background:${UI_COLORS.dangerStrong};color:#fff;" onclick="deleteReport('${r.id}')">${t('deleteBtn')}</button>`
@@ -9592,14 +9803,24 @@ function renderWaitingListInto(containerId) {
   }).join('');
 
   filtered.forEach(item => {
-    if (!item.reasons.includes('photo')) return;
-    getReportPhotoSignedUrl(item.report.photo_path).then(url => {
-      const thumb = document.getElementById('photo-review-thumb-' + containerId + '-' + item.report.id);
-      if (!thumb) return;
-      thumb.innerHTML = url
-        ? `<img src="${url}" alt="" onclick="window.open('${url}','_blank')">`
-        : `<div class="detail-empty">${t('photoLoadFailed')}</div>`;
-    });
+    if (item.reasons.includes('photo')) {
+      getReportPhotoSignedUrl(item.report.photo_path).then(url => {
+        const thumb = document.getElementById('photo-review-thumb-' + containerId + '-' + item.report.id);
+        if (!thumb) return;
+        thumb.innerHTML = url
+          ? `<img src="${url}" alt="" onclick="window.open('${url}','_blank')">`
+          : `<div class="detail-empty">${t('photoLoadFailed')}</div>`;
+      });
+    }
+    if (item.reasons.includes('after_photo')) {
+      getReportPhotoSignedUrl(item.report.after_photo_path).then(url => {
+        const thumb = document.getElementById('after-photo-review-thumb-' + containerId + '-' + item.report.id);
+        if (!thumb) return;
+        thumb.innerHTML = url
+          ? `<img src="${url}" alt="" onclick="window.open('${url}','_blank')">`
+          : `<div class="detail-empty">${t('photoLoadFailed')}</div>`;
+      });
+    }
   });
 }
 function filterWaitingListBySearch(cache) {
@@ -9686,6 +9907,42 @@ async function rejectReportPhoto(reportId) {
     await loadWaitingListAdmin();
   } catch (err) {
     console.error('Failed to reject photo:', err.message);
+    toast(t('photoActionFailed'), 'error');
+  }
+}
+
+async function approveAfterReportPhoto(reportId) {
+  try {
+    const { data, error } = await sb.from(TABLE).update({
+      after_photo_status: 'approved',
+      after_photo_reviewed_at: new Date().toISOString(),
+      after_photo_reviewed_by: currentSession ? currentSession.user.id : null
+    }).eq('id', reportId).select().single();
+    if (error) throw error;
+    if (!data) throw new Error('no-row-updated');
+    toast(t('photoApproved'), 'success');
+    await loadWaitingListAdmin();
+    await loadPinsByWindow();
+  } catch (err) {
+    console.error('Failed to approve after-photo:', err.message);
+    toast(t('photoActionFailed'), 'error');
+  }
+}
+
+async function rejectAfterReportPhoto(reportId) {
+  if (!confirm(t('photoRejectConfirm'))) return;
+  try {
+    const { data, error } = await sb.from(TABLE).update({
+      after_photo_status: 'rejected',
+      after_photo_reviewed_at: new Date().toISOString(),
+      after_photo_reviewed_by: currentSession ? currentSession.user.id : null
+    }).eq('id', reportId).select().single();
+    if (error) throw error;
+    if (!data) throw new Error('no-row-updated');
+    toast(t('photoRejected'), 'success');
+    await loadWaitingListAdmin();
+  } catch (err) {
+    console.error('Failed to reject after-photo:', err.message);
     toast(t('photoActionFailed'), 'error');
   }
 }
@@ -9851,6 +10108,11 @@ function renderUcList() {
         const verifiedChip = c.verified
           ? '<span class="uc-verified-chip">' + t('ucVerifiedChip') + '</span>'
           : '<span class="uc-unverified-chip">' + t('ucUnverifiedChip') + '</span>';
+        const flagCount = ucContactFlagCountsCache.get(String(c.id)) || 0;
+        const flagWarningHtml = flagCount > 0
+          ? '<div class="uc-flag-warning">⚠ ' + escapeHtml(t('ucFlagWarning').replace('{n}', flagCount)) +
+            ' <button type="button" class="settings-btn" style="display:inline;padding:2px 8px;" onclick="clearUtilityContactFlags(\'' + c.id + '\')">' + t('ucFlagClearBtn') + '</button></div>'
+          : '';
         return '<div class="uc-item" id="uc-item-' + c.id + '">' +
           '<div class="uc-item-top">' +
             '<div>' +
@@ -9862,6 +10124,7 @@ function renderUcList() {
             '</div>' +
           '</div>' +
           '<div class="uc-item-cats">' + verifiedChip + catsHtml + '</div>' +
+          flagWarningHtml +
         '</div>';
       }).join('');
       const addBtnHtml = muni
@@ -10079,6 +10342,22 @@ function saveUtilityCompany() {
 function verifyUtilityCompany() {
   if (!confirm(t('ucVerifyConfirm'))) return;
   return persistUcRow(true);
+}
+
+async function clearUtilityContactFlags(companyId) {
+  try {
+    const { error } = await sb.from('utility_contact_flags').update({
+      resolved: true,
+      resolved_at: new Date().toISOString(),
+      resolved_by: currentSession ? currentSession.user.id : null
+    }).eq('company_id', companyId).eq('resolved', false);
+    if (error) throw error;
+    toast(t('ucFlagCleared'), 'success');
+    await loadUtilityCompaniesAdmin();
+  } catch (err) {
+    console.error('Failed to clear utility contact flags:', err.message);
+    toast(t('photoActionFailed'), 'error');
+  }
 }
 
 async function deleteUtilityCompany(id) {
@@ -10313,6 +10592,50 @@ async function showReportDetailModal(reportId) {
       <p class="detail-export-hint">${t('photoRejectedOwnerNote')}</p>
     </div>`;
   }
+  if (photoSectionHtml) {
+    photoSectionHtml = photoSectionHtml.replace(
+      `>${t('detailPhotoTitle')}<`,
+      `>${t('detailBeforePhotoTitle')}<`
+    );
+  }
+
+  let afterPhotoSectionHtml = '';
+  const showAfterPhotoImage = !!report.after_photo_path && !!currentSession && (
+    report.after_photo_status === 'approved' ||
+    (report.after_photo_status === 'pending' && (isOwner || isAdmin)) ||
+    (report.after_photo_status === 'rejected' && isAdmin)
+  );
+  const showAfterPhotoLoginPrompt = !!report.after_photo_path && !currentSession && report.after_photo_status === 'approved';
+  if (showAfterPhotoImage) {
+    const badge = report.after_photo_status === 'pending'
+      ? `<span class="photo-status-badge pending">${t('photoPendingBadge')}</span>`
+      : report.after_photo_status === 'rejected'
+        ? `<span class="photo-status-badge rejected">${t('photoRejectedBadge')}</span>`
+        : '';
+    afterPhotoSectionHtml = `
+    <div class="detail-section">
+      <div class="detail-section-title">${t('detailAfterPhotoTitle')}${badge}</div>
+      <div class="detail-photo-wrap" id="detailAfterPhotoWrap"><div class="detail-loading">${t('detailLoading')}</div></div>
+    </div>`;
+  } else if (showAfterPhotoLoginPrompt) {
+    afterPhotoSectionHtml = `
+    <div class="detail-section">
+      <div class="detail-section-title">${t('detailAfterPhotoTitle')}</div>
+      <div class="detail-photo-wrap"><div class="detail-empty">${t('afterPhotoLoginPrompt')}</div></div>
+    </div>`;
+  } else if (report.after_photo_path && isOwner && report.after_photo_status === 'rejected') {
+    afterPhotoSectionHtml = `
+    <div class="detail-section">
+      <div class="detail-section-title">${t('detailAfterPhotoTitle')}</div>
+      <p class="detail-export-hint">${t('afterPhotoRejectedOwnerNote')}</p>
+    </div>`;
+  } else if (!report.after_photo_path && report.status === 'fixed' && (isOwner || isAdmin)) {
+    afterPhotoSectionHtml = `
+    <div class="detail-section">
+      <div class="detail-section-title">${t('detailAfterPhotoTitle')}</div>
+      <button type="button" class="settings-btn" onclick="addAfterPhotoToReport('${report.id}')"><img class="icon-img icon-img-inline" src="icons/camera.png" alt=""> ${t('addAfterPhotoBtn')}</button>
+    </div>`;
+  }
 
   const canFlagReport = !!(currentSession && !isOwner);
   const flagSectionHtml = canFlagReport ? `
@@ -10333,6 +10656,7 @@ async function showReportDetailModal(reportId) {
       ${buildDetailStatusReadonlyHtml(report, reporterName)}
     </div>
     ${photoSectionHtml}
+    ${afterPhotoSectionHtml}
     <div class="detail-section">
       <div class="detail-section-title">${t('detailContactsTitle')}</div>
       <div id="detailContactNudge"></div>
@@ -10348,6 +10672,7 @@ async function showReportDetailModal(reportId) {
       <p class="detail-export-hint">${t('detailExportHint')}</p>
       <div style="display:flex;gap:var(--space-8);">
         <button type="button" class="settings-btn" style="flex:1;" onclick="emailReport('${report.id}')" id="reportDetailExportBtn"><img class="icon-img icon-img-inline" src="icons/email.png" alt="email"> ${t('detailExportBtn')}</button>
+        <button type="button" class="fullscreen-modal-share" onclick="shareReportImage('${report.id}')" id="reportDetailShareImageBtn" aria-label="${t('shareImageBtn')}" title="${t('shareImageBtn')}"><img class="icon-img" src="icons/gallery.png" alt="share image"></button>
         <button type="button" class="fullscreen-modal-share" onclick="shareReport('${report.id}')" id="reportDetailShareBtn" aria-label="Share"><img class="icon-img" src="icons/link.png" alt="share"></button>
       </div>
     </div>
@@ -10363,6 +10688,16 @@ async function showReportDetailModal(reportId) {
   if (showPhotoImage) {
     getReportPhotoSignedUrl(report.photo_path).then(url => {
       const wrap = document.getElementById('detailPhotoWrap');
+      if (!wrap) return;
+      wrap.innerHTML = url
+        ? `<img src="${url}" alt="" class="detail-photo-img" onclick="window.open('${url}','_blank')">`
+        : `<div class="detail-empty">${t('photoLoadFailed')}</div>`;
+    });
+  }
+
+  if (showAfterPhotoImage) {
+    getReportPhotoSignedUrl(report.after_photo_path).then(url => {
+      const wrap = document.getElementById('detailAfterPhotoWrap');
       if (!wrap) return;
       wrap.innerHTML = url
         ? `<img src="${url}" alt="" class="detail-photo-img" onclick="window.open('${url}','_blank')">`
@@ -10525,9 +10860,13 @@ function renderContactRows(c, reportId) {
   const companyIdAttr = c.id != null ? escapeHtml(String(c.id)) : '';
   const phoneClickAttr = reportId ? ` onclick="recordContactAttempt('${escapeHtml(reportId)}','phone','${companyIdAttr}')"` : '';
   const emailClickAttr = reportId ? ` onclick="recordContactAttempt('${escapeHtml(reportId)}','email','${companyIdAttr}')"` : '';
+  const phoneFlagBtn = (c.phone && c.id != null)
+    ? `<button type="button" class="contact-flag-btn" id="contact-flag-${companyIdAttr}-phone" onclick="flagUtilityContact('${companyIdAttr}','phone')">${t('contactFlagBtn')}</button>` : '';
+  const emailFlagBtn = (c.email && c.id != null)
+    ? `<button type="button" class="contact-flag-btn" id="contact-flag-${companyIdAttr}-email" onclick="flagUtilityContact('${companyIdAttr}','email')">${t('contactFlagBtn')}</button>` : '';
   return `
-      ${c.phone ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/phone.png" alt="phone"><a href="tel:${escapeHtml(c.phone)}"${phoneClickAttr}>${escapeHtml(c.phone)}</a></div>` : ''}
-      ${c.email ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/email.png" alt="email"><a href="mailto:${escapeHtml(c.email)}"${emailClickAttr}>${escapeHtml(c.email)}</a></div>` : ''}
+      ${c.phone ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/phone.png" alt="phone"><a href="tel:${escapeHtml(c.phone)}"${phoneClickAttr}>${escapeHtml(c.phone)}</a>${phoneFlagBtn}</div>` : ''}
+      ${c.email ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/email.png" alt="email"><a href="mailto:${escapeHtml(c.email)}"${emailClickAttr}>${escapeHtml(c.email)}</a>${emailFlagBtn}</div>` : ''}
       ${c.website ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/link.png" alt="link"><a href="${escapeHtml(c.website)}" target="_blank" rel="noopener">${escapeHtml(c.website)}</a></div>` : ''}
       ${c.address && c.id != null ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/pin.png" alt="pin"><a href="javascript:void(0)" onclick="focusUtilityCompanyAddress('${escapeHtml(String(c.id))}')">${escapeHtml(c.address)}</a></div>` : c.address ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/pin.png" alt="pin"><span>${escapeHtml(c.address)}</span></div>` : ''}
       ${c.notes ? `<div class="contact-card-row contact-card-notes"><span>${escapeHtml(c.notes)}</span></div>` : ''}
@@ -10558,6 +10897,27 @@ function recordContactAttempt(reportId, type, companyId) {
     console.error('Failed to stage contact attempt:', err.message);
   }
   scheduleFallbackContactCheck();
+}
+
+async function flagUtilityContact(companyId, contactType) {
+  if (!currentSession) { toast(t('contactFlagLoginRequired'), 'error'); return; }
+  const btn = document.getElementById(`contact-flag-${companyId}-${contactType}`);
+  if (btn) btn.disabled = true;
+  try {
+    const { error } = await sb.from('utility_contact_flags').upsert({
+      company_id: companyId,
+      contact_type: contactType,
+      flagged_by: currentSession.user.id,
+      created_at: new Date().toISOString()
+    }, { onConflict: 'company_id,contact_type,flagged_by' });
+    if (error) throw error;
+    toast(t('contactFlagSubmitted'), 'success');
+    if (btn) btn.textContent = t('contactFlagAlready');
+  } catch (err) {
+    console.error('Failed to flag utility contact:', err.message);
+    toast(t('contactFlagError'), 'error');
+    if (btn) btn.disabled = false;
+  }
 }
 
 const CONTACT_FALLBACK_DELAYS_MS = [1200, 3000, 6000];
@@ -10879,6 +11239,210 @@ async function shareReport(reportId) {
   }
 }
 
+function lonLatToTile(lat, lon, zoom) {
+  const latRad = (lat * Math.PI) / 180;
+  const n = Math.pow(2, zoom);
+  const x = (lon + 180) / 360 * n;
+  const y = (1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n;
+  return { x, y, z: zoom };
+}
+
+function loadImageSafe(src, crossOrigin) {
+  return new Promise(resolve => {
+    const img = new Image();
+    if (crossOrigin) img.crossOrigin = crossOrigin;
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+
+async function drawReportCardMapThumb(ctx, x, y, w, h, lat, lon) {
+  const zoom = 15;
+  const tile = lonLatToTile(lat, lon, zoom);
+  const tx = Math.floor(tile.x);
+  const ty = Math.floor(tile.y);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  ctx.clip();
+  try {
+    const img = await loadImageSafe(`https://tile.openstreetmap.org/${zoom}/${tx}/${ty}.png`, 'anonymous');
+    if (img) {
+      const fracX = tile.x - tx;
+      const fracY = tile.y - ty;
+      const drawSize = Math.max(w, h) * 1.4;
+      ctx.drawImage(img, x + w / 2 - fracX * drawSize, y + h / 2 - fracY * drawSize, drawSize, drawSize);
+    } else {
+      throw new Error('tile-load-failed');
+    }
+  } catch (err) {
+    ctx.fillStyle = '#dde3e8';
+    ctx.fillRect(x, y, w, h);
+  }
+  ctx.restore();
+  // pin marker in the center
+  const cx = x + w / 2, cy = y + h / 2;
+  ctx.fillStyle = '#ff4b4b';
+  ctx.beginPath();
+  ctx.arc(cx, cy - 6, 9, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(cx - 7, cy - 1);
+  ctx.lineTo(cx + 7, cy - 1);
+  ctx.lineTo(cx, cy + 12);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,.35)';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x, y, w, h);
+}
+
+function wrapCanvasText(ctx, text, x, y, maxWidth, lineHeight) {
+  const words = String(text).split(' ');
+  let line = '';
+  let curY = y;
+  words.forEach(word => {
+    const test = line ? line + ' ' + word : word;
+    if (ctx.measureText(test).width > maxWidth && line) {
+      ctx.fillText(line, x, curY);
+      line = word;
+      curY += lineHeight;
+    } else {
+      line = test;
+    }
+  });
+  if (line) ctx.fillText(line, x, curY);
+  return curY;
+}
+
+async function buildReportCardCanvas(reportId) {
+  const report = globalActiveData.find(r => r.id === reportId);
+  if (!report) return null;
+
+  const W = 900, PAD = 36;
+  const headerTitle = report.subcategory
+    ? `${translateCategory(report.category)} / ${subcategoryLabel(report.category, report.subcategory)}`
+    : translateCategory(report.category);
+  const catCol = categoryColor(report.category);
+  const sCol = statusColor(report.status);
+
+  const hasApprovedPhoto = !!report.photo_path && report.photo_status === 'approved';
+  let photoImg = null;
+  if (hasApprovedPhoto) {
+    const url = await getReportPhotoSignedUrl(report.photo_path);
+    if (url) photoImg = await loadImageSafe(url, 'anonymous');
+  }
+
+  const photoH = photoImg ? Math.round(W * 0.55) : 0;
+  const mapH = 220;
+  const H = 210 + photoH + mapH + 170;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#111417';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.fillStyle = catCol;
+  ctx.fillRect(0, 0, W, 120);
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 34px sans-serif';
+  ctx.textBaseline = 'alphabetic';
+  wrapCanvasText(ctx, headerTitle, PAD, 60, W - PAD * 2, 40);
+  ctx.font = '18px sans-serif';
+  ctx.globalAlpha = 0.9;
+  ctx.fillText(formatDate(report.created_at), PAD, 100);
+  ctx.globalAlpha = 1;
+
+  let cursorY = 120;
+  if (photoImg) {
+    const scale = Math.max(W / photoImg.width, photoH / photoImg.height);
+    const dw = photoImg.width * scale, dh = photoImg.height * scale;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, cursorY, W, photoH);
+    ctx.clip();
+    ctx.drawImage(photoImg, W / 2 - dw / 2, cursorY + photoH / 2 - dh / 2, dw, dh);
+    ctx.restore();
+    cursorY += photoH;
+  }
+
+  if (isValidLatLng(report.latitude, report.longitude)) {
+    await drawReportCardMapThumb(ctx, PAD, cursorY + 24, W - PAD * 2, mapH, report.latitude, report.longitude);
+    cursorY += mapH + 24;
+  }
+
+  cursorY += 40;
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 22px sans-serif';
+  ctx.fillText(t('popupStatus') + ':', PAD, cursorY);
+  const statusText = statusLabel(report.status);
+  const statusTextW = ctx.measureText(' ' + statusText).width;
+  ctx.fillStyle = sCol;
+  roundRectPath(ctx, PAD + ctx.measureText(t('popupStatus') + ': ').width, cursorY - 26, statusTextW + 16, 34, 8);
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.fillText(statusText, PAD + ctx.measureText(t('popupStatus') + ': ').width + 8, cursorY);
+
+  cursorY += 46;
+  ctx.font = '18px sans-serif';
+  ctx.globalAlpha = 0.85;
+  ctx.fillText('TraceTheBreak · ' + t('detailCoordsLabel') + ': ' + report.latitude.toFixed(5) + ', ' + report.longitude.toFixed(5), PAD, cursorY);
+  ctx.globalAlpha = 1;
+
+  return canvas;
+}
+
+function roundRectPath(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+async function shareReportImage(reportId) {
+  const btn = document.getElementById('reportDetailShareImageBtn');
+  if (btn) btn.disabled = true;
+  toast(t('shareImageGenerating'), 'success');
+  try {
+    const canvas = await buildReportCardCanvas(reportId);
+    if (!canvas) throw new Error('no-canvas');
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    if (!blob) throw new Error('toBlob-failed');
+
+    const file = new File([blob], `tracethebreak-${reportId}.png`, { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: 'TraceTheBreak' });
+        return;
+      } catch (err) {
+        if (err && err.name === 'AbortError') return;
+        console.warn('navigator.share (image) failed, falling back to download:', err.message);
+      }
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `tracethebreak-${reportId}.png`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    toast(t('shareImageSaved'), 'success');
+  } catch (err) {
+    console.error('Failed to build/share report card image:', err.message || err);
+    toast(t('shareImageFailed'), 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 async function openSharedReportFromUrl() {
   const params = new URLSearchParams(window.location.search);
   const reportId = params.get('report');
@@ -11163,6 +11727,7 @@ async function updateReportStatus(reportId, newStatus) {
       .eq('id', reportId);
     if (error) throw error;
     await loadPinsByWindow();
+    if (newStatus === 'fixed') maybeOfferAfterPhoto(reportId);
   } catch (err) {
     console.error('Status update error (full):', err);
     toast(t('updateFail'), 'error');
@@ -11195,6 +11760,7 @@ async function castStatusVote(reportId, suggestedStatus) {
     }
     if (data && data.resolved) {
       toast('✓ ' + t('voteResolved'), 'success');
+      if (suggestedStatus === 'fixed') maybeOfferAfterPhoto(reportId);
     } else {
       toast(t('voteRecorded'), 'success');
     }
