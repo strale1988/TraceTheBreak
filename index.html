@@ -1400,13 +1400,8 @@ body.driving-active #appPanel{
   background:var(--bg-surface-alt); border-radius:var(--radius-md); padding:8px 10px;
   display:flex; align-items:center; gap:8px;
 }
-.dashboard-stat-icon{
-  width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center;
-  flex-shrink:0; box-shadow:0 1px 4px rgba(0,0,0,.25);
-}
-.dashboard-stat-box-sm .dashboard-stat-icon{ width:24px; height:24px; }
-.dashboard-stat-icon-glyph{ width:15px; height:15px; display:inline-block; }
-.dashboard-stat-box-sm .dashboard-stat-icon-glyph{ width:13px; height:13px; }
+.dashboard-stat-icon-glyph{ width:22px; height:22px; display:inline-block; flex-shrink:0; }
+.dashboard-stat-box-sm .dashboard-stat-icon-glyph{ width:19px; height:19px; }
 .dashboard-stat-body{ min-width:0; }
 .dashboard-stat-value{ font-size:var(--fs-17); font-weight:var(--fw-heavy); color:var(--text-primary); }
 .dashboard-stat-label{ font-size:var(--fs-10); color:var(--text-muted); text-transform:uppercase; letter-spacing:.3px; margin-top:2px; }
@@ -2865,21 +2860,21 @@ span.flatpickr-weekday {
         <div class="dashboard-progress-text" id="dashboardProgressText"></div>
         <div class="dashboard-stats-grid">
           <div class="dashboard-stat-box">
-            <div class="dashboard-stat-icon" style="background:#f0b429"><span class="dashboard-stat-icon-glyph" style="background-color:#3a2a0f;-webkit-mask:url('icons/trophy.png') center/contain no-repeat;mask:url('icons/trophy.png') center/contain no-repeat;"></span></div>
+            <span class="dashboard-stat-icon-glyph" style="background-color:#f0b429;-webkit-mask:url('icons/badges/badge-civic-voice.png') center/contain no-repeat;mask:url('icons/badges/badge-civic-voice.png') center/contain no-repeat;"></span>
             <div class="dashboard-stat-body">
               <div class="dashboard-stat-value" id="dashboardStatPoints">0</div>
               <div class="dashboard-stat-label" id="dashboardStatPointsLabel">Civic points</div>
             </div>
           </div>
           <div class="dashboard-stat-box">
-            <div class="dashboard-stat-icon" style="background:#5ec98a"><span class="dashboard-stat-icon-glyph" style="background-color:#123a26;-webkit-mask:url('icons/target.png') center/contain no-repeat;mask:url('icons/target.png') center/contain no-repeat;"></span></div>
+            <span class="dashboard-stat-icon-glyph" style="background-color:#5ec98a;-webkit-mask:url('icons/badges/badge-problem-solver.png') center/contain no-repeat;mask:url('icons/badges/badge-problem-solver.png') center/contain no-repeat;"></span>
             <div class="dashboard-stat-body">
               <div class="dashboard-stat-value" id="dashboardStatSuccessful">0</div>
               <div class="dashboard-stat-label" id="dashboardStatSuccessfulLabel">Successful votes</div>
             </div>
           </div>
           <div class="dashboard-stat-box">
-            <div class="dashboard-stat-icon" style="background:#c084fc"><span class="dashboard-stat-icon-glyph" style="background-color:#2a1245;-webkit-mask:url('icons/heatmap.png') center/contain no-repeat;mask:url('icons/heatmap.png') center/contain no-repeat;"></span></div>
+            <span class="dashboard-stat-icon-glyph" style="background-color:#c084fc;-webkit-mask:url('icons/badges/badge-local-legend.png') center/contain no-repeat;mask:url('icons/badges/badge-local-legend.png') center/contain no-repeat;"></span>
             <div class="dashboard-stat-body">
               <div class="dashboard-stat-value" id="dashboardStatWeight">x1</div>
               <div class="dashboard-stat-label" id="dashboardStatWeightLabel">Your vote weight</div>
@@ -2889,35 +2884,35 @@ span.flatpickr-weekday {
         <div class="dashboard-badges-title" id="dashboardActivityTitle">Activity</div>
         <div class="dashboard-stats-grid-3">
           <div class="dashboard-stat-box dashboard-stat-box-sm">
-            <div class="dashboard-stat-icon" style="background:#f87171"><span class="dashboard-stat-icon-glyph" style="background-color:#3a1414;-webkit-mask:url('icons/pothole.png') center/contain no-repeat;mask:url('icons/pothole.png') center/contain no-repeat;"></span></div>
+            <span class="dashboard-stat-icon-glyph" style="background-color:#f87171;-webkit-mask:url('icons/badges/badge-street-scout.png') center/contain no-repeat;mask:url('icons/badges/badge-street-scout.png') center/contain no-repeat;"></span>
             <div class="dashboard-stat-body">
               <div class="dashboard-stat-value" id="dashboardStatReports">0</div>
               <div class="dashboard-stat-label" id="dashboardStatReportsLabel">Reports filed</div>
             </div>
           </div>
           <div class="dashboard-stat-box dashboard-stat-box-sm">
-            <div class="dashboard-stat-icon" style="background:#93c5fd"><span class="dashboard-stat-icon-glyph" style="background-color:#1f2937;-webkit-mask:url('icons/camera.png') center/contain no-repeat;mask:url('icons/camera.png') center/contain no-repeat;"></span></div>
+            <span class="dashboard-stat-icon-glyph" style="background-color:#93c5fd;-webkit-mask:url('icons/badges/badge-photo-expert.png') center/contain no-repeat;mask:url('icons/badges/badge-photo-expert.png') center/contain no-repeat;"></span>
             <div class="dashboard-stat-body">
               <div class="dashboard-stat-value" id="dashboardStatPhotos">0</div>
               <div class="dashboard-stat-label" id="dashboardStatPhotosLabel">Photos added</div>
             </div>
           </div>
           <div class="dashboard-stat-box dashboard-stat-box-sm">
-            <div class="dashboard-stat-icon" style="background:#5eead4"><span class="dashboard-stat-icon-glyph" style="background-color:#0f3b36;-webkit-mask:url('icons/help.png') center/contain no-repeat;mask:url('icons/help.png') center/contain no-repeat;"></span></div>
+            <span class="dashboard-stat-icon-glyph" style="background-color:#5eead4;-webkit-mask:url('icons/badges/badge-conversation-starter.png') center/contain no-repeat;mask:url('icons/badges/badge-conversation-starter.png') center/contain no-repeat;"></span>
             <div class="dashboard-stat-body">
               <div class="dashboard-stat-value" id="dashboardStatComments">0</div>
               <div class="dashboard-stat-label" id="dashboardStatCommentsLabel">Comments left</div>
             </div>
           </div>
           <div class="dashboard-stat-box dashboard-stat-box-sm">
-            <div class="dashboard-stat-icon" style="background:#f472b6"><span class="dashboard-stat-icon-glyph" style="background-color:#3a1530;-webkit-mask:url('icons/pin.png') center/contain no-repeat;mask:url('icons/pin.png') center/contain no-repeat;"></span></div>
+            <span class="dashboard-stat-icon-glyph" style="background-color:#f472b6;-webkit-mask:url('icons/badges/badge-world-traveler.png') center/contain no-repeat;mask:url('icons/badges/badge-world-traveler.png') center/contain no-repeat;"></span>
             <div class="dashboard-stat-body">
               <div class="dashboard-stat-value" id="dashboardStatCities">0</div>
               <div class="dashboard-stat-label" id="dashboardStatCitiesLabel">Cities covered</div>
             </div>
           </div>
           <div class="dashboard-stat-box dashboard-stat-box-sm">
-            <div class="dashboard-stat-icon" style="background:#fb923c"><span class="dashboard-stat-icon-glyph" style="background-color:#3a2210;-webkit-mask:url('icons/public.png') center/contain no-repeat;mask:url('icons/public.png') center/contain no-repeat;"></span></div>
+            <span class="dashboard-stat-icon-glyph" style="background-color:#fb923c;-webkit-mask:url('icons/badges/badge-the-upvoter.png') center/contain no-repeat;mask:url('icons/badges/badge-the-upvoter.png') center/contain no-repeat;"></span>
             <div class="dashboard-stat-body">
               <div class="dashboard-stat-value" id="dashboardStatVotes">0</div>
               <div class="dashboard-stat-label" id="dashboardStatVotesLabel">Votes cast</div>
@@ -2968,14 +2963,14 @@ span.flatpickr-weekday {
         <div class="detail-section-title" id="adminDashboardSectionTitle">My Admin Role</div>
         <div class="dashboard-stats-grid">
           <div class="dashboard-stat-box">
-            <div class="dashboard-stat-icon" style="background:#f472b6"><span class="dashboard-stat-icon-glyph" style="background-color:#3a1530;-webkit-mask:url('icons/pin.png') center/contain no-repeat;mask:url('icons/pin.png') center/contain no-repeat;"></span></div>
+            <span class="dashboard-stat-icon-glyph" style="background-color:#f472b6;-webkit-mask:url('icons/badges/badge-admin-district-keeper.png') center/contain no-repeat;mask:url('icons/badges/badge-admin-district-keeper.png') center/contain no-repeat;"></span>
             <div class="dashboard-stat-body">
               <div class="dashboard-stat-value" id="adminDashboardTagValue" style="font-size:var(--fs-14);">—</div>
               <div class="dashboard-stat-label" id="adminDashboardTagLabel">Responsible for</div>
             </div>
           </div>
           <div class="dashboard-stat-box">
-            <div class="dashboard-stat-icon" style="background:#f87171"><span class="dashboard-stat-icon-glyph" style="background-color:#3a1414;-webkit-mask:url('icons/warning-symbol.png') center/contain no-repeat;mask:url('icons/warning-symbol.png') center/contain no-repeat;"></span></div>
+            <span class="dashboard-stat-icon-glyph" style="background-color:#f87171;-webkit-mask:url('icons/badges/badge-veteran-moderator.png') center/contain no-repeat;mask:url('icons/badges/badge-veteran-moderator.png') center/contain no-repeat;"></span>
             <div class="dashboard-stat-body">
               <div class="dashboard-stat-value" id="adminDashboardResolvedValue">0</div>
               <div class="dashboard-stat-label" id="adminDashboardResolvedLabel">Flags resolved</div>
@@ -2985,35 +2980,35 @@ span.flatpickr-weekday {
         <div class="dashboard-badges-title" id="adminDashboardActivityTitle">Moderation Stats</div>
         <div class="dashboard-stats-grid-3">
           <div class="dashboard-stat-box dashboard-stat-box-sm">
-            <div class="dashboard-stat-icon" style="background:#93c5fd"><span class="dashboard-stat-icon-glyph" style="background-color:#1f2937;-webkit-mask:url('icons/road-damaged.png') center/contain no-repeat;mask:url('icons/road-damaged.png') center/contain no-repeat;"></span></div>
+            <span class="dashboard-stat-icon-glyph" style="background-color:#93c5fd;-webkit-mask:url('icons/badges/badge-admin-cleanup-crew.png') center/contain no-repeat;mask:url('icons/badges/badge-admin-cleanup-crew.png') center/contain no-repeat;"></span>
             <div class="dashboard-stat-body">
               <div class="dashboard-stat-value" id="adminDashboardStatReviewed">0</div>
               <div class="dashboard-stat-label" id="adminDashboardStatReviewedLabel">Reports reviewed</div>
             </div>
           </div>
           <div class="dashboard-stat-box dashboard-stat-box-sm">
-            <div class="dashboard-stat-icon" style="background:#f0b429"><span class="dashboard-stat-icon-glyph" style="background-color:#3a2a0f;-webkit-mask:url('icons/arrow.png') center/contain no-repeat;mask:url('icons/arrow.png') center/contain no-repeat;"></span></div>
+            <span class="dashboard-stat-icon-glyph" style="background-color:#f0b429;-webkit-mask:url('icons/badges/badge-admin-fast-responder.png') center/contain no-repeat;mask:url('icons/badges/badge-admin-fast-responder.png') center/contain no-repeat;"></span>
             <div class="dashboard-stat-body">
               <div class="dashboard-stat-value" id="adminDashboardStatFast">0</div>
               <div class="dashboard-stat-label" id="adminDashboardStatFastLabel">Fast resolves (&lt;1h)</div>
             </div>
           </div>
           <div class="dashboard-stat-box dashboard-stat-box-sm">
-            <div class="dashboard-stat-icon" style="background:#c084fc"><span class="dashboard-stat-icon-glyph" style="background-color:#2a1245;-webkit-mask:url('icons/heatmap.png') center/contain no-repeat;mask:url('icons/heatmap.png') center/contain no-repeat;"></span></div>
+            <span class="dashboard-stat-icon-glyph" style="background-color:#c084fc;-webkit-mask:url('icons/badges/badge-admin-on-duty.png') center/contain no-repeat;mask:url('icons/badges/badge-admin-on-duty.png') center/contain no-repeat;"></span>
             <div class="dashboard-stat-body">
               <div class="dashboard-stat-value" id="adminDashboardStatStreak">0</div>
               <div class="dashboard-stat-label" id="adminDashboardStatStreakLabel">Longest streak (days)</div>
             </div>
           </div>
           <div class="dashboard-stat-box dashboard-stat-box-sm">
-            <div class="dashboard-stat-icon" style="background:#5eead4"><span class="dashboard-stat-icon-glyph" style="background-color:#0f3b36;-webkit-mask:url('icons/category-filter.png') center/contain no-repeat;mask:url('icons/category-filter.png') center/contain no-repeat;"></span></div>
+            <span class="dashboard-stat-icon-glyph" style="background-color:#5eead4;-webkit-mask:url('icons/badges/badge-admin-lightning-review.png') center/contain no-repeat;mask:url('icons/badges/badge-admin-lightning-review.png') center/contain no-repeat;"></span>
             <div class="dashboard-stat-body">
               <div class="dashboard-stat-value" id="adminDashboardStatBusiest">0</div>
               <div class="dashboard-stat-label" id="adminDashboardStatBusiestLabel">Busiest day</div>
             </div>
           </div>
           <div class="dashboard-stat-box dashboard-stat-box-sm">
-            <div class="dashboard-stat-icon" style="background:#fb923c"><span class="dashboard-stat-icon-glyph" style="background-color:#3a2210;-webkit-mask:url('icons/target.png') center/contain no-repeat;mask:url('icons/target.png') center/contain no-repeat;"></span></div>
+            <span class="dashboard-stat-icon-glyph" style="background-color:#fb923c;-webkit-mask:url('icons/badges/badge-admin-night-shift.png') center/contain no-repeat;mask:url('icons/badges/badge-admin-night-shift.png') center/contain no-repeat;"></span>
             <div class="dashboard-stat-body">
               <div class="dashboard-stat-value" id="adminDashboardStatNight">0</div>
               <div class="dashboard-stat-label" id="adminDashboardStatNightLabel">Night shift resolves</div>
