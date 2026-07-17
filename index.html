@@ -1491,11 +1491,17 @@ body.driving-active #appPanel{
 .dashboard-identity-row{
   display:flex; align-items:center; gap:var(--space-8); min-width:0; flex:1;
 }
-.dashboard-identity-badge{
+.leaderboard-rank.dashboard-identity-badge,
+.leaderboard-admin-badge.dashboard-identity-badge{
   /* Same 36px/2px sizing as .leaderboard-rank and .leaderboard-admin-badge
      everywhere else — this one just sits in a tighter header row, so it's
      given its own class to size independently of either if that ever needs
-     to change, without disturbing the list-row badges. */
+     to change, without disturbing the list-row badges.
+     Compound selector (two classes) so this reliably overrides the base
+     36px .leaderboard-rank / .leaderboard-admin-badge rules regardless of
+     their order in the stylesheet — otherwise the badge renders at 36px
+     while the ring wrapper below stays sized for 30px, throwing the ring
+     off-center around the badge. */
   width:30px; height:30px; border-width:2px; flex-shrink:0;
 }
 .dashboard-identity-badge img{ padding:5px; }
@@ -3660,28 +3666,28 @@ function currentAdminLevel() {
 const ADMIN_BADGES = [
   { id:'first_review',   icon:'badge-first-review.png',    nameEn:'First Review',      nameSr:'Prva provera',
     descEn:'Resolve your first flagged report.',                  descSr:'Rešite svoju prvu prijavljenu prijavu.',
-    check: s => s.resolvedFlagCount >= 1 },
+    check: (p, s) => s.resolvedFlagCount >= 1 },
   { id:'trusted_reviewer', icon:'badge-trusted-reviewer.png', nameEn:'Trusted Reviewer', nameSr:'Pouzdani proveravač',
     descEn:'Resolve 10 flagged reports.',                          descSr:'Rešite 10 prijavljenih prijava.',
-    check: s => s.resolvedFlagCount >= 10 },
+    check: (p, s) => s.resolvedFlagCount >= 10 },
   { id:'veteran_moderator', icon:'badge-veteran-moderator.png', nameEn:'Veteran Moderator', nameSr:'Iskusni moderator',
     descEn:'Resolve 50 flagged reports.',                          descSr:'Rešite 50 prijavljenih prijava.',
-    check: s => s.resolvedFlagCount >= 50 },
+    check: (p, s) => s.resolvedFlagCount >= 50 },
 ];
 
 const ADMIN_BADGES_EXTRA = [
   { id:'a_first_approval', icon:'badge-admin-first-approval.png', nameEn:'First Approval', nameSr:'Prvo odobrenje',
     descEn:'Approve your first report.', descSr:'Odobrite svoju prvu prijavu.',
-    category:'Moderation', check: s => s.resolvedReportCount >= 1 },
+    category:'Moderation', check: (p, s) => s.resolvedReportCount >= 1 },
   { id:'a_cleanup_crew', icon:'badge-admin-cleanup-crew.png', nameEn:'Cleanup Crew', nameSr:'Ekipa za čišćenje',
     descEn:'Resolve 100 reports.', descSr:'Rešite 100 prijava.',
-    category:'Moderation', check: s => s.resolvedReportCount >= 100 },
+    category:'Moderation', check: (p, s) => s.resolvedReportCount >= 100 },
   { id:'a_fair_judge', icon:'badge-admin-fair-judge.png', nameEn:'Fair Judge', nameSr:'Pravedan sudija',
     descEn:'Make 100 decisions with under 5% reversed.', descSr:'Donesite 100 odluka sa manje od 5% poništenih.',
     category:'Moderation', comingSoon:true, check: () => false },
   { id:'a_fast_responder', icon:'badge-admin-fast-responder.png', nameEn:'Fast Responder', nameSr:'Brz odgovor',
     descEn:'Resolve 25 reports within 1 hour.', descSr:'Rešite 25 prijava u roku od 1 sata.',
-    category:'Moderation', check: s => s.fastResolves >= 25 },
+    category:'Moderation', check: (p, s) => s.fastResolves >= 25 },
   { id:'a_precision_moderator', icon:'badge-admin-precision-moderator.png', nameEn:'Precision Moderator', nameSr:'Precizan moderator',
     descEn:'Make 500 decisions with 98% accuracy.', descSr:'Donesite 500 odluka sa 98% tačnosti.',
     category:'Moderation', comingSoon:true, check: () => false },
@@ -3690,10 +3696,10 @@ const ADMIN_BADGES_EXTRA = [
     category:'Moderation', comingSoon:true, check: () => false },
   { id:'a_guardian', icon:'badge-admin-guardian.png', nameEn:'Guardian', nameSr:'Čuvar',
     descEn:'Moderate 1000 reports.', descSr:'Modirajte 1000 prijava.',
-    category:'Moderation', check: s => s.moderationCount >= 1000 },
+    category:'Moderation', check: (p, s) => s.moderationCount >= 1000 },
   { id:'a_chief_moderator', icon:'badge-admin-chief-moderator.png', nameEn:'Chief Moderator', nameSr:'Šef moderator',
     descEn:'Moderate 10000 reports.', descSr:'Modirajte 10000 prijava.',
-    category:'Moderation', check: s => s.moderationCount >= 10000 },
+    category:'Moderation', check: (p, s) => s.moderationCount >= 10000 },
   { id:'a_detective', icon:'badge-admin-detective.png', nameEn:'Detective', nameSr:'Detektiv',
     descEn:'Identify 25 fake reports.', descSr:'Prepoznajte 25 lažnih prijava.',
     category:'Anti-Spam', comingSoon:true, check: () => false },
@@ -3726,16 +3732,16 @@ const ADMIN_BADGES_EXTRA = [
     category:'Local', comingSoon:true, check: () => false },
   { id:'a_on_duty', icon:'badge-admin-on-duty.png', nameEn:'On Duty', nameSr:'Na dužnosti',
     descEn:'Keep a 14-day moderation streak.', descSr:'Održite niz moderisanja od 14 dana.',
-    category:'Performance', check: s => s.streakDays >= 14 },
+    category:'Performance', check: (p, s) => s.streakDays >= 14 },
   { id:'a_dedicated', icon:'badge-admin-dedicated.png', nameEn:'Dedicated', nameSr:'Posvećen',
     descEn:'Moderate weekly for 3 months.', descSr:'Modirajte nedeljno 3 meseca.',
-    category:'Performance', check: s => s.streakWeeks >= 13 },
+    category:'Performance', check: (p, s) => s.streakWeeks >= 13 },
   { id:'a_lightning_review', icon:'badge-admin-lightning-review.png', nameEn:'Lightning Review', nameSr:'Munjevita provera',
     descEn:'Resolve 100 reports in one day.', descSr:'Rešite 100 prijava u jednom danu.',
-    category:'Performance', check: s => s.maxDayCount >= 100 },
+    category:'Performance', check: (p, s) => s.maxDayCount >= 100 },
   { id:'a_marathon_moderator', icon:'badge-admin-marathon-moderator.png', nameEn:'Marathon Moderator', nameSr:'Maratonski moderator',
     descEn:'Resolve 5000 reports.', descSr:'Rešite 5000 prijava.',
-    category:'Performance', check: s => s.moderationCount >= 5000 },
+    category:'Performance', check: (p, s) => s.moderationCount >= 5000 },
   { id:'a_builder', icon:'badge-admin-builder.png', nameEn:'Builder', nameSr:'Graditelj',
     descEn:'Create your first category.', descSr:'Napravite prvu kategoriju.',
     category:'Development', comingSoon:true, check: () => false },
@@ -3753,19 +3759,19 @@ const ADMIN_BADGES_EXTRA = [
     category:'Elite', comingSoon:true, check: () => false },
   { id:'a_diamond_admin', icon:'badge-admin-diamond-admin.png', nameEn:'Diamond Admin', nameSr:'Dijamantski administrator',
     descEn:'Reach level 100.', descSr:'Dostignite nivo 100.',
-    category:'Elite', check: s => s.adminXpLevelNum >= 8 },
+    category:'Elite', check: (p, s) => s.adminXpLevelNum >= 8 },
   { id:'a_hall_of_fame', icon:'badge-admin-hall-of-fame.png', nameEn:'Hall of Fame', nameSr:'Kuća slavnih',
     descEn:'Be top moderator for 12 months.', descSr:'Budite najbolji moderator 12 meseci.',
     category:'Elite', comingSoon:true, check: () => false },
   { id:'legend_admin', icon:'badge-admin-legend.png', nameEn:'Legend', nameSr:'Legenda',
     descEn:'Earn every admin badge.', descSr:'Osvojite svaku administratorsku značku.',
-    category:'Elite', check: s => s.allEarned },
+    category:'Elite', check: (p, s) => s.allEarned },
   { id:'a_super_admin', icon:'badge-admin-super-admin.png', nameEn:'Super Admin', nameSr:'Super administrator',
     descEn:'Resolve 100 reports in one day.', descSr:'Rešite 100 prijava u jednom danu.',
-    category:'Secret', check: s => s.maxDayCount >= 100 },
+    category:'Secret', check: (p, s) => s.maxDayCount >= 100 },
   { id:'a_night_shift', icon:'badge-admin-night-shift.png', nameEn:'Night Shift', nameSr:'Noćna smena',
     descEn:'Resolve 50 reports between midnight and 5 AM.', descSr:'Rešite 50 prijava između ponoći i 5 ujutru.',
-    category:'Secret', check: s => s.nightShiftCount >= 50 },
+    category:'Secret', check: (p, s) => s.nightShiftCount >= 50 },
   { id:'a_coffee_powered', icon:'badge-admin-coffee-powered.png', nameEn:'Coffee Powered', nameSr:'Na kafi',
     descEn:'Moderate for 4 continuous hours.', descSr:'Modirajte 4 sata neprekidno.',
     category:'Secret', comingSoon:true, check: () => false },
