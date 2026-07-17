@@ -1414,6 +1414,32 @@ body.driving-active #appPanel{
 .weekly-chart-bar{ width:60%; max-width:20px; border-radius:5px 5px 2px 2px; background:var(--success); min-height:4px; }
 .weekly-chart-day{ font-size:var(--fs-9-5); color:var(--text-muted); text-transform:uppercase; letter-spacing:.02em; margin-top:6px; }
 .dashboard-badges-title{ font-size:var(--fs-12); font-weight:var(--fw-bold); color:var(--text-secondary); text-transform:uppercase; letter-spacing:.03em; margin-top:16px; }
+.dashboard-badges-title-row{ display:flex; align-items:baseline; justify-content:space-between; margin-top:16px; }
+.dashboard-badges-title-row .dashboard-badges-title{ margin-top:0; }
+.dashboard-badges-count{ font-size:var(--fs-11); font-weight:var(--fw-semibold); color:var(--text-muted); }
+.dashboard-see-all-btn{ background:none; border:none; color:var(--accent); font-size:var(--fs-11); font-weight:var(--fw-semibold); cursor:pointer; padding:0; -webkit-tap-highlight-color:transparent; }
+.dashboard-next-badge{ display:flex; align-items:center; gap:var(--space-10); background:var(--bg-surface-alt); border-radius:var(--radius-lg); padding:10px 12px; margin-top:8px; }
+.dashboard-next-badge-icon{ width:44px; height:44px; border-radius:50%; background:var(--bg-surface); display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 2px 6px rgba(0,0,0,.3); }
+.dashboard-next-badge-icon img{ width:26px; height:26px; object-fit:contain; }
+.dashboard-next-badge-info{ flex:1; min-width:0; }
+.dashboard-next-badge-label{ font-size:var(--fs-9-5); font-weight:var(--fw-heavy); color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em; }
+.dashboard-next-badge-name{ font-size:var(--fs-13); font-weight:var(--fw-bold); color:var(--text-primary); margin:2px 0 5px; }
+.dashboard-next-badge-text{ font-size:var(--fs-11); color:var(--text-muted); margin-top:4px; }
+.dashboard-top-list{ display:flex; flex-direction:column; gap:6px; margin-top:8px; }
+.dashboard-top-row{ display:flex; align-items:center; gap:8px; background:var(--bg-surface-alt); border-radius:var(--radius-md); padding:6px 10px; }
+.dashboard-top-rank{ width:16px; text-align:center; font-size:var(--fs-11); font-weight:var(--fw-heavy); color:var(--text-muted); flex-shrink:0; }
+.dashboard-top-badge{ width:24px; height:24px; border-width:1.5px; flex-shrink:0; }
+.dashboard-top-name{ flex:1; min-width:0; font-size:var(--fs-12-5); font-weight:var(--fw-semibold); color:var(--text-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.dashboard-top-points{ font-size:var(--fs-12); font-weight:var(--fw-heavy); color:var(--accent); flex-shrink:0; }
+.dashboard-city-card{ display:flex; align-items:center; gap:14px; background:var(--bg-surface-alt); border-radius:var(--radius-lg); padding:12px; margin-top:8px; }
+.dashboard-city-ring-wrap{ position:relative; width:72px; height:72px; flex-shrink:0; }
+.dashboard-city-ring{ width:100%; height:100%; transform:rotate(-90deg); }
+.dashboard-city-ring-track{ fill:none; stroke:var(--border-color-strong); stroke-width:8; opacity:.5; }
+.dashboard-city-ring-fill{ fill:none; stroke:var(--accent); stroke-width:8; stroke-linecap:round; transition:stroke-dashoffset .5s ease; }
+.dashboard-city-ring-label{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:var(--fs-13); font-weight:var(--fw-heavy); color:var(--text-primary); }
+.dashboard-city-info{ flex:1; min-width:0; }
+.dashboard-city-name{ font-size:var(--fs-13); font-weight:var(--fw-bold); color:var(--text-primary); text-transform:uppercase; letter-spacing:.02em; }
+.dashboard-city-detail{ font-size:var(--fs-11-5); color:var(--text-muted); margin-top:4px; }
 .badge-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(106px,1fr)); gap:12px 6px; margin-top:8px; }
 .badge-tile{ display:flex; flex-direction:column; align-items:center; gap:5px; text-align:center; opacity:.4; cursor:pointer; -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
 .badge-tile.earned{ opacity:1; }
@@ -2861,7 +2887,41 @@ span.flatpickr-weekday {
         </div>
         <div class="dashboard-badges-title" id="dashboardWeekTitle">This Week</div>
         <div class="weekly-chart" id="dashboardWeeklyChart"></div>
-        <div class="dashboard-badges-title" id="dashboardBadgesTitle">Badges</div>
+
+        <div class="dashboard-badges-title" id="dashboardCityTitle">City Contribution</div>
+        <div class="dashboard-city-card" id="dashboardCityCard" style="display:none">
+          <div class="dashboard-city-ring-wrap">
+            <svg viewBox="0 0 100 100" class="dashboard-city-ring">
+              <circle class="dashboard-city-ring-track" cx="50" cy="50" r="46"></circle>
+              <circle class="dashboard-city-ring-fill" id="dashboardCityRingFill" cx="50" cy="50" r="46"></circle>
+            </svg>
+            <div class="dashboard-city-ring-label" id="dashboardCityPct">0%</div>
+          </div>
+          <div class="dashboard-city-info">
+            <div class="dashboard-city-name" id="dashboardCityName"></div>
+            <div class="dashboard-city-detail" id="dashboardCityDetailText"></div>
+          </div>
+        </div>
+
+        <div class="dashboard-badges-title-row">
+          <span class="dashboard-badges-title" id="dashboardTopTitle">Top Contributors</span>
+          <button type="button" class="dashboard-see-all-btn" onclick="switchLeaderboardTab('all')" id="dashboardTopSeeAll">See all</button>
+        </div>
+        <div class="dashboard-top-list" id="dashboardTopList"></div>
+
+        <div class="dashboard-badges-title-row">
+          <span class="dashboard-badges-title" id="dashboardBadgesTitle">Badges</span>
+          <span class="dashboard-badges-count" id="dashboardBadgesCount"></span>
+        </div>
+        <div class="dashboard-next-badge" id="dashboardNextBadgeCard" style="display:none">
+          <div class="dashboard-next-badge-icon" id="dashboardNextBadgeIcon"></div>
+          <div class="dashboard-next-badge-info">
+            <div class="dashboard-next-badge-label" id="dashboardNextBadgeLabel">Next badge</div>
+            <div class="dashboard-next-badge-name" id="dashboardNextBadgeName"></div>
+            <div class="profile-progress-track"><div class="profile-progress-fill" id="dashboardNextBadgeFill"></div></div>
+            <div class="dashboard-next-badge-text" id="dashboardNextBadgeText"></div>
+          </div>
+        </div>
         <div class="badge-grid" id="dashboardBadgeGrid"></div>
       </div>
 
@@ -2910,7 +2970,19 @@ span.flatpickr-weekday {
         </div>
         <div class="profile-progress-track"><div class="profile-progress-fill" id="adminDashboardXpFill"></div></div>
         <div class="dashboard-progress-text" id="adminDashboardXpText"></div>
-        <div class="dashboard-badges-title" id="adminDashboardBadgesTitle">Admin achievements</div>
+        <div class="dashboard-badges-title-row">
+          <span class="dashboard-badges-title" id="adminDashboardBadgesTitle">Admin achievements</span>
+          <span class="dashboard-badges-count" id="adminDashboardBadgesCount"></span>
+        </div>
+        <div class="dashboard-next-badge" id="adminDashboardNextBadgeCard" style="display:none">
+          <div class="dashboard-next-badge-icon" id="adminDashboardNextBadgeIcon"></div>
+          <div class="dashboard-next-badge-info">
+            <div class="dashboard-next-badge-label" id="adminDashboardNextBadgeLabel">Next badge</div>
+            <div class="dashboard-next-badge-name" id="adminDashboardNextBadgeName"></div>
+            <div class="profile-progress-track"><div class="profile-progress-fill" id="adminDashboardNextBadgeFill"></div></div>
+            <div class="dashboard-next-badge-text" id="adminDashboardNextBadgeText"></div>
+          </div>
+        </div>
         <div class="badge-grid" id="adminDashboardBadgeGrid"></div>
       </div>
 
@@ -3390,6 +3462,66 @@ function isBadgeEarned(badge, profile, stats) { return !!badge.check(profile, st
 // function's own source so the progress ring reflects real progress without having to hand-author
 // a parallel progress function for every badge. Badges whose check is a plain boolean flag (coming
 // soon, streak flags, "earn every badge", etc.) fall back to a simple full/empty ring.
+// Same regex-based field/threshold extraction as badgeProgressFraction, but returns the raw
+// current/threshold pair too (rather than just a 0-1 fraction) so callers can show "6 / 10" text.
+function badgeProgressDetail(badge, profile, stats) {
+  try {
+    const src = badge.check.toString();
+    const numMatch = src.match(/>=\s*(\d+(?:\.\d+)?)/);
+    if (!numMatch) return null;
+    const threshold = parseFloat(numMatch[1]);
+    if (!threshold) return null;
+    const fieldMatches = [...src.matchAll(/\.([a-zA-Z_$]\w*)\b/g)].map(m => m[1]);
+    const field = fieldMatches[fieldMatches.length - 1];
+    if (!field) return null;
+    const current = (stats && stats[field] !== undefined) ? stats[field]
+      : (profile && profile[field] !== undefined ? profile[field] : 0);
+    return { current: Number(current) || 0, threshold };
+  } catch (e) {
+    return null;
+  }
+}
+
+// Picks the single not-yet-earned, not-"coming soon" badge that's closest to being unlocked,
+// for the featured "next badge" callout above the badge grid.
+function findNextBadge(list, profile, stats) {
+  let best = null;
+  for (const badge of list) {
+    if (badge.comingSoon) continue;
+    if (isBadgeEarned(badge, profile, stats)) continue;
+    const detail = badgeProgressDetail(badge, profile, stats);
+    if (!detail) continue;
+    const fraction = Math.max(0, Math.min(1, detail.current / detail.threshold));
+    if (!best || fraction > best.fraction) best = { badge, fraction, current: detail.current, threshold: detail.threshold };
+  }
+  return best;
+}
+
+function renderNextBadgeCard(idPrefix, list, profile, stats) {
+  const card = document.getElementById(idPrefix + 'NextBadgeCard');
+  if (!card) return;
+  const next = findNextBadge(list, profile, stats);
+  if (!next) { card.style.display = 'none'; return; }
+  card.style.display = 'flex';
+  const iconSrc = cachedIconUrl(`icons/badges/${next.badge.icon}`);
+  const iconEl = document.getElementById(idPrefix + 'NextBadgeIcon');
+  if (iconEl) iconEl.innerHTML = `<img src="${iconSrc}" alt="">`;
+  const nameEl = document.getElementById(idPrefix + 'NextBadgeName');
+  if (nameEl) nameEl.textContent = badgeName(next.badge);
+  const fillEl = document.getElementById(idPrefix + 'NextBadgeFill');
+  if (fillEl) fillEl.style.width = (next.fraction * 100) + '%';
+  const textEl = document.getElementById(idPrefix + 'NextBadgeText');
+  if (textEl) textEl.textContent = `${Math.floor(next.current)} / ${next.threshold}`;
+}
+
+function renderBadgeCountHeader(idPrefix, list, profile, stats) {
+  const el = document.getElementById(idPrefix + 'BadgesCount');
+  if (!el) return;
+  const obtainable = list.filter(b => !b.comingSoon);
+  const earned = obtainable.filter(b => isBadgeEarned(b, profile, stats));
+  el.textContent = `${earned.length} / ${obtainable.length}`;
+}
+
 function badgeProgressFraction(badge, earned, profile, stats) {
   if (earned) return 1;
   if (badge.comingSoon) return 0;
@@ -4148,6 +4280,64 @@ function retryLeaderboardCity() {
   setTimeout(() => { leaderboardCityMuni = null; loadLeaderboardTab('city'); }, 1500);
 }
 
+function renderDashboardTopRows(rows) {
+  const el = document.getElementById('dashboardTopList');
+  if (!el) return;
+  if (!rows.length) { el.innerHTML = ''; return; }
+  el.innerHTML = rows.map((r, i) => {
+    const rank = i + 1;
+    const totalPts = Number(r.total_contributions) || 0;
+    const lvl = levelForPoints(totalPts);
+    const badgeIcon = levelBadgeIcon(lvl.level);
+    const iconHtml = badgeIcon ? `<img src="${cachedIconUrl('icons/badges/' + badgeIcon)}" alt="">` : '';
+    return `<div class="dashboard-top-row">
+      <span class="dashboard-top-rank">${rank}</span>
+      <span class="leaderboard-rank tier-level-${lvl.level} dashboard-top-badge">${iconHtml}</span>
+      <span class="dashboard-top-name">${escapeHtml(r.username || '\u2014')}</span>
+      <span class="dashboard-top-points">${totalPts}</span>
+    </div>`;
+  }).join('');
+}
+async function loadDashboardTopContributors() {
+  try {
+    const { data, error } = await sb.rpc('get_leaderboard', { p_since: null, p_municipality_id: null, p_limit: 3 });
+    if (error) throw error;
+    renderDashboardTopRows(data || []);
+  } catch (err) {
+    console.error('Failed to load top contributors preview:', err.message || err);
+  }
+}
+
+async function loadDashboardCityContribution(myReportCount) {
+  const card = document.getElementById('dashboardCityCard');
+  if (!card) return;
+  try {
+    const muni = await resolveLeaderboardCity();
+    if (!muni || !currentSession || !currentProfile || currentProfile.is_admin) { card.style.display = 'none'; return; }
+    const { count, error } = await sb.from(TABLE).select('id', { count: 'exact', head: true }).eq('municipality_id', muni.id);
+    if (error) throw error;
+    if (!currentSession || !currentProfile || currentProfile.is_admin) return;
+    const total = count || 0;
+    const pct = total > 0 ? Math.min(100, (myReportCount / total) * 100) : 0;
+    card.style.display = 'flex';
+    const nameEl = document.getElementById('dashboardCityName');
+    if (nameEl) nameEl.textContent = municipalityDisplayName(muni);
+    const pctEl = document.getElementById('dashboardCityPct');
+    if (pctEl) pctEl.textContent = (pct < 10 ? pct.toFixed(1) : Math.round(pct)) + '%';
+    const detailEl = document.getElementById('dashboardCityDetailText');
+    if (detailEl) detailEl.textContent = t('dashboardCityDetail').replace('{mine}', myReportCount).replace('{total}', total);
+    const ring = document.getElementById('dashboardCityRingFill');
+    if (ring) {
+      const c = 2 * Math.PI * 46;
+      ring.style.strokeDasharray = c.toFixed(2);
+      ring.style.strokeDashoffset = (c * (1 - pct / 100)).toFixed(2);
+    }
+  } catch (err) {
+    console.error('Failed to load city contribution stat:', err.message || err);
+    card.style.display = 'none';
+  }
+}
+
 function renderLeaderboardRows(rows) {
   const listEl = document.getElementById('leaderboardList');
   if (!rows.length) {
@@ -4393,9 +4583,15 @@ async function renderUserDashboard() {
   setStat('dashboardStatCities', stats.distinctCities || 0);
   setStat('dashboardStatVotes', stats.voteCount || 0);
 
+  loadDashboardTopContributors();
+  loadDashboardCityContribution(stats.reportCount || 0);
+
+  const allBadges = [...BADGES, ...USER_BADGES_EXTRA];
+  renderBadgeCountHeader('dashboard', allBadges, currentProfile, stats);
+  renderNextBadgeCard('dashboard', allBadges, currentProfile, stats);
+
   const badgeGrid = document.getElementById('dashboardBadgeGrid');
   if (badgeGrid) {
-    const allBadges = [...BADGES, ...USER_BADGES_EXTRA];
     badgeGrid.innerHTML = allBadges.map(b => buildBadgeIconHtml(b, isBadgeEarned(b, currentProfile, stats), currentProfile, stats)).join('');
   }
 }
@@ -4477,8 +4673,10 @@ async function renderAdminDashboard() {
   }
 
   const adminBadgeGrid = document.getElementById('adminDashboardBadgeGrid');
+  const allAdminBadges = [...ADMIN_BADGES, ...ADMIN_BADGES_EXTRA];
+  renderBadgeCountHeader('adminDashboard', allAdminBadges, null, stats);
+  renderNextBadgeCard('adminDashboard', allAdminBadges, null, stats);
   if (adminBadgeGrid) {
-    const allAdminBadges = [...ADMIN_BADGES, ...ADMIN_BADGES_EXTRA];
     adminBadgeGrid.innerHTML = allAdminBadges.map(b => buildBadgeIconHtml(b, b.check(stats), null, stats)).join('');
   }
 }
@@ -4673,6 +4871,11 @@ const T = {
   adminDashboardStatStreak:      { en:'Longest streak (days)',   sr:'Najduži niz (dana)' },
   adminDashboardStatBusiest:     { en:'Busiest day',             sr:'Najprometniji dan' },
   adminDashboardStatNight:       { en:'Night shift resolves',    sr:'Noćna rešenja' },
+  dashboardCityTitle:         { en:'City Contribution',      sr:'Doprinos gradu' },
+  dashboardCityDetail:        { en:'{mine} of {total} reports in your city are yours', sr:'{mine} od {total} prijava u vašem gradu su vaše' },
+  dashboardTopTitle:          { en:'Top Contributors',       sr:'Najbolji doprinosioci' },
+  dashboardTopSeeAll:         { en:'See all',                 sr:'Vidi sve' },
+  dashboardNextBadgeLabel:    { en:'Next badge',              sr:'Sledeća značka' },
   tooFarToVote:  { en:'You must be on-site (within 50m) to vote for a status change.', sr:'Morate biti na licu mesta (u krugu od 50m) da biste glasali za izmenu statusa.' },
   voteRecorded:  { en:'Vote recorded.',                            sr:'Glas je zabeležen.' },
   voteResolved:  { en:'Status updated by community vote!',         sr:'Status je promenjen glasanjem zajednice!' },
@@ -5109,6 +5312,16 @@ function applyLang(){
   if (adminDashBusiestLabel) adminDashBusiestLabel.textContent = t('adminDashboardStatBusiest');
   const adminDashNightLabel = document.getElementById('adminDashboardStatNightLabel');
   if (adminDashNightLabel) adminDashNightLabel.textContent = t('adminDashboardStatNight');
+  const dashCityTitleEl = document.getElementById('dashboardCityTitle');
+  if (dashCityTitleEl) dashCityTitleEl.textContent = t('dashboardCityTitle');
+  const dashTopTitleEl = document.getElementById('dashboardTopTitle');
+  if (dashTopTitleEl) dashTopTitleEl.textContent = t('dashboardTopTitle');
+  const dashTopSeeAllEl = document.getElementById('dashboardTopSeeAll');
+  if (dashTopSeeAllEl) dashTopSeeAllEl.textContent = t('dashboardTopSeeAll');
+  const dashNextBadgeLabelEl = document.getElementById('dashboardNextBadgeLabel');
+  if (dashNextBadgeLabelEl) dashNextBadgeLabelEl.textContent = t('dashboardNextBadgeLabel');
+  const adminDashNextBadgeLabelEl = document.getElementById('adminDashboardNextBadgeLabel');
+  if (adminDashNextBadgeLabelEl) adminDashNextBadgeLabelEl.textContent = t('dashboardNextBadgeLabel');
   const adminDashWeekTitleEl = document.getElementById('adminDashboardWeekTitle');
   if (adminDashWeekTitleEl) adminDashWeekTitleEl.textContent = t('dashboardWeekTitle');
   const adminDashXpTitleEl = document.getElementById('adminDashboardXpTitle');
