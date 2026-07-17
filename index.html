@@ -2631,6 +2631,10 @@ span.flatpickr-weekday {
   <div class="generic-modal" id="contactConfirmModalInner"></div>
 </div>
 
+<div id="nearbyCheckinModal" class="generic-modal-overlay" style="display:none">
+  <div class="generic-modal" id="nearbyCheckinModalInner"></div>
+</div>
+
 
 <div id="settingsModal" class="fullscreen-modal-overlay" style="display:none">
   <div class="fullscreen-modal-header">
@@ -2676,6 +2680,17 @@ span.flatpickr-weekday {
           <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
         </span>
       </label>
+    </div>
+
+    <div class="detail-section" id="nearbyCheckinSettingsSection">
+      <div class="detail-section-title" id="nearbyCheckinSectionTitle">Nearby issue check-ins</div>
+      <p class="detail-export-hint" id="nearbyCheckinSectionHint">When you pass close to an open report, we can ask if it's still there.</p>
+      <div class="theme-segment" id="nearbyCheckinFreqSegment">
+        <button type="button" class="theme-segment-btn" onclick="setNearbyCheckinFreq('off')" id="nearbyCheckinBtnOff">Off</button>
+        <button type="button" class="theme-segment-btn" onclick="setNearbyCheckinFreq('low')" id="nearbyCheckinBtnLow">Rarely</button>
+        <button type="button" class="theme-segment-btn" onclick="setNearbyCheckinFreq('normal')" id="nearbyCheckinBtnNormal">Normal</button>
+        <button type="button" class="theme-segment-btn" onclick="setNearbyCheckinFreq('high')" id="nearbyCheckinBtnHigh">Often</button>
+      </div>
     </div>
 
     <div class="detail-section" style="padding:0;overflow:hidden;">
@@ -4948,6 +4963,21 @@ const T = {
   contactConfirmNoBtn:    { en:'No',                                          sr:'Ne' },
   contactConfirmThanks:   { en:'Thanks — recorded.',                          sr:'Hvala — zabeleženo.' },
 
+  nearbyCheckinSectionTitle: { en:'Nearby issue check-ins',                   sr:'Provera obližnjih prijava' },
+  nearbyCheckinSectionHint:  { en:'When you pass close to an open report, we can ask if it\'s still there.', sr:'Kada prođete blizu otvorene prijave, možemo vas pitati da li je problem i dalje prisutan.' },
+  nearbyCheckinFreqOff:      { en:'Off',                                      sr:'Isključeno' },
+  nearbyCheckinFreqLow:      { en:'Rarely',                                   sr:'Retko' },
+  nearbyCheckinFreqNormal:   { en:'Normal',                                   sr:'Uobičajeno' },
+  nearbyCheckinFreqHigh:     { en:'Often',                                    sr:'Često' },
+  nearbyCheckinTitle:        { en:'You\'re near a reported issue',            sr:'U blizini ste prijavljenog problema' },
+  nearbyCheckinQuestion:     { en:'Is this still there: {issue}?',            sr:'Da li je ovo i dalje prisutno: {issue}?' },
+  nearbyCheckinStillBrokenBtn: { en:'Still there',                            sr:'Još uvek prisutno' },
+  nearbyCheckinLooksFixedBtn:  { en:'Looks fixed',                            sr:'Izgleda popravljeno' },
+  nearbyCheckinDismissBtn:     { en:'Not now',                                sr:'Ne sada' },
+  nearbyCheckinContactTitle:   { en:'Contact the public service?',            sr:'Kontaktirati nadležnu službu?' },
+  nearbyCheckinContactQuestion:{ en:'Want to contact the responsible service about it now?', sr:'Želite li sada da kontaktirate nadležnu službu povodom ovoga?' },
+  nearbyCheckinContactYesBtn:  { en:'Yes, show contacts',                     sr:'Da, prikaži kontakte' },
+
   detailExportTitle:     { en:'Send & share',                              sr:'Slanje i deljenje' },
   detailExportHint:      { en:'Email this report straight to the responsible utility, or share a link to it.', sr:'Pošaljite ovu prijavu mejlom direktno nadležnom preduzeću, ili podelite link ka njoj.' },
   detailExportBtn:       { en:'Email report',                              sr:'Pošalji prijavu mejlom' },
@@ -5169,6 +5199,18 @@ function applyLang(){
   document.getElementById('mapFilterSectionTitle').textContent = t('mapFilterSectionTitle');
   document.getElementById('mapFilterSettingsBtnLabel').textContent = t('categoryFilterBtnTitle');
   document.getElementById('pulseToggleLabel').textContent = t('pulseToggleLabel');
+  const nearbyCheckinTitleEl = document.getElementById('nearbyCheckinSectionTitle');
+  if (nearbyCheckinTitleEl) nearbyCheckinTitleEl.textContent = t('nearbyCheckinSectionTitle');
+  const nearbyCheckinHintEl = document.getElementById('nearbyCheckinSectionHint');
+  if (nearbyCheckinHintEl) nearbyCheckinHintEl.textContent = t('nearbyCheckinSectionHint');
+  const nearbyCheckinBtnOffEl = document.getElementById('nearbyCheckinBtnOff');
+  if (nearbyCheckinBtnOffEl) nearbyCheckinBtnOffEl.textContent = t('nearbyCheckinFreqOff');
+  const nearbyCheckinBtnLowEl = document.getElementById('nearbyCheckinBtnLow');
+  if (nearbyCheckinBtnLowEl) nearbyCheckinBtnLowEl.textContent = t('nearbyCheckinFreqLow');
+  const nearbyCheckinBtnNormalEl = document.getElementById('nearbyCheckinBtnNormal');
+  if (nearbyCheckinBtnNormalEl) nearbyCheckinBtnNormalEl.textContent = t('nearbyCheckinFreqNormal');
+  const nearbyCheckinBtnHighEl = document.getElementById('nearbyCheckinBtnHigh');
+  if (nearbyCheckinBtnHighEl) nearbyCheckinBtnHighEl.textContent = t('nearbyCheckinFreqHigh');
   document.getElementById('mainMapCompass').title = t('mainCompassTitle');
   updateCommentPlaceholder();
   document.getElementById('dateRangePicker').placeholder  = t('calendarPH');
@@ -5353,6 +5395,7 @@ function showSettingsModal() {
   modal.style.display = 'flex';
   const pulseToggleEl = document.getElementById('pulseToggleInput');
   if (pulseToggleEl) pulseToggleEl.checked = statusPulseEnabled;
+  updateNearbyCheckinSegmentUI();
   if (currentProfile && currentProfile.is_admin) {
     cancelUcForm();
     loadUtilityCompaniesAdmin();
@@ -7216,6 +7259,7 @@ function startWatching() {
       stopGpsRetryLoop();
       updateDrivingGpsStatus();
       updateProximityUi();
+      maybeShowNearbyCheckin();
       if (!userMarker) {
         userMarker = L.marker([userCoords.lat, userCoords.lon], {
           icon: L.divIcon({
@@ -10389,6 +10433,150 @@ function refreshReportContactCounts(reportId) {
   if (modal && modal.style.display !== 'none' && modal.dataset.openReportId === reportId) {
     loadReportContactCounts(reportId);
   }
+}
+
+const NEARBY_CHECKIN_RADIUS_M = 30;
+const NEARBY_CHECKIN_SCAN_THROTTLE_MS = 15000;
+const NEARBY_CHECKIN_STORAGE_KEY = 'ttb_nearby_checkin_freq';
+const NEARBY_CHECKIN_GLOBAL_KEY = 'ttb_nearby_checkin_last_global';
+const NEARBY_CHECKIN_HISTORY_KEY = 'ttb_nearby_checkin_history';
+const NEARBY_CHECKIN_HISTORY_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+const NEARBY_CHECKIN_COOLDOWNS = {
+  off:    null,
+  low:    { global: 4  * 60 * 60 * 1000, perReport: 14 * 24 * 60 * 60 * 1000 },
+  normal: { global: 1  * 60 * 60 * 1000, perReport: 3  * 24 * 60 * 60 * 1000 },
+  high:   { global: 10 * 60 * 1000,      perReport: 1  * 24 * 60 * 60 * 1000 }
+};
+
+function getNearbyCheckinFreqPref() {
+  try {
+    const v = localStorage.getItem(NEARBY_CHECKIN_STORAGE_KEY);
+    return (v === 'off' || v === 'low' || v === 'normal' || v === 'high') ? v : 'normal';
+  } catch (err) {
+    return 'normal';
+  }
+}
+let nearbyCheckinFreq = getNearbyCheckinFreqPref();
+let nearbyCheckinModalOpen = false;
+let lastNearbyCheckinScanAt = 0;
+
+function updateNearbyCheckinSegmentUI() {
+  ['Off', 'Low', 'Normal', 'High'].forEach(label => {
+    const btn = document.getElementById('nearbyCheckinBtn' + label);
+    if (btn) btn.classList.toggle('active', nearbyCheckinFreq === label.toLowerCase());
+  });
+}
+
+function setNearbyCheckinFreq(freq) {
+  nearbyCheckinFreq = freq;
+  try { localStorage.setItem(NEARBY_CHECKIN_STORAGE_KEY, freq); } catch (err) {}
+  updateNearbyCheckinSegmentUI();
+}
+
+function readNearbyCheckinHistory() {
+  let history = {};
+  try { history = JSON.parse(localStorage.getItem(NEARBY_CHECKIN_HISTORY_KEY) || '{}'); } catch (err) { history = {}; }
+  const cutoff = Date.now() - NEARBY_CHECKIN_HISTORY_MAX_AGE_MS;
+  Object.keys(history).forEach(id => { if (history[id] < cutoff) delete history[id]; });
+  return history;
+}
+
+function maybeShowNearbyCheckin() {
+  if (nearbyCheckinModalOpen || drivingMode || overlayStack.length) return;
+  if (!currentSession || !userCoords) return;
+  const cooldown = NEARBY_CHECKIN_COOLDOWNS[nearbyCheckinFreq];
+  if (!cooldown) return;
+
+  const now = Date.now();
+  if (now - lastNearbyCheckinScanAt < NEARBY_CHECKIN_SCAN_THROTTLE_MS) return;
+  lastNearbyCheckinScanAt = now;
+
+  let lastGlobal = 0;
+  try { lastGlobal = Number(localStorage.getItem(NEARBY_CHECKIN_GLOBAL_KEY)) || 0; } catch (err) {}
+  if (now - lastGlobal < cooldown.global) return;
+
+  const history = readNearbyCheckinHistory();
+  const candidate = globalActiveData
+    .filter(r => r.status === 'reported' && isValidLatLng(r.latitude, r.longitude) && (!currentSession || r.owner_id !== currentSession.user.id))
+    .map(r => ({ r, d: distMeters(userCoords, { lat: r.latitude, lon: r.longitude }) }))
+    .filter(x => x.d <= NEARBY_CHECKIN_RADIUS_M && (now - (history[x.r.id] || 0)) >= cooldown.perReport)
+    .sort((a, b) => a.d - b.d)[0];
+  if (!candidate) return;
+
+  history[candidate.r.id] = now;
+  try {
+    localStorage.setItem(NEARBY_CHECKIN_HISTORY_KEY, JSON.stringify(history));
+    localStorage.setItem(NEARBY_CHECKIN_GLOBAL_KEY, String(now));
+  } catch (err) {}
+
+  showNearbyCheckinModal(candidate.r);
+}
+
+function showNearbyCheckinModal(report) {
+  const modal = document.getElementById('nearbyCheckinModal');
+  if (!modal) return;
+  nearbyCheckinModalOpen = true;
+  renderNearbyCheckinStepStill(report);
+  bringModalToFront(modal);
+  modal.style.display = 'flex';
+  openOverlay('nearbyCheckinModal', hideNearbyCheckinModal);
+}
+
+function hideNearbyCheckinModal() {
+  nearbyCheckinModalOpen = false;
+  const modal = document.getElementById('nearbyCheckinModal');
+  if (modal) modal.style.display = 'none';
+  closeOverlay('nearbyCheckinModal');
+}
+
+function renderNearbyCheckinStepStill(report) {
+  const inner = document.getElementById('nearbyCheckinModalInner');
+  if (!inner) return;
+  const issueTitle = report.subcategory
+    ? `${translateCategory(report.category)} / ${subcategoryLabel(report.category, report.subcategory)}`
+    : translateCategory(report.category);
+  const question = t('nearbyCheckinQuestion').replace('{issue}', issueTitle);
+  inner.innerHTML = `
+    <div class="generic-modal-icon"><img class="icon-img icon-img-modal" src="icons/pin.png" alt=""></div>
+    <h2>${t('nearbyCheckinTitle')}</h2>
+    <p>${escapeHtml(question)}</p>
+    <div style="display:flex;flex-direction:column;gap:var(--space-8);">
+      <button type="button" style="background:var(--accent);color:white;border:none;border-radius:14px;padding:12px 20px;font-size:var(--fs-14);font-weight:var(--fw-semibold);cursor:pointer;min-height:44px;" onclick="nearbyCheckinStillBroken('${report.id}')">${t('nearbyCheckinStillBrokenBtn')}</button>
+      <button type="button" class="settings-btn" onclick="nearbyCheckinLooksFixed('${report.id}')">${t('nearbyCheckinLooksFixedBtn')}</button>
+      <button type="button" class="settings-btn" style="background:transparent;box-shadow:none;" onclick="hideNearbyCheckinModal()">${t('nearbyCheckinDismissBtn')}</button>
+    </div>
+  `;
+}
+
+function renderNearbyCheckinStepContact(report) {
+  const inner = document.getElementById('nearbyCheckinModalInner');
+  if (!inner) return;
+  inner.innerHTML = `
+    <div class="generic-modal-icon"><img class="icon-img icon-img-modal" src="icons/phone.png" alt=""></div>
+    <h2>${t('nearbyCheckinContactTitle')}</h2>
+    <p>${t('nearbyCheckinContactQuestion')}</p>
+    <div style="display:flex;gap:var(--space-8);">
+      <button type="button" class="settings-btn" style="flex:1;" onclick="hideNearbyCheckinModal()">${t('contactConfirmNoBtn')}</button>
+      <button type="button" style="background:var(--accent);color:white;flex:1;border:none;border-radius:14px;padding:12px 20px;font-size:var(--fs-14);font-weight:var(--fw-semibold);cursor:pointer;min-height:44px;" onclick="nearbyCheckinOpenContacts('${report.id}')">${t('nearbyCheckinContactYesBtn')}</button>
+    </div>
+  `;
+}
+
+function nearbyCheckinStillBroken(reportId) {
+  const report = globalActiveData.find(r => r.id === reportId);
+  castStatusVote(reportId, 'reported');
+  if (report) renderNearbyCheckinStepContact(report);
+  else hideNearbyCheckinModal();
+}
+
+function nearbyCheckinLooksFixed(reportId) {
+  hideNearbyCheckinModal();
+  castStatusVote(reportId, 'fixed');
+}
+
+function nearbyCheckinOpenContacts(reportId) {
+  hideNearbyCheckinModal();
+  showReportDetailModal(reportId);
 }
 
 function hideReportDetailModal() {
