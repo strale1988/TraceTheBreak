@@ -5756,18 +5756,60 @@ function refreshVisibleBadgeGrids() {
 setTimeout(initIconCaching, 0);
 
 //
+// Rank tables so a cluster can surface its single most urgent member: any 'reported' pin
+// outranks 'in_progress', which outranks 'fixed'/unknown; 'high' priority outranks 'normal'
+// outranks 'low'. Mirrors the same urgency language buildPinIconHtml uses per-pin.
+const CLUSTER_STATUS_RANK = { reported: 2, in_progress: 1, fixed: 0 };
+const CLUSTER_PRIORITY_RANK = { high: 2, normal: 1, low: 0 };
+
+function clusterWorstReport(cluster) {
+  let worstStatus = null, worstPriority = null;
+  cluster.getAllChildMarkers().forEach(m => {
+    const report = (typeof globalActiveData !== 'undefined') ? globalActiveData.find(r => r.id === m._reportId) : null;
+    if (!report) return;
+    if (worstStatus === null || (CLUSTER_STATUS_RANK[report.status] || 0) > (CLUSTER_STATUS_RANK[worstStatus] || 0)) {
+      worstStatus = report.status;
+    }
+    if (worstPriority === null || (CLUSTER_PRIORITY_RANK[report.priority] || 1) > (CLUSTER_PRIORITY_RANK[worstPriority] || 1)) {
+      worstPriority = report.priority;
+    }
+  });
+  return { status: worstStatus, priority: worstPriority };
+}
+
 function makeClusterIcon(cluster) {
   const count = cluster.getChildCount();
   let size = 32, fontSize = 12;
   if (count >= 10 && count < 100) { size = 40; fontSize = 13; }
   else if (count >= 100) { size = 48; fontSize = 14; }
+
+  // Same pulse/ring language as individual report pins (see buildPinIconHtml): a cluster
+  // that contains only 'fixed' reports gets neither, since there's nothing left to draw
+  // the eye to; otherwise it pulses (or shows a static ring if pulse is off in Settings)
+  // using the color/speed/size of the single most urgent report inside it.
+  const { status, priority } = clusterWorstReport(cluster);
+  const wrapSize = size + 16; // room for the halo/ring to sit outside the badge itself
+  let statusMarker = '';
+  if (status && status !== 'fixed') {
+    const sCol = statusColor(status);
+    const pulseDuration = status === 'reported' ? 1.6 : 2.6;
+    const pulseSize = priority === 'high' ? size + 10 : priority === 'low' ? size - 4 : size + 2;
+    const pulseDelay = -(Math.random() * pulseDuration).toFixed(2);
+    statusMarker = statusPulseEnabled
+      ? `<span class="pin-status-halo" style="background:${sCol};width:${pulseSize}px;height:${pulseSize}px;animation-duration:${pulseDuration}s;animation-delay:${pulseDelay}s;"></span>`
+      : `<span class="pin-status-ring" style="border-color:${sCol};width:${size + 6}px;height:${size + 6}px;"></span>`;
+  }
+
   return L.divIcon({
-    html: `<div class="pin-upright" style="width:${size}px;height:${size}px;box-sizing:border-box;border-radius:50%;` +
+    html: `<div class="pin-upright" style="position:relative;width:${wrapSize}px;height:${wrapSize}px;">` +
+      statusMarker +
+      `<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:${size}px;height:${size}px;box-sizing:border-box;border-radius:50%;` +
       `background:var(--nav-accent);border:3px solid #fff;` +
       `display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.5);` +
-      `color:#fff;font-weight:var(--fw-bold);font-size:${fontSize}px;">${count}</div>`,
+      `color:#fff;font-weight:var(--fw-bold);font-size:${fontSize}px;">${count}</div>` +
+      `</div>`,
     className: '',
-    iconSize: [size, size]
+    iconSize: [wrapSize, wrapSize]
   });
 }
 const pinCluster = L.markerClusterGroup({
