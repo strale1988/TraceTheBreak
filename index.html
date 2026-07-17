@@ -576,6 +576,13 @@ button{
   transition: transform .25s linear;
 }
 
+/* Keeps map pins (report pins, company pins, dropped pins, cluster badges) visually
+   upright on screen at all times, regardless of the current map rotation/bearing. */
+.pin-upright{
+  transform: rotate(var(--pin-counter-rotate, 0deg));
+  transform-origin: 50% 50%;
+}
+
 .popup-inner{
   font-family:-apple-system,BlinkMacSystemFont,sans-serif;
   font-size:var(--fs-13);
@@ -1462,6 +1469,16 @@ body.driving-active #appPanel{
   width:30px; height:30px; border-width:2px; flex-shrink:0;
 }
 .dashboard-identity-badge img{ padding:5px; }
+.dashboard-identity-badge-wrap{ position:relative; width:30px; height:30px; flex-shrink:0; }
+.dashboard-identity-ring{
+  position:absolute; top:-6px; left:-6px; width:calc(100% + 12px); height:calc(100% + 12px);
+  transform:rotate(-90deg); pointer-events:none;
+}
+.dashboard-identity-ring-track{ fill:none; stroke:var(--border-color-strong); stroke-width:3; opacity:.5; }
+.dashboard-identity-ring-fill{ fill:none; stroke:var(--accent); stroke-width:3; stroke-linecap:round; transition:stroke-dashoffset .5s ease, stroke .3s ease; }
+.dashboard-star-row{ display:flex; gap:2px; margin-top:3px; line-height:1; }
+.dashboard-star{ font-size:var(--fs-11); color:var(--border-color-strong); opacity:.45; transition:color .3s ease, opacity .3s ease, transform .3s ease; }
+.dashboard-star.filled{ opacity:1; text-shadow:0 0 5px currentColor; }
 .dashboard-identity-text{ min-width:0; display:flex; flex-direction:column; }
 .dashboard-identity-name{
   font-size:var(--fs-15); font-weight:var(--fw-heavy); color:var(--text-primary);
@@ -2767,10 +2784,17 @@ span.flatpickr-weekday {
 <div id="leaderboardModal" class="fullscreen-modal-overlay" style="display:none">
   <div class="fullscreen-modal-header">
     <div class="dashboard-identity-row" id="dashboardIdentityCard" style="display:none">
-      <div class="leaderboard-rank dashboard-identity-badge" id="dashboardIdentityBadge"></div>
+      <div class="dashboard-identity-badge-wrap">
+        <div class="leaderboard-rank dashboard-identity-badge" id="dashboardIdentityBadge"></div>
+        <svg class="dashboard-identity-ring" viewBox="0 0 40 40">
+          <circle class="dashboard-identity-ring-track" cx="20" cy="20" r="17"></circle>
+          <circle class="dashboard-identity-ring-fill" id="dashboardIdentityRingFill" cx="20" cy="20" r="17" stroke-dasharray="106.81" stroke-dashoffset="106.81"></circle>
+        </svg>
+      </div>
       <div class="dashboard-identity-text">
         <span class="dashboard-identity-name" id="dashboardIdentityName"></span>
         <span class="dashboard-identity-status" id="dashboardIdentityStatus"></span>
+        <div class="dashboard-star-row" id="dashboardStarRow"></div>
       </div>
       <span class="admin-pill" id="dashboardIdentityAdminPill" style="display:none">★ ADMIN</span>
     </div>
@@ -3337,6 +3361,30 @@ function badgeProgressFraction(badge, earned, profile, stats) {
   } catch (e) {
     return 0;
   }
+}
+
+const DASHBOARD_TIER_COLORS = ['#9ca3af', '#93c5fd', '#5eead4', '#5ec98a', '#f0b429', '#c084fc'];
+function tierColorForLevel(level) {
+  const i = Math.max(0, Math.min(DASHBOARD_TIER_COLORS.length - 1, Math.round(level)));
+  return DASHBOARD_TIER_COLORS[i];
+}
+function buildStarRowHtml(filled, total, color) {
+  total = total || 5;
+  filled = Math.max(0, Math.min(total, Math.round(filled)));
+  let html = '';
+  for (let i = 1; i <= total; i++) {
+    const isFilled = i <= filled;
+    html += `<span class="dashboard-star${isFilled ? ' filled' : ''}"${isFilled ? ` style="color:${color};"` : ''}>★</span>`;
+  }
+  return html;
+}
+function setIdentityRingFraction(fraction, color) {
+  const ring = document.getElementById('dashboardIdentityRingFill');
+  if (!ring) return;
+  const c = 106.81;
+  const offset = c * (1 - Math.max(0, Math.min(1, fraction)));
+  ring.style.strokeDashoffset = offset.toFixed(2);
+  if (color) ring.style.stroke = color;
 }
 
 function badgeProgressRingSvg(fraction) {
@@ -4257,18 +4305,26 @@ async function renderUserDashboard() {
   const idStatusEl = document.getElementById('dashboardIdentityStatus');
   if (idStatusEl) idStatusEl.textContent = levelName(lvl);
 
+  const tierColor = tierColorForLevel(lvl.level);
+  const starRowEl = document.getElementById('dashboardStarRow');
+  if (starRowEl) starRowEl.innerHTML = buildStarRowHtml(lvl.level, 5, tierColor);
+
   const fillEl = document.getElementById('dashboardProgressFill');
   const progressText = document.getElementById('dashboardProgressText');
+  fillEl.style.background = tierColor;
   if (!next) {
     fillEl.style.width = '100%';
     progressText.textContent = t('profileMaxLevel');
+    setIdentityRingFraction(1, tierColor);
   } else {
     const remaining = Math.max(0, next.threshold - points);
     const span = next.threshold - lvl.threshold;
     const into = Math.max(0, points - lvl.threshold);
-    fillEl.style.width = (span > 0 ? Math.min(100, into / span * 100) : 100) + '%';
+    const fraction = span > 0 ? Math.min(1, into / span) : 1;
+    fillEl.style.width = (fraction * 100) + '%';
     progressText.textContent = t('profileProgressToNext')
       .replace('{n}', remaining).replace('{level}', levelName(next));
+    setIdentityRingFraction(fraction, tierColor);
   }
 
   document.getElementById('dashboardStatPoints').textContent = points;
@@ -4326,25 +4382,33 @@ async function renderAdminDashboard() {
 
   const xpLevel = adminXpLevelForXp(stats.moderationCount);
   const xpNext = nextAdminXpLevel(xpLevel);
+  const cappedTier = Math.min(5, Math.max(1, xpLevel.level));
+  const xpColor = tierColorForLevel(cappedTier);
   const xpPill = document.getElementById('adminDashboardXpPill');
   if (xpPill) {
     xpPill.textContent = xpLevel.level;
-    xpPill.className = 'tier-pill dashboard-level-pill tier-level-' + Math.min(5, Math.max(1, xpLevel.level));
+    xpPill.className = 'tier-pill dashboard-level-pill tier-level-' + cappedTier;
   }
   const xpNameEl = document.getElementById('adminDashboardXpName');
   if (xpNameEl) xpNameEl.textContent = adminXpLevelName(xpLevel);
+  const starRowEl = document.getElementById('dashboardStarRow');
+  if (starRowEl) starRowEl.innerHTML = buildStarRowHtml(cappedTier, 5, xpColor);
   const xpFillEl = document.getElementById('adminDashboardXpFill');
   const xpTextEl = document.getElementById('adminDashboardXpText');
   if (xpFillEl && xpTextEl) {
+    xpFillEl.style.background = xpColor;
     if (!xpNext) {
       xpFillEl.style.width = '100%';
       xpTextEl.textContent = t('adminDashboardXpMax');
+      setIdentityRingFraction(1, xpColor);
     } else {
       const span = xpNext.xp - xpLevel.xp;
       const into = Math.max(0, stats.moderationCount - xpLevel.xp);
-      xpFillEl.style.width = (span > 0 ? Math.min(100, into / span * 100) : 100) + '%';
+      const fraction = span > 0 ? Math.min(1, into / span) : 1;
+      xpFillEl.style.width = (fraction * 100) + '%';
       xpTextEl.textContent = t('adminDashboardXpProgress')
         .replace('{n}', Math.max(0, xpNext.xp - stats.moderationCount)).replace('{level}', adminXpLevelName(xpNext));
+      setIdentityRingFraction(fraction, xpColor);
     }
   }
 
@@ -5238,7 +5302,7 @@ function makeClusterIcon(cluster) {
   if (count >= 10 && count < 100) { size = 40; fontSize = 13; }
   else if (count >= 100) { size = 48; fontSize = 14; }
   return L.divIcon({
-    html: `<div style="width:${size}px;height:${size}px;box-sizing:border-box;border-radius:50%;` +
+    html: `<div class="pin-upright" style="width:${size}px;height:${size}px;box-sizing:border-box;border-radius:50%;` +
       `background:var(--nav-accent);border:3px solid #fff;` +
       `display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.5);` +
       `color:#fff;font-weight:var(--fw-bold);font-size:${fontSize}px;">${count}</div>`,
@@ -5265,7 +5329,7 @@ function makePublicClusterIcon(cluster) {
   if (count >= 10 && count < 100) { size = 40; fontSize = 13; }
   else if (count >= 100) { size = 48; fontSize = 14; }
   return L.divIcon({
-    html: `<div style="width:${size}px;height:${size}px;box-sizing:border-box;border-radius:50%;` +
+    html: `<div class="pin-upright" style="width:${size}px;height:${size}px;box-sizing:border-box;border-radius:50%;` +
       `background:#2f8f5b;border:3px solid #fff;` +
       `display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.5);` +
       `color:#fff;font-weight:var(--fw-bold);font-size:${fontSize}px;">${count}</div>`,
@@ -5347,6 +5411,7 @@ function applyMapBearing(targetHeadingDeg) {
   if (rotWrapper) rotWrapper.style.transform = cssRotation;
   document.querySelectorAll('.compass-needle').forEach(needle => { needle.style.transform = cssRotation; });
   if (typeof setNativeDraggingEnabled === 'function') setNativeDraggingEnabled(!rotationActive());
+  document.documentElement.style.setProperty('--pin-counter-rotate', `${mapBearing}deg`);
   updateAllPopupRotations();
   updateUserMarkerRotation();
 }
@@ -5428,7 +5493,7 @@ function followMapTo(lat, lon, options) {
 }
 
 function buildDroppedPinHtml() {
-  return '<img src="icons/pin.png" alt="pin" class="dropped-pin-icon">';
+  return '<img src="icons/pin.png" alt="pin" class="dropped-pin-icon pin-upright">';
 }
 
 function buildUserMarkerHtml(navStyle) {
@@ -8458,7 +8523,7 @@ const companyGeocodeCache = {}; // "query|countrycode" -> {lat,lon} | null
 const utilityCompanyRegistry = new Map();
 
 function buildCompanyMarkerHtml() {
-  return '<div class="map-pin-badge company-marker-icon-wrap"><span class="map-pin-glyph company-marker-icon"></span></div>';
+  return '<div class="map-pin-badge company-marker-icon-wrap pin-upright"><span class="map-pin-glyph company-marker-icon"></span></div>';
 }
 async function geocodeAddress(address, muniName, countryCode) {
   const query = [address, muniName].filter(Boolean).join(', ');
@@ -10290,7 +10355,7 @@ function buildPinIconHtml(category, status) {
       ? `<span class="pin-status-halo" style="background:${sCol};animation-duration:${pulseDuration};"></span>`
       : `<span class="pin-status-ring" style="border-color:${sCol};"></span>`;
   }
-  return `<div style="position:relative;width:40px;height:40px;">` +
+  return `<div class="pin-upright" style="position:relative;width:40px;height:40px;">` +
     statusMarker +
     `<div class="map-pin-badge" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:${catCol};opacity:${opacity};">` +
     `<span class="map-pin-glyph" style="-webkit-mask-image:url('${iconSrc}');mask-image:url('${iconSrc}');"></span>` +
