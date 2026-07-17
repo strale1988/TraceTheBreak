@@ -5687,7 +5687,29 @@ function collectAllIconPaths() {
   const turnIcons = (typeof TURN_ICONS !== 'undefined')
     ? Object.values(TURN_ICONS).map(f => `icons/${f}`)
     : [];
-  return [...new Set([...staticIcons, ...badgeIcons, ...turnIcons])];
+  // Map-pin category icons (buildPinIconHtml draws one of these for every report marker,
+  // so they need to be warm before the first pins render, not after).
+  const categoryIcons = (typeof CATEGORY_ICONS !== 'undefined')
+    ? Object.values(CATEGORY_ICONS).map(f => `icons/${f}`)
+    : [];
+  // Report-wizard icons (category tiles, subcategory tiles, priority bars, status bars).
+  // These live under icons/reports/ and use their own separate filename set from CATEGORY_ICONS.
+  const wizCategoryIcons = (typeof WIZ_CATEGORY_ICONS !== 'undefined')
+    ? Object.values(WIZ_CATEGORY_ICONS).map(f => `icons/reports/${f}`)
+    : [];
+  const wizSubcategoryIcons = (typeof WIZ_SUBCATEGORY_ICONS !== 'undefined')
+    ? Object.values(WIZ_SUBCATEGORY_ICONS).flatMap(group => Object.values(group)).map(f => `icons/reports/${f}`)
+    : [];
+  const wizPriorityIcons = (typeof WIZ_PRIORITY_ICONS !== 'undefined')
+    ? Object.values(WIZ_PRIORITY_ICONS).map(f => `icons/reports/${f}`)
+    : [];
+  const wizStatusIcons = (typeof WIZ_STATUS_ICONS !== 'undefined')
+    ? Object.values(WIZ_STATUS_ICONS).map(f => `icons/reports/${f}`)
+    : [];
+  return [...new Set([
+    ...staticIcons, ...badgeIcons, ...turnIcons, ...categoryIcons,
+    ...wizCategoryIcons, ...wizSubcategoryIcons, ...wizPriorityIcons, ...wizStatusIcons,
+  ])];
 }
 
 async function initIconCaching() {
@@ -5721,7 +5743,13 @@ function refreshVisibleBadgeGrids() {
   } catch (e) {}
 }
 
-initIconCaching();
+// Deferred (not called inline here): TURN_ICONS / CATEGORY_ICONS / WIZ_* below are declared
+// later in this same script via `const`. Calling initIconCaching() synchronously at this point
+// would reference them while still in the temporal dead zone and throw, silently aborting the
+// whole preload pass (nothing gets warmed, not even the static list) with just a console error.
+// setTimeout defers it to a fresh task after the entire script has finished evaluating, so every
+// const below is safely initialized by the time collectAllIconPaths() runs.
+setTimeout(initIconCaching, 0);
 
 //
 function makeClusterIcon(cluster) {
