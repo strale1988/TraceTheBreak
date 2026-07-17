@@ -3877,7 +3877,7 @@ async function getAdminModerationStats() {
       allEarned:false,
     };
     const everyOtherAdminBadge = [...ADMIN_BADGES, ...ADMIN_BADGES_EXTRA].filter(b => b.id !== 'legend_admin');
-    stats.allEarned = everyOtherAdminBadge.every(b => b.check(stats));
+    stats.allEarned = everyOtherAdminBadge.every(b => b.check(null, stats));
     return stats;
   } catch (err) {
     console.error('Failed to load admin moderation stats:', err.message || err);
@@ -4683,7 +4683,7 @@ async function renderAdminDashboard() {
   renderBadgeCountHeader('adminDashboard', allAdminBadges, null, stats);
   renderNextBadgeCard('adminDashboard', allAdminBadges, null, stats);
   if (adminBadgeGrid) {
-    adminBadgeGrid.innerHTML = allAdminBadges.map(b => buildBadgeIconHtml(b, b.check(stats), null, stats)).join('');
+    adminBadgeGrid.innerHTML = allAdminBadges.map(b => buildBadgeIconHtml(b, b.check(null, stats), null, stats)).join('');
   }
 }
 
