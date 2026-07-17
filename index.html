@@ -1398,7 +1398,16 @@ body.driving-active #appPanel{
 .dashboard-stat-box-sm .dashboard-stat-value{ font-size:var(--fs-15); }
 .dashboard-stat-box{
   background:var(--bg-surface-alt); border-radius:var(--radius-md); padding:8px 10px;
+  display:flex; align-items:center; gap:8px;
 }
+.dashboard-stat-icon{
+  width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  flex-shrink:0; box-shadow:0 1px 4px rgba(0,0,0,.25);
+}
+.dashboard-stat-box-sm .dashboard-stat-icon{ width:24px; height:24px; }
+.dashboard-stat-icon-glyph{ width:15px; height:15px; display:inline-block; }
+.dashboard-stat-box-sm .dashboard-stat-icon-glyph{ width:13px; height:13px; }
+.dashboard-stat-body{ min-width:0; }
 .dashboard-stat-value{ font-size:var(--fs-17); font-weight:var(--fw-heavy); color:var(--text-primary); }
 .dashboard-stat-label{ font-size:var(--fs-10); color:var(--text-muted); text-transform:uppercase; letter-spacing:.3px; margin-top:2px; }
 .weekly-chart{
@@ -1419,8 +1428,8 @@ body.driving-active #appPanel{
 .dashboard-badges-count{ font-size:var(--fs-11); font-weight:var(--fw-semibold); color:var(--text-muted); }
 .dashboard-see-all-btn{ background:none; border:none; color:var(--accent); font-size:var(--fs-11); font-weight:var(--fw-semibold); cursor:pointer; padding:0; -webkit-tap-highlight-color:transparent; }
 .dashboard-next-badge{ display:flex; align-items:center; gap:var(--space-10); background:var(--bg-surface-alt); border-radius:var(--radius-lg); padding:10px 12px; margin-top:8px; }
-.dashboard-next-badge-icon{ width:44px; height:44px; border-radius:50%; background:var(--bg-surface); display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 2px 6px rgba(0,0,0,.3); }
-.dashboard-next-badge-icon img{ width:26px; height:26px; object-fit:contain; }
+.dashboard-next-badge-icon{ width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 2px 6px rgba(0,0,0,.3); }
+.dashboard-next-badge-icon-glyph{ width:26px; height:26px; display:inline-block; }
 .dashboard-next-badge-info{ flex:1; min-width:0; }
 .dashboard-next-badge-label{ font-size:var(--fs-9-5); font-weight:var(--fw-heavy); color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em; }
 .dashboard-next-badge-name{ font-size:var(--fs-13); font-weight:var(--fw-bold); color:var(--text-primary); margin:2px 0 5px; }
@@ -2856,39 +2865,63 @@ span.flatpickr-weekday {
         <div class="dashboard-progress-text" id="dashboardProgressText"></div>
         <div class="dashboard-stats-grid">
           <div class="dashboard-stat-box">
-            <div class="dashboard-stat-value" id="dashboardStatPoints">0</div>
-            <div class="dashboard-stat-label" id="dashboardStatPointsLabel">Civic points</div>
+            <div class="dashboard-stat-icon" style="background:#f0b429"><span class="dashboard-stat-icon-glyph" style="background-color:#3a2a0f;-webkit-mask:url('icons/trophy.png') center/contain no-repeat;mask:url('icons/trophy.png') center/contain no-repeat;"></span></div>
+            <div class="dashboard-stat-body">
+              <div class="dashboard-stat-value" id="dashboardStatPoints">0</div>
+              <div class="dashboard-stat-label" id="dashboardStatPointsLabel">Civic points</div>
+            </div>
           </div>
           <div class="dashboard-stat-box">
-            <div class="dashboard-stat-value" id="dashboardStatSuccessful">0</div>
-            <div class="dashboard-stat-label" id="dashboardStatSuccessfulLabel">Successful votes</div>
+            <div class="dashboard-stat-icon" style="background:#5ec98a"><span class="dashboard-stat-icon-glyph" style="background-color:#123a26;-webkit-mask:url('icons/target.png') center/contain no-repeat;mask:url('icons/target.png') center/contain no-repeat;"></span></div>
+            <div class="dashboard-stat-body">
+              <div class="dashboard-stat-value" id="dashboardStatSuccessful">0</div>
+              <div class="dashboard-stat-label" id="dashboardStatSuccessfulLabel">Successful votes</div>
+            </div>
           </div>
           <div class="dashboard-stat-box">
-            <div class="dashboard-stat-value" id="dashboardStatWeight">x1</div>
-            <div class="dashboard-stat-label" id="dashboardStatWeightLabel">Your vote weight</div>
+            <div class="dashboard-stat-icon" style="background:#c084fc"><span class="dashboard-stat-icon-glyph" style="background-color:#2a1245;-webkit-mask:url('icons/heatmap.png') center/contain no-repeat;mask:url('icons/heatmap.png') center/contain no-repeat;"></span></div>
+            <div class="dashboard-stat-body">
+              <div class="dashboard-stat-value" id="dashboardStatWeight">x1</div>
+              <div class="dashboard-stat-label" id="dashboardStatWeightLabel">Your vote weight</div>
+            </div>
           </div>
         </div>
         <div class="dashboard-badges-title" id="dashboardActivityTitle">Activity</div>
         <div class="dashboard-stats-grid-3">
           <div class="dashboard-stat-box dashboard-stat-box-sm">
-            <div class="dashboard-stat-value" id="dashboardStatReports">0</div>
-            <div class="dashboard-stat-label" id="dashboardStatReportsLabel">Reports filed</div>
+            <div class="dashboard-stat-icon" style="background:#f87171"><span class="dashboard-stat-icon-glyph" style="background-color:#3a1414;-webkit-mask:url('icons/pothole.png') center/contain no-repeat;mask:url('icons/pothole.png') center/contain no-repeat;"></span></div>
+            <div class="dashboard-stat-body">
+              <div class="dashboard-stat-value" id="dashboardStatReports">0</div>
+              <div class="dashboard-stat-label" id="dashboardStatReportsLabel">Reports filed</div>
+            </div>
           </div>
           <div class="dashboard-stat-box dashboard-stat-box-sm">
-            <div class="dashboard-stat-value" id="dashboardStatPhotos">0</div>
-            <div class="dashboard-stat-label" id="dashboardStatPhotosLabel">Photos added</div>
+            <div class="dashboard-stat-icon" style="background:#93c5fd"><span class="dashboard-stat-icon-glyph" style="background-color:#1f2937;-webkit-mask:url('icons/camera.png') center/contain no-repeat;mask:url('icons/camera.png') center/contain no-repeat;"></span></div>
+            <div class="dashboard-stat-body">
+              <div class="dashboard-stat-value" id="dashboardStatPhotos">0</div>
+              <div class="dashboard-stat-label" id="dashboardStatPhotosLabel">Photos added</div>
+            </div>
           </div>
           <div class="dashboard-stat-box dashboard-stat-box-sm">
-            <div class="dashboard-stat-value" id="dashboardStatComments">0</div>
-            <div class="dashboard-stat-label" id="dashboardStatCommentsLabel">Comments left</div>
+            <div class="dashboard-stat-icon" style="background:#5eead4"><span class="dashboard-stat-icon-glyph" style="background-color:#0f3b36;-webkit-mask:url('icons/help.png') center/contain no-repeat;mask:url('icons/help.png') center/contain no-repeat;"></span></div>
+            <div class="dashboard-stat-body">
+              <div class="dashboard-stat-value" id="dashboardStatComments">0</div>
+              <div class="dashboard-stat-label" id="dashboardStatCommentsLabel">Comments left</div>
+            </div>
           </div>
           <div class="dashboard-stat-box dashboard-stat-box-sm">
-            <div class="dashboard-stat-value" id="dashboardStatCities">0</div>
-            <div class="dashboard-stat-label" id="dashboardStatCitiesLabel">Cities covered</div>
+            <div class="dashboard-stat-icon" style="background:#f472b6"><span class="dashboard-stat-icon-glyph" style="background-color:#3a1530;-webkit-mask:url('icons/pin.png') center/contain no-repeat;mask:url('icons/pin.png') center/contain no-repeat;"></span></div>
+            <div class="dashboard-stat-body">
+              <div class="dashboard-stat-value" id="dashboardStatCities">0</div>
+              <div class="dashboard-stat-label" id="dashboardStatCitiesLabel">Cities covered</div>
+            </div>
           </div>
           <div class="dashboard-stat-box dashboard-stat-box-sm">
-            <div class="dashboard-stat-value" id="dashboardStatVotes">0</div>
-            <div class="dashboard-stat-label" id="dashboardStatVotesLabel">Votes cast</div>
+            <div class="dashboard-stat-icon" style="background:#fb923c"><span class="dashboard-stat-icon-glyph" style="background-color:#3a2210;-webkit-mask:url('icons/public.png') center/contain no-repeat;mask:url('icons/public.png') center/contain no-repeat;"></span></div>
+            <div class="dashboard-stat-body">
+              <div class="dashboard-stat-value" id="dashboardStatVotes">0</div>
+              <div class="dashboard-stat-label" id="dashboardStatVotesLabel">Votes cast</div>
+            </div>
           </div>
         </div>
         <div class="dashboard-badges-title" id="dashboardWeekTitle">This Week</div>
@@ -2935,35 +2968,56 @@ span.flatpickr-weekday {
         <div class="detail-section-title" id="adminDashboardSectionTitle">My Admin Role</div>
         <div class="dashboard-stats-grid">
           <div class="dashboard-stat-box">
-            <div class="dashboard-stat-value" id="adminDashboardTagValue" style="font-size:var(--fs-14);">—</div>
-            <div class="dashboard-stat-label" id="adminDashboardTagLabel">Responsible for</div>
+            <div class="dashboard-stat-icon" style="background:#f472b6"><span class="dashboard-stat-icon-glyph" style="background-color:#3a1530;-webkit-mask:url('icons/pin.png') center/contain no-repeat;mask:url('icons/pin.png') center/contain no-repeat;"></span></div>
+            <div class="dashboard-stat-body">
+              <div class="dashboard-stat-value" id="adminDashboardTagValue" style="font-size:var(--fs-14);">—</div>
+              <div class="dashboard-stat-label" id="adminDashboardTagLabel">Responsible for</div>
+            </div>
           </div>
           <div class="dashboard-stat-box">
-            <div class="dashboard-stat-value" id="adminDashboardResolvedValue">0</div>
-            <div class="dashboard-stat-label" id="adminDashboardResolvedLabel">Flags resolved</div>
+            <div class="dashboard-stat-icon" style="background:#f87171"><span class="dashboard-stat-icon-glyph" style="background-color:#3a1414;-webkit-mask:url('icons/warning-symbol.png') center/contain no-repeat;mask:url('icons/warning-symbol.png') center/contain no-repeat;"></span></div>
+            <div class="dashboard-stat-body">
+              <div class="dashboard-stat-value" id="adminDashboardResolvedValue">0</div>
+              <div class="dashboard-stat-label" id="adminDashboardResolvedLabel">Flags resolved</div>
+            </div>
           </div>
         </div>
         <div class="dashboard-badges-title" id="adminDashboardActivityTitle">Moderation Stats</div>
         <div class="dashboard-stats-grid-3">
           <div class="dashboard-stat-box dashboard-stat-box-sm">
-            <div class="dashboard-stat-value" id="adminDashboardStatReviewed">0</div>
-            <div class="dashboard-stat-label" id="adminDashboardStatReviewedLabel">Reports reviewed</div>
+            <div class="dashboard-stat-icon" style="background:#93c5fd"><span class="dashboard-stat-icon-glyph" style="background-color:#1f2937;-webkit-mask:url('icons/road-damaged.png') center/contain no-repeat;mask:url('icons/road-damaged.png') center/contain no-repeat;"></span></div>
+            <div class="dashboard-stat-body">
+              <div class="dashboard-stat-value" id="adminDashboardStatReviewed">0</div>
+              <div class="dashboard-stat-label" id="adminDashboardStatReviewedLabel">Reports reviewed</div>
+            </div>
           </div>
           <div class="dashboard-stat-box dashboard-stat-box-sm">
-            <div class="dashboard-stat-value" id="adminDashboardStatFast">0</div>
-            <div class="dashboard-stat-label" id="adminDashboardStatFastLabel">Fast resolves (&lt;1h)</div>
+            <div class="dashboard-stat-icon" style="background:#f0b429"><span class="dashboard-stat-icon-glyph" style="background-color:#3a2a0f;-webkit-mask:url('icons/arrow.png') center/contain no-repeat;mask:url('icons/arrow.png') center/contain no-repeat;"></span></div>
+            <div class="dashboard-stat-body">
+              <div class="dashboard-stat-value" id="adminDashboardStatFast">0</div>
+              <div class="dashboard-stat-label" id="adminDashboardStatFastLabel">Fast resolves (&lt;1h)</div>
+            </div>
           </div>
           <div class="dashboard-stat-box dashboard-stat-box-sm">
-            <div class="dashboard-stat-value" id="adminDashboardStatStreak">0</div>
-            <div class="dashboard-stat-label" id="adminDashboardStatStreakLabel">Longest streak (days)</div>
+            <div class="dashboard-stat-icon" style="background:#c084fc"><span class="dashboard-stat-icon-glyph" style="background-color:#2a1245;-webkit-mask:url('icons/heatmap.png') center/contain no-repeat;mask:url('icons/heatmap.png') center/contain no-repeat;"></span></div>
+            <div class="dashboard-stat-body">
+              <div class="dashboard-stat-value" id="adminDashboardStatStreak">0</div>
+              <div class="dashboard-stat-label" id="adminDashboardStatStreakLabel">Longest streak (days)</div>
+            </div>
           </div>
           <div class="dashboard-stat-box dashboard-stat-box-sm">
-            <div class="dashboard-stat-value" id="adminDashboardStatBusiest">0</div>
-            <div class="dashboard-stat-label" id="adminDashboardStatBusiestLabel">Busiest day</div>
+            <div class="dashboard-stat-icon" style="background:#5eead4"><span class="dashboard-stat-icon-glyph" style="background-color:#0f3b36;-webkit-mask:url('icons/category-filter.png') center/contain no-repeat;mask:url('icons/category-filter.png') center/contain no-repeat;"></span></div>
+            <div class="dashboard-stat-body">
+              <div class="dashboard-stat-value" id="adminDashboardStatBusiest">0</div>
+              <div class="dashboard-stat-label" id="adminDashboardStatBusiestLabel">Busiest day</div>
+            </div>
           </div>
           <div class="dashboard-stat-box dashboard-stat-box-sm">
-            <div class="dashboard-stat-value" id="adminDashboardStatNight">0</div>
-            <div class="dashboard-stat-label" id="adminDashboardStatNightLabel">Night shift resolves</div>
+            <div class="dashboard-stat-icon" style="background:#fb923c"><span class="dashboard-stat-icon-glyph" style="background-color:#3a2210;-webkit-mask:url('icons/target.png') center/contain no-repeat;mask:url('icons/target.png') center/contain no-repeat;"></span></div>
+            <div class="dashboard-stat-body">
+              <div class="dashboard-stat-value" id="adminDashboardStatNight">0</div>
+              <div class="dashboard-stat-label" id="adminDashboardStatNightLabel">Night shift resolves</div>
+            </div>
           </div>
         </div>
         <div class="dashboard-badges-title" id="adminDashboardWeekTitle">This Week</div>
@@ -3510,12 +3564,17 @@ function renderNextBadgeCard(idPrefix, list, profile, stats) {
   if (!next) { card.style.display = 'none'; return; }
   card.style.display = 'flex';
   const iconSrc = cachedIconUrl(`icons/badges/${next.badge.icon}`);
+  const pair = badgeColorPair(next.badge);
   const iconEl = document.getElementById(idPrefix + 'NextBadgeIcon');
-  if (iconEl) iconEl.innerHTML = `<img src="${iconSrc}" alt="">`;
+  if (iconEl) {
+    iconEl.style.background = pair ? pair.fg : 'var(--accent)';
+    const glyph = pair ? pair.bg : 'var(--accent-contrast)';
+    iconEl.innerHTML = `<span class="dashboard-next-badge-icon-glyph" style="background-color:${glyph};-webkit-mask:url('${iconSrc}') center / contain no-repeat;mask:url('${iconSrc}') center / contain no-repeat;"></span>`;
+  }
   const nameEl = document.getElementById(idPrefix + 'NextBadgeName');
   if (nameEl) nameEl.textContent = badgeName(next.badge);
   const fillEl = document.getElementById(idPrefix + 'NextBadgeFill');
-  if (fillEl) fillEl.style.width = (next.fraction * 100) + '%';
+  if (fillEl) { fillEl.style.width = (next.fraction * 100) + '%'; fillEl.style.background = pair ? pair.fg : 'var(--accent)'; }
   const textEl = document.getElementById(idPrefix + 'NextBadgeText');
   if (textEl) textEl.textContent = `${Math.floor(next.current)} / ${next.threshold}`;
 }
@@ -3552,6 +3611,27 @@ function badgeProgressFraction(badge, earned, profile, stats) {
 }
 
 const DASHBOARD_TIER_COLORS = ['#9ca3af', '#93c5fd', '#5eead4', '#5ec98a', '#f0b429', '#c084fc'];
+// Each badge category gets its own colored "coin" (fg = the vivid fill, bg = the dark glyph
+// color drawn on top) so the earned badge grid, the badge info modal, and the next-badge
+// preview all look varied and modern instead of every badge being the same flat accent color.
+// Badges without a category (the core level/moderation badges) keep the original single
+// accent color — that's intentional, they're the "main line" progression badges.
+const BADGE_CATEGORY_COLORS = {
+  Reporting:   { fg:'#f0b429', bg:'#3a2a0f' },
+  Community:   { fg:'#93c5fd', bg:'#1f2937' },
+  Exploration: { fg:'#5ec98a', bg:'#123a26' },
+  Activity:    { fg:'#84cc16', bg:'#1a3a14' },
+  Streak:      { fg:'#c084fc', bg:'#2a1245' },
+  Fun:         { fg:'#f472b6', bg:'#3a1530' },
+  Secret:      { fg:'#5eead4', bg:'#0f3b36' },
+  Moderation:  { fg:'#818cf8', bg:'#1e1b4b' },
+  'Anti-Spam': { fg:'#f87171', bg:'#3a1414' },
+  Local:       { fg:'#ca8a04', bg:'#2e2410' },
+  Performance: { fg:'#fb923c', bg:'#3a2210' },
+  Development: { fg:'#a78bfa', bg:'#241a3a' },
+  Elite:       { fg:'#f0b429', bg:'#3a2a0f' },
+};
+function badgeColorPair(badge) { return BADGE_CATEGORY_COLORS[badge.category] || null; }
 function tierColorForLevel(level) {
   const i = Math.max(0, Math.min(DASHBOARD_TIER_COLORS.length - 1, Math.round(level)));
   return DASHBOARD_TIER_COLORS[i];
@@ -3575,13 +3655,14 @@ function setIdentityRingFraction(fraction, color) {
   if (color) ring.style.stroke = color;
 }
 
-function badgeProgressRingSvg(fraction) {
+function badgeProgressRingSvg(fraction, color) {
   const r = 46;
   const c = 2 * Math.PI * r;
   const offset = c * (1 - Math.max(0, Math.min(1, fraction)));
+  const fillStyle = `stroke-dasharray:${c.toFixed(2)};stroke-dashoffset:${offset.toFixed(2)};${color ? `stroke:${color};` : ''}`;
   return `<svg class="badge-progress-ring" viewBox="0 0 100 100" aria-hidden="true">
     <circle class="badge-progress-ring-track" cx="50" cy="50" r="${r}"></circle>
-    <circle class="badge-progress-ring-fill" cx="50" cy="50" r="${r}" style="stroke-dasharray:${c.toFixed(2)};stroke-dashoffset:${offset.toFixed(2)};"></circle>
+    <circle class="badge-progress-ring-fill" cx="50" cy="50" r="${r}" style="${fillStyle}"></circle>
   </svg>`;
 }
 function levelBadgeIcon(level) {
@@ -3592,13 +3673,15 @@ function buildBadgeIconHtml(badge, earnedIn, profile, stats) {
   const soon = !!badge.comingSoon;
   const earned = soon ? false : earnedIn;
   const iconSrc = cachedIconUrl(`icons/badges/${badge.icon}`);
-  const bg    = earned ? 'var(--accent)' : 'var(--bg-surface-alt)';
-  const glyph = earned ? 'var(--accent-contrast)' : 'var(--text-secondary)';
+  const pair = badgeColorPair(badge);
+  const bg    = earned ? (pair ? pair.fg : 'var(--accent)') : 'var(--bg-surface-alt)';
+  const glyph = earned ? (pair ? pair.bg : 'var(--accent-contrast)') : 'var(--text-secondary)';
+  const ringColor = pair ? pair.fg : null;
   const titleSuffix = soon ? ` (${t('badgeComingSoon')})` : '';
   const fraction = soon ? 0 : badgeProgressFraction(badge, earned, profile, stats);
   return `<div class="badge-tile${earned ? ' earned' : ''}${soon ? ' badge-tile-soon' : ''}" title="${escapeHtml(badgeName(badge))} — ${escapeHtml(badgeDesc(badge))}${titleSuffix}" onclick="showBadgeInfo('${badge.id}', ${earned}, ${soon}, ${fraction})">
     <div class="badge-tile-circle-wrap">
-      ${earned ? '' : badgeProgressRingSvg(fraction)}
+      ${earned ? '' : badgeProgressRingSvg(fraction, ringColor)}
       <div class="badge-tile-circle" style="background:${bg};">
         <span class="badge-tile-glyph" style="background-color:${glyph};-webkit-mask:url('${iconSrc}') center / contain no-repeat;mask:url('${iconSrc}') center / contain no-repeat;"></span>
         ${soon ? `<span class="badge-tile-soon-ribbon">${escapeHtml(t('badgeComingSoonShort'))}</span>` : ''}
@@ -3615,8 +3698,9 @@ function showBadgeInfo(id, earned, soon, fraction) {
   const badge = findBadgeById(id);
   if (!badge) return;
   const iconSrc = cachedIconUrl(`icons/badges/${badge.icon}`);
-  const bg    = earned ? 'var(--accent)' : 'var(--bg-surface-alt)';
-  const glyph = earned ? 'var(--accent-contrast)' : 'var(--text-secondary)';
+  const pair = badgeColorPair(badge);
+  const bg    = earned ? (pair ? pair.fg : 'var(--accent)') : 'var(--bg-surface-alt)';
+  const glyph = earned ? (pair ? pair.bg : 'var(--accent-contrast)') : 'var(--text-secondary)';
   document.getElementById('badgeInfoIconCircle').style.background = bg;
   const glyphEl = document.getElementById('badgeInfoIconGlyph');
   glyphEl.style.backgroundColor = glyph;
@@ -3624,7 +3708,7 @@ function showBadgeInfo(id, earned, soon, fraction) {
   glyphEl.style.mask = `url('${iconSrc}') center / contain no-repeat`;
   const ringSlot = document.getElementById('badgeInfoIconRing');
   const isEarnedForRing = soon ? false : earned;
-  if (ringSlot) ringSlot.innerHTML = isEarnedForRing ? '' : badgeProgressRingSvg(typeof fraction === 'number' ? fraction : 0);
+  if (ringSlot) ringSlot.innerHTML = isEarnedForRing ? '' : badgeProgressRingSvg(typeof fraction === 'number' ? fraction : 0, pair ? pair.fg : null);
   document.getElementById('badgeInfoName').textContent = badgeName(badge);
   document.getElementById('badgeInfoDesc').textContent = badgeDesc(badge) + (soon ? ` (${t('badgeComingSoon')})` : '');
   const statusEl = document.getElementById('badgeInfoStatus');
