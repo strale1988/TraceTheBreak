@@ -1868,7 +1868,6 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   width:12px;
   height:12px;
   flex-shrink:0;
-  filter:var(--icon-tint-filter);
   opacity:.85;
 }
 .vote-progress-track{
@@ -5235,6 +5234,7 @@ const T = {
   notificationsEmpty:     { en:'No notifications yet.',                 sr:'Još nema obaveštenja.' },
   notificationLoadFailed: { en:'Could not load notifications.',         sr:'Obaveštenja nisu mogla biti učitana.' },
   queueTypePhoto:         { en:'Photo pending',                       sr:'Fotografija na čekanju' },
+  queueTypeStale:         { en:'Aging, no activity',                  sr:'Zastarelo, bez aktivnosti' },
 
   leaderboardBtnTitle:     { en:'Rankings',                           sr:'Rang lista' },
   leaderboardTitle:        { en:'Rankings',                           sr:'Rang lista' },
@@ -9417,6 +9417,7 @@ async function loadUtilityCompaniesAdmin() {
 }
 let waitingListCache = [];
 const WAITING_LIST_PREVIEW_LIMIT = 5;
+const STALE_REPORT_DAYS = 30;
 
 async function loadWaitingListAdmin() {
   const items = new Map();
@@ -9473,8 +9474,37 @@ async function loadWaitingListAdmin() {
     console.error('Failed to load report flags:', err.message);
   }
 
+  try {
+    const staleBefore = new Date(Date.now() - STALE_REPORT_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    const { data: staleCandidates, error: staleErr } = await sb.from(TABLE).select('*')
+      .eq('status', 'reported')
+      .lt('created_at', staleBefore)
+      .order('created_at', { ascending: true })
+      .limit(WAITING_LIST_PREVIEW_LIMIT * 4);
+    if (staleErr) throw staleErr;
+    if (staleCandidates && staleCandidates.length) {
+      const ids = staleCandidates.map(r => r.id);
+      const [contactRes, voteRes] = await Promise.all([
+        sb.from(REPORT_CONTACT_EVENTS_TABLE).select('report_id').in('report_id', ids),
+        sb.from('report_status_vote_progress').select('report_id').in('report_id', ids)
+      ]);
+      if (contactRes.error) throw contactRes.error;
+      if (voteRes.error) throw voteRes.error;
+      const touchedIds = new Set([
+        ...(contactRes.data || []).map(r => r.report_id),
+        ...(voteRes.data || []).map(r => r.report_id)
+      ]);
+      staleCandidates
+        .filter(r => !touchedIds.has(r.id))
+        .slice(0, WAITING_LIST_PREVIEW_LIMIT)
+        .forEach(r => addReason(r, 'stale', r.created_at));
+    }
+  } catch (err) {
+    console.error('Failed to load stale reports:', err.message);
+  }
+
   waitingListCache = Array.from(items.values())
-    .filter(item => item.reasons.includes('photo') || item.reasons.includes('user_flag') || hasFullPowerOverReport(item.report))
+    .filter(item => item.reasons.includes('photo') || item.reasons.includes('user_flag') || item.reasons.includes('stale') || hasFullPowerOverReport(item.report))
     .sort((a, b) => a.waitingSince - b.waitingSince)
     .slice(0, WAITING_LIST_PREVIEW_LIMIT);
   renderWaitingList();
@@ -9506,7 +9536,7 @@ function reportSummaryTitle(r) {
     : translateCategory(r.category);
 }
 
-const WAITING_REASON_LABEL = { photo: 'queueTypePhoto', rejected_photo: 'flagReasonRejectedPhoto', user_flag: 'reportFlagsSectionTitle' };
+const WAITING_REASON_LABEL = { photo: 'queueTypePhoto', rejected_photo: 'flagReasonRejectedPhoto', user_flag: 'reportFlagsSectionTitle', stale: 'queueTypeStale' };
 
 const WAITING_LIST_CONTAINER_IDS = ['notificationWaitingList'];
 
