@@ -1570,7 +1570,10 @@ body.driving-active #appPanel{
    halo behind the circle (default) or, if the person turns pulse animation
    off in Settings, a static colored ring instead (.pin-status-ring) — same
    status color, no motion. 'fixed' reports render with neither (settled,
-   nothing left to draw the eye) — see buildPinIconHtml. */
+   nothing left to draw the eye). The halo's size scales with the report's
+   priority (bigger = more urgent), and each marker gets a random negative
+   animation-delay so dozens of pins on screen don't all pulse in lockstep
+   — see buildPinIconHtml. */
 @keyframes pinStatusPulse{
   0%{ transform:translate(-50%,-50%) scale(.75); opacity:.85; }
   70%{ transform:translate(-50%,-50%) scale(2.3); opacity:0; }
@@ -10766,7 +10769,7 @@ function upsertSectionLine(report) {
   return line;
 }
 
-function buildPinIconHtml(category, status) {
+function buildPinIconHtml(category, status, priority) {
   const catCol  = categoryColor(category);
   const sCol    = statusColor(status);
   const iconSrc = `icons/${categoryIcon(category)}`;
@@ -10774,11 +10777,19 @@ function buildPinIconHtml(category, status) {
   // Fixed reports are settled — no pulse/ring, nothing left to draw the eye to.
   // Reported (brand-new, needs attention) pulses faster than in_progress
   // (already being handled) so urgency still reads at a glance.
-  const pulseDuration = status === 'reported' ? '1.6s' : '2.6s';
+  const pulseDuration = status === 'reported' ? 1.6 : 2.6; // seconds
+  // Higher-priority reports get a bigger halo so urgency reads at a glance
+  // even before you're close enough to read the pin.
+  const pulseSize = priority === 'high' ? 34 : priority === 'low' ? 20 : 26;
+  // Stagger each marker's animation start so dozens of pins on screen
+  // don't all pulse in lockstep — a random negative delay drops each one
+  // into a different point of its cycle immediately, instead of all of
+  // them starting together at 0%.
+  const pulseDelay = -(Math.random() * pulseDuration).toFixed(2);
   let statusMarker = '';
   if (status !== 'fixed') {
     statusMarker = statusPulseEnabled
-      ? `<span class="pin-status-halo" style="background:${sCol};animation-duration:${pulseDuration};"></span>`
+      ? `<span class="pin-status-halo" style="background:${sCol};width:${pulseSize}px;height:${pulseSize}px;animation-duration:${pulseDuration}s;animation-delay:${pulseDelay}s;"></span>`
       : `<span class="pin-status-ring" style="border-color:${sCol};"></span>`;
   }
   return `<div class="pin-upright" style="position:relative;width:40px;height:40px;">` +
@@ -10797,7 +10808,7 @@ function upsertMarker(report) {
     return null;
   }
 
-  const iconHtml = buildPinIconHtml(report.category, report.status);
+  const iconHtml = buildPinIconHtml(report.category, report.status, report.priority);
   const zOffset = report.status === 'fixed' ? -1000 : 0;
 
   let marker = markerById.get(report.id);
