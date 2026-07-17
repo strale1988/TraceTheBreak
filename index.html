@@ -264,6 +264,8 @@ header p{ font-size:var(--fs-11); opacity:.7; margin-top:2px; }
   touch-action:manipulation;
 }
 .lang-btn.active{ background:var(--accent); color:var(--accent-contrast); }
+.lang-btn .icon-img-inline{ filter:brightness(0) invert(45%); opacity:.85; }
+.lang-btn.active .icon-img-inline{ filter:brightness(0) invert(100%); opacity:1; }
 
 .help-icon-btn{
   background:var(--bg-surface-alt);
@@ -2743,7 +2745,7 @@ span.flatpickr-weekday {
       <div class="theme-segment" id="langSegment">
         <button type="button" class="theme-segment-btn lang-btn" onclick="setLang('en')" id="langBtnEn">🇬🇧 EN</button>
         <button type="button" class="theme-segment-btn lang-btn active" onclick="setLang('sr')" id="langBtnSr">🇷🇸 SR</button>
-        <button type="button" class="theme-segment-btn lang-btn" onclick="setLang('auto')" id="langBtnAuto">📍 <span id="langBtnAutoLabel">Auto</span></button>
+        <button type="button" class="theme-segment-btn lang-btn" onclick="setLang('auto')" id="langBtnAuto"><img class="icon-img icon-img-inline" src="icons/pin.png" alt=""> <span id="langBtnAutoLabel">Auto</span></button>
       </div>
       <p class="detail-export-hint" id="langAutoHint">We'll set the language based on your location.</p>
     </div>
@@ -4077,6 +4079,19 @@ function isMunicipalityInAdminDomain(muni) {
   return !!(ownMuni && String(ownMuni.id) === String(muni.id));
 }
 
+function isMunicipalityInAdminRowDomain(muni, row) {
+  if (!row) return false;
+  const lvl = row.admin_level || ADMIN_DEFAULT_LEVEL;
+  if (lvl >= 3) return true;
+  if (!muni) return false;
+  if (lvl === 2) {
+    return !!(row.admin_country_code && muni.country_code === row.admin_country_code);
+  }
+  if (row.admin_municipality_id == null) return false;
+  const ownMuni = getMunicipalityForAdminAssignment(row.admin_municipality_id);
+  return !!(ownMuni && String(ownMuni.id) === String(muni.id));
+}
+
 function isReportInAdminDomain(report) {
   if (!currentAdminLevel()) return false;
   if (currentAdminLevel() >= 3) return true;
@@ -5201,6 +5216,7 @@ const T = {
   ucSearchPH:        { en:'Search contacts (name, municipality, category)…', sr:'Pretraga kontakata (naziv, opština, kategorija)…' },
   ucNoSearchResults: { en:'No contacts match your search.',      sr:'Nema kontakata koji odgovaraju pretrazi.' },
   ucGeocodeBackfillBtn:      { en:'Geocode missing addresses',    sr:'Geokodiraj adrese bez koordinata' },
+  contactFlagAdminNotifyMsg: { en:'{name} was flagged: the {type} contact info may be wrong.', sr:'{name} je prijavljen: {type} kontakt podatak je možda pogrešan.' },
   ucGeocodeBackfillRunning:  { en:'Geocoding {current}/{total}…', sr:'Geokodiranje {current}/{total}…' },
   ucGeocodeBackfillDone:     { en:'Done — {found}/{total} addresses geocoded.', sr:'Gotovo — {found}/{total} adresa geokodirano.' },
   ucGeocodeBackfillNone:     { en:'Every contact with an address already has coordinates.', sr:'Svi kontakti sa adresom već imaju koordinate.' },
@@ -11108,12 +11124,40 @@ async function flagUtilityContact(companyId, contactType) {
     if (error) throw error;
     toast(t('contactFlagSubmitted'), 'success');
     if (btn) btn.textContent = t('contactFlagAlready');
+    notifyAdminsOfContactFlag(companyId, contactType);
   } catch (err) {
     console.error('Failed to flag utility contact:', err.message);
     toast(t('contactFlagError'), 'error');
     if (btn) btn.disabled = false;
   }
 }
+
+async function notifyAdminsOfContactFlag(companyId, contactType) {
+  try {
+    const company = utilityCompanyRegistry.get(String(companyId));
+    if (!company) return;
+    await loadMunicipalityCache();
+    const muni = getMunicipalityById(company.municipality_id);
+    const { data: admins, error } = await sb.rpc('get_admins_list');
+    if (error) throw error;
+    const typeLabel = contactType === 'email' ? t('ucEmailPH') : t('ucPhonePH');
+    const message = t('contactFlagAdminNotifyMsg')
+      .replace('{name}', company.name || '')
+      .replace('{type}', typeLabel);
+    const usernames = new Set(
+      (admins || [])
+        .filter(a => a.username && isMunicipalityInAdminRowDomain(muni, a))
+        .map(a => a.username)
+    );
+    await Promise.all(Array.from(usernames).map(username =>
+      sb.rpc('send_direct_notification', { p_username: username, p_message: message })
+        .catch(err => console.error('Failed to notify admin ' + username + ' of contact flag:', err.message || err))
+    ));
+  } catch (err) {
+    console.error('Failed to notify admins of contact flag:', err.message || err);
+  }
+}
+
 
 const CONTACT_FALLBACK_DELAYS_MS = [1200, 3000, 6000];
 function scheduleFallbackContactCheck() {
