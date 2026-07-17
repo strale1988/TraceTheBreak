@@ -2178,7 +2178,7 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   background:var(--bg-surface-alt); border:1px solid var(--border-color); border-radius:var(--radius-lg); padding:10px 12px;
   display:flex; flex-direction:column; gap:var(--space-4);
 }
-.uc-item-top{ display:flex; justify-content:space-between; align-items:flex-start; gap:var(--space-8); }
+.uc-item-top{ display:flex; justify-content:space-between; align-items:flex-start; gap:var(--space-8); cursor:pointer; }
 .uc-item-name{ font-weight:var(--fw-bold); font-size:var(--fs-13); }
 .uc-item-muni{ font-size:var(--fs-11); color:var(--text-muted); }
 .uc-item-cats{ display:flex; flex-wrap:wrap; gap:var(--space-4); margin-top:2px; }
@@ -2442,6 +2442,7 @@ span.flatpickr-weekday {
       <button class="help-icon-btn" id="municipalityContactsBtn" title="Contacts" style="display:none" onclick="showMunicipalityContactsModal()"><img class="icon-img" src="icons/phone.png" alt="Contacts"></button>
       <button class="help-icon-btn" id="fullscreenBtn" title="Fullscreen / Preko celog ekrana" onclick="toggleFullscreen()"><img class="icon-img" id="fullscreenBtnIcon" src="icons/fullscreen-enter.png" alt="Fullscreen"></button>
       <button class="help-icon-btn" id="leaderboardBtn" title="Rankings" onclick="showLeaderboardModal()"><img class="icon-img" src="icons/user.png" alt="Rankings"></button>
+      <button class="help-icon-btn" id="adminPanelBtn" title="Admin panel" style="display:none" onclick="showAdminPanelModal()"><img class="icon-img" id="adminPanelBtnIcon" src="icons/badges/badge-admin-admin-3.png" alt="Admin panel"></button>
       <button class="help-icon-btn notification-btn" id="notificationBtn" title="Notifications" onclick="showNotificationModal()"><img class="icon-img" src="icons/notification.png" alt="Notifications"><span class="notification-badge" id="notificationBadge" style="display:none">0</span></button>
     </div>
   </div>
@@ -2821,42 +2822,6 @@ span.flatpickr-weekday {
       </div>
     </div>
 
-    <div class="admin-section detail-section" id="settingsAdminSection" style="display:none">
-      <div class="admin-section-title detail-section-title" id="ucSectionTitle">Utility company contacts</div>
-      <input type="text" id="ucSearchInput" oninput="renderUcList()" placeholder="Search contacts…" style="width:100%;box-sizing:border-box;margin-bottom:10px;">
-      <div class="uc-list" id="ucList"></div>
-      <button type="button" class="settings-btn" onclick="toggleUcForm()" id="ucAddToggleBtn">+ Add contact</button>
-      <button type="button" class="settings-btn" onclick="backfillUcCoordinates()" id="ucGeocodeBackfillBtn">Geocode missing addresses</button>
-      <div id="ucFormAnchor"></div>
-
-      <div class="uc-form" id="ucForm" style="display:none">
-        <input type="hidden" id="ucEditId">
-        <div id="ucMuniPicker">
-          <div class="uc-form-row">
-            <select id="ucMunicipalitySelect" style="flex:1;"></select>
-          </div>
-          <button type="button" class="settings-btn" onclick="addMunicipalityFromMapCenter()" id="ucAddMuniBtn"><img class="icon-img icon-img-inline icon-tint-dark" src="icons/pin.png" alt="Pin"> Add municipality from map center</button>
-          <div id="ucNoMunicipalitiesHint" class="detail-empty" style="display:none;"></div>
-        </div>
-        <div class="uc-cat-checks" id="ucCatChecks"></div>
-        <input type="text" id="ucName" placeholder="Company name">
-        <div class="uc-form-row">
-          <input type="text" id="ucPhone" placeholder="Phone">
-          <input type="text" id="ucEmail" placeholder="Email">
-        </div>
-        <input type="text" id="ucWebsite" placeholder="Website">
-        <input type="text" id="ucAddress" placeholder="Address">
-        <textarea id="ucNotes" placeholder="Notes (optional)"></textarea>
-        <div class="uc-form-row">
-          <button type="button" class="settings-btn" style="flex:1;" onclick="cancelUcForm()" id="ucCancelBtn">Cancel</button>
-          <button type="button" style="background:var(--accent);color:white;flex:1;" onclick="saveUtilityCompany()" id="ucSaveBtn">Save</button>
-        </div>
-        <div class="uc-verify-status" id="ucVerifyStatus"></div>
-        <button type="button" class="uc-verify-btn" onclick="verifyUtilityCompany()" id="ucVerifyBtn">Admin has checked the data</button>
-      </div>
-
-      <input type="text" id="adminSearchInput" oninput="onAdminSearchInput()" placeholder="Search reports…" style="width:100%;box-sizing:border-box;margin-bottom:10px;margin-top:18px;">
-    </div>
   </div>
 </div>
 
@@ -3112,6 +3077,50 @@ span.flatpickr-weekday {
   </div>
 </div>
 
+<div id="adminPanelModal" class="fullscreen-modal-overlay" style="display:none">
+  <div class="fullscreen-modal-header">
+    <h2 id="adminPanelModalTitle">Admin panel</h2>
+    <button class="fullscreen-modal-close" onclick="hideAdminPanelModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
+  </div>
+  <div class="fullscreen-modal-body">
+    <div class="admin-section detail-section" id="adminPanelSection" style="border-top:none;">
+      <div class="admin-section-title detail-section-title" id="ucSectionTitle">Utility company contacts</div>
+      <input type="text" id="ucSearchInput" oninput="renderUcList()" placeholder="Search contacts…" style="width:100%;box-sizing:border-box;margin-bottom:10px;">
+      <div class="uc-list" id="ucList"></div>
+      <button type="button" class="settings-btn" onclick="backfillUcCoordinates()" id="ucGeocodeBackfillBtn">Geocode missing addresses</button>
+      <div id="ucFormAnchor"></div>
+
+      <div class="uc-form" id="ucForm" style="display:none">
+        <input type="hidden" id="ucEditId">
+        <div id="ucMuniPicker">
+          <div class="uc-form-row">
+            <select id="ucMunicipalitySelect" style="flex:1;"></select>
+          </div>
+          <button type="button" class="settings-btn" onclick="addMunicipalityFromMapCenter()" id="ucAddMuniBtn"><img class="icon-img icon-img-inline icon-tint-dark" src="icons/pin.png" alt="Pin"> Add municipality from map center</button>
+          <div id="ucNoMunicipalitiesHint" class="detail-empty" style="display:none;"></div>
+        </div>
+        <div class="uc-cat-checks" id="ucCatChecks"></div>
+        <input type="text" id="ucName" placeholder="Company name">
+        <div class="uc-form-row">
+          <input type="text" id="ucPhone" placeholder="Phone">
+          <input type="text" id="ucEmail" placeholder="Email">
+        </div>
+        <input type="text" id="ucWebsite" placeholder="Website">
+        <input type="text" id="ucAddress" placeholder="Address">
+        <textarea id="ucNotes" placeholder="Notes (optional)"></textarea>
+        <div class="uc-form-row">
+          <button type="button" class="settings-btn" style="flex:1;" onclick="cancelUcForm()" id="ucCancelBtn">Cancel</button>
+          <button type="button" style="background:var(--accent);color:white;flex:1;" onclick="saveUtilityCompany()" id="ucSaveBtn">Save</button>
+        </div>
+        <div class="uc-verify-status" id="ucVerifyStatus"></div>
+        <button type="button" class="uc-verify-btn" onclick="verifyUtilityCompany()" id="ucVerifyBtn">Admin has checked the data</button>
+      </div>
+
+      <input type="text" id="adminSearchInput" oninput="onAdminSearchInput()" placeholder="Search reports…" style="width:100%;box-sizing:border-box;margin-bottom:10px;margin-top:18px;">
+    </div>
+  </div>
+</div>
+
 <div id="notificationModal" class="fullscreen-modal-overlay" style="display:none">
   <div class="fullscreen-modal-header">
     <h2 id="notificationModalTitle"><img class="icon-img icon-img-inline" src="icons/notification.png" alt=""> Notifications</h2>
@@ -3170,6 +3179,7 @@ span.flatpickr-weekday {
 <script src="https://unpkg.com/@supabase/supabase-js@2.108.1/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/sr.js"></script>
+<script src="https://unpkg.com/libphonenumber-js@1.10.51/bundle/libphonenumber-js.min.js"></script>
 <script>
 
 function updateHeaderHeightVar() {
@@ -3378,7 +3388,7 @@ function updateAuthUI() {
     .forEach(btn => { if (btn) btn.classList.toggle('map-btn-locked', !hasAccount); });
 
   if (currentSession && currentProfile && currentProfile.username) {
-    document.getElementById('settingsAdminSection').style.display = currentProfile.is_admin ? 'flex' : 'none';
+    updateAdminPanelButtonVisibility();
 
     const canReportHere = !!currentProfile.is_admin || isMobileDevice();
     reportFormPanel.style.display = canReportHere ? 'flex' : 'none';
@@ -3394,14 +3404,14 @@ function updateAuthUI() {
     lockedFormPanel.style.display = 'none';
     chooseUsernamePanel.style.display = 'flex';
     if (reportFabBtn) reportFabBtn.style.display = 'none';
-    document.getElementById('settingsAdminSection').style.display = 'none';
+    updateAdminPanelButtonVisibility();
   } else {
     reportFormPanel.style.display = 'none';
     desktopBlockedPanel.style.display = 'none';
     lockedFormPanel.style.display = 'flex';
     chooseUsernamePanel.style.display = 'none';
     if (reportFabBtn) reportFabBtn.style.display = 'none';
-    document.getElementById('settingsAdminSection').style.display = 'none';
+    updateAdminPanelButtonVisibility();
   }
   if (reportFabBtn && reportFabBtn.style.display === 'none') closeReportWizard();
   checkFormReady();
@@ -3785,6 +3795,17 @@ function adminLevelName(lvl) {
 function currentAdminLevel() {
   if (!currentProfile || !currentProfile.is_admin) return 0;
   return currentProfile.admin_level || ADMIN_DEFAULT_LEVEL;
+}
+
+function updateAdminPanelButtonVisibility() {
+  const btn = document.getElementById('adminPanelBtn');
+  if (!btn) return;
+  const isAdmin = !!(currentSession && currentProfile && currentProfile.is_admin);
+  btn.style.display = isAdmin ? 'flex' : 'none';
+  if (!isAdmin) return;
+  const lvl = currentAdminLevel();
+  const icon = document.getElementById('adminPanelBtnIcon');
+  if (icon) icon.src = 'icons/badges/badge-admin-admin-' + lvl + '.png';
 }
 
 const ADMIN_BADGES = [
@@ -4773,6 +4794,7 @@ async function renderUserDashboard() {
 }
 
 async function renderAdminDashboard() {
+  updateAdminPanelButtonVisibility();
   const section = document.getElementById('adminDashboardSection');
   if (!section) return;
 
@@ -4957,6 +4979,8 @@ const T = {
   timeFilter:   { en:'Time Window Filter',               sr:'Filter vremenskog prozora' },
   settingsBtnTitle: { en:'Settings',                     sr:'Podešavanja' },
   settingsModalTitle: { en:'Settings',                   sr:'Podešavanja' },
+  adminPanelBtnTitle:   { en:'Admin panel',               sr:'Admin panel' },
+  adminPanelModalTitle: { en:'Admin panel',               sr:'Admin panel' },
   themeSectionTitle: { en:'Theme',                       sr:'Tema' },
   themeLight:        { en:'Light',                       sr:'Svetla' },
   themeDark:         { en:'Dark',                        sr:'Tamna' },
@@ -5176,7 +5200,6 @@ const T = {
   ucSectionTitle:    { en:'Utility company contacts',            sr:'Kontakti javnih preduzeća' },
   ucSearchPH:        { en:'Search contacts (name, municipality, category)…', sr:'Pretraga kontakata (naziv, opština, kategorija)…' },
   ucNoSearchResults: { en:'No contacts match your search.',      sr:'Nema kontakata koji odgovaraju pretrazi.' },
-  ucAddContactBtn:   { en:'+ Add contact',                       sr:'+ Dodaj kontakt' },
   ucGeocodeBackfillBtn:      { en:'Geocode missing addresses',    sr:'Geokodiraj adrese bez koordinata' },
   ucGeocodeBackfillRunning:  { en:'Geocoding {current}/{total}…', sr:'Geokodiranje {current}/{total}…' },
   ucGeocodeBackfillDone:     { en:'Done — {found}/{total} addresses geocoded.', sr:'Gotovo — {found}/{total} adresa geokodirano.' },
@@ -5423,6 +5446,8 @@ function applyLang(){
 
   const lbBtn = document.getElementById('leaderboardBtn');
   if (lbBtn) lbBtn.title = t('leaderboardBtnTitle');
+  const adminPanelBtnEl = document.getElementById('adminPanelBtn');
+  if (adminPanelBtnEl) adminPanelBtnEl.title = t('adminPanelBtnTitle');
   const notifBtn = document.getElementById('notificationBtn');
   if (notifBtn) notifBtn.title = t('notificationBtnTitle');
   if (document.getElementById('notificationModal').style.display !== 'none') renderNotificationModalBody();
@@ -5541,11 +5566,10 @@ function applyLang(){
   buildHelpModalContent();
   refreshRenderedPopups();
 
-  if (currentProfile && currentProfile.is_admin && document.getElementById('settingsModal').style.display !== 'none') {
+  if (currentProfile && currentProfile.is_admin && document.getElementById('adminPanelModal').style.display !== 'none') {
+    document.getElementById('adminPanelModalTitle').textContent = t('adminPanelModalTitle');
     const titleEl = document.getElementById('ucSectionTitle');
     if (titleEl) titleEl.textContent = t('ucSectionTitle');
-    const addBtn = document.getElementById('ucAddToggleBtn');
-    if (addBtn) addBtn.textContent = t('ucAddContactBtn');
     const ucSearchEl = document.getElementById('ucSearchInput');
     if (ucSearchEl) ucSearchEl.placeholder = t('ucSearchPH');
     populateUcMunicipalitySelect();
@@ -5672,18 +5696,28 @@ function showSettingsModal() {
   initSoundSettingsUi();
   initMapButtonToggleUi();
   updateNearbyCheckinSegmentUI();
-  if (currentProfile && currentProfile.is_admin) {
-    cancelUcForm();
-    loadUtilityCompaniesAdmin();
-    resetAdminSearch();
-    const adminSearchEl = document.getElementById('adminSearchInput');
-    if (adminSearchEl) adminSearchEl.placeholder = t('adminSearchPH');
-  }
   openOverlay('settingsModal', hideSettingsModal);
 }
 function hideSettingsModal() {
   document.getElementById('settingsModal').style.display = 'none';
   closeOverlay('settingsModal');
+}
+function showAdminPanelModal() {
+  if (!currentProfile || !currentProfile.is_admin) return;
+  document.getElementById('adminPanelModalTitle').textContent = t('adminPanelModalTitle');
+  const modal = document.getElementById('adminPanelModal');
+  bringModalToFront(modal);
+  modal.style.display = 'flex';
+  cancelUcForm();
+  loadUtilityCompaniesAdmin();
+  resetAdminSearch();
+  const adminSearchEl = document.getElementById('adminSearchInput');
+  if (adminSearchEl) adminSearchEl.placeholder = t('adminSearchPH');
+  openOverlay('adminPanelModal', hideAdminPanelModal);
+}
+function hideAdminPanelModal() {
+  document.getElementById('adminPanelModal').style.display = 'none';
+  closeOverlay('adminPanelModal');
 }
 function buildHelpModalContent() {
   document.getElementById('helpModalTitle').textContent = t('helpTitle');
@@ -9745,8 +9779,6 @@ function canManageContactsForMunicipality(municipalityId) {
 async function loadUtilityCompaniesAdmin() {
   const titleEl = document.getElementById('ucSectionTitle');
   if (titleEl) titleEl.textContent = t('ucSectionTitle');
-  const addBtn = document.getElementById('ucAddToggleBtn');
-  if (addBtn) addBtn.textContent = t('ucAddContactBtn');
   const ucSearchEl = document.getElementById('ucSearchInput');
   if (ucSearchEl) ucSearchEl.placeholder = t('ucSearchPH');
   const backfillBtn = document.getElementById('ucGeocodeBackfillBtn');
@@ -10284,23 +10316,19 @@ function renderUcList() {
             ' <button type="button" class="settings-btn" style="display:inline;padding:2px 8px;" onclick="clearUtilityContactFlags(\'' + c.id + '\')">' + t('ucFlagClearBtn') + '</button></div>'
           : '';
         return '<div class="uc-item" id="uc-item-' + c.id + '">' +
-          '<div class="uc-item-top">' +
+          '<div class="uc-item-top" onclick="toggleUtilityCompanyEdit(\'' + c.id + '\')">' +
             '<div>' +
               '<div class="uc-item-name">' + escapeHtml(c.name) + '</div>' +
             '</div>' +
             '<div class="uc-item-actions">' +
-              '<button type="button" style="background:var(--bg-surface-alt);color:var(--text-primary);" onclick="editUtilityCompany(\'' + c.id + '\')">' + t('editBtn') + '</button>' +
-              '<button type="button" style="background:var(--danger-strong);color:#fff;" onclick="deleteUtilityCompany(\'' + c.id + '\')">' + t('deleteBtn') + '</button>' +
+              '<button type="button" style="background:var(--danger-strong);color:#fff;" onclick="event.stopPropagation(); deleteUtilityCompany(\'' + c.id + '\')">' + t('deleteBtn') + '</button>' +
             '</div>' +
           '</div>' +
           '<div class="uc-item-cats">' + verifiedChip + catsHtml + '</div>' +
           flagWarningHtml +
         '</div>';
       }).join('');
-      const addBtnHtml = muni
-        ? '<button type="button" class="uc-muni-add-btn" title="' + t('ucAddContactBtn') + '" ' +
-          'onclick="event.preventDefault(); event.stopPropagation(); addContactForMunicipality(\'' + muni.id + '\');">+</button>'
-        : '';
+      const addBtnHtml = '';
       return '<details class="uc-muni-group" id="uc-muni-group-' + (muni ? muni.id : 'unknown') + '">' +
         '<summary><span class="uc-group-chevron"><img src="icons/arrow.png" alt=""></span> ' + muniLabel +
           ' <span class="uc-country-count">(' + companies.length + ')</span>' + addBtnHtml + '</summary>' +
@@ -10323,45 +10351,22 @@ function setUcMuniPickerVisible(visible) {
   if (picker) picker.style.display = visible ? '' : 'none';
 }
 
-function addContactForMunicipality(municipalityId) {
-  if (!canManageContactsForMunicipality(municipalityId)) {
-    toast(t('ucOutOfDomainError'), 'error');
+function toggleUtilityCompanyEdit(id) {
+  const form = document.getElementById('ucForm');
+  const itemEl = document.getElementById('uc-item-' + id);
+  const isOpenForThis = form && String(ucEditingId) === String(id) && form.style.display !== 'none' &&
+    itemEl && itemEl.nextElementSibling === form;
+  if (isOpenForThis) {
+    cancelUcForm();
     return;
   }
-  resetUcForm();
-  setUcMuniPickerVisible(false);
-  const sel = document.getElementById('ucMunicipalitySelect');
-  if (sel) sel.value = municipalityId;
-
-  const form = document.getElementById('ucForm');
-  const detailsEl = document.getElementById('uc-muni-group-' + municipalityId);
-  if (detailsEl) {
-    detailsEl.open = true;
-    const countryDetailsEl = detailsEl.closest('details.uc-country-group');
-    if (countryDetailsEl) countryDetailsEl.open = true;
-    const itemsEl = detailsEl.querySelector('.uc-muni-items');
-    if (itemsEl && form) itemsEl.insertAdjacentElement('beforeend', form);
-  }
-  if (form) {
-    form.style.display = 'flex';
-    form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }
+  editUtilityCompany(id);
 }
 
 function moveUcFormToAnchor() {
   const form = document.getElementById('ucForm');
   const anchor = document.getElementById('ucFormAnchor');
   if (form && anchor) anchor.insertAdjacentElement('afterend', form);
-}
-
-function toggleUcForm() {
-  const form = document.getElementById('ucForm');
-  if (!form) return;
-  if (form.style.display !== 'none') { cancelUcForm(); return; }
-  resetUcForm();
-  moveUcFormToAnchor();
-  setUcMuniPickerVisible(true);
-  form.style.display = 'flex';
 }
 
 function resetUcForm() {
@@ -10423,6 +10428,24 @@ function editUtilityCompany(id) {
 }
 
 
+function formatPhoneNumberForSave(rawPhone, countryIso2) {
+  const raw = (rawPhone || '').trim();
+  if (!raw) return raw;
+  try {
+    if (window.libphonenumber && countryIso2) {
+      const parsed = window.libphonenumber.parsePhoneNumberFromString(raw, String(countryIso2).toUpperCase());
+      if (parsed && parsed.isValid()) return parsed.formatInternational();
+    }
+    if (window.libphonenumber && raw.startsWith('+')) {
+      const parsed = window.libphonenumber.parsePhoneNumberFromString(raw);
+      if (parsed && parsed.isValid()) return parsed.formatInternational();
+    }
+  } catch (e) {
+    console.error('Failed to format phone number:', e.message || e);
+  }
+  return raw;
+}
+
 function readUcFormRow() {
   const municipalityId = document.getElementById('ucMunicipalitySelect').value;
   const name = cyrillicToLatin(document.getElementById('ucName').value.trim());
@@ -10457,6 +10480,9 @@ async function persistUcRow(verified) {
   row.verified_at = verified ? new Date().toISOString() : null;
   row.verified_by = verified ? (currentSession ? currentSession.user.id : null) : null;
 
+  const muni = getMunicipalityById(row.municipality_id);
+  if (row.phone) row.phone = formatPhoneNumberForSave(row.phone, muni ? muni.country_code : null);
+
   const existing = ucEditingId ? ucCompaniesCache.find(c => String(c.id) === String(ucEditingId)) : null;
   if (!row.address) {
     row.lat = null;
@@ -10465,7 +10491,6 @@ async function persistUcRow(verified) {
     row.lat = existing.lat;
     row.lon = existing.lon;
   } else {
-    const muni = getMunicipalityById(row.municipality_id);
     const pos = await geocodeAddress(row.address, muni ? municipalityDisplayName(muni) : '', muni ? muni.country_code : null);
     row.lat = pos ? pos.lat : null;
     row.lon = pos ? pos.lon : null;
