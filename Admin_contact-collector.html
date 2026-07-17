@@ -476,15 +476,22 @@ async function initMap(){
   worldLayer = L.geoJSON(geojson, {
     style: feature => styleForCountry(feature),
     onEachFeature: (feature, layer) => {
-      layer.on('click', () => selectCountry(feature.properties.ISO_A2));
+      layer.on('click', () => selectCountry(countryCodeFromFeature(feature)));
       layer.on('mouseover', () => layer.setStyle({ fillOpacity: 0.75 }));
       layer.on('mouseout', () => worldLayer.resetStyle(layer));
-      layer.bindTooltip(feature.properties.ADMIN || feature.properties.name || '', { sticky:true });
+      layer.bindTooltip(feature.properties.name || feature.properties.ADMIN || '', { sticky:true });
     }
   }).addTo(map);
 }
+function countryCodeFromFeature(feature){
+  const p = feature.properties || {};
+  // Different GeoJSON mirrors of this dataset use different key names for the same field —
+  // try all the ones actually seen in the wild instead of assuming one.
+  const raw = p['ISO3166-1-Alpha-2'] || p.ISO_A2 || p.iso_a2 || p['iso_a2_eh'] || p.ISO2 || null;
+  return raw && raw !== '-99' ? String(raw).toUpperCase() : null;
+}
 function styleForCountry(feature){
-  const code = (feature.properties.ISO_A2 || '').toUpperCase();
+  const code = countryCodeFromFeature(feature) || '';
   const stats = countryCoverageStats(code);
   let fill = '#cfcfcc';       // no municipalities on file yet
   if(stats.munis > 0){
