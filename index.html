@@ -38,7 +38,6 @@
     })();
   </script>
   <style>
-
 *{ margin:0; padding:0; box-sizing:border-box; }
 
 button, [onclick], [role="button"]{
@@ -46,7 +45,6 @@ button, [onclick], [role="button"]{
   user-select:none;
   -webkit-touch-callout:none;
 }
-
 
 :root{
   --bg-app:#f4f4f2;
@@ -72,29 +70,11 @@ button, [onclick], [role="button"]{
   --warn-text: #8a6212;
   --driving-tile-base: #232323;
   --driving-tile-text: #ffffff;
-  /* Semantic status colors — canonical "success"/"danger" tones. Several
-     places used to hardcode their own slightly different green (#2e7d32,
-     #3ecf6e, #28c76f) or dark red (#7a1f1f, for destructive buttons/badges
-     needing more contrast than the base danger red) for what was really the
-     same "good"/"bad" meaning; those have been pointed at these vars instead.
-     Left untouched on purpose: the heatmap gradient stops, driving-tile
-     category tints, and tier/rank colors — those reuse red/green/amber for
-     unrelated categorical or data-viz reasons, not status duplication.
-     Kept flat (no dark-theme override) to match STATUS_COLORS/PRIORITY_COLORS
-     in JS below, which are also theme-independent — these are floating
-     status indicators (pins, badges, buttons), not text-on-surface colors,
-     so they don't need to shift with light/dark like --accent does.
-     If you change these, keep UI_COLORS in the main script in sync. */
+
   --success: #2ecc71;
   --danger: #ff4b4b;
   --danger-strong: #7a1f1f;
-  /* Spacing/radius scale — named tokens for the pixel values already used
-     repeatedly across the app (20+ border-radius:8px, 34x gap:8px, etc),
-     so new components reach for a shared name instead of typing a fresh
-     number. Existing one-off values (7px, 9px, 14px, 18px, 24px...) were
-     left as literals — they're likely hand-tuned for specific alignment,
-     not part of a systemic scale, so forcing them onto this scale would
-     risk visual regressions for no real consistency gain. */
+
   --radius-xs: 4px;
   --radius-sm: 6px;
   --radius-md: 8px;
@@ -107,14 +87,7 @@ button, [onclick], [role="button"]{
   --space-8: 8px;
   --space-10: 10px;
   --space-12: 12px;
-  /* Type scale — same rationale as the spacing/radius tokens above: name
-     the sizes/weights already in repeated use so new UI can reference a
-     token instead of typing a fresh number. Every size below appears 2+
-     times in the app already; true one-offs (7px, 13.5px, 19px — each
-     used exactly once) were left as literals. This does NOT collapse the
-     17 distinct sizes down to a smaller scale — that would visibly shrink
-     or grow existing text, a design call the person building this should
-     make deliberately, not something to do silently while renaming. */
+
   --fs-9: 9px;
   --fs-9-5: 9.5px;
   --fs-10: 10px;
@@ -132,10 +105,7 @@ button, [onclick], [role="button"]{
   --fs-20: 20px;
   --fs-22: 22px;
   --fs-32: 32px;
-  /* font-weight leans heavy across the app (700/800 account for the vast
-     majority of uses, 500 appears exactly once) — tokenized as-is here
-     without changing any actual weight, since lightening specific spots
-     is a visual/hierarchy decision, not a naming cleanup. */
+
   --fw-regular: 400;
   --fw-medium: 500;
   --fw-semibold: 600;
@@ -199,9 +169,8 @@ header{
   box-shadow:0 6px 24px var(--floating-shadow);
   position:fixed;
   top:0; left:0; right:0;
-  z-index:100; /* see Z-INDEX SCALE above — just needs to clear #map (1) */
-  /* Safari/iOS renders backdrop-filter as a square, ignoring border-radius,
-     unless the element is forced into its own masked compositing layer. */
+  z-index:100;
+
   -webkit-mask-image:-webkit-radial-gradient(white,black);
   mask-image:radial-gradient(white,black);
 }
@@ -240,7 +209,7 @@ header p{ font-size:var(--fs-11); opacity:.7; margin-top:2px; }
   padding:4px;
   min-width:110px;
   box-shadow:0 6px 20px var(--floating-shadow);
-  z-index:10000; /* see Z-INDEX SCALE above — stays above the driving HUD (tops out at 2700) */
+  z-index:10000;
 }
 .lang-dd-menu.open{ display:flex; }
 
@@ -250,17 +219,6 @@ header p{ font-size:var(--fs-11); opacity:.7; margin-top:2px; }
   text-align:left;
 }
 
-/* ============================================================
-   Shared icon-button base
-   .btn-icon   = common behavior for any icon-only button (flex-
-                 centered, pointer cursor, no tap flash/callout)
-   .btn-icon-round = circular variant (adds border-radius:50%)
-   Component classes below (.help-icon-btn, .pin-map-btn, etc.)
-   are grouped into these selectors for their shared declarations,
-   then keep their own rule for size/color/border only. New icon
-   buttons should reuse .btn-icon (+ .btn-icon-round if circular)
-   instead of redeclaring these properties again.
-   ============================================================ */
 .btn-icon,
 .help-icon-btn,
 .pin-map-btn,
@@ -362,7 +320,7 @@ header p{ font-size:var(--fs-11); opacity:.7; margin-top:2px; }
   min-height: 0;
   position: relative;
   overflow: hidden;
-  z-index: 1; /* keep below header/.lang-dropdown so Leaflet's own panes never sit on top of it */
+  z-index: 1;
 }
 
 .app-panel {
@@ -583,8 +541,6 @@ button{
   transition: transform .25s linear;
 }
 
-/* Keeps map pins (report pins, company pins, dropped pins, cluster badges) visually
-   upright on screen at all times, regardless of the current map rotation/bearing. */
 .pin-upright{
   transform: rotate(var(--pin-counter-rotate, 0deg));
   transform-origin: 50% 50%;
@@ -1012,7 +968,7 @@ body.nav-panel-open .driving-nav-card{
   top:calc(10px + env(safe-area-inset-top, 0px));
   left:50%;
   transform:translateX(-50%);
-  z-index:10002; /* see Z-INDEX SCALE above — above literally everything, including modals */
+  z-index:10002;
   display:flex;
   flex-direction:column;
   gap:var(--space-8);
@@ -1056,7 +1012,6 @@ body.nav-panel-open .driving-nav-card{
 .toast.toast-show{ opacity:1; transform:translateY(0) scale(1); }
 .toast.toast-error .toast-icon{ background:#ff4b4b; }
 .toast.toast-success .toast-icon{ background:var(--success); }
-
 
 .driving-left-stack{
   position:fixed;
@@ -1116,14 +1071,14 @@ body.driving-active .driving-speed-widget{ display:flex; }
   gap:var(--space-10);
   background:var(--floating-bg);
   border:1px solid var(--floating-border);
-  border-radius:var(--radius-xl); /* matches .navigate-panel / .driving-nav-card */
+  border-radius:var(--radius-xl);
   padding:8px 12px;
   box-shadow:0 3px 12px var(--floating-shadow);
   position:fixed;
   left:12px;
-  right:12px; /* stretch full-width, mirroring the left margin on the right */
+  right:12px;
   width:auto;
-  z-index:2650; /* sits above the quick-report sheet (2550) */
+  z-index:2650;
   bottom:calc(var(--driving-sheet-height, 220px) + var(--driving-action-row-h, 52px) + 20px + env(safe-area-inset-bottom, 0px));
   opacity:0;
   transition:opacity .35s ease;
@@ -1163,7 +1118,7 @@ body.driving-active .driving-float-action-row{ display:flex; }
   box-shadow:0 3px 10px var(--floating-shadow);
   transition:background .15s;
 }
-.driving-back-btn img{ transform: rotate(-90deg); } /* arrow.png points up natively; rotate to point left */
+.driving-back-btn img{ transform: rotate(-90deg); }
 .driving-search-btn.active{ background:var(--nav-accent); border-color:var(--nav-accent); color:var(--bg-surface); }
 .driving-search-btn:active{ background:var(--border-color-strong); }
 .driving-back-btn{ background:var(--bg-surface-alt); border-color:var(--border-color-strong); color:var(--text-primary); }
@@ -1240,9 +1195,7 @@ body.driving-active .driving-report-sheet{ display:flex; }
   pointer-events:none;
 }
 .driving-tile{
-  /* Whole tile is now category-colored (not a neutral card + colored circle)
-     so it's spottable at a glance while driving; icon stays white, scaled
-     up now that it isn't confined to a small chip. */
+
   flex:1;
   min-width:0;
   border:none;
@@ -1262,16 +1215,13 @@ body.driving-active .driving-report-sheet{ display:flex; }
 .driving-tile-icon-glyph{
   width:32px; height:32px; display:inline-block;
   background-color:#fff;
-  filter:drop-shadow(0 1px 2px rgba(0,0,0,.35)); /* keeps the white icon legible on lighter tile colors (e.g. the signage tile's yellow) */
+  filter:drop-shadow(0 1px 2px rgba(0,0,0,.35));
   -webkit-mask-position:center; mask-position:center;
   -webkit-mask-size:contain; mask-size:contain;
   -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
 }
 .driving-tile:active{ filter:brightness(.85); transform:scale(.96); }
 
-/* One line per category, easy to eyeball-verify, consistent with the same
-   mask + background-color technique used by the map-pin/company-marker
-   and identity-badge glyphs elsewhere in the app. */
 .driving-tile.tile-pothole{  background:#e74c3c; }
 .driving-tile.tile-cracked{  background:#e67e22; }
 .driving-tile.tile-signage{  background:#f1c40f; }
@@ -1514,15 +1464,7 @@ body.driving-active #appPanel{
 }
 .leaderboard-rank.dashboard-identity-badge,
 .leaderboard-admin-badge.dashboard-identity-badge{
-  /* Same 36px/2px sizing as .leaderboard-rank and .leaderboard-admin-badge
-     everywhere else — this one just sits in a tighter header row, so it's
-     given its own class to size independently of either if that ever needs
-     to change, without disturbing the list-row badges.
-     Compound selector (two classes) so this reliably overrides the base
-     36px .leaderboard-rank / .leaderboard-admin-badge rules regardless of
-     their order in the stylesheet — otherwise the badge renders at 36px
-     while the ring wrapper below stays sized for 30px, throwing the ring
-     off-center around the badge. */
+
   width:30px; height:30px; border-width:2px; flex-shrink:0;
 }
 .dashboard-identity-badge img{ padding:5px; }
@@ -1563,17 +1505,6 @@ body.driving-active #appPanel{
   background:var(--success); box-shadow:0 0 0 3px rgba(46,204,113,.2);
 }
 
-/* --- Report pin status pulse -------------------------------------------
-   Used by buildPinIconHtml() for the map's report pins. The pin circle
-   itself is always category-colored with a white ring (so category reads
-   clearly against any basemap); status is conveyed either by a pulsing
-   halo behind the circle (default) or, if the person turns pulse animation
-   off in Settings, a static colored ring instead (.pin-status-ring) — same
-   status color, no motion. 'fixed' reports render with neither (settled,
-   nothing left to draw the eye). The halo's size scales with the report's
-   priority (bigger = more urgent), and each marker gets a random negative
-   animation-delay so dozens of pins on screen don't all pulse in lockstep
-   — see buildPinIconHtml. */
 @keyframes pinStatusPulse{
   0%{ transform:translate(-50%,-50%) scale(.75); opacity:.85; }
   70%{ transform:translate(-50%,-50%) scale(2.3); opacity:0; }
@@ -1592,14 +1523,6 @@ body.driving-active #appPanel{
   pointer-events:none;
 }
 
-/* --- Grouped (clustered) report pin pulse -------------------------------
-   Used by makeClusterIcon(). Unlike individual pins, a cluster's halo is
-   the cluster's own badge color (var(--nav-accent)) rather than the status
-   color — it's flagging "this group still has open reports", not any one
-   report's status — and is deliberately subtler and slower than the
-   per-pin pulse (lower peak opacity, longer duration) since a cluster
-   sits on screen representing many reports at once and a strong pulse
-   there would be visually noisy. */
 @keyframes clusterStatusPulse{
   0%{ transform:translate(-50%,-50%) scale(.75); opacity:.4; }
   70%{ transform:translate(-50%,-50%) scale(2.1); opacity:0; }
@@ -1617,10 +1540,10 @@ body.driving-active #appPanel{
   transition:filter .15s ease;
 }
 .dropped-pin-icon.pin-in-range{
-  filter:brightness(0) saturate(100%) invert(66%) sepia(69%) saturate(407%) hue-rotate(88deg) brightness(93%) contrast(87%) drop-shadow(0 3px 6px rgba(0,0,0,.45)); /* #3ecf6e */
+  filter:brightness(0) saturate(100%) invert(66%) sepia(69%) saturate(407%) hue-rotate(88deg) brightness(93%) contrast(87%) drop-shadow(0 3px 6px rgba(0,0,0,.45));
 }
 .dropped-pin-icon.pin-out-of-range{
-  filter:brightness(0) saturate(100%) invert(41%) sepia(89%) saturate(3223%) hue-rotate(346deg) brightness(100%) contrast(101%) drop-shadow(0 3px 6px rgba(0,0,0,.45)); /* #ff4b4b */
+  filter:brightness(0) saturate(100%) invert(41%) sepia(89%) saturate(3223%) hue-rotate(346deg) brightness(100%) contrast(101%) drop-shadow(0 3px 6px rgba(0,0,0,.45));
 }
 
 .offline-queue-badge{
@@ -1631,9 +1554,7 @@ body.driving-active #appPanel{
   -webkit-tap-highlight-color:transparent; touch-action:manipulation;
 }
 .offline-queue-dot{
-  /* Not a map marker, but echoes the same white-ring-on-color language as
-     .map-pin-badge (report/company pins) at a much smaller scale, so all
-     status/marker iconography reads as one family. */
+
   width:9px; height:9px; box-sizing:border-box; border-radius:50%; flex-shrink:0; background:#f0a020;
   border:1.5px solid #fff;
   box-shadow:0 0 0 3px rgba(240,160,32,.2);
@@ -1917,29 +1838,6 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   font-weight:var(--fw-bold);
 }
 
-/* ============================================================
-   Two modal systems — pick based on content, not habit:
-
-   .generic-modal(-overlay)   Small centered card. Use for short,
-     single-purpose content the user just acknowledges: GPS
-     permission prompt, help text, badge info. Has a built-in
-     title/body/single-close-button layout (see .generic-modal
-     h2/p/-close below) — not meant to scroll a long list or hold
-     a header action bar.
-
-   .fullscreen-modal(-overlay)  Full-height sheet with its own
-     header (title + close, optional share) and scrollable body.
-     Use for anything with real content to browse or that needs
-     header actions: settings, rankings, report/company detail,
-     admin panels. The header supports a `.status-colored`
-     modifier (adds ${status.bg} inline) for detail views that
-     want to tint the header to match a report's status — reuse
-     that instead of inventing a new header treatment.
-
-   Rule of thumb: if it fits in a couple of sentences and one
-   button, generic-modal. If it needs scrolling, a header action,
-   or is itself a screen the user navigates within, fullscreen-modal.
-   ============================================================ */
 .generic-modal-overlay{
   position:fixed; inset:0;
   background:rgba(0,0,0,.75);
@@ -2042,18 +1940,7 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 .contact-card-row a{ color:#4ea1ff; text-decoration:none; }
 .contact-card-row > *:last-child{ min-width:0; overflow-wrap:anywhere; word-break:break-word; }
 .contact-card-icon{ width:15px; height:15px; flex-shrink:0; filter:var(--icon-tint-filter); margin-top:1px; }
-/* ============================================================
-   Shared "white icon on colored circle" map-marker language
-   .map-pin-badge = the colored circle + white ring + shadow
-   .map-pin-glyph = the white masked icon centered inside it
-   Used by report pins (buildPinIconHtml, JS) and utility-company
-   pins (.company-marker-icon-wrap/.company-marker-icon below).
-   Ring/glyph are hardcoded #fff (not var(--accent-contrast)) on
-   purpose: these sit on the map tile, not app chrome, so they
-   must stay white regardless of light/dark theme. New marker
-   types (e.g. future POI pins) should reuse these two classes
-   instead of re-deriving the circle/ring/glyph proportions.
-   ============================================================ */
+
 .map-pin-badge{
   width:26px; height:26px; box-sizing:border-box; border-radius:50%;
   border:3px solid #fff;
@@ -2217,9 +2104,7 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   padding:2px 6px; border-radius:var(--radius-lg); color:white;
 }
 .uc-item-actions{ display:flex; gap:var(--space-6); flex-shrink:0; }
-/* .btn-pill-sm: shared base for small text-label action buttons (uc/admin lists,
-   photo review). admin-action-btn and the uc-item/photo-review button rules were
-   previously identical blocks defined twice — merged here. */
+
 .admin-action-btn, .uc-item-actions button, .photo-review-actions button{
   border:none; border-radius:var(--radius-sm); padding:7px 10px; font-size:var(--fs-12); font-weight:var(--fw-semibold); cursor:pointer;
 }
@@ -2248,10 +2133,10 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   display:inline-flex; align-items:center; justify-content:center;
   width:9px; height:9px; flex-shrink:0;
   transition:transform .15s ease;
-  transform:rotate(90deg); /* arrow.png points up natively; rotate 90 to point right = "tap to expand" */
+  transform:rotate(90deg);
 }
 .uc-group-chevron img{ width:100%; height:100%; display:block; }
-details[open] > summary .uc-group-chevron{ transform:rotate(180deg); /* point down = "tap to collapse" */ }
+details[open] > summary .uc-group-chevron{ transform:rotate(180deg);  }
 .uc-muni-items{
   display:flex; flex-direction:column; gap:var(--space-8); padding:0 10px 10px;
 }
@@ -2388,7 +2273,6 @@ details[open] > summary .uc-group-chevron{ transform:rotate(180deg); /* point do
   height:var(--form-control-h);
 }
 #reportPhotoAddBtn .icon-img, #reportPhotoGalleryBtn .icon-img{ width:55%; height:55%; }
-
 
 #dateRangePicker {
   cursor: pointer;
@@ -2740,6 +2624,11 @@ span.flatpickr-weekday {
     <p id="badgeInfoDesc"></p>
     <button class="generic-modal-close" onclick="hideBadgeInfo()">Close</button>
   </div>
+</div>
+
+
+<div id="contactConfirmModal" class="generic-modal-overlay" style="display:none">
+  <div class="generic-modal" id="contactConfirmModalInner"></div>
 </div>
 
 
@@ -3147,8 +3036,6 @@ span.flatpickr-weekday {
 <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/sr.js"></script>
 <script>
 
-//
-//
 function updateHeaderHeightVar() {
   const header = document.querySelector('header');
   if (header) document.documentElement.style.setProperty('--header-h', header.offsetHeight + 'px');
@@ -3161,13 +3048,6 @@ function updateHeaderHeightVar() {
   if (!panel) return;
   const sync = () => {
     document.documentElement.style.setProperty('--legend-bottom-gap', panel.offsetHeight + 'px');
-    // #appPanel is a flex sibling of #map (flex:1), so any change in its
-    // height resizes #map too. Leaflet caches its container size, so
-    // without this it keeps painting tiles at the old size and leaves
-    // the newly-revealed strip at the bottom gray/untiled.
-    // (try/catch: `map` is declared later in this script with `const`, so
-    // referencing it here — even via typeof — throws while in its TDZ
-    // during the very first, immediate sync() call below.)
     try { if (map && map.invalidateSize) map.invalidateSize({ animate: false, pan: false }); } catch (e) {}
   };
   sync();
@@ -3203,6 +3083,7 @@ const TABLE = 'brake_reports';
 const PROFILES_TABLE = 'profiles';
 const MUNICIPALITIES_TABLE = 'municipalities';
 const UTILITY_COMPANIES_TABLE = 'utility_companies';
+const REPORT_CONTACT_EVENTS_TABLE = 'report_contact_events';
 const MUNICIPALITY_STATS_TABLE = 'municipality_report_stats';
 
 
@@ -3227,8 +3108,8 @@ function sanitizePath(path) {
   return path.filter(p => Array.isArray(p) && isValidLatLng(p[0], p[1]));
 }
 
-let currentSession = null;   
-let currentProfile = null;   
+let currentSession = null;
+let currentProfile = null;
 
 let voteProgressByReport = new Map();
 
@@ -3262,7 +3143,6 @@ async function signInWithProvider(provider) {
   }
 }
 
-//
 function signInWithOsm() {
   const cleanUrl = window.location.origin + window.location.pathname;
   const redirectTo = encodeURIComponent(cleanUrl);
@@ -3396,7 +3276,6 @@ function updateAuthUI() {
   refreshUnreadNotificationCount();
 }
 
-//
 const USER_LEVELS = [
   { level:0, threshold:0,  weight:0,   nameEn:'Observer',             nameSr:'Posmatrač' },
   { level:1, threshold:0,  weight:1,   nameEn:'Citizen',               nameSr:'Građanin' },
@@ -3561,13 +3440,6 @@ function badgeName(b) { return lang === 'sr' ? b.nameSr : b.nameEn; }
 function badgeDesc(b) { return lang === 'sr' ? b.descSr : b.descEn; }
 function isBadgeEarned(badge, profile, stats) { return !!badge.check(profile, stats); }
 
-// Most badge checks are simple numeric thresholds (e.g. "s.commentCount >= 1" or
-// "p.total_contributions >= 3"). Read the field name + threshold straight out of the check
-// function's own source so the progress ring reflects real progress without having to hand-author
-// a parallel progress function for every badge. Badges whose check is a plain boolean flag (coming
-// soon, streak flags, "earn every badge", etc.) fall back to a simple full/empty ring.
-// Same regex-based field/threshold extraction as badgeProgressFraction, but returns the raw
-// current/threshold pair too (rather than just a 0-1 fraction) so callers can show "6 / 10" text.
 function badgeProgressDetail(badge, profile, stats) {
   try {
     const src = badge.check.toString();
@@ -3586,8 +3458,6 @@ function badgeProgressDetail(badge, profile, stats) {
   }
 }
 
-// Picks the single not-yet-earned, not-"coming soon" badge that's closest to being unlocked,
-// for the featured "next badge" callout above the badge grid.
 function findNextBadge(list, profile, stats) {
   let best = null;
   for (const badge of list) {
@@ -3640,9 +3510,6 @@ function badgeProgressFraction(badge, earned, profile, stats) {
     if (!numMatch) return 0;
     const threshold = parseFloat(numMatch[1]);
     if (!threshold) return 0;
-    // These check functions each reference exactly one data field (e.g. "p.total_contributions"
-    // or "s.commentCount") — grab it wherever it appears in the source rather than assuming it's
-    // immediately adjacent to ">=", since several are wrapped like "(p && p.field || 0) >= N".
     const fieldMatches = [...src.matchAll(/\.([a-zA-Z_$]\w*)\b/g)].map(m => m[1]);
     const field = fieldMatches[fieldMatches.length - 1];
     if (!field) return 0;
@@ -3655,11 +3522,6 @@ function badgeProgressFraction(badge, earned, profile, stats) {
 }
 
 const DASHBOARD_TIER_COLORS = ['#9ca3af', '#93c5fd', '#5eead4', '#5ec98a', '#f0b429', '#c084fc'];
-// Each badge category gets its own colored "coin" (fg = the vivid fill, bg = the dark glyph
-// color drawn on top) so the earned badge grid, the badge info modal, and the next-badge
-// preview all look varied and modern instead of every badge being the same flat accent color.
-// Badges without a category (the core level/moderation badges) keep the original single
-// accent color — that's intentional, they're the "main line" progression badges.
 const BADGE_CATEGORY_COLORS = {
   Reporting:   { fg:'#f0b429', bg:'#3a2a0f' },
   Community:   { fg:'#93c5fd', bg:'#1f2937' },
@@ -3770,14 +3632,12 @@ function hideBadgeInfo() {
   closeOverlay('badgeInfoModal');
 }
 
-//
-//
 const ADMIN_LEVELS = [
   { level:1, nameEn:'Municipal Controller', nameSr:'Opštinski kontrolor' },
   { level:2, nameEn:'Regional Director',     nameSr:'Regionalni direktor' },
   { level:3, nameEn:'Global Overseer',       nameSr:'Globalni nadzornik' },
 ];
-const ADMIN_DEFAULT_LEVEL = 3; // legacy admins with no admin_level on file
+const ADMIN_DEFAULT_LEVEL = 3;
 
 function adminLevelInfo(lvl) { return ADMIN_LEVELS.find(a => a.level === lvl) || null; }
 function adminLevelName(lvl) {
@@ -4013,7 +3873,6 @@ async function getAdminModerationStats() {
   }
 }
 
-//
 const _adminMuniLookupWarned = new Set();
 function getMunicipalityForAdminAssignment(value) {
   if (value == null) return null;
@@ -4079,9 +3938,8 @@ function hasFullPowerOverReport(report) {
   return isReportInAdminDomain(report) || isAdminOnSiteOf(report);
 }
 
-//
 let leaderboardTab = 'dashboard';
-let leaderboardCityMuni = null; // resolved once per modal session, reused across tab switches
+let leaderboardCityMuni = null;
 
 function showLeaderboardModal(tab) {
   document.getElementById('leaderboardModalTitle').innerHTML = '<img class="icon-img icon-img-inline" src="icons/trophy.png" alt=""> ' + t('leaderboardTitle');
@@ -4089,7 +3947,7 @@ function showLeaderboardModal(tab) {
   bringModalToFront(lbModal);
   lbModal.style.display = 'flex';
   leaderboardCityMuni = null;
-  renderDashboardTab(); // header identity row/title — correct even if we land on a non-Dashboard tab below
+  renderDashboardTab();
   switchLeaderboardTab(tab || leaderboardTab);
   openOverlay('leaderboardModal', hideLeaderboardModal);
 }
@@ -4311,7 +4169,7 @@ async function refreshUnreadNotificationCount() {
 let notificationInboxRefreshIntervalId = null;
 const NOTIFICATION_INBOX_REFRESH_MS = 15000;
 function startNotificationInboxAutoRefresh() {
-  if (notificationInboxRefreshIntervalId !== null) return; // already running
+  if (notificationInboxRefreshIntervalId !== null) return;
   notificationInboxRefreshIntervalId = setInterval(() => {
     if (!anyAdminQueueModalOpen()) { stopNotificationInboxAutoRefresh(); return; }
     loadUserNotifications(true);
@@ -4339,7 +4197,7 @@ async function resolveLeaderboardCity() {
     try {
       const muni = await resolveMunicipality(userCoords.lat, userCoords.lon);
       if (muni) { leaderboardCityMuni = muni; return muni; }
-    } catch (err) { /* fall through to the report-based fallback below */ }
+    } catch (err) {   }
   }
   if (currentSession) {
     try {
@@ -4353,7 +4211,7 @@ async function resolveLeaderboardCity() {
         const muni = getMunicipalityById(row.municipality_id);
         if (muni) { leaderboardCityMuni = muni; return muni; }
       }
-    } catch (err) { /* no reports yet, or lookup failed — treated as unresolved */ }
+    } catch (err) {   }
   }
   return null;
 }
@@ -4509,9 +4367,6 @@ function renderLeaderboardRows(rows) {
   }).join('');
 }
 
-//
-//
-//
 async function loadAdminsTab() {
   const listEl = document.getElementById('leaderboardList');
   try {
@@ -4638,7 +4493,7 @@ function renderWeeklyChart(elId, breakdown) {
   if (!el) return;
   const counts = breakdown || [0, 0, 0, 0, 0, 0, 0];
   const labels = lang === 'sr' ? WEEKDAY_LABELS_SR : WEEKDAY_LABELS_EN;
-  const max = Math.max(1, ...counts); // avoid a divide-by-zero when the whole week is empty
+  const max = Math.max(1, ...counts);
   el.innerHTML = counts.map((c, i) => {
     const pct = Math.max(4, Math.round((c / max) * 100));
     return `
@@ -5081,6 +4936,18 @@ const T = {
   detailNoContacts:      { en:'No contacts registered yet for this type of break in this municipality.', sr:'Za ovu vrstu kvara u ovoj opštini još uvek nema unetih kontakata.' },
   detailContactsError:   { en:'Could not load contacts.',                  sr:'Kontakti nisu učitani.' },
 
+  contactCountsTitle:      { en:'Contact activity',                            sr:'Aktivnost kontaktiranja' },
+  contactCountsEmailLabel: { en:'Contacted by email',                          sr:'Kontaktirano mejlom' },
+  contactCountsPhoneLabel: { en:'Contacted by phone',                          sr:'Kontaktirano telefonom' },
+  contactConfirmTitle:            { en:'Quick check',                                            sr:'Kratko pitanje' },
+  contactConfirmQuestionEmail:    { en:'Did you contact the public service by email about this report?', sr:'Da li ste mejlom kontaktirali nadležnu službu povodom ove prijave?' },
+  contactConfirmQuestionEmailNamed:{ en:'Did you contact {name} by email about this report?',    sr:'Da li ste mejlom kontaktirali {name} povodom ove prijave?' },
+  contactConfirmQuestionPhone:    { en:'Did you contact the public service by phone about this report?', sr:'Da li ste telefonom kontaktirali nadležnu službu povodom ove prijave?' },
+  contactConfirmQuestionPhoneNamed:{ en:'Did you contact {name} by phone about this report?',    sr:'Da li ste telefonom kontaktirali {name} povodom ove prijave?' },
+  contactConfirmYesBtn:   { en:'Yes, I did',                                   sr:'Da, jesam' },
+  contactConfirmNoBtn:    { en:'No',                                          sr:'Ne' },
+  contactConfirmThanks:   { en:'Thanks — recorded.',                          sr:'Hvala — zabeleženo.' },
+
   detailExportTitle:     { en:'Send & share',                              sr:'Slanje i deljenje' },
   detailExportHint:      { en:'Email this report straight to the responsible utility, or share a link to it.', sr:'Pošaljite ovu prijavu mejlom direktno nadležnom preduzeću, ili podelite link ka njoj.' },
   detailExportBtn:       { en:'Email report',                              sr:'Pošalji prijavu mejlom' },
@@ -5225,7 +5092,7 @@ const T = {
 
 function t(k){ return T[k]?.[lang] ?? k; }
 
-const LANG_STORAGE_KEY = 'ttb_lang'; // localStorage value: 'en' | 'sr'
+const LANG_STORAGE_KEY = 'ttb_lang';
 let lang = (function () {
   try { return localStorage.getItem(LANG_STORAGE_KEY) || 'sr'; } catch (e) { return 'sr'; }
 })();
@@ -5317,7 +5184,7 @@ function applyLang(){
 
   const prioEl = document.getElementById('priority');
   if (prioEl) {
-    const prevPrio = prioEl.value; // '' if nothing chosen yet — don't default that to 'normal'
+    const prevPrio = prioEl.value;
     prioEl.innerHTML =
       `<option value="" disabled${prevPrio ? '' : ' selected'}>${t('prioPH')}</option>` +
       `<option value="low">${t('priorityLow')}</option>` +
@@ -5344,7 +5211,7 @@ function applyLang(){
   if (dashSignedOutHintEl) dashSignedOutHintEl.textContent = t('dashboardSignedOutHint');
   const adminDashLadderTitleEl = document.getElementById('adminDashboardLadderTitle');
   if (adminDashLadderTitleEl) adminDashLadderTitleEl.textContent = t('adminDashboardLadderTitle');
-  
+
   const lockedMsgEl = document.getElementById('lockedMsgText');
   if (lockedMsgEl) lockedMsgEl.textContent = lang === 'sr' ? 'Prijavite se da osigurate vaše prijave i profil.' : 'Sign in to secure your profile and reports.';
 
@@ -5592,7 +5459,6 @@ const mapContainerEl = map.getContainer();
 map.on('zoomstart', () => mapContainerEl.classList.add('map-zooming'));
 map.on('zoomend',   () => mapContainerEl.classList.remove('map-zooming'));
 
-//
 const TILE_CACHE_NAME = 'ttb-osm-tiles-v1';
 
 async function fetchTileCached(url) {
@@ -5601,7 +5467,7 @@ async function fetchTileCached(url) {
   if (cached) return cached;
   const response = await fetch(url);
   if (response && response.ok) {
-    cache.put(url, response.clone()).catch(() => {}); // best-effort; a full/blocked cache shouldn't break tiles
+    cache.put(url, response.clone()).catch(() => {});
   }
   return response;
 }
@@ -5637,20 +5503,14 @@ new CachedTileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
   keepBuffer: 6
 }).addTo(map);
 
-//
-//
-const ICON_CACHE_NAME = 'ttb-icons-v2'; // bumped from v1 to flush any stale icons stuck under the old cache-forever logic
-const iconObjectUrlCache = new Map(); // 'icons/foo.png' -> blob: URL, warm for this page load
+const ICON_CACHE_NAME = 'ttb-icons-v2';
+const iconObjectUrlCache = new Map();
 
 async function fetchIconCached(url) {
   const cache = await caches.open(ICON_CACHE_NAME);
   const cached = await cache.match(url);
-  // Stale-while-revalidate: always kick off a fresh network fetch and update the cache with
-  // it in the background, so a changed icon (same filename, new bytes — e.g. a new logo) shows
-  // up on the *next* load instead of being served from this cache forever. We still return the
-  // cached copy immediately when we have one, so warm loads stay fast.
   const networkFetch = fetch(url).then(response => {
-    if (response && response.ok) cache.put(url, response.clone()).catch(() => {}); // best-effort; a full/blocked cache shouldn't break icons
+    if (response && response.ok) cache.put(url, response.clone()).catch(() => {});
     return response;
   }).catch(() => null);
   if (cached) return cached;
@@ -5667,7 +5527,7 @@ async function warmIconObjectUrl(path) {
     iconObjectUrlCache.set(path, objUrl);
     return objUrl;
   } catch (e) {
-    return null; // offline/unsupported/CORS hiccup — the plain <img src> path still works untouched
+    return null;
   }
 }
 
@@ -5710,13 +5570,9 @@ function collectAllIconPaths() {
   const turnIcons = (typeof TURN_ICONS !== 'undefined')
     ? Object.values(TURN_ICONS).map(f => `icons/${f}`)
     : [];
-  // Map-pin category icons (buildPinIconHtml draws one of these for every report marker,
-  // so they need to be warm before the first pins render, not after).
   const categoryIcons = (typeof CATEGORY_ICONS !== 'undefined')
     ? Object.values(CATEGORY_ICONS).map(f => `icons/${f}`)
     : [];
-  // Report-wizard icons (category tiles, subcategory tiles, priority bars, status bars).
-  // These live under icons/reports/ and use their own separate filename set from CATEGORY_ICONS.
   const wizCategoryIcons = (typeof WIZ_CATEGORY_ICONS !== 'undefined')
     ? Object.values(WIZ_CATEGORY_ICONS).map(f => `icons/reports/${f}`)
     : [];
@@ -5736,7 +5592,7 @@ function collectAllIconPaths() {
 }
 
 async function initIconCaching() {
-  if (!('caches' in window)) return; // unsupported browser — icons still load normally via plain <img src>
+  if (!('caches' in window)) return;
   const paths = collectAllIconPaths();
   await Promise.all(paths.map(p => warmIconObjectUrl(p)));
   applyCachedIconSrc(document.body);
@@ -5753,9 +5609,6 @@ async function initIconCaching() {
 }
 
 function refreshVisibleBadgeGrids() {
-  // Badge icons are painted via CSS mask-image (not <img src>), so applyCachedIconSrc can't
-  // swap them in after the fact — re-render any badge grid that's already open on screen so it
-  // picks up the now-warm, cached icon URLs instead of a fresh network fetch.
   try {
     const lbModal = document.getElementById('leaderboardModal');
     if (lbModal && lbModal.style.display !== 'none' && leaderboardTab === 'dashboard') renderUserDashboard();
@@ -5766,18 +5619,8 @@ function refreshVisibleBadgeGrids() {
   } catch (e) {}
 }
 
-// Deferred (not called inline here): TURN_ICONS / CATEGORY_ICONS / WIZ_* below are declared
-// later in this same script via `const`. Calling initIconCaching() synchronously at this point
-// would reference them while still in the temporal dead zone and throw, silently aborting the
-// whole preload pass (nothing gets warmed, not even the static list) with just a console error.
-// setTimeout defers it to a fresh task after the entire script has finished evaluating, so every
-// const below is safely initialized by the time collectAllIconPaths() runs.
 setTimeout(initIconCaching, 0);
 
-//
-// Rank tables so a cluster can surface its single most urgent member: any 'reported' pin
-// outranks 'in_progress', which outranks 'fixed'/unknown; 'high' priority outranks 'normal'
-// outranks 'low'. Mirrors the same urgency language buildPinIconHtml uses per-pin.
 const CLUSTER_STATUS_RANK = { reported: 2, in_progress: 1, fixed: 0 };
 const CLUSTER_PRIORITY_RANK = { high: 2, normal: 1, low: 0 };
 
@@ -5802,13 +5645,8 @@ function makeClusterIcon(cluster) {
   if (count >= 10 && count < 100) { size = 40; fontSize = 13; }
   else if (count >= 100) { size = 48; fontSize = 14; }
 
-  // Same pulse/ring language as individual report pins (see buildPinIconHtml): a cluster
-  // that contains only 'fixed' reports gets neither, since there's nothing left to draw
-  // the eye to; otherwise it pulses (or shows a static ring if pulse is off in Settings).
-  // Unlike individual pins, the color here is the cluster's own badge color (not the status
-  // color) and the animation is deliberately subtler/slower — see .cluster-status-halo.
   const { status, priority } = clusterWorstReport(cluster);
-  const wrapSize = size + 16; // room for the halo/ring to sit outside the badge itself
+  const wrapSize = size + 16;
   let statusMarker = '';
   if (status && status !== 'fixed') {
     const groupCol = 'var(--nav-accent)';
@@ -5882,28 +5720,28 @@ initRotationWrapper();
 
 let userCoords    = null;
 let userMarker    = null;
-let userMarkerNavStyle = false; // true once the puck has been swapped to the driving-mode arrow look
-let markerById    = new Map(); // report id -> Leaflet marker, only for reports currently rendered on screen
-let sectionPinById = new Map(); // report id -> extra Leaflet pin marker sitting on top of a section's spline (same popup as the line), only for reports currently rendered on screen
-let dateRangeOnlyData = []; // raw results for the selected date range (used for CSV export)
+let userMarkerNavStyle = false;
+let markerById    = new Map();
+let sectionPinById = new Map();
+let dateRangeOnlyData = [];
 let pinMode       = false;
 let manualCoords  = null;
 let manualMarker  = null;
 let manualPinMunicipality = null;
-let navPinMode    = false; // true while waiting for a map tap to drop a manual destination pin
+let navPinMode    = false;
 
-let followMode        = false; // when true, map auto-recenters on the user like turn-by-turn nav
+let followMode        = false;
 let drivingMode        = false;
 let sectionRecording   = false;
-let sectionAwaitingCategory = false; // true right after "Stop" is tapped, until a tile is chosen to categorize the just-traced section
-let sectionPoints      = [];   // array of {lat, lon} collected while recording a section
-let sectionPolyline    = null; // live-drawn Leaflet polyline while recording
-const SECTION_MIN_DISTANCE_M = 8; // ignore GPS jitter smaller than this before adding a new section point
+let sectionAwaitingCategory = false;
+let sectionPoints      = [];
+let sectionPolyline    = null;
+const SECTION_MIN_DISTANCE_M = 8;
 
-let currentHeading            = null;  // last known compass heading, 0-360°, clockwise from true north; null if unknown
-let compassActive             = false; // true once we've received at least one real device-orientation reading
-let mapBearing                 = 0;     // continuous (unbounded, can exceed 360) bearing currently applied to the map
-let headingUpMode             = true;  // when true (and driving mode is on), the map rotates so travel direction faces up
+let currentHeading            = null;
+let compassActive             = false;
+let mapBearing                 = 0;
+let headingUpMode             = true;
 let walkingHeadingMode        = false;
 
 function isHeadingUpActive() {
@@ -5911,7 +5749,7 @@ function isHeadingUpActive() {
 }
 let orientationListenersBound = false;
 let orientationPermissionAsked = false;
-let lastAbsoluteHeadingAt      = 0; // timestamp of the last true-north (absolute) orientation reading
+let lastAbsoluteHeadingAt      = 0;
 
 function shortestAngleDelta(fromDeg, toDeg) {
   let d = (toDeg - fromDeg) % 360;
@@ -5987,7 +5825,6 @@ map.on('popupclose', e => {
   closeOverlay('mapPopup');
 });
 
-//
 let mobilePopupOverlayPointerDownOnBackdrop = false;
 if (mobilePopupOverlay) {
   mobilePopupOverlay.addEventListener('pointerdown', e => {
@@ -6046,7 +5883,6 @@ function setUserMarkerStyle(navStyle) {
   updateUserMarkerRotation();
 }
 
-//
 function updateUserMarkerRotation() {
   if (!userMarker || !userMarkerNavStyle) return;
   const el = userMarker.getElement();
@@ -6103,10 +5939,10 @@ function attachOrientationListeners() {
   window.addEventListener('deviceorientation', handleOrientationEvent, true);
 }
 
-const ABSOLUTE_HEADING_STALE_MS = 3000; // if no true-north reading in this long, trust relative alpha again
+const ABSOLUTE_HEADING_STALE_MS = 3000;
 const ORIENTATION_ABSOLUTE_GIVEUP_MS = 5000;
 let orientationListenersAttachedAt = 0;
-const ORIENTATION_FLAT_BETA_DEG = 25; // |beta| under this (or within this of ±180) counts as "lying flat"
+const ORIENTATION_FLAT_BETA_DEG = 25;
 function isDeviceNearlyFlat(beta) {
   if (typeof beta !== 'number' || isNaN(beta)) return false;
   const b = Math.abs(beta);
@@ -6125,10 +5961,10 @@ function handleOrientationEvent(event) {
   let isAbsolute = false;
 
   if (typeof event.webkitCompassHeading === 'number' && !isNaN(event.webkitCompassHeading)) {
-    heading = event.webkitCompassHeading; // iOS Safari — always true-north-relative
+    heading = event.webkitCompassHeading;
     isAbsolute = true;
   } else if (event.absolute && typeof event.alpha === 'number') {
-    heading = 360 - event.alpha; // Android, true compass heading
+    heading = 360 - event.alpha;
     isAbsolute = true;
   }
 
@@ -6174,9 +6010,9 @@ function isMobileDevice() {
 
 const VPN_CHECK_URL = 'https://ipwho.is/?fields=success,security';
 const VPN_RECHECK_INTERVAL_MS = 5 * 60 * 1000;
-let vpnCheckResult = null;   // { isVpn: boolean } | null (null = never resolved yet)
+let vpnCheckResult = null;
 let vpnCheckedAt = 0;
-let vpnCheckInFlight = null; // de-dupes overlapping calls
+let vpnCheckInFlight = null;
 
 async function ensureVpnStatus() {
   const isFresh = vpnCheckResult && (Date.now() - vpnCheckedAt) < VPN_RECHECK_INTERVAL_MS;
@@ -6198,7 +6034,7 @@ async function ensureVpnStatus() {
   })();
   return vpnCheckInFlight;
 }
-ensureVpnStatus(); // fire-and-forget warmup — see comment above
+ensureVpnStatus();
 
 const REPORT_PROXIMITY_MAX_M = 50;
 
@@ -6250,8 +6086,8 @@ function toast(msg, kind) {
   const iconGlyph = kind === 'error' ? '✕' : kind === 'success' ? '✓' : '';
   el.innerHTML = (iconGlyph ? `<span class="toast-icon">${iconGlyph}</span>` : '') +
                  `<span class="toast-msg"></span>`;
-  el.querySelector('.toast-msg').textContent = msg; // textContent, not innerHTML, so msg can never inject markup
-  container.prepend(el); // newest toast lands on top of the stack, not buried below older ones
+  el.querySelector('.toast-msg').textContent = msg;
+  container.prepend(el);
   requestAnimationFrame(() => el.classList.add('toast-show'));
   setTimeout(() => {
     el.classList.remove('toast-show');
@@ -6261,15 +6097,15 @@ function toast(msg, kind) {
 
 
 const NavState = Object.freeze({
-  IDLE:          'idle',          // no destination chosen
-  SEARCHING:     'searching',     // search panel open, typing/browsing results
-  CALCULATING:   'calculating',   // destination picked, first route fetch in flight
-  PREVIEW:       'preview',       // route drawn, waiting for the user to confirm "Start"
-  NAVIGATING:    'navigating',    // actively following the route
-  OFF_ROUTE:     'off_route',     // drifted too far from the drawn route
-  RECALCULATING: 'recalculating', // fetching a fresh route after going off-route
-  ARRIVED:       'arrived',       // within arrival radius of the destination
-  FINISHED:      'finished'       // brief terminal state before resetting to idle
+  IDLE:          'idle',
+  SEARCHING:     'searching',
+  CALCULATING:   'calculating',
+  PREVIEW:       'preview',
+  NAVIGATING:    'navigating',
+  OFF_ROUTE:     'off_route',
+  RECALCULATING: 'recalculating',
+  ARRIVED:       'arrived',
+  FINISHED:      'finished'
 });
 
 const NAV_TRANSITIONS = {
@@ -6347,32 +6183,32 @@ function updateNavStatusText() {
   el.style.display = text ? 'block' : 'none';
 }
 
-const ARRIVAL_RADIUS_M    = 25; // within this distance of the destination, consider the trip complete
-const OFF_ROUTE_THRESHOLD_M = 40; // perpendicular distance from the route line that counts as "off route"
+const ARRIVAL_RADIUS_M    = 25;
+const OFF_ROUTE_THRESHOLD_M = 40;
 const ON_ROUTE_RECOVER_THRESHOLD_M = 25;
-let destinationCoords  = null; // { lat, lon, label } of the chosen destination, or null if none active
-let destinationMarker  = null; // Leaflet marker for the destination
-let navigationLine     = null; // Leaflet polyline showing the route (or straight-line fallback)
-let navRouteSteps      = [];   // turn-by-turn maneuver list for the current route (see buildTurnSteps)
-let navStepIndex       = 0;    // index into navRouteSteps of the *upcoming* maneuver
+let destinationCoords  = null;
+let destinationMarker  = null;
+let navigationLine     = null;
+let navRouteSteps      = [];
+let navStepIndex       = 0;
 let navPanelOpen       = false;
 let navRouteFetching   = false;
-let navLastRouteAt     = 0;      // timestamp of the last successful route fetch
-let navLastRouteFrom   = null;   // {lat,lon} the last route was fetched from, to detect drift
+let navLastRouteAt     = 0;
+let navLastRouteFrom   = null;
 
-const NAV_REROUTE_INTERVAL_MS = 15000; // don't reroute more often than this
-const NAV_REROUTE_DRIFT_M     = 40;    // ...unless we've drifted this far off the last route origin
+const NAV_REROUTE_INTERVAL_MS = 15000;
+const NAV_REROUTE_DRIFT_M     = 40;
 
 const OSRM_CAR_ENDPOINT = 'https://routing.openstreetmap.de/routed-car/route/v1/driving/';
 
 const ROAD_SNAP_URL_BASE        = 'https://routing.openstreetmap.de/routed-car/nearest/v1/driving/';
-const ROAD_SNAP_MIN_INTERVAL_MS = 1200;  // don't fire a new network request more often than this
-const ROAD_SNAP_MAX_ACCEPT_M    = 30;    // ignore a snap result this far from the raw fix (off-road)
-const ROAD_SNAP_FALLBACK_MS     = 1800;  // if a snap attempt hasn't resolved by then, show the raw fix instead of freezing the puck
-const ROAD_SIDE_OFFSET_M        = 3;     // ~half a typical lane width
+const ROAD_SNAP_MIN_INTERVAL_MS = 1200;
+const ROAD_SNAP_MAX_ACCEPT_M    = 30;
+const ROAD_SNAP_FALLBACK_MS     = 1800;
+const ROAD_SIDE_OFFSET_M        = 3;
 let roadSnapFetching        = false;
 let lastRoadSnapAt          = 0;
-let snappedUserCoords       = null; // last accepted on-road position, or null if nothing's been snapped yet
+let snappedUserCoords       = null;
 let roadSnapFallbackTimer   = null;
 
 const DEST_SNAP_MAX_ACCEPT_M = 60;
@@ -6385,7 +6221,7 @@ async function snapToNearestRoad(lat, lon, maxAcceptM) {
     const snapped = { lat: wp.location[1], lon: wp.location[0] };
     return distMeters(snapped, { lat, lon }) <= maxAcceptM ? snapped : null;
   } catch (err) {
-    return null; // offline/timeout — caller falls back to the raw point
+    return null;
   }
 }
 
@@ -6406,7 +6242,7 @@ function snapUserToRoadThenShow(lat, lon) {
 
   const now = Date.now();
   if (roadSnapFetching || now - lastRoadSnapAt < ROAD_SNAP_MIN_INTERVAL_MS) {
-    return; // the fallback timer above still guarantees the puck moves for this tick
+    return;
   }
 
   roadSnapFetching = true;
@@ -6553,7 +6389,7 @@ async function selectDestination(lat, lon, label) {
   if (!from) {
     toast(t('navigateNeedLocation'), 'error');
     map.setView([destLat, destLon], 14);
-    return; // stays in CALCULATING; resolves to PREVIEW once a GPS fix lets us draw a route
+    return;
   }
 
   drawNavigationLine().then(() => {
@@ -6578,8 +6414,8 @@ async function fetchRoute(from, to) {
   const leg = route.legs && route.legs[0];
   return {
     coords: route.geometry.coordinates.map(([rlon, rlat]) => [rlat, rlon]),
-    distance: route.distance, // meters
-    duration: route.duration,  // seconds
+    distance: route.distance,
+    duration: route.duration,
     steps: buildTurnSteps(leg)
   };
 }
@@ -6656,12 +6492,12 @@ function updateNavInfoText(meters, seconds, approximate) {
   distText.textContent = str;
 }
 
-const TURN_ARRIVE_RADIUS_M = 25; // close enough to a maneuver point to consider it "reached"
+const TURN_ARRIVE_RADIUS_M = 25;
 
-const TBT_LEAD_SECONDS = 10;   // target lead time before a turn, in seconds of travel at current speed
-const TBT_MIN_POPIN_M  = 60;   // floor, for stopped/very slow driving
-const TBT_MAX_POPIN_M  = 500;  // ceiling, so it doesn't announce a turn half a km out
-const TBT_FADE_MS      = 350;  // must match .turn-by-turn-card's CSS transition duration
+const TBT_LEAD_SECONDS = 10;
+const TBT_MIN_POPIN_M  = 60;
+const TBT_MAX_POPIN_M  = 500;
+const TBT_FADE_MS      = 350;
 
 function showTurnByTurnCard() {
   const card = document.getElementById('turnByTurnCard');
@@ -6783,7 +6619,7 @@ function evaluateNavigationProgress() {
     return;
   }
 
-  if (!navigationLine || navigationLine._isFallback) return; // nothing to measure drift against yet
+  if (!navigationLine || navigationLine._isFallback) return;
 
   const offRouteDist = distanceToPolylineMeters(from, navigationLine.getLatLngs());
   const currentlyOffRoute = navState === NavState.OFF_ROUTE || navState === NavState.RECALCULATING;
@@ -6802,7 +6638,7 @@ function evaluateNavigationProgress() {
   }
 
   if (!isOffRoute && navState === NavState.OFF_ROUTE) {
-    setNavState(NavState.NAVIGATING); // drifted back onto the route without needing a new fetch
+    setNavState(NavState.NAVIGATING);
   }
 }
 
@@ -6951,8 +6787,8 @@ function toggleDrivingMode() {
 
 let reportSubmissionInFlight = false;
 
-const REPORT_RATE_LIMIT_MAX = 5;                    // max reports...
-const REPORT_RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000;  // ...per rolling 5 minutes
+const REPORT_RATE_LIMIT_MAX = 5;
+const REPORT_RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000;
 const REPORT_RATE_LIMIT_STORAGE_KEY = 'ttb_recent_report_times';
 
 function getRecentReportTimestamps() {
@@ -7167,19 +7003,18 @@ function bringModalToFront(el){
   if (el && el.parentNode) document.body.appendChild(el);
 }
 
-//
 let overlayStack = [];
 let suppressOverlayPopstate = false;
 let closingViaOverlayStack = false;
 
 function openOverlay(key, closeFn) {
-  if (overlayStack.some(o => o.key === key)) return; // already open/tracked
+  if (overlayStack.some(o => o.key === key)) return;
   overlayStack.push({ key, closeFn });
   history.pushState({ overlayKey: key }, '');
 }
 function closeOverlay(key) {
   const idx = overlayStack.findIndex(o => o.key === key);
-  if (idx === -1) return; // not tracked — already closed via back button
+  if (idx === -1) return;
   overlayStack.splice(idx, 1);
   if (!suppressOverlayPopstate) {
     closingViaOverlayStack = true;
@@ -7204,7 +7039,7 @@ history.pushState({ overlayGuard: true }, '');
 
 let gpsModalShownOnce = false;
 function showGpsModal(){
-  if (gpsModalShownOnce) return; // already notified for this down episode
+  if (gpsModalShownOnce) return;
   const modal = document.getElementById('gpsModal');
   if (!modal) return;
   gpsModalShownOnce = true;
@@ -7226,20 +7061,20 @@ function enableManualPinMode() {
   checkFormReady();
 }
 
-let lastAcceptedFix   = null; // {lat, lon, t} of the last fix that passed the plausibility check
-let smoothedHeading   = null; // EMA-smoothed heading in degrees, used for map bearing + marker rotation
-let smoothedSpeedKmh  = null; // EMA-smoothed speed shown on the driving-mode HUD
-let smoothedFixCoords = null; // EMA-smoothed raw position, used to damp fix-to-fix jitter before it ever reaches the puck/road-snap logic
-const GPS_MAX_PLAUSIBLE_SPEED_MPS = 55;  // ~200 km/h; a bigger implied speed between fixes is treated as a GPS glitch
-const GPS_MAX_ACCEPTABLE_ACCURACY_M = 100; // fixes reported less precise than this are suspect
-const GPS_STALE_FIX_MS = 10000; // don't hold onto an old "good" fix forever if accuracy stays poor
-const HEADING_SMOOTHING_FACTOR     = 0.35; // 0..1, higher = follows raw heading faster / smooths less
+let lastAcceptedFix   = null;
+let smoothedHeading   = null;
+let smoothedSpeedKmh  = null;
+let smoothedFixCoords = null;
+const GPS_MAX_PLAUSIBLE_SPEED_MPS = 55;
+const GPS_MAX_ACCEPTABLE_ACCURACY_M = 100;
+const GPS_STALE_FIX_MS = 10000;
+const HEADING_SMOOTHING_FACTOR     = 0.35;
 let lastGpsHeadingAt = 0;
-const GPS_HEADING_FRESH_MS = 4000; // slack for a missed/rejected GPS fix before the device compass is allowed back in
+const GPS_HEADING_FRESH_MS = 4000;
 const SPEED_SMOOTHING_FACTOR       = 0.45;
-const POSITION_SMOOTH_MIN_FACTOR   = 0.5;  // applied to tiny/no movement (pure jitter) — raised from 0.25: at the old value the puck visibly lagged behind real, slow movement (walking speed, or the first second or two of pulling away from a stop) because most consecutive fixes are well under POSITION_SMOOTH_FULL_SNAP_M apart and so almost never got trusted much. This still smooths pure jitter, just less sluggishly.
-const POSITION_SMOOTH_MAX_FACTOR   = 1.0;  // applied once movement is clearly real
-const POSITION_SMOOTH_FULL_SNAP_M  = 8;    // movement at/above this distance is trusted fully, no smoothing — lowered from 12 so genuine movement reaches full-trust, no-lag tracking sooner.
+const POSITION_SMOOTH_MIN_FACTOR   = 0.5;
+const POSITION_SMOOTH_MAX_FACTOR   = 1.0;
+const POSITION_SMOOTH_FULL_SNAP_M  = 8;
 function smoothPositionFix(candidate) {
   if (!smoothedFixCoords) { smoothedFixCoords = { lat: candidate.lat, lon: candidate.lon }; return smoothedFixCoords; }
   const jumpM = distMeters(smoothedFixCoords, candidate);
@@ -7258,7 +7093,7 @@ function smoothHeading(previous, rawHeading, factor) {
   return ((next % 360) + 360) % 360;
 }
 
-const GPS_SIGNAL_LOST_MS = 8000; // matches the geolocation call's own timeout
+const GPS_SIGNAL_LOST_MS = 8000;
 function updateDrivingGpsStatus() {
   const dsl = document.getElementById('drivingStatusLabel');
   if (!dsl || !drivingMode) return;
@@ -7271,9 +7106,9 @@ setInterval(updateDrivingGpsStatus, 2000);
 let speedLimitFetching     = false;
 let lastSpeedLimitFetchAt  = 0;
 let lastSpeedLimitFetchLoc = null;
-const SPEED_LIMIT_REFRESH_MS      = 15000; // don't re-query more often than this...
-const SPEED_LIMIT_REFRESH_DRIFT_M = 150;   // ...unless we've moved this far since the last query
-const SPEED_LIMIT_SEARCH_RADIUS_M = 25;    // how far from the GPS fix to look for a tagged road
+const SPEED_LIMIT_REFRESH_MS      = 15000;
+const SPEED_LIMIT_REFRESH_DRIFT_M = 150;
+const SPEED_LIMIT_SEARCH_RADIUS_M = 25;
 
 function maybeFetchSpeedLimit(lat, lon) {
   if (!drivingMode || speedLimitFetching) return;
@@ -7325,7 +7160,7 @@ function stopGpsRetryLoop() {
   }
 }
 function startGpsRetryLoop() {
-  if (gpsRetryIntervalId !== null) return; // already retrying
+  if (gpsRetryIntervalId !== null) return;
   gpsRetryIntervalId = setInterval(() => {
     if (gpsWatchId === null) startWatching();
   }, 4000);
@@ -7335,7 +7170,7 @@ let lastGpsWatchdogRestartAt = 0;
 const GPS_WATCHDOG_RESTART_COOLDOWN_MS = 3000;
 function gpsWatchdogTick() {
   const stale = !lastAcceptedFix || (Date.now() - lastAcceptedFix.t) > GPS_SIGNAL_LOST_MS;
-  if (!stale || gpsWatchId === null) return; // fine, or already being recovered by the dedicated retry loop
+  if (!stale || gpsWatchId === null) return;
   if (Date.now() - lastGpsWatchdogRestartAt < GPS_WATCHDOG_RESTART_COOLDOWN_MS) return;
   lastGpsWatchdogRestartAt = Date.now();
   navigator.geolocation.clearWatch(gpsWatchId);
@@ -7345,7 +7180,7 @@ function gpsWatchdogTick() {
 setInterval(gpsWatchdogTick, 1000);
 
 function startWatching() {
-  if (gpsWatchId !== null) return; // already watching — avoid opening a second session
+  if (gpsWatchId !== null) return;
   gpsWatchId = navigator.geolocation.watchPosition(
     pos => {
       if (!isValidLatLng(pos.coords.latitude, pos.coords.longitude)) {
@@ -7400,13 +7235,13 @@ function startWatching() {
         if (followMode) followMapTo(userCoords.lat, userCoords.lon);
       }
 
-      const GPS_HEADING_MIN_SPEED_MPS = 1.0; // ~3.6 km/h — below this, course-over-ground is noise
+      const GPS_HEADING_MIN_SPEED_MPS = 1.0;
       if (
         typeof pos.coords.heading === 'number' && !isNaN(pos.coords.heading) &&
         typeof pos.coords.speed === 'number' && !isNaN(pos.coords.speed) &&
         pos.coords.speed >= GPS_HEADING_MIN_SPEED_MPS
       ) {
-        lastGpsHeadingAt = Date.now(); // marks GPS course as fresh — tells the compass handler to stand down
+        lastGpsHeadingAt = Date.now();
         smoothedHeading = smoothHeading(smoothedHeading, pos.coords.heading, HEADING_SMOOTHING_FACTOR);
         currentHeading = smoothedHeading;
         if (isHeadingUpActive()) applyMapBearing(currentHeading);
@@ -7503,7 +7338,6 @@ document.addEventListener('visibilitychange', () => {
   startWatching();
 });
 
-//
 document.getElementById('followLocationBtn').style.display = 'flex';
 document.getElementById('pinMapBtn').style.display = 'flex';
 document.getElementById('drivingModeBtn').style.display = 'flex';
@@ -7740,11 +7574,6 @@ const STATUS_COLORS = {
   'in_progress': '#f5a623',
   'fixed':       '#2ecc71',
 };
-// Generic success/danger colors for UI that isn't literally a report status
-// (proximity indicator, admin approve/reject actions, etc) but used to reach
-// for its own one-off green/red shade. Kept equal to STATUS_COLORS.fixed/
-// reported and to --success/--danger/--danger-strong in :root above — if you
-// change one, change all three.
 const UI_COLORS = {
   success: '#2ecc71',
   danger: '#ff4b4b',
@@ -7774,7 +7603,7 @@ function isCategoryVisible(cat) {
 
 let statusMarkerFilter = new Set(['reported', 'in_progress', 'fixed']);
 
-const PULSE_STORAGE_KEY = 'ttb_status_pulse'; // localStorage value: '1' (on, default) | '0' (off — static status ring instead)
+const PULSE_STORAGE_KEY = 'ttb_status_pulse';
 function getPulseEnabledPref() {
   try { return localStorage.getItem(PULSE_STORAGE_KEY) !== '0'; } catch (e) { return true; }
 }
@@ -7782,7 +7611,7 @@ let statusPulseEnabled = getPulseEnabledPref();
 function setPulseEnabled(enabled) {
   statusPulseEnabled = enabled;
   try { localStorage.setItem(PULSE_STORAGE_KEY, enabled ? '1' : '0'); } catch (e) {}
-  syncMarkers(true); // re-render existing pins with the halo (pulse on) or ring (pulse off)
+  syncMarkers(true);
 }
 
 function isStatusVisible(status) {
@@ -7959,13 +7788,13 @@ function checkFormReady() {
 }
 
 const REPORT_PHOTO_BUCKET = 'report-photos';
-const REPORT_PHOTO_MAX_DIMENSION = 1280;        // px, longest side, after downscaling — plenty to see a pothole/leak/downed line clearly, well below what a phone camera shoots natively
-const REPORT_PHOTO_JPEG_QUALITY = 0.72;         // still visually clean at this size; the drop from 0.8 saves more here than it would at full resolution
-const REPORT_PHOTO_MAX_INPUT_BYTES = 15 * 1024 * 1024; // reject absurd originals before even trying to decode them
-const REPORT_PHOTO_SIGNED_URL_TTL = 300;        // seconds a viewing link stays valid for — fine for in-app viewing, where the link is used right away
+const REPORT_PHOTO_MAX_DIMENSION = 1280;
+const REPORT_PHOTO_JPEG_QUALITY = 0.72;
+const REPORT_PHOTO_MAX_INPUT_BYTES = 15 * 1024 * 1024;
+const REPORT_PHOTO_SIGNED_URL_TTL = 300;
 
-let pendingReportPhotoBlob = null;       // compressed Blob, uploaded only once the report itself is saved
-let pendingReportPhotoPreviewUrl = null; // object URL backing the on-screen thumbnail
+let pendingReportPhotoBlob = null;
+let pendingReportPhotoPreviewUrl = null;
 
 function compressReportPhoto(file) {
   return new Promise((resolve, reject) => {
@@ -8003,7 +7832,7 @@ function triggerReportPhotoGallery() {
 
 async function onReportPhotoSelected(inputEl) {
   const file = inputEl.files && inputEl.files[0];
-  inputEl.value = ''; // lets the same file be picked again later (e.g. after removing it)
+  inputEl.value = '';
   if (!file) return;
   try {
     const blob = await compressReportPhoto(file);
@@ -8398,7 +8227,7 @@ function wizRenderDetails(body) {
 const OFFLINE_DB_NAME = 'ttb_offline_queue';
 const OFFLINE_DB_VERSION = 1;
 const OFFLINE_STORE = 'pending_reports';
-const OFFLINE_SYNC_POLL_MS = 30 * 1000; // periodic fallback, see note above
+const OFFLINE_SYNC_POLL_MS = 30 * 1000;
 
 function openOfflineDb() {
   return new Promise((resolve, reject) => {
@@ -8449,7 +8278,7 @@ async function getQueuedReports() {
     await idbTxDone(tx);
     return rows || [];
   } catch (e) {
-    return []; // IndexedDB unavailable (e.g. private mode) — queue is simply a no-op
+    return [];
   }
 }
 
@@ -8510,7 +8339,7 @@ async function syncOfflineQueue(manual) {
         await deleteQueuedReport(row.localId);
         syncedCount++;
       } catch (err) {
-        if (isNetworkFailure(err)) break; // still no real connectivity — retry the rest later
+        if (isNetworkFailure(err)) break;
         console.error('Dropping unsendable offline report:', row.localId, err);
         await deleteQueuedReport(row.localId);
       }
@@ -8650,7 +8479,7 @@ async function reportBreak(){
   }
 }
 
-let municipalityCache = [];        // rows already loaded from Supabase this session
+let municipalityCache = [];
 let municipalityCacheLoaded = false;
 
 const MUNICIPALITY_CACHE_STORAGE_KEY = 'ttb_municipality_cache_v2';
@@ -8677,7 +8506,7 @@ async function loadMunicipalityCache() {
     const cached = readMunicipalityCacheFromStorage();
     if (cached && cached.length) {
       municipalityCache = cached;
-      municipalityCacheLoaded = true; // usable right away; refreshed below
+      municipalityCacheLoaded = true;
     }
     try {
       const { data, error } = await sb.from(MUNICIPALITIES_TABLE)
@@ -8717,7 +8546,7 @@ function pointInBoundary(lat, lon, boundary) {
 }
 
 function bboxContains(bbox, lat, lon) {
-  if (!bbox || bbox.length !== 4) return true; // no bbox stored — don't prefilter it out
+  if (!bbox || bbox.length !== 4) return true;
   const [minLon, minLat, maxLon, maxLat] = bbox;
   return lon >= minLon && lon <= maxLon && lat >= minLat && lat <= maxLat;
 }
@@ -8754,7 +8583,7 @@ function getMunicipalityBySlug(slug) {
 
 let _nominatimChain = Promise.resolve();
 let _nominatimLastCallAt = 0;
-const NOMINATIM_MIN_GAP_MS = 1100; // just over the 1 req/s ceiling
+const NOMINATIM_MIN_GAP_MS = 1100;
 const NOMINATIM_MAX_RETRIES = 3;
 
 async function _nominatimFetchOnce(url, options) {
@@ -8824,7 +8653,7 @@ async function fetchMunicipalityFromNominatim(lat, lon) {
     const row = {
       osm_type: json.osm_type || null,
       osm_id: json.osm_id != null ? json.osm_id : null,
-      admin_level: null, // Nominatim's address breakdown doesn't expose the raw OSM admin_level tag; not needed at lookup time (see findMunicipalityInCache's `|| 0` fallback)
+      admin_level: null,
       name,
       name_en: null,
       country_code: (addr.country_code || '').toUpperCase() || null,
@@ -8847,7 +8676,7 @@ async function fetchMunicipalityFromNominatim(lat, lon) {
       return data;
     } catch (err) {
       console.error('Failed to cache municipality:', err.message);
-      return row; // still usable for this session even if the DB write failed
+      return row;
     }
   }
   return null;
@@ -8865,10 +8694,10 @@ const NOMINATIM_LATIN_LANG = 'accept-language=sr-Latn,en';
 
 function normalizeMuniNameForMatch(s) {
   if (!s) return '';
-  return cyrillicToLatin(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '')  // strip diacritics (č/ć/š/ž/đ etc.)
-    .replace(/\s*\([^)]*\)\s*/g, ' ')                          // drop parenthetical qualifiers, e.g. "Beograd (Central)" -> "Beograd"
+  return cyrillicToLatin(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s*\([^)]*\)\s*/g, ' ')
     .toLowerCase().trim().replace(/\s+/g, ' ')
-    .replace(/^grad\s+/, '');                                  // Nominatim's official Serbian admin name for city-municipalities is "Grad X" (e.g. "Grad Novi Sad"), but our cache stores the bare name ("Novi Sad") — without this, an already-imported city never matches its own reverse-geocode result and gets needlessly pushed into auto-registration on every lookup.
+    .replace(/^grad\s+/, '');
 }
 
 function generateMuniSlug() {
@@ -8944,7 +8773,7 @@ async function autoRegisterMunicipality(name, countryCode, lat, lon, osmType, os
   const promise = (async () => {
     const row = {
       osm_type: osmType || 'unknown',
-      osm_id: osmId != null ? osmId : -Math.floor(Math.random() * 1e9), // real OSM ids are always positive, so a negative placeholder can never collide with one
+      osm_id: osmId != null ? osmId : -Math.floor(Math.random() * 1e9),
       admin_level: null,
       name,
       name_en: null,
@@ -9021,7 +8850,7 @@ function showMunicipalityLabel(muni) {
     label.classList.remove('visible');
     setTimeout(() => {
       if (!label.classList.contains('visible')) label.style.display = 'none';
-    }, 300); // matches the .municipality-label opacity transition duration
+    }, 300);
   }, 5000);
 }
 
@@ -9041,7 +8870,7 @@ function renderMunicipalityBoundary(muni) {
   showMunicipalityLabel(muni);
 }
 
-const companyGeocodeCache = {}; // "query|countrycode" -> {lat,lon} | null
+const companyGeocodeCache = {};
 
 const utilityCompanyRegistry = new Map();
 
@@ -9300,7 +9129,7 @@ function bindMunicipalityPopupToMarker(marker, muni, lat, lon) {
   if (!marker) return;
   const html = buildMunicipalityPopupHtml(muni, lat, lon);
   if (marker.getPopup()) marker.setPopupContent(html);
-  else marker.bindPopup(html, { autoPan: false, closeButton: false }); // reparented into #mobilePopupOverlay on open, same as report pins
+  else marker.bindPopup(html, { autoPan: false, closeButton: false });
 }
 async function showMunicipalityBoundaryForPoint(lat, lon, marker) {
   const muni = await resolveMunicipality(lat, lon);
@@ -9312,7 +9141,7 @@ async function showMunicipalityBoundaryForPoint(lat, lon, marker) {
 const UC_CATEGORIES = ['Water','Electricity','Sewage','Gas','Heating','Road','Streetlight','Waste','Walkways','BikeLanes','GreenSpaces','Parking','Suggestion','Other'];
 let ucCompaniesCache = [];
 let ucEditingId = null;
-let ucEditingVerified = false;   // verified state of the row currently open in the form
+let ucEditingVerified = false;
 let ucEditingVerifiedAt = null;
 
 function municipalityDisplayName(m) {
@@ -9351,11 +9180,11 @@ async function loadUtilityCompaniesAdmin() {
   }
   renderUcList();
 }
-let waitingListCache = []; // [{ report, waitingSince: Date, reasons: ['photo'|'rejected_photo'|'user_flag'], flags: [...] }]
+let waitingListCache = [];
 const WAITING_LIST_PREVIEW_LIMIT = 5;
 
 async function loadWaitingListAdmin() {
-  const items = new Map(); // report.id -> merged waiting-list item
+  const items = new Map();
 
   function addReason(report, type, since, extra) {
     if (!report) return;
@@ -9411,7 +9240,7 @@ async function loadWaitingListAdmin() {
 
   waitingListCache = Array.from(items.values())
     .filter(item => item.reasons.includes('photo') || item.reasons.includes('user_flag') || hasFullPowerOverReport(item.report))
-    .sort((a, b) => a.waitingSince - b.waitingSince) // oldest first
+    .sort((a, b) => a.waitingSince - b.waitingSince)
     .slice(0, WAITING_LIST_PREVIEW_LIMIT);
   renderWaitingList();
 }
@@ -9423,7 +9252,7 @@ function anyAdminQueueModalOpen() {
   return !!(notifEl && notifEl.style.display !== 'none');
 }
 function startWaitingListAutoRefresh() {
-  if (waitingListRefreshIntervalId !== null) return; // already running
+  if (waitingListRefreshIntervalId !== null) return;
   waitingListRefreshIntervalId = setInterval(() => {
     if (!anyAdminQueueModalOpen()) { stopWaitingListAutoRefresh(); return; }
     loadWaitingListAdmin();
@@ -9566,10 +9395,10 @@ async function approveReportPhoto(reportId) {
       photo_reviewed_by: currentSession ? currentSession.user.id : null
     }).eq('id', reportId).select().single();
     if (error) throw error;
-    if (!data) throw new Error('no-row-updated'); // matched 0 rows — RLS blocked it silently
+    if (!data) throw new Error('no-row-updated');
     toast(t('photoApproved'), 'success');
     await loadWaitingListAdmin();
-    await loadPinsByWindow(); // the approved photo may now be visible on the public report
+    await loadPinsByWindow();
   } catch (err) {
     console.error('Failed to approve photo:', err.message);
     toast(t('photoActionFailed'), 'error');
@@ -9809,11 +9638,11 @@ function addContactForMunicipality(municipalityId) {
   const form = document.getElementById('ucForm');
   const detailsEl = document.getElementById('uc-muni-group-' + municipalityId);
   if (detailsEl) {
-    detailsEl.open = true; // the + button suppresses the native toggle (see renderUcList), so force it open here
+    detailsEl.open = true;
     const countryDetailsEl = detailsEl.closest('details.uc-country-group');
-    if (countryDetailsEl) countryDetailsEl.open = true; // and its parent country group, so the form is actually visible
+    if (countryDetailsEl) countryDetailsEl.open = true;
     const itemsEl = detailsEl.querySelector('.uc-muni-items');
-    if (itemsEl && form) itemsEl.insertAdjacentElement('beforeend', form); // just below this municipality's existing contacts
+    if (itemsEl && form) itemsEl.insertAdjacentElement('beforeend', form);
   }
   if (form) {
     form.style.display = 'flex';
@@ -10232,6 +10061,10 @@ async function showReportDetailModal(reportId) {
       <div class="detail-section-title">${t('detailContactsTitle')}</div>
       <div id="detailContactsContainer"><div class="detail-loading">${t('detailLoading')}</div></div>
     </div>
+    <div class="detail-section">
+      <div class="detail-section-title">${t('contactCountsTitle')}</div>
+      <div id="detailContactCountsContainer"><div class="detail-loading">${t('detailLoading')}</div></div>
+    </div>
     ${flagSectionHtml}
     <div class="detail-section">
       <div class="detail-section-title">${t('detailExportTitle')}</div>
@@ -10284,17 +10117,18 @@ async function showReportDetailModal(reportId) {
     console.error('Failed to render municipality boundary:', err.message);
   }
 
+  loadReportContactCounts(report.id);
+
   const contactsEl = document.getElementById('detailContactsContainer');
   if (!muni || muni.id == null) {
-
     const fallbackContacts = await getReportContactsByProximity(report);
     if (contactsEl) contactsEl.innerHTML = fallbackContacts.length
-      ? renderContactCards(fallbackContacts)
+      ? renderContactCards(fallbackContacts, report.id)
       : `<div class="detail-empty">${t('detailNoMunicipality')}</div>`;
     return;
   }
   const contacts = await getReportContacts(report, muni);
-  if (contactsEl) contactsEl.innerHTML = renderContactCards(contacts);
+  if (contactsEl) contactsEl.innerHTML = renderContactCards(contacts, report.id);
 }
 
 async function loadReportFlagSection(reportId) {
@@ -10384,7 +10218,7 @@ async function getReportContacts(report, muni) {
   return report.contacts;
 }
 
-const REPORT_CONTACT_FALLBACK_MAX_M = 50000; // 50km — "same general area", not a strict boundary match
+const REPORT_CONTACT_FALLBACK_MAX_M = 50000;
 const REPORT_CONTACT_FALLBACK_LIMIT = 3;
 async function getReportContactsByProximity(report) {
   if (!isValidLatLng(report.latitude, report.longitude)) return [];
@@ -10409,25 +10243,152 @@ async function getReportContactsByProximity(report) {
   }
 }
 
-function renderContactRows(c) {
+function renderContactRows(c, reportId) {
   if (c && c.id != null) utilityCompanyRegistry.set(String(c.id), c);
+  const companyIdAttr = c.id != null ? escapeHtml(String(c.id)) : '';
+  const phoneClickAttr = reportId ? ` onclick="recordContactAttempt('${escapeHtml(reportId)}','phone','${companyIdAttr}')"` : '';
+  const emailClickAttr = reportId ? ` onclick="recordContactAttempt('${escapeHtml(reportId)}','email','${companyIdAttr}')"` : '';
   return `
-      ${c.phone ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/phone.png" alt="phone"><a href="tel:${escapeHtml(c.phone)}">${escapeHtml(c.phone)}</a></div>` : ''}
-      ${c.email ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/email.png" alt="email"><a href="mailto:${escapeHtml(c.email)}">${escapeHtml(c.email)}</a></div>` : ''}
+      ${c.phone ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/phone.png" alt="phone"><a href="tel:${escapeHtml(c.phone)}"${phoneClickAttr}>${escapeHtml(c.phone)}</a></div>` : ''}
+      ${c.email ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/email.png" alt="email"><a href="mailto:${escapeHtml(c.email)}"${emailClickAttr}>${escapeHtml(c.email)}</a></div>` : ''}
       ${c.website ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/link.png" alt="link"><a href="${escapeHtml(c.website)}" target="_blank" rel="noopener">${escapeHtml(c.website)}</a></div>` : ''}
       ${c.address && c.id != null ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/pin.png" alt="pin"><a href="javascript:void(0)" onclick="focusUtilityCompanyAddress('${escapeHtml(String(c.id))}')">${escapeHtml(c.address)}</a></div>` : c.address ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/pin.png" alt="pin"><span>${escapeHtml(c.address)}</span></div>` : ''}
       ${c.notes ? `<div class="contact-card-row contact-card-notes"><span>${escapeHtml(c.notes)}</span></div>` : ''}
   `;
 }
 
-function renderContactCards(companies) {
+function renderContactCards(companies, reportId) {
   if (!companies.length) return `<div class="detail-empty">${t('detailNoContacts')}</div>`;
   return companies.map(c => `
     <div class="contact-card">
       <div class="contact-card-name">${escapeHtml(c.name)}</div>
-      ${renderContactRows(c)}
+      ${renderContactRows(c, reportId)}
     </div>
   `).join('');
+}
+
+function recordContactAttempt(reportId, type, companyId) {
+  const company = companyId ? utilityCompanyRegistry.get(String(companyId)) : null;
+  try {
+    localStorage.setItem('pendingContactAttempt', JSON.stringify({
+      reportId,
+      type,
+      companyId: companyId || null,
+      companyName: company ? company.name : '',
+      ts: Date.now()
+    }));
+  } catch (err) {
+    console.error('Failed to stage contact attempt:', err.message);
+  }
+}
+
+function checkPendingContactAttempt() {
+  let pending;
+  try {
+    const raw = localStorage.getItem('pendingContactAttempt');
+    if (!raw) return;
+    localStorage.removeItem('pendingContactAttempt');
+    pending = JSON.parse(raw);
+  } catch (err) {
+    return;
+  }
+  if (!pending || !pending.reportId || !pending.type) return;
+  if (Date.now() - pending.ts > 15 * 60 * 1000) return;
+  showContactConfirmModal(pending);
+}
+
+function showContactConfirmModal(pending) {
+  const modal = document.getElementById('contactConfirmModal');
+  const inner = document.getElementById('contactConfirmModalInner');
+  if (!modal || !inner) return;
+  let question;
+  if (pending.type === 'email') {
+    question = pending.companyName
+      ? t('contactConfirmQuestionEmailNamed').replace('{name}', pending.companyName)
+      : t('contactConfirmQuestionEmail');
+  } else {
+    question = pending.companyName
+      ? t('contactConfirmQuestionPhoneNamed').replace('{name}', pending.companyName)
+      : t('contactConfirmQuestionPhone');
+  }
+  modal.dataset.reportId = pending.reportId;
+  modal.dataset.type = pending.type;
+  modal.dataset.companyId = pending.companyId || '';
+  inner.innerHTML = `
+    <h2>${t('contactConfirmTitle')}</h2>
+    <p>${escapeHtml(question)}</p>
+    <div style="display:flex;gap:var(--space-8);">
+      <button type="button" class="settings-btn" style="flex:1;" onclick="confirmContactAttempt(false)">${t('contactConfirmNoBtn')}</button>
+      <button type="button" style="background:var(--accent);color:white;flex:1;border:none;border-radius:14px;padding:12px 20px;font-size:var(--fs-14);font-weight:var(--fw-semibold);cursor:pointer;min-height:44px;" onclick="confirmContactAttempt(true)">${t('contactConfirmYesBtn')}</button>
+    </div>
+  `;
+  bringModalToFront(modal);
+  modal.style.display = 'flex';
+  openOverlay('contactConfirmModal', hideContactConfirmModal);
+}
+
+function hideContactConfirmModal() {
+  const modal = document.getElementById('contactConfirmModal');
+  if (modal) modal.style.display = 'none';
+  closeOverlay('contactConfirmModal');
+}
+
+async function confirmContactAttempt(confirmed) {
+  const modal = document.getElementById('contactConfirmModal');
+  const reportId = modal ? modal.dataset.reportId : null;
+  const type = modal ? modal.dataset.type : null;
+  const companyId = modal && modal.dataset.companyId ? modal.dataset.companyId : null;
+  hideContactConfirmModal();
+  if (!confirmed || !reportId || !type) return;
+  try {
+    const { error } = await sb.from(REPORT_CONTACT_EVENTS_TABLE).insert({
+      report_id: reportId,
+      contact_type: type,
+      company_id: companyId,
+      contacted_by: currentSession ? currentSession.user.id : null
+    });
+    if (error) throw error;
+    toast(t('contactConfirmThanks'), 'success');
+    refreshReportContactCounts(reportId);
+  } catch (err) {
+    console.error('Failed to log contact attempt:', err.message);
+  }
+}
+
+async function getReportContactCounts(reportId) {
+  const counts = { email: 0, phone: 0 };
+  try {
+    const { data, error } = await sb.rpc('get_report_contact_counts', { p_report_id: reportId });
+    if (error) throw error;
+    (data || []).forEach(row => {
+      if (row.contact_type === 'email' || row.contact_type === 'phone') counts[row.contact_type] = Number(row.cnt) || 0;
+    });
+  } catch (err) {
+    console.error('Failed to load contact counts:', err.message);
+  }
+  return counts;
+}
+
+function renderContactCountsHtml(counts) {
+  return `
+    <div class="detail-row"><span class="detail-row-label"><img class="detail-row-icon" src="icons/email.png" alt="">${t('contactCountsEmailLabel')}</span><span class="detail-row-value">${counts.email}</span></div>
+    <div class="detail-row"><span class="detail-row-label"><img class="detail-row-icon" src="icons/phone.png" alt="">${t('contactCountsPhoneLabel')}</span><span class="detail-row-value">${counts.phone}</span></div>
+  `;
+}
+
+async function loadReportContactCounts(reportId) {
+  const counts = await getReportContactCounts(reportId);
+  const el = document.getElementById('detailContactCountsContainer');
+  const modal = document.getElementById('reportDetailModal');
+  if (!el || !modal || modal.dataset.openReportId !== reportId) return;
+  el.innerHTML = renderContactCountsHtml(counts);
+}
+
+function refreshReportContactCounts(reportId) {
+  const modal = document.getElementById('reportDetailModal');
+  if (modal && modal.style.display !== 'none' && modal.dataset.openReportId === reportId) {
+    loadReportContactCounts(reportId);
+  }
 }
 
 function hideReportDetailModal() {
@@ -10540,6 +10501,7 @@ async function emailReport(reportId) {
       lang === 'sr' ? 'Vaš komšija' : 'Your neighbor',
     ];
     const body = encodeURIComponent(bodyLines.join('\n'));
+    if (toEmails) recordContactAttempt(reportId, 'email', null);
     window.location.href = `mailto:${toEmails}?subject=${subject}&body=${body}`;
   } catch (err) {
     console.error('emailReport error:', err.message || err);
@@ -10794,7 +10756,7 @@ async function castStatusVote(reportId, suggestedStatus) {
     } else {
       toast(t('voteRecorded'), 'success');
     }
-    await loadProfile(); // pick up any tier/counter change from this vote
+    await loadProfile();
     await loadPinsByWindow();
   } catch (err) {
     console.error('Vote error (full):', err);
@@ -10811,10 +10773,10 @@ function escapeHtml(str) {
 const BOLD_UNICODE_MAP = (() => {
   const map = {};
   for (let i = 0; i < 26; i++) {
-    map[String.fromCharCode(65 + i)] = String.fromCodePoint(0x1D400 + i); // A-Z
-    map[String.fromCharCode(97 + i)] = String.fromCodePoint(0x1D41A + i); // a-z
+    map[String.fromCharCode(65 + i)] = String.fromCodePoint(0x1D400 + i);
+    map[String.fromCharCode(97 + i)] = String.fromCodePoint(0x1D41A + i);
   }
-  for (let i = 0; i <= 9; i++) map[String(i)] = String.fromCodePoint(0x1D7CE + i); // 0-9
+  for (let i = 0; i <= 9; i++) map[String(i)] = String.fromCodePoint(0x1D7CE + i);
   return map;
 })();
 function boldText(str) {
@@ -10857,7 +10819,7 @@ function upsertSectionLine(report) {
 
   line = L.polyline(path, { color: sCol, weight: 6, opacity, lineCap: 'round', renderer: sectionLineRenderer }).addTo(map);
   line._reportId = report.id;
-  line.bindPopup(buildPopupHtml(report), { autoPan: false, closeButton: false }); // popup is always reparented to #mobilePopupOverlay, so Leaflet never needs to pan the map for it
+  line.bindPopup(buildPopupHtml(report), { autoPan: false, closeButton: false });
   markerById.set(report.id, line);
   if (report.status === 'fixed') line.bringToBack();
   return line;
@@ -10868,17 +10830,8 @@ function buildPinIconHtml(category, status, priority) {
   const sCol    = statusColor(status);
   const iconSrc = `icons/${categoryIcon(category)}`;
   const opacity = status === 'fixed' ? 0.55 : 1;
-  // Fixed reports are settled — no pulse/ring, nothing left to draw the eye to.
-  // Reported (brand-new, needs attention) pulses faster than in_progress
-  // (already being handled) so urgency still reads at a glance.
-  const pulseDuration = status === 'reported' ? 1.6 : 2.6; // seconds
-  // Higher-priority reports get a bigger halo so urgency reads at a glance
-  // even before you're close enough to read the pin.
+  const pulseDuration = status === 'reported' ? 1.6 : 2.6;
   const pulseSize = priority === 'high' ? 34 : priority === 'low' ? 20 : 26;
-  // Stagger each marker's animation start so dozens of pins on screen
-  // don't all pulse in lockstep — a random negative delay drops each one
-  // into a different point of its cycle immediately, instead of all of
-  // them starting together at 0%.
   const pulseDelay = -(Math.random() * pulseDuration).toFixed(2);
   let statusMarker = '';
   if (status !== 'fixed') {
@@ -10922,7 +10875,7 @@ function upsertMarker(report) {
   });
 
   marker._reportId = report.id;
-  marker.bindPopup(buildPopupHtml(report), { autoPan: false, closeButton: false }); // popup is always reparented to #mobilePopupOverlay, so Leaflet never needs to pan the map for it
+  marker.bindPopup(buildPopupHtml(report), { autoPan: false, closeButton: false });
   pinCluster.addLayer(marker);
   markerById.set(report.id, marker);
   return marker;
@@ -11099,6 +11052,11 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') requestWakeLock();
 });
 
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') checkPendingContactAttempt();
+});
+window.addEventListener('pageshow', checkPendingContactAttempt);
+
 requestWakeLock();
 
 function toggleFullscreen() {
@@ -11154,7 +11112,7 @@ if (isMobileDevice()) {
   }, { once: true });
 }
 
-const THEME_STORAGE_KEY = 'ttb_theme_mode'; // localStorage value: 'light' | 'dark' | 'auto'
+const THEME_STORAGE_KEY = 'ttb_theme_mode';
 let themeMode = (function () {
   try { return localStorage.getItem(THEME_STORAGE_KEY) || 'auto'; } catch (e) { return 'auto'; }
 })();
@@ -11189,7 +11147,7 @@ function initTheme() {
   if (systemDarkModeMQ) {
     const onSystemThemeChange = () => applyTheme(themeMode);
     if (systemDarkModeMQ.addEventListener) systemDarkModeMQ.addEventListener('change', onSystemThemeChange);
-    else if (systemDarkModeMQ.addListener) systemDarkModeMQ.addListener(onSystemThemeChange); // Safari <14
+    else if (systemDarkModeMQ.addListener) systemDarkModeMQ.addListener(onSystemThemeChange);
   }
 }
 
@@ -11213,7 +11171,7 @@ loadMunicipalityCache().then(() => {
     renderAdminDashboard();
   }
 });
-loadAllCompanyMarkers(); // fire-and-forget — POIs appear on the map for every company that already has stored coordinates
+loadAllCompanyMarkers();
 loadMunicipalityStatsCache();
 initAuth().then(() => {
   if (!currentSession) showHelpModal();
