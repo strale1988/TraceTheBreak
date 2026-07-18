@@ -2984,6 +2984,17 @@ span.flatpickr-weekday {
       </div>
     </div>
 
+    <div class="detail-section" id="contactReminderSettingsSection">
+      <div class="detail-section-title" id="contactReminderSectionTitle">Contact reminders</div>
+      <p class="detail-export-hint" id="contactReminderSectionHint">If you haven't contacted the utility company about one of your open reports, we can nudge you.</p>
+      <div class="theme-segment" id="contactReminderFreqSegment">
+        <button type="button" class="theme-segment-btn" onclick="setContactReminderFreq('off')" id="contactReminderBtnOff">Off</button>
+        <button type="button" class="theme-segment-btn" onclick="setContactReminderFreq('weekly')" id="contactReminderBtnWeekly">Weekly</button>
+        <button type="button" class="theme-segment-btn" onclick="setContactReminderFreq('biweekly')" id="contactReminderBtnBiweekly">2 weeks</button>
+        <button type="button" class="theme-segment-btn" onclick="setContactReminderFreq('monthly')" id="contactReminderBtnMonthly">Monthly</button>
+      </div>
+    </div>
+
     <div class="detail-section" style="padding:0;overflow:hidden;">
       <div class="filter-label-row" style="border-radius:0;">
         <span class="filter-title" id="filterTitleLabel">Time Window Filter</span>
@@ -3000,6 +3011,23 @@ span.flatpickr-weekday {
       </div>
     </div>
 
+  </div>
+</div>
+
+<div id="contactReminderModal" class="fullscreen-modal-overlay" style="display:none">
+  <div class="fullscreen-modal-header">
+    <h2 id="contactReminderModalTitle">Contact reminder</h2>
+    <button class="fullscreen-modal-close" onclick="closeContactReminderModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
+  </div>
+  <div class="fullscreen-modal-body">
+    <div class="detail-section" style="border-top:none;">
+      <p class="detail-export-hint" id="contactReminderIntroText">You've reported these but haven't contacted the utility company yet.</p>
+      <div id="contactReminderList"></div>
+      <div class="uc-form-row" style="margin-top:14px;">
+        <button type="button" class="settings-btn" style="flex:1;" onclick="snoozeContactReminders()" id="contactReminderSnoozeBtn">Remind me later</button>
+        <button type="button" class="settings-btn" style="flex:1;" onclick="openContactReminderSettings()" id="contactReminderSettingsBtn">Change frequency</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -5981,6 +6009,7 @@ function showSettingsModal() {
   initSoundSettingsUi();
   initMapButtonToggleUi();
   updateNearbyCheckinSegmentUI();
+  updateContactReminderSegmentUI();
   initOfflineMapSettingsUi();
   openOverlay('settingsModal', hideSettingsModal);
 }
@@ -12548,6 +12577,116 @@ function setNearbyCheckinFreq(freq) {
   nearbyCheckinFreq = freq;
   try { localStorage.setItem(NEARBY_CHECKIN_STORAGE_KEY, freq); } catch (err) {}
   updateNearbyCheckinSegmentUI();
+}
+
+// ---- Contact reminders ------------------------------------------------------------
+// Nudges the person about their own still-open reports that nobody has logged a
+// contact attempt (email/phone) for yet — the one-off in-detail-view "contactNudgeText"
+// already covers that when a report happens to be open; this is the proactive version
+// that checks on a timer so it surfaces even if they never reopen the report.
+const CONTACT_REMINDER_FREQ_KEY = 'ttb_contact_reminder_freq';
+const CONTACT_REMINDER_LAST_SHOWN_KEY = 'ttb_contact_reminder_last_shown';
+const CONTACT_REMINDER_FREQ_DAYS = { off: 0, weekly: 7, biweekly: 14, monthly: 30 };
+
+function getContactReminderFreqPref() {
+  try {
+    const v = localStorage.getItem(CONTACT_REMINDER_FREQ_KEY);
+    return CONTACT_REMINDER_FREQ_DAYS.hasOwnProperty(v) ? v : 'weekly';
+  } catch (err) {
+    return 'weekly';
+  }
+}
+let contactReminderFreq = getContactReminderFreqPref();
+
+function updateContactReminderSegmentUI() {
+  ['Off', 'Weekly', 'Biweekly', 'Monthly'].forEach(label => {
+    const btn = document.getElementById('contactReminderBtn' + label);
+    if (btn) btn.classList.toggle('active', contactReminderFreq === label.toLowerCase());
+  });
+}
+
+function setContactReminderFreq(freq) {
+  contactReminderFreq = freq;
+  try { localStorage.setItem(CONTACT_REMINDER_FREQ_KEY, freq); } catch (err) {}
+  updateContactReminderSegmentUI();
+}
+
+function contactReminderDueNow() {
+  const days = CONTACT_REMINDER_FREQ_DAYS[contactReminderFreq] || 0;
+  if (!days) return false;
+  let lastShown = 0;
+  try { lastShown = Number(localStorage.getItem(CONTACT_REMINDER_LAST_SHOWN_KEY)) || 0; } catch (err) {}
+  return (Date.now() - lastShown) >= days * 24 * 60 * 60 * 1000;
+}
+
+function markContactReminderShown() {
+  try { localStorage.setItem(CONTACT_REMINDER_LAST_SHOWN_KEY, String(Date.now())); } catch (err) {}
+}
+
+async function checkContactReminders() {
+  if (!currentSession || !currentProfile) return;
+  if (!contactReminderDueNow()) return;
+  try {
+    const { data: myOpenReports, error } = await sb.from(TABLE)
+      .select('id, category, subcategory, comment, created_at')
+      .eq('owner_id', currentSession.user.id)
+      .neq('status', 'fixed')
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    if (!myOpenReports || !myOpenReports.length) { markContactReminderShown(); return; }
+
+    const ids = myOpenReports.map(r => r.id);
+    const { data: contactRows, error: contactErr } = await sb.from(REPORT_CONTACT_EVENTS_TABLE)
+      .select('report_id').in('report_id', ids);
+    if (contactErr) throw contactErr;
+    const contactedIds = new Set((contactRows || []).map(r => r.report_id));
+
+    const uncontacted = myOpenReports.filter(r => !contactedIds.has(r.id));
+    markContactReminderShown();
+    if (uncontacted.length) showContactReminderModal(uncontacted);
+  } catch (err) {
+    console.error('Failed to check contact reminders:', err.message || err);
+  }
+}
+
+function showContactReminderModal(reports) {
+  document.getElementById('contactReminderModalTitle').textContent = t('contactReminderModalTitle');
+  document.getElementById('contactReminderIntroText').textContent =
+    (t('contactReminderIntroText') || '').replace('{n}', reports.length);
+  const listEl = document.getElementById('contactReminderList');
+  listEl.innerHTML = reports.map(r => {
+    const dateStr = new Date(r.created_at).toLocaleDateString(lang === 'sr' ? 'sr-RS' : 'en-GB');
+    const label = r.comment ? escapeHtml(r.comment) : translateCategory(r.category);
+    return `
+    <div class="detail-row" style="cursor:pointer;" onclick="openReportFromContactReminder('${r.id}')">
+      <span class="detail-row-label"><span class="cat-filter-dot" style="background:${categoryColor(r.category)};display:inline-block;margin-right:6px;"></span>${label}</span>
+      <span class="detail-row-value">${dateStr}</span>
+    </div>`;
+  }).join('');
+  document.getElementById('contactReminderSnoozeBtn').textContent = t('contactReminderSnoozeBtn');
+  document.getElementById('contactReminderSettingsBtn').textContent = t('contactReminderSettingsBtn');
+  const modal = document.getElementById('contactReminderModal');
+  bringModalToFront(modal);
+  modal.style.display = 'flex';
+  openOverlay('contactReminderModal', closeContactReminderModal);
+}
+function closeContactReminderModal() {
+  document.getElementById('contactReminderModal').style.display = 'none';
+  closeOverlay('contactReminderModal');
+}
+function openReportFromContactReminder(reportId) {
+  closeContactReminderModal();
+  showReportDetailModal(reportId);
+}
+function snoozeContactReminders() {
+  // Push the next check out by one day regardless of the chosen cadence — a lightweight
+  // "not now" without needing a whole separate snooze-duration setting.
+  try { localStorage.setItem(CONTACT_REMINDER_LAST_SHOWN_KEY, String(Date.now() - (CONTACT_REMINDER_FREQ_DAYS[contactReminderFreq] - 1) * 24 * 60 * 60 * 1000)); } catch (err) {}
+  closeContactReminderModal();
+}
+function openContactReminderSettings() {
+  closeContactReminderModal();
+  showSettingsModal();
 }
 
 function readNearbyCheckinHistory() {
