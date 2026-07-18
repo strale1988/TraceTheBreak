@@ -5047,6 +5047,8 @@ const T = {
   commentPHRequired: { en:'Describe your suggestion... (required)', sr:'Opišite svoj predlog... (obavezno)' },
   suggestionCommentRequired: { en:'Please describe your suggestion in the notes field.', sr:'Opišite svoj predlog u polju za napomenu.' },
   waitGps:      { en:'Waiting for GPS...',               sr:'Čekanje GPS-a...' },
+  gpsTooWeak:   { en:"Your location signal is too weak or inaccurate to submit a report from here. Move to an open area and try again.", sr:'Signal lokacije je preslab ili netačan da bi se prijava poslala odavde. Pomerite se na otvoren prostor i pokušajte ponovo.' },
+  tapMapToPlacePin: { en:'Tap the map to place the pin.', sr:'Dodirnite mapu da postavite pin.' },
   wizStepLabel:       { en:'Step',                       sr:'Korak' },
   wizCategoryTitle:   { en:"What's the issue?",          sr:'O kakvom kvaru se radi?' },
   wizSubcategoryTitle:{ en:'Which one?',                 sr:'Koji tačno?' },
@@ -7678,6 +7680,7 @@ async function quickReportRoad(subcategoryKey) {
   if (!currentProfile.is_admin && !isMobileDevice()) { toast(t('mobileOnlyReport'), 'error'); return; }
   if (!userCoords) { toast(t('waitGps'), 'error'); return; }
   if (!isValidCoordObj(userCoords)) { toast(t('invalidLocation'), 'error'); return; }
+  if (!currentProfile.is_admin && !hasReliableGps()) { toast(t('gpsTooWeak'), 'error'); return; }
   if ((await ensureVpnStatus()).isVpn) { toast(t('vpnBlockedReport'), 'error'); return; }
   if (shouldBlockReportSubmission()) return;
 
@@ -7715,6 +7718,7 @@ function toggleSectionRecording() {
   if (!sectionRecording) {
     if (!userCoords) { toast(t('waitGps'), 'error'); return; }
     if (!isValidCoordObj(userCoords)) { toast(t('invalidLocation'), 'error'); return; }
+    if (!(currentProfile && currentProfile.is_admin) && !hasReliableGps()) { toast(t('gpsTooWeak'), 'error'); return; }
     sectionRecording = true;
     sectionPoints = [{ lat: userCoords.lat, lon: userCoords.lon }];
     sectionPolyline = L.polyline([[userCoords.lat, userCoords.lon]], {
@@ -7901,6 +7905,8 @@ function enableManualPinMode() {
 }
 
 let lastAcceptedFix   = null;
+let lastFixAccuracy   = null;   // accuracy (meters) of the most recent raw GPS fix, good or bad
+let lastFixAccuracyAt = 0;      // when that reading arrived (device clock via Date.now())
 let smoothedHeading   = null;
 let smoothedSpeedKmh  = null;
 let smoothedFixCoords = null;
@@ -7933,6 +7939,22 @@ function smoothHeading(previous, rawHeading, factor) {
 }
 
 const GPS_SIGNAL_LOST_MS = 8000;
+
+// Whether the device currently has a real, trustworthy location fix — as opposed to just
+// "userCoords is set to something". A desktop browser with no GPS hardware typically falls
+// back to IP-based geolocation, which reports itself honestly via a huge accuracy value
+// (commonly tens of kilometers). That fix still satisfies `!!userCoords`, so anything gated
+// only on userCoords existing (not on how good it is) will happily let someone "report" from
+// wherever their ISP is. This checks the accuracy of the most recent raw fix and how fresh it
+// is, regardless of whether that fix was deemed good enough to move the map.
+function hasReliableGps() {
+  if (!userCoords) return false;
+  if (lastFixAccuracy == null) return false;
+  if (lastFixAccuracy > GPS_MAX_ACCEPTABLE_ACCURACY_M) return false;
+  if (!lastFixAccuracyAt || (Date.now() - lastFixAccuracyAt) > GPS_STALE_FIX_MS) return false;
+  return true;
+}
+
 function updateDrivingGpsStatus() {
   const dsl = document.getElementById('drivingStatusLabel');
   if (!dsl || !drivingMode) return;
@@ -8030,6 +8052,12 @@ function startWatching() {
       const candidate = { lat: pos.coords.latitude, lon: pos.coords.longitude };
 
       const accuracy = pos.coords.accuracy;
+      // Track raw accuracy independently of the accept/reject logic below — this is what lets
+      // us tell a genuinely-weak/absent GPS signal (desktop IP geolocation routinely reports
+      // ±20000-50000m) apart from a device that simply hasn't warmed up yet.
+      lastFixAccuracy = (typeof accuracy === 'number' && !isNaN(accuracy)) ? accuracy : null;
+      lastFixAccuracyAt = Date.now();
+
       if (
         typeof accuracy === 'number' && !isNaN(accuracy) &&
         accuracy > GPS_MAX_ACCEPTABLE_ACCURACY_M &&
@@ -8262,6 +8290,7 @@ function togglePinMode() {
     if (manualMarker) { map.removeLayer(manualMarker); manualMarker = null; }
     manualCoords = null;
     manualPinMunicipality = null;
+    wizAwaitingPinDrop = false;
     loadPinsByWindow();
     if (userCoords) showMunicipalityBoundaryForPoint(userCoords.lat, userCoords.lon, userMarker);
     else renderMunicipalityBoundary(null);
@@ -8310,6 +8339,10 @@ map.on('click', function(e) {
     .catch(() => {});
   updateProximityUi();
   checkFormReady();
+  if (wizAwaitingPinDrop) {
+    wizAwaitingPinDrop = false;
+    openReportWizard();
+  }
 });
 
 map.on('moveend', function(){ if (!pinMode) syncMarkers(false); });
@@ -9062,6 +9095,7 @@ const WIZ_STATUS_ICONS = { reported:'status_reported.png', in_progress:'status_i
 
 let wizState = { steps: wizStepsFor(null), step: 0, category: null, subcategory: null, priority: null, status: null };
 let wizOwnsPinDrop = false;
+let wizAwaitingPinDrop = false; // true while an admin (with no GPS fix) is choosing where to drop a pin
 
 function wizStepsFor(cat) {
   const steps = ['category'];
@@ -9074,9 +9108,25 @@ function wizStepsFor(cat) {
 
 function reportFabTap() {
   if (!currentSession || !currentProfile) { toast(t('signInFirst') || 'Sign in first', 'error'); return; }
-  if (!currentProfile.is_admin && !isMobileDevice()) { toast(t('mobileOnlyReport'), 'error'); return; }
+  const isAdmin = !!currentProfile.is_admin;
+  if (!isAdmin && !isMobileDevice()) { toast(t('mobileOnlyReport'), 'error'); return; }
   if (vpnCheckResult && vpnCheckResult.isVpn) { toast(t('vpnBlockedReport'), 'error'); return; }
+
+  if (isAdmin && (!userCoords || !isValidCoordObj(userCoords))) {
+    // Admins don't need to be anywhere near a working GPS fix to add a pin for their
+    // municipality/country (or anywhere, for global admins) — they just need to tap the map.
+    // Enter pin-drop mode and wait for that tap instead of requiring userCoords up front.
+    if (!pinMode) {
+      pinMode = true;
+      document.getElementById('pinMapBtn').classList.add('active');
+    }
+    wizOwnsPinDrop = true;
+    wizAwaitingPinDrop = true;
+    toast(t('tapMapToPlacePin'), 'success');
+    return;
+  }
   if (!userCoords || !isValidCoordObj(userCoords)) { toast(t('waitGps'), 'error'); return; }
+  if (!isAdmin && !hasReliableGps()) { toast(t('gpsTooWeak'), 'error'); return; }
 
   if (!pinMode) {
     pinMode = true;
@@ -9493,8 +9543,18 @@ async function reportBreak(){
   if (!coords) { toast(t('waitGps'), 'error'); return; }
 
   const inOwnDomain = isAdmin && isMunicipalityInAdminDomain(manualPinMunicipality);
+  if (!isAdmin) {
+    // Regular users always report from their own live position (or a manually-dropped pin
+    // close to it) — either way that has to be backed by a real GPS fix, not just "some
+    // coordinate happens to be in memory". Devices without real GPS (desktop browsers falling
+    // back to IP geolocation, denied location permission, etc.) report themselves honestly via
+    // a huge accuracy radius, so we check that rather than just checking coords is non-null.
+    if (!hasReliableGps()) { toast(t('gpsTooWeak'), 'error'); return; }
+  }
   if (!inOwnDomain && pinMode && manualCoords) {
-    if (!userCoords) { toast(t('waitGps'), 'error'); return; }
+    // Admins dropping a pin outside their own municipality/country need to actually be on
+    // site, same as anyone else — so this still needs a real GPS fix to compare against.
+    if (!userCoords || !hasReliableGps()) { toast(isAdmin ? t('gpsTooWeak') : t('waitGps'), 'error'); return; }
     const dist = distMeters(userCoords, manualCoords);
     if (dist > REPORT_PROXIMITY_MAX_M) {
       toast(t('tooFarToReport').replace('{d}', Math.round(dist)), 'error');
