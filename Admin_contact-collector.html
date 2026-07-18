@@ -174,19 +174,26 @@ h3.subTitle{font-size:var(--fs-13);margin:16px 0 6px;color:var(--text-secondary)
   <div class="modalBox">
     <h3>Settings</h3>
     <div class="field">
-      <label>Anthropic API key (used to research contacts)</label>
+      <label>Research backend</label>
+      <select id="backendSelect" onchange="onBackendChange()" style="width:100%;padding:7px 9px;border:1px solid var(--border-color-strong);border-radius:var(--radius-sm);">
+        <option value="anthropic">Anthropic (Claude) — console.anthropic.com</option>
+        <option value="gemini">Google (Gemini) — aistudio.google.com</option>
+      </select>
+    </div>
+    <div class="field">
+      <label id="apiKeyLabel">API key (used to research contacts)</label>
       <div style="display:flex;gap:6px;">
         <input type="password" id="apiKeyInput" placeholder="sk-ant-api03-..." style="flex:1;">
         <button class="btn small" type="button" onclick="toggleKeyVisibility()" id="toggleKeyBtn">Show</button>
       </div>
       <div id="apiKeyPreview" style="font-size:11px;color:var(--text-muted);margin-top:4px;"></div>
     </div>
-    <p style="font-size:11px;color:var(--text-muted)">Stored only in this browser (localStorage) and sent directly from your browser to api.anthropic.com — it never touches any server of ours. Get a key at
-      <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>. It must be a Console API key (starts with <code>sk-ant-api03-</code>), not a claude.ai login.</p>
+    <p id="apiKeyHelp" style="font-size:11px;color:var(--text-muted)"></p>
+    <p style="font-size:11px;color:var(--text-muted)">Keys are stored only in this browser (localStorage) and sent directly from your browser to the provider's API — never to any server of ours.</p>
     <p style="font-size:11px;color:var(--text-muted)">Connected Supabase project: <b>TraceTheStuff</b> (fnkqmwweljsupbmerbkh) — read-only view for everyone, writes require an admin sign-in.</p>
     <div id="testKeyResult" style="font-size:12px;margin-top:6px;"></div>
     <div style="display:flex;justify-content:space-between;margin-top:14px;">
-      <button class="btn danger small" onclick="clearApiKey()">Clear key</button>
+      <button class="btn danger small" onclick="clearApiKey()">Clear this key</button>
       <div>
         <button class="btn small" onclick="testApiKey()">Test key</button>
         <button class="btn ghost" onclick="closeModal('settingsModal')">Cancel</button>
@@ -211,6 +218,7 @@ const COUNTRIES_TABLE = 'countries';
 const PROFILES_TABLE = 'profiles';
 
 const ANTHROPIC_MODEL = 'claude-sonnet-4-6';
+const GEMINI_MODEL = 'gemini-3.5-flash';
 const WORLD_GEOJSON_URLS = [
   'https://cdn.jsdelivr.net/gh/datasets/geo-countries@master/data/countries.geojson',
   'https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson'
@@ -350,7 +358,13 @@ function updateAuthUI(){
 /* =========================================================================
    API KEY (Anthropic) — stored client-side only
    ========================================================================= */
-function getApiKey(){ return localStorage.getItem('ttb_collector_anthropic_key') || ''; }
+function getBackend(){ return localStorage.getItem('ttb_collector_backend') || 'anthropic'; }
+function setBackend(b){ localStorage.setItem('ttb_collector_backend', b); }
+function keyStorageName(backend){ return backend === 'gemini' ? 'ttb_collector_gemini_key' : 'ttb_collector_anthropic_key'; }
+function getApiKey(backend){
+  backend = backend || getBackend();
+  return localStorage.getItem(keyStorageName(backend)) || '';
+}
 function maskKey(k){
   if(!k) return '(no key saved)';
   const clean = k.trim();
@@ -358,7 +372,7 @@ function maskKey(k){
   return 'Saved key: ' + clean.slice(0,12) + '…' + clean.slice(-4) + ' (' + clean.length + ' chars)';
 }
 function refreshKeyPreview(){
-  document.getElementById('apiKeyPreview').textContent = maskKey(getApiKey());
+  document.getElementById('apiKeyPreview').textContent = maskKey(getApiKey(getBackend()));
 }
 function toggleKeyVisibility(){
   const input = document.getElementById('apiKeyInput');
@@ -366,49 +380,84 @@ function toggleKeyVisibility(){
   if(input.type === 'password'){ input.type = 'text'; btn.textContent = 'Hide'; }
   else { input.type = 'password'; btn.textContent = 'Show'; }
 }
+function onBackendChange(){
+  const backend = document.getElementById('backendSelect').value;
+  setBackend(backend);
+  document.getElementById('apiKeyInput').value = getApiKey(backend);
+  document.getElementById('testKeyResult').textContent = '';
+  refreshKeyPreview();
+  if(backend === 'gemini'){
+    document.getElementById('apiKeyLabel').textContent = 'Google AI (Gemini) API key';
+    document.getElementById('apiKeyInput').placeholder = 'AIza...';
+    document.getElementById('apiKeyHelp').innerHTML = 'Get a free key at <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">aistudio.google.com/app/apikey</a>.';
+  } else {
+    document.getElementById('apiKeyLabel').textContent = 'Anthropic API key';
+    document.getElementById('apiKeyInput').placeholder = 'sk-ant-api03-...';
+    document.getElementById('apiKeyHelp').innerHTML = 'Get a key at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>. Must be a Console API key (starts with <code>sk-ant-api03-</code>), not a claude.ai login.';
+  }
+}
 function saveApiKey(){
+  const backend = document.getElementById('backendSelect').value;
+  setBackend(backend);
   const val = document.getElementById('apiKeyInput').value.trim();
-  if(val) localStorage.setItem('ttb_collector_anthropic_key', val);
+  if(val) localStorage.setItem(keyStorageName(backend), val);
   refreshKeyPreview();
   closeModal('settingsModal');
   toast('API key saved to this browser.', 'success');
 }
 function clearApiKey(){
-  localStorage.removeItem('ttb_collector_anthropic_key');
+  const backend = getBackend();
+  localStorage.removeItem(keyStorageName(backend));
   document.getElementById('apiKeyInput').value = '';
   refreshKeyPreview();
   toast('API key cleared.');
 }
 async function testApiKey(){
   const resultEl = document.getElementById('testKeyResult');
-  const val = document.getElementById('apiKeyInput').value.trim() || getApiKey();
+  const backend = document.getElementById('backendSelect').value;
+  const val = document.getElementById('apiKeyInput').value.trim() || getApiKey(backend);
   if(!val){ resultEl.innerHTML = '<span style="color:var(--danger-strong)">Enter a key first.</span>'; return; }
   resultEl.textContent = 'Testing…';
   try{
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method:'POST',
-      headers:{
-        'Content-Type':'application/json',
-        'x-api-key': val,
-        'anthropic-version':'2023-06-01',
-        'anthropic-dangerous-direct-browser-access':'true'
-      },
-      body: JSON.stringify({ model: ANTHROPIC_MODEL, max_tokens: 8, messages:[{role:'user', content:'hi'}] })
-    });
-    const data = await resp.json();
-    if(resp.ok && !data.error){
-      resultEl.innerHTML = '<span style="color:var(--success)">✓ Key works (HTTP ' + resp.status + ').</span>';
+    if(backend === 'gemini'){
+      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', 'x-goog-api-key': val },
+        body: JSON.stringify({ contents:[{ parts:[{ text:'hi' }] }] })
+      });
+      const data = await resp.json();
+      if(resp.ok && !data.error){
+        resultEl.innerHTML = '<span style="color:var(--success)">✓ Key works (HTTP ' + resp.status + ').</span>';
+      } else {
+        resultEl.innerHTML = '<span style="color:var(--danger-strong)">✗ HTTP ' + resp.status + ' — ' + escapeHtml((data.error && data.error.message) || 'unknown error') + '</span>';
+      }
     } else {
-      resultEl.innerHTML = '<span style="color:var(--danger-strong)">✗ HTTP ' + resp.status + ' — ' + escapeHtml((data.error && data.error.message) || 'unknown error') + '</span>';
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          'x-api-key': val,
+          'anthropic-version':'2023-06-01',
+          'anthropic-dangerous-direct-browser-access':'true'
+        },
+        body: JSON.stringify({ model: ANTHROPIC_MODEL, max_tokens: 8, messages:[{role:'user', content:'hi'}] })
+      });
+      const data = await resp.json();
+      if(resp.ok && !data.error){
+        resultEl.innerHTML = '<span style="color:var(--success)">✓ Key works (HTTP ' + resp.status + ').</span>';
+      } else {
+        resultEl.innerHTML = '<span style="color:var(--danger-strong)">✗ HTTP ' + resp.status + ' — ' + escapeHtml((data.error && data.error.message) || 'unknown error') + '</span>';
+      }
     }
   }catch(err){
     resultEl.innerHTML = '<span style="color:var(--danger-strong)">✗ Request failed: ' + escapeHtml(err.message) + ' (likely a network/CORS issue, not the key itself)</span>';
   }
 }
 document.getElementById('settingsBtn').addEventListener('click', () => {
-  document.getElementById('apiKeyInput').value = getApiKey();
+  document.getElementById('backendSelect').value = getBackend();
+  document.getElementById('apiKeyInput').value = getApiKey(getBackend());
   document.getElementById('testKeyResult').textContent = '';
-  refreshKeyPreview();
+  onBackendChange();
   openModal('settingsModal');
 });
 
@@ -722,9 +771,10 @@ function renderCompanyCard(c){
    RESEARCH (Anthropic API, user's own key, with web_search tool)
    ========================================================================= */
 async function startResearch(category){
-  const apiKey = getApiKey();
+  const backend = getBackend();
+  const apiKey = getApiKey(backend);
   if(!apiKey){
-    toast('Add your Anthropic API key in Settings first.', 'error');
+    toast(`Add your ${backend === 'gemini' ? 'Gemini' : 'Anthropic'} API key in Settings first.`, 'error');
     openModal('settingsModal');
     return;
   }
@@ -734,16 +784,16 @@ async function startResearch(category){
   const { companies } = coverageForMunicipality(muni.id);
 
   const area = document.getElementById('researchArea');
-  area.innerHTML = `<div class="reviewCard">Researching ${CATEGORY_META[category].label} for ${escapeHtml(muni.name_en||muni.name)}… this calls Claude with web search and can take up to a minute.</div>`;
+  area.innerHTML = `<div class="reviewCard">Researching ${CATEGORY_META[category].label} for ${escapeHtml(muni.name_en||muni.name)}… this calls ${backend === 'gemini' ? 'Gemini' : 'Claude'} with web search and can take up to a minute.</div>`;
 
   try{
-    const result = await researchContact({ apiKey, muni, countryName, category, existingCompanies: companies });
+    const result = await researchContact({ backend, apiKey, muni, countryName, category, existingCompanies: companies });
     renderReviewCard(category, result, muni);
   }catch(err){
     area.innerHTML = `<div class="reviewCard" style="border-color:var(--danger)">Research failed: ${escapeHtml(err.message)}</div>`;
   }
 }
-async function researchContact({ apiKey, muni, countryName, category, existingCompanies }){
+function buildResearchPrompt({ muni, countryName, category, existingCompanies }){
   const label = CATEGORY_META[category].label;
   const isFallback = FALLBACK_CATEGORIES.includes(category);
   const existingList = existingCompanies.length
@@ -781,6 +831,22 @@ Respond with ONLY a single JSON object, no markdown code fences, no other text, 
 }
 If you cannot find a specific responsible entity, set "found" to false, still try to fill "company_name" with the general municipal switchboard as a fallback, and set "confidence" to "low".`;
 
+  const userMessage = `Research the contact now for: ${muniName}, ${countryName} — category: ${label}.`;
+  return { systemPrompt, userMessage };
+}
+function extractJsonObject(text){
+  const clean = String(text||'').replace(/```json|```/g, '').trim();
+  const start = clean.indexOf('{');
+  const end = clean.lastIndexOf('}');
+  if(start === -1 || end === -1) throw new Error('Could not parse a JSON result from the model.');
+  return JSON.parse(clean.slice(start, end + 1));
+}
+async function researchContact({ backend, apiKey, muni, countryName, category, existingCompanies }){
+  const { systemPrompt, userMessage } = buildResearchPrompt({ muni, countryName, category, existingCompanies });
+  if(backend === 'gemini') return await researchWithGemini({ apiKey, systemPrompt, userMessage });
+  return await researchWithAnthropic({ apiKey, systemPrompt, userMessage });
+}
+async function researchWithAnthropic({ apiKey, systemPrompt, userMessage }){
   const resp = await fetch('https://api.anthropic.com/v1/messages', {
     method:'POST',
     headers:{
@@ -793,19 +859,31 @@ If you cannot find a specific responsible entity, set "found" to false, still tr
       model: ANTHROPIC_MODEL,
       max_tokens: 1500,
       system: systemPrompt,
-      messages: [{ role:'user', content: `Research the contact now for: ${muniName}, ${countryName} — category: ${label}.` }],
+      messages: [{ role:'user', content: userMessage }],
       tools: [{ type:'web_search_20250305', name:'web_search' }]
     })
   });
   const data = await resp.json();
   if(data.error) throw new Error(data.error.message || 'Anthropic API error');
   const textBlocks = (data.content || []).filter(b => b.type === 'text').map(b => b.text);
-  const joined = textBlocks.join('\n').trim();
-  const clean = joined.replace(/```json|```/g, '').trim();
-  const start = clean.indexOf('{');
-  const end = clean.lastIndexOf('}');
-  if(start === -1 || end === -1) throw new Error('Could not parse a JSON result from the model.');
-  return JSON.parse(clean.slice(start, end + 1));
+  return extractJsonObject(textBlocks.join('\n'));
+}
+async function researchWithGemini({ apiKey, systemPrompt, userMessage }){
+  const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json', 'x-goog-api-key': apiKey },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: systemPrompt }] },
+      contents: [{ role:'user', parts: [{ text: userMessage }] }],
+      tools: [{ google_search: {} }]
+    })
+  });
+  const data = await resp.json();
+  if(data.error) throw new Error(data.error.message || 'Gemini API error');
+  const cand = data.candidates && data.candidates[0];
+  const parts = cand && cand.content && cand.content.parts ? cand.content.parts : [];
+  const text = parts.map(p => p.text || '').join('\n');
+  return extractJsonObject(text);
 }
 
 /* =========================================================================
