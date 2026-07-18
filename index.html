@@ -915,12 +915,27 @@ body.nav-panel-open .driving-nav-card{
 }
 .map-compass .compass-needle svg{ width:100%; height:100%; display:block; }
 
+.user-dot-marker{
+  position:relative;
+  width:34px; height:34px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.user-dot-pulse{
+  position:absolute;
+  width:34px; height:34px;
+  border-radius:50%;
+  background:rgba(0,208,255,.28);
+  animation:navPulse 2s ease-out infinite;
+}
 .user-dot{
+  position:relative;
   width:16px; height:16px;
   border-radius:50%;
   background:#00d0ff;
-  border:2px solid white;
-  box-shadow:0 0 0 3px rgba(0,208,255,.35), 0 2px 6px rgba(0,0,0,.45);
+  border:2.5px solid white;
+  box-shadow:0 0 0 3px rgba(0,208,255,.4), 0 2px 8px rgba(0,0,0,.55);
 }
 .user-nav-marker{
   position:relative;
@@ -938,7 +953,7 @@ body.nav-panel-open .driving-nav-card{
 }
 @keyframes navPulse{
   0%{ transform:scale(.5); opacity:.8; }
-  100%{ transform:scale(1.05); opacity:0; }
+  100%{ transform:scale(1.15); opacity:0; }
 }
 .user-nav-halo{
   position:absolute;
@@ -1107,33 +1122,36 @@ body.driving-active .driving-speed-widget{ display:flex; }
 }
 .driving-status-dot.gps-lost{ background:#ff4b4b; }
 
-.turn-by-turn-card{
-  display:none;
+/* Turn-by-turn info now lives inside the bottom sheet (drivingNavCard) and expands the
+   sheet itself when a turn is coming up, instead of floating a separate card above the
+   action row (which sat in an awkward spot, easy to miss and easy to overlap). */
+.turn-by-turn-bar{
+  display:flex;
   flex-direction:row;
   align-items:center;
   gap:var(--space-10);
-  background:var(--floating-bg);
-  border:1px solid var(--floating-border);
-  border-radius:var(--radius-xl);
-  padding:8px 12px;
-  box-shadow:0 3px 12px var(--floating-shadow);
-  position:fixed;
-  left:12px;
-  right:12px;
-  width:auto;
-  z-index:2650;
-  bottom:calc(var(--driving-sheet-height, 220px) + var(--driving-action-row-h, 52px) + 20px + env(safe-area-inset-bottom, 0px));
+  background:var(--nav-accent);
+  border-radius:14px;
+  max-height:0;
+  padding:0 12px;
+  margin-bottom:0;
   opacity:0;
-  transition:opacity .35s ease;
+  overflow:hidden;
+  transition:max-height .3s ease, opacity .25s ease, padding .3s ease, margin .3s ease;
 }
-body.driving-active .turn-by-turn-card{ display:flex; }
-.turn-by-turn-card.tbt-visible{ opacity:1; }
-.turn-by-turn-icon{ width:40px; height:40px; flex-shrink:0; object-fit:contain; }
+.turn-by-turn-bar.tbt-visible{
+  max-height:64px;
+  padding:8px 12px;
+  margin-bottom:var(--space-8);
+  opacity:1;
+}
+.turn-by-turn-icon{ width:38px; height:38px; flex-shrink:0; object-fit:contain; filter:brightness(0) invert(1); }
 .turn-by-turn-info{ display:flex; flex-direction:column; gap:1px; min-width:0; }
-.turn-by-turn-dist{ font-size:var(--fs-16); font-weight:var(--fw-heavy); color:var(--nav-accent); line-height:1.1; }
+.turn-by-turn-dist{ font-size:var(--fs-16); font-weight:var(--fw-heavy); color:#fff; line-height:1.1; }
 .turn-by-turn-text{
   font-size:var(--fs-12-5);
-  color:var(--text-primary);
+  color:#fff;
+  opacity:.92;
   line-height:1.2;
   overflow:hidden;
   text-overflow:ellipsis;
@@ -5708,7 +5726,7 @@ function saveMapView() {
 }
 
 const savedMapView = loadSavedMapView();
-const map = L.map('map', { zoomControl: false, markerZoomAnimation: false }).setView(
+const map = L.map('map', { zoomControl: false, markerZoomAnimation: true }).setView(
   savedMapView ? [savedMapView.lat, savedMapView.lng] : EUROPE_DEFAULT_CENTER,
   savedMapView ? savedMapView.zoom : EUROPE_DEFAULT_ZOOM
 );
@@ -6158,13 +6176,16 @@ function buildUserMarkerHtml(navStyle) {
              '</div>' +
            '</div>';
   }
-  return '<div class="user-dot"></div>';
+  return '<div class="user-dot-marker">' +
+           '<div class="user-dot-pulse"></div>' +
+           '<div class="user-dot"></div>' +
+         '</div>';
 }
 
 function setUserMarkerStyle(navStyle) {
   userMarkerNavStyle = navStyle;
   if (!userMarker) return;
-  const size = navStyle ? 40 : 16;
+  const size = navStyle ? 40 : 34;
   userMarker.setIcon(L.divIcon({
     className: '',
     html: buildUserMarkerHtml(navStyle),
@@ -6174,13 +6195,27 @@ function setUserMarkerStyle(navStyle) {
   updateUserMarkerRotation();
 }
 
+// Continuously-accumulated (unwrapped) heading used to rotate the nav arrow when the
+// map itself is north-up. currentHeading is stored mod 360, so animating straight to
+// it would make the arrow spin the "long way" around whenever heading crosses 0/360
+// (e.g. 359deg -> 1deg). Accumulating via shortestAngleDelta keeps the visual rotation
+// continuous, the same trick already used for mapBearing.
+let arrowContinuousAngle = 0;
+
 function updateUserMarkerRotation() {
   if (!userMarker || !userMarkerNavStyle) return;
   const el = userMarker.getElement();
   if (!el) return;
   const arrow = el.querySelector('.user-nav-arrow');
   if (!arrow) return;
-  const angle = isHeadingUpActive() ? -mapBearing : (currentHeading || 0);
+  let angle;
+  if (isHeadingUpActive()) {
+    angle = -mapBearing;
+  } else {
+    const target = currentHeading || 0;
+    arrowContinuousAngle += shortestAngleDelta(arrowContinuousAngle % 360, target);
+    angle = arrowContinuousAngle;
+  }
   arrow.style.transform = `rotate(${angle}deg)`;
 }
 
@@ -6191,7 +6226,7 @@ function toggleHeadingUpMode() {
   if (!headingUpMode) {
     resetMapBearing();
   } else if (drivingMode && currentHeading !== null) {
-    applyMapBearing(currentHeading);
+    applyMapBearing(-currentHeading);
   }
   updateUserMarkerRotation();
 }
@@ -6204,7 +6239,7 @@ function toggleWalkingCompassMode() {
   if (!walkingHeadingMode) {
     resetMapBearing();
   } else if (currentHeading !== null) {
-    applyMapBearing(currentHeading);
+    applyMapBearing(-currentHeading);
   }
   updateUserMarkerRotation();
 }
@@ -6279,7 +6314,7 @@ function handleOrientationEvent(event) {
   compassActive = true;
   smoothedHeading = smoothHeading(smoothedHeading, (heading + 360) % 360, HEADING_SMOOTHING_FACTOR);
   currentHeading = smoothedHeading;
-  if (isHeadingUpActive()) applyMapBearing(currentHeading);
+  if (isHeadingUpActive()) applyMapBearing(-currentHeading);
   updateUserMarkerRotation();
 }
 
@@ -7196,13 +7231,24 @@ function customDragPointerUp() {
 })();
 
 /* ---------- Two-finger rotate gesture (coexists with Leaflet's native pinch-zoom) ---------- */
+// A pinch-to-zoom gesture naturally introduces a bit of unintended finger-angle drift, which
+// used to be enough to sneak past the old fixed deadzone and rotate the map when the user only
+// meant to zoom. We now decide, once per gesture, whether it's a "rotate" or a "zoom" gesture
+// and lock into that interpretation for the rest of the touch — so a zoom can't drift into a
+// rotation (or vice versa) partway through.
 let twoFingerRotateActive     = false;
 let twoFingerRotateStartAngle = 0;
 let twoFingerRotateStartBearing = 0;
-const TWO_FINGER_ROTATE_DEADZONE_DEG = 3;
+let twoFingerStartDistance    = 0;
+let twoFingerGestureLock      = null; // null | 'rotate' | 'zoom'
+const TWO_FINGER_ROTATE_DEADZONE_DEG = 8;
+const TWO_FINGER_ZOOM_LOCK_RATIO     = 0.06; // 6% pinch-distance change locks in "zoom" first
 
 function angleBetweenTouches(t0, t1) {
   return Math.atan2(t1.clientY - t0.clientY, t1.clientX - t0.clientX) * 180 / Math.PI;
+}
+function distanceBetweenTouches(t0, t1) {
+  return Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
 }
 
 function disableAutoHeadingForManualRotation() {
@@ -7222,8 +7268,10 @@ function disableAutoHeadingForManualRotation() {
 function onMapTouchStart(e) {
   if (e.touches.length === 2) {
     twoFingerRotateActive = true;
+    twoFingerGestureLock = null;
     twoFingerRotateStartAngle = angleBetweenTouches(e.touches[0], e.touches[1]);
     twoFingerRotateStartBearing = mapBearing;
+    twoFingerStartDistance = distanceBetweenTouches(e.touches[0], e.touches[1]);
     onUserMapInteractionStart();
   }
 }
@@ -7233,13 +7281,30 @@ function onMapTouchMove(e) {
   let delta = angle - twoFingerRotateStartAngle;
   if (delta > 180) delta -= 360;
   if (delta < -180) delta += 360;
-  if (Math.abs(delta) < TWO_FINGER_ROTATE_DEADZONE_DEG) return;
+
+  const distance = distanceBetweenTouches(e.touches[0], e.touches[1]);
+  const distanceRatio = twoFingerStartDistance > 0
+    ? Math.abs(distance - twoFingerStartDistance) / twoFingerStartDistance
+    : 0;
+
+  if (twoFingerGestureLock === null) {
+    if (Math.abs(delta) >= TWO_FINGER_ROTATE_DEADZONE_DEG) {
+      twoFingerGestureLock = 'rotate';
+    } else if (distanceRatio >= TWO_FINGER_ZOOM_LOCK_RATIO) {
+      twoFingerGestureLock = 'zoom';
+    } else {
+      return; // still ambiguous — wait for a clearer signal before committing either way
+    }
+  }
+
+  if (twoFingerGestureLock !== 'rotate') return;
   disableAutoHeadingForManualRotation();
   applyMapBearing(twoFingerRotateStartBearing + delta);
 }
 function onMapTouchEnd(e) {
   if (e.touches.length < 2 && twoFingerRotateActive) {
     twoFingerRotateActive = false;
+    twoFingerGestureLock = null;
     scheduleAutoRefollow();
   }
 }
@@ -7271,7 +7336,7 @@ function toggleDrivingMode() {
     if (userCoords) followMapTo(userCoords.lat, userCoords.lon);
     if (compassBtn) compassBtn.style.display = 'flex';
     requestOrientationPermission();
-    if (headingUpMode && currentHeading !== null) applyMapBearing(currentHeading);
+    if (headingUpMode && currentHeading !== null) applyMapBearing(-currentHeading);
     if (destinationCoords && userCoords) updateTurnByTurnDisplay(userCoords);
     openOverlay('drivingMode', () => { if (drivingMode) toggleDrivingMode(); });
   } else {
@@ -7288,7 +7353,7 @@ function toggleDrivingMode() {
     if (!walkingHeadingMode) {
       resetMapBearing();
     } else if (currentHeading !== null) {
-      applyMapBearing(currentHeading);
+      applyMapBearing(-currentHeading);
     }
     if (compassBtn) compassBtn.style.display = 'none';
   }
@@ -7734,10 +7799,10 @@ function startWatching() {
           icon: L.divIcon({
             className: '',
             html: buildUserMarkerHtml(userMarkerNavStyle),
-            iconSize: userMarkerNavStyle ? [40, 40] : [16, 16],
-            iconAnchor: userMarkerNavStyle ? [20, 20] : [8, 8]
+            iconSize: userMarkerNavStyle ? [40, 40] : [34, 34],
+            iconAnchor: userMarkerNavStyle ? [20, 20] : [17, 17]
           }),
-          zIndexOffset: 1000
+          zIndexOffset: 5000
         }).addTo(map);
         map.setView(getFollowCenter(userCoords.lat, userCoords.lon, 13), 13);
         showMunicipalityBoundaryForPoint(userCoords.lat, userCoords.lon, userMarker);
@@ -7759,7 +7824,7 @@ function startWatching() {
         lastGpsHeadingAt = Date.now();
         smoothedHeading = smoothHeading(smoothedHeading, pos.coords.heading, HEADING_SMOOTHING_FACTOR);
         currentHeading = smoothedHeading;
-        if (isHeadingUpActive()) applyMapBearing(currentHeading);
+        if (isHeadingUpActive()) applyMapBearing(-currentHeading);
         updateUserMarkerRotation();
       }
 
