@@ -2141,15 +2141,7 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 .detail-ban-btn:disabled{ opacity:.6; cursor:default; }
 .contact-flag-btn{ margin-left:auto; flex-shrink:0; align-self:center; background:none; border:none; padding:2px 6px; font-size:var(--fs-11); color:var(--text-muted); text-decoration:underline; cursor:pointer; line-height:1.3; white-space:nowrap; }
 .contact-flag-btn:disabled{ text-decoration:none; cursor:default; opacity:.7; }
-.contact-pdf-export-btn{
-  flex-shrink:0; align-self:center; width:24px; height:24px; margin-left:6px;
-  display:flex; align-items:center; justify-content:center;
-  border:1px solid var(--border-color-strong); border-radius:var(--radius-sm);
-  background:var(--bg-surface); cursor:pointer; padding:0;
-}
-.contact-pdf-export-btn img{ width:14px; height:14px; filter:var(--icon-tint-filter); }
-.contact-pdf-export-btn:active{ background:var(--bg-surface-alt); }
-.contact-pdf-export-btn:disabled{ opacity:.5; cursor:default; }
+.contact-pdf-export-row-btn{ width:100%; margin-bottom:8px; }
 .contact-card-row:not(:last-child){ border-bottom:1px solid var(--border-color); }
 .contact-card-row a{ color:#4ea1ff; text-decoration:none; }
 /* Links/values stay on one line and ellipsize instead of wrapping or overflowing the card —
@@ -5460,6 +5452,7 @@ const T = {
   shareImageFailed:      { en:'Could not create the image. Try again.',   sr:'Slika nije mogla biti napravljena. Pokušajte ponovo.' },
   shareImageSaved:       { en:'Image saved.',                             sr:'Slika sačuvana.' },
   companyPdfBtnTitle:      { en:'Export all reports as PDF',                          sr:'Izvezi sve prijave u PDF' },
+  companyPdfBtnLabel:      { en:'Export reports as PDF',                              sr:'Izvezi prijave u PDF' },
   companyPdfGenerating:    { en:'Preparing PDF…',                                      sr:'Priprema PDF-a…' },
   companyPdfNoReports:     { en:'No reports found for this service yet.',              sr:'Za ovu službu još nema prijava.' },
   companyPdfFailed:        { en:'Could not create the PDF. Try again.',                sr:'PDF nije mogao biti napravljen. Pokušajte ponovo.' },
@@ -10850,15 +10843,17 @@ function buildCompanyPopupHtml(c, lat, lon) {
   const iconBtnsHtml = [
     c.phone   ? `<a class="poi-contact-icon-btn" href="tel:${escapeHtml(c.phone)}" title="${escapeHtml(c.phone)}"><img src="icons/phone.png" alt="phone"></a>` : '',
     c.email   ? `<a class="poi-contact-icon-btn" href="mailto:${escapeHtml(c.email)}" title="${escapeHtml(c.email)}"><img src="icons/email.png" alt="email"></a>` : '',
-    c.website ? `<a class="poi-contact-icon-btn" href="${escapeHtml(c.website)}" target="_blank" rel="noopener" title="${escapeHtml(c.website)}"><img src="icons/link.png" alt="website"></a>` : '',
-    (c.id != null) ? `<button type="button" class="poi-contact-icon-btn" id="companyPdfBtn-${escapeHtml(String(c.id))}" title="${t('companyPdfBtnTitle')}" onclick="exportCompanyReportsPdf('${escapeHtml(String(c.id))}')"><img src="icons/pdf.png" alt="pdf"></button>` : ''
+    c.website ? `<a class="poi-contact-icon-btn" href="${escapeHtml(c.website)}" target="_blank" rel="noopener" title="${escapeHtml(c.website)}"><img src="icons/link.png" alt="website"></a>` : ''
   ].filter(Boolean).join('');
   const iconRowHtml = iconBtnsHtml ? `<div class="poi-contact-icons">${iconBtnsHtml}</div>` : '';
+  const pdfExportRowBtn = (c.id != null)
+    ? `<button type="button" class="settings-btn contact-pdf-export-row-btn" id="companyPdfBtn-${escapeHtml(String(c.id))}" title="${t('companyPdfBtnTitle')}" onclick="exportCompanyReportsPdf('${escapeHtml(String(c.id))}')"><img class="icon-img icon-img-inline" src="icons/pdf.png" alt="pdf"> ${t('companyPdfBtnLabel')}</button>` : '';
   return `<div class="popup-inner popup-card">
     <div class="popup-header" style="background:${headerColor};">
       <span class="popup-header-title">${escapeHtml(c.name)}</span>
     </div>
     <div class="popup-body" style="padding:12px 14px;">
+      ${pdfExportRowBtn}
       ${catsHtml}
       ${iconRowHtml}
     </div>
@@ -12325,10 +12320,11 @@ function renderContactRows(c, reportId) {
   const notesFlagBtn = flagBtn('notes', c.notes);
   const otherFlagBtn = c.id != null
     ? `<button type="button" class="contact-flag-btn contact-flag-other-btn" onclick="toggleContactOtherFlagForm('${companyIdAttr}')">${t('contactFlagOtherBtn')}</button>` : '';
-  const pdfExportBtn = c.id != null
-    ? `<button type="button" class="contact-pdf-export-btn" id="companyPdfBtn-${companyIdAttr}" title="${t('companyPdfBtnTitle')}" onclick="exportCompanyReportsPdf('${companyIdAttr}')"><img src="icons/pdf.png" alt="pdf"></button>` : '';
+  const pdfExportRowBtn = c.id != null
+    ? `<button type="button" class="settings-btn contact-pdf-export-row-btn" id="companyPdfBtn-${companyIdAttr}" title="${t('companyPdfBtnTitle')}" onclick="exportCompanyReportsPdf('${companyIdAttr}')"><img class="icon-img icon-img-inline" src="icons/pdf.png" alt="pdf"> ${t('companyPdfBtnLabel')}</button>` : '';
   return `
-      ${c.phone ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/phone.png" alt="phone"><a href="tel:${escapeHtml(c.phone)}"${phoneClickAttr}>${escapeHtml(c.phone)}</a>${phoneFlagBtn}${pdfExportBtn}</div>` : ''}
+      ${pdfExportRowBtn}
+      ${c.phone ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/phone.png" alt="phone"><a href="tel:${escapeHtml(c.phone)}"${phoneClickAttr}>${escapeHtml(c.phone)}</a>${phoneFlagBtn}</div>` : ''}
       ${c.email ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/email.png" alt="email"><a href="mailto:${escapeHtml(c.email)}"${emailClickAttr}>${escapeHtml(c.email)}</a>${emailFlagBtn}</div>` : ''}
       ${c.website ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/link.png" alt="link"><a href="${escapeHtml(c.website)}" target="_blank" rel="noopener">${escapeHtml(c.website)}</a>${websiteFlagBtn}</div>` : ''}
       ${c.address && c.id != null ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/pin.png" alt="pin"><a href="javascript:void(0)" onclick="focusUtilityCompanyAddress('${escapeHtml(String(c.id))}')">${escapeHtml(c.address)}</a>${addressFlagBtn}</div>` : c.address ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/pin.png" alt="pin"><span>${escapeHtml(c.address)}</span></div>` : ''}
@@ -13146,6 +13142,7 @@ async function emailReport(reportId) {
 
 function slugifyForFilename(str) {
   return String(str || 'company')
+    .replace(/đ/g, 'dj').replace(/Đ/g, 'Dj')
     .normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
     .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'company';
 }
@@ -13162,35 +13159,66 @@ async function imageUrlToDataURL(url) {
   });
 }
 
+// jsPDF's built-in fonts (helvetica/etc.) only support WinAnsi-style Latin — Serbian Latin
+// letters like č/ć/š/ž/đ fall outside that and render as garbled/missing glyphs. Rather than
+// embed a whole extra font just for the PDF, we transliterate to a safe ASCII fallback so the
+// text is always legible.
+function pdfSafeText(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/đ/g, 'dj').replace(/Đ/g, 'Dj')
+    .normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function hexToRgb(hex) {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex || '');
+  return m ? [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)] : [150, 150, 150];
+}
+
+// Renders the same small map thumbnail (OSM tile + pin) used for the "share as image" card,
+// onto an offscreen canvas, so it can be embedded as a PNG in the PDF.
+async function reportMapThumbDataUrl(lat, lon, w, h) {
+  if (!isValidLatLng(lat, lon)) return null;
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    await drawReportCardMapThumb(ctx, 0, 0, w, h, lat, lon);
+    return canvas.toDataURL('image/png');
+  } catch (err) {
+    console.warn('Map thumbnail failed:', err.message || err);
+    return null;
+  }
+}
+
 // Builds an A4 PDF (via jsPDF) listing every report relevant to a given utility company/public
-// service: a cover section with the company's own contact info, then one section per report
-// (category, status, priority, date, location, description, and photo when available).
+// service: a cover section with the company's own contact info and a status breakdown, then a
+// continuously-flowing (no forced page-per-report) list of reports — each with category/status
+// colors, priority, reporter, municipality, coordinates, description, a link back to the report
+// on TraceTheBreak, the report photo, and a small map screenshot — and a closing thank-you page.
 async function buildCompanyReportsPdfBlob(company, reports) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
   const margin = 42;
+  const INK = [26, 26, 26];
   let y = margin;
 
+  function resetInk() { doc.setTextColor(INK[0], INK[1], INK[2]); }
   function ensureSpace(h) {
     if (y + h > pageH - margin) { doc.addPage(); y = margin; }
   }
-  function addHeading(text, size) {
-    ensureSpace(size + 10);
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(size);
-    doc.text(String(text), margin, y);
-    y += size + 8;
-  }
   function addField(label, value, size) {
     size = size || 11;
-    const text = value == null || value === '' ? '—' : String(value);
+    const text = value == null || value === '' ? '—' : pdfSafeText(String(value));
+    const labelText = pdfSafeText(`${label}: `);
     doc.setFont('helvetica', 'bold'); doc.setFontSize(size);
-    const labelText = `${label}: `;
     const labelW = doc.getTextWidth(labelText);
     doc.setFont('helvetica', 'normal');
     const lines = doc.splitTextToSize(text, pageW - margin * 2 - labelW - 2);
     ensureSpace(lines.length * (size + 3));
+    resetInk();
     doc.setFont('helvetica', 'bold');
     doc.text(labelText, margin, y);
     doc.setFont('helvetica', 'normal');
@@ -13199,58 +13227,149 @@ async function buildCompanyReportsPdfBlob(company, reports) {
   }
   function addDivider() {
     ensureSpace(14);
-    doc.setDrawColor(210, 210, 210);
+    doc.setDrawColor(215, 215, 215);
     doc.line(margin, y, pageW - margin, y);
     y += 14;
   }
+  function addStatusBreakdown(counts) {
+    const items = [
+      { key: 'reported',    label: statusLabel('reported'),    color: STATUS_COLORS.reported },
+      { key: 'in_progress', label: statusLabel('in_progress'), color: STATUS_COLORS.in_progress },
+      { key: 'fixed',       label: statusLabel('fixed'),       color: STATUS_COLORS.fixed }
+    ];
+    const gap = 8;
+    const boxW = (pageW - margin * 2 - gap * 2) / 3;
+    const boxH = 36;
+    ensureSpace(boxH + 10);
+    items.forEach((it, idx) => {
+      const x = margin + idx * (boxW + gap);
+      const [r, g, b] = hexToRgb(it.color);
+      doc.setFillColor(r, g, b);
+      doc.roundedRect(x, y, boxW, boxH, 6, 6, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(16);
+      doc.text(String(counts[it.key] || 0), x + 10, y + 17);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+      doc.text(pdfSafeText(it.label), x + 10, y + 29);
+    });
+    resetInk();
+    y += boxH + 14;
+  }
 
-  addHeading(company.name || '—', 18);
+  // ---- Cover: company header + contact info + status breakdown ----
+  const headerBarH = 62;
+  doc.setFillColor(38, 38, 38);
+  doc.rect(0, 0, pageW, headerBarH, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(19);
+  doc.text(pdfSafeText(company.name || '—'), margin, 36);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
+  doc.text(pdfSafeText(lang === 'sr' ? 'Pregled prijava — TraceTheBreak' : 'Reports overview — TraceTheBreak'), margin, 51);
+  resetInk();
+  y = headerBarH + 24;
+
   if (company.categories && company.categories.length) addField(lang === 'sr' ? 'Kategorija' : 'Category', company.categories.map(translateCategory).join(', '));
   if (company.phone) addField(lang === 'sr' ? 'Telefon' : 'Phone', company.phone);
   if (company.email) addField('Email', company.email);
   if (company.address) addField(lang === 'sr' ? 'Adresa' : 'Address', company.address);
-  addField(t('companyPdfTotalReports'), String(reports.length));
   y += 4;
+  addField(t('companyPdfTotalReports'), String(reports.length));
+
+  const statusCounts = { reported: 0, in_progress: 0, fixed: 0 };
+  reports.forEach(r => { statusCounts[r.status] = (statusCounts[r.status] || 0) + 1; });
+  addStatusBreakdown(statusCounts);
   addDivider();
 
+  // ---- Reports: flow continuously, don't force a page break per report ----
   for (let i = 0; i < reports.length; i++) {
     const r = reports[i];
-    if (i > 0) doc.addPage();
-    y = margin;
     const headerTitle = r.subcategory
       ? `${translateCategory(r.category)} / ${subcategoryLabel(r.category, r.subcategory)}`
       : translateCategory(r.category);
-    addHeading(`${i + 1}. ${headerTitle}`, 15);
-    addField(t('popupStatus'), statusLabel(r.status));
-    addField(t('priorityLabel'), priorityLabelText(r.priority));
-    addField(lang === 'sr' ? 'Prijavljeno' : 'Reported on', formatDate(r.created_at));
-    const muni = r.municipality_id != null ? getMunicipalityById(r.municipality_id) : null;
-    addField(t('detailMunicipalityLabel'), muni ? municipalityDisplayName(muni) : t('detailUnknown'));
-    if (isValidLatLng(r.latitude, r.longitude)) {
-      addField(t('detailCoordsLabel'), `${r.latitude.toFixed(6)}, ${r.longitude.toFixed(6)}`);
-    }
-    if (r.comment) addField(t('companyPdfDescription'), r.comment);
-    y += 6;
+    const catRgb = hexToRgb(categoryColor(r.category));
+    const statusRgb = hexToRgb(statusColor(r.status));
+    const titleText = pdfSafeText(`${i + 1}. ${headerTitle}`);
 
+    ensureSpace(24);
+    doc.setFillColor(catRgb[0], catRgb[1], catRgb[2]);
+    doc.rect(margin, y - 11, 4, 18, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(13);
+    resetInk();
+    doc.text(titleText, margin + 10, y);
+
+    const statusText = pdfSafeText(statusLabel(r.status));
+    doc.setFontSize(9);
+    const pillW = doc.getTextWidth(statusText) + 14;
+    doc.setFillColor(statusRgb[0], statusRgb[1], statusRgb[2]);
+    doc.roundedRect(pageW - margin - pillW, y - 11, pillW, 16, 4, 4, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.text(statusText, pageW - margin - pillW + 7, y);
+    resetInk();
+    y += 18;
+
+    addField(t('priorityLabel'), priorityLabelText(r.priority), 10);
+    addField(lang === 'sr' ? 'Prijavljeno' : 'Reported on', formatDate(r.created_at), 10);
+    addField(t('reportedByLabel'), r.owner_username || t('detailUnknown'), 10);
+    const muni = r.municipality_id != null ? getMunicipalityById(r.municipality_id) : null;
+    addField(t('detailMunicipalityLabel'), muni ? municipalityDisplayName(muni) : t('detailUnknown'), 10);
+    if (isValidLatLng(r.latitude, r.longitude)) {
+      addField(t('detailCoordsLabel'), `${r.latitude.toFixed(6)}, ${r.longitude.toFixed(6)}`, 10);
+    }
+    if (r.comment) addField(t('companyPdfDescription'), r.comment, 10);
+
+    ensureSpace(14);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
+    doc.setTextColor(30, 110, 190);
+    doc.textWithLink(pdfSafeText(lang === 'sr' ? 'Pogledaj na TraceTheBreak ↗' : 'View on TraceTheBreak ↗'), margin, y, { url: reportShareUrl(r.id) });
+    resetInk();
+    y += 14;
+
+    let photoDataUrl = null, mapDataUrl = null;
     if (r.photo_path) {
       try {
-        const url = await getReportPhotoSignedUrl(r.photo_path);
-        if (url) {
-          const dataUrl = await imageUrlToDataURL(url);
-          const imgProps = doc.getImageProperties(dataUrl);
-          const maxW = pageW - margin * 2;
-          const maxH = 260;
-          let w = maxW, h = (imgProps.height / imgProps.width) * w;
-          if (h > maxH) { h = maxH; w = (imgProps.width / imgProps.height) * h; }
-          ensureSpace(h + 10);
-          doc.addImage(dataUrl, margin, y, w, h, undefined, 'FAST');
-          y += h + 10;
-        }
-      } catch (err) {
-        console.warn('Could not embed photo for report', r.id, ':', err.message || err);
-      }
+        const purl = await getReportPhotoSignedUrl(r.photo_path);
+        if (purl) photoDataUrl = await imageUrlToDataURL(purl);
+      } catch (err) { console.warn('Could not embed photo for report', r.id, ':', err.message || err); }
     }
+    if (isValidLatLng(r.latitude, r.longitude)) {
+      mapDataUrl = await reportMapThumbDataUrl(r.latitude, r.longitude, 300, 200);
+    }
+    if (photoDataUrl || mapDataUrl) {
+      const colGap = 10;
+      const colW = (photoDataUrl && mapDataUrl) ? (pageW - margin * 2 - colGap) / 2 : (pageW - margin * 2);
+      const imgH = 110;
+      ensureSpace(imgH + 12);
+      let cx = margin;
+      if (photoDataUrl) {
+        try {
+          const props = doc.getImageProperties(photoDataUrl);
+          let w = colW, h = (props.height / props.width) * w;
+          if (h > imgH) { h = imgH; w = (props.width / props.height) * h; }
+          doc.addImage(photoDataUrl, cx, y, w, h, undefined, 'FAST');
+        } catch (err) { console.warn('Could not draw photo for report', r.id, ':', err.message || err); }
+        cx += colW + colGap;
+      }
+      if (mapDataUrl) {
+        try {
+          doc.addImage(mapDataUrl, cx, y, colW, imgH, undefined, 'FAST');
+        } catch (err) { console.warn('Could not draw map thumb for report', r.id, ':', err.message || err); }
+      }
+      y += imgH + 12;
+    }
+
+    if (i < reports.length - 1) addDivider();
   }
+
+  // ---- Closing page ----
+  doc.addPage();
+  doc.setFillColor(38, 38, 38);
+  doc.rect(0, 0, pageW, pageH, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(24);
+  doc.text(pdfSafeText(lang === 'sr' ? 'Hvala Vam!' : 'Thank you!'), pageW / 2, pageH / 2 - 16, { align: 'center' });
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(14);
+  doc.text(pdfSafeText(lang === 'sr' ? 'Korisnici vaših usluga' : 'Users of your services'), pageW / 2, pageH / 2 + 14, { align: 'center' });
+  resetInk();
 
   return doc.output('blob');
 }
