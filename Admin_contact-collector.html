@@ -618,6 +618,21 @@ function selectCountry(code){
   document.getElementById('rightEmpty').classList.remove('hidden');
   document.getElementById('muniPanel').classList.add('hidden');
 }
+// OSM's admin_level tagging is NOT consistent worldwide (confirmed by OSM's own wiki: "levels vary
+// by country" and some countries' schemes are still "proposed"/undefined). Level 8 is documented as
+// the single most common value for "municipality" globally (used e.g. for US, France, Germany), so it's
+// the safest generic fallback. A few countries are confidently known to differ — add to this list only
+// when you're sure; everything else falls back to 8 and is adjustable in the UI regardless.
+const COUNTRY_ADMIN_LEVEL_HINTS = {
+  RS: 7,  // Serbia — opštine/municipalities
+  GB: 6,  // UK — districts / unitary authorities / London boroughs (the actual service-providing local councils)
+  US: 8,  // incorporated municipalities (cities/towns) — counties sit at 6
+  FR: 8,  // communes
+  DE: 8   // Gemeinden
+};
+function defaultAdminLevelFor(countryCode){
+  return COUNTRY_ADMIN_LEVEL_HINTS[countryCode] || 8;
+}
 function renderCountryPanel(){
   document.getElementById('countryEmpty').classList.add('hidden');
   const panel = document.getElementById('countryPanel');
@@ -627,20 +642,23 @@ function renderCountryPanel(){
 
   let html = `<h2 class="paneTitle">${escapeHtml(country ? country.name : selectedCountryCode)}</h2>`;
 
+  const suggestedLevel = defaultAdminLevelFor(selectedCountryCode);
+  const levelOption = (val, label) => `<option value="${val}" ${val === suggestedLevel ? 'selected' : ''}>${label}</option>`;
   html += `<div class="warnBox" style="background:#eef7fb;border-color:var(--nav-accent);color:#0a5c6d;">
       <b>Bulk import from OpenStreetMap</b><br>
-      Pulls every administrative area of a given level for this country in one go, so you can pick from a full list instead of searching one by one.
+      Pulls every administrative area of a given level for this country in one go — the level that actually runs local public services (like Serbia's 174 opštine, each covering its own villages), not raw village/hamlet lists.
       <div style="display:flex;gap:6px;align-items:center;margin-top:8px;">
         <select id="osmAdminLevelSelect" style="flex:1;padding:6px;border:1px solid var(--border-color-strong);border-radius:var(--radius-sm);">
-          <option value="6">Level 6 (typically counties/districts)</option>
-          <option value="7" selected>Level 7 (typically municipalities, e.g. Serbian opštine)</option>
-          <option value="8">Level 8 (typically cities/towns/communes)</option>
-          <option value="9">Level 9</option>
-          <option value="10">Level 10</option>
+          ${levelOption(4, 'Level 4 (states/provinces — rarely the right pick)')}
+          ${levelOption(6, 'Level 6 (typically counties/districts)')}
+          ${levelOption(7, 'Level 7 (typically municipalities, e.g. Serbian opštine)')}
+          ${levelOption(8, 'Level 8 (most common worldwide: municipalities/communes)')}
+          ${levelOption(9, 'Level 9')}
+          ${levelOption(10, 'Level 10')}
         </select>
         <button class="btn small" onclick="previewOsmImport()">Preview</button>
       </div>
-      <div style="font-size:11px;color:#0a5c6d;margin-top:4px;">Admin levels mean different things in different countries — if the preview looks wrong (too few, too many, or the wrong kind of area), just try another level.</div>
+      <div style="font-size:11px;color:#0a5c6d;margin-top:4px;">Pre-selected level ${suggestedLevel} ${COUNTRY_ADMIN_LEVEL_HINTS[selectedCountryCode] ? 'based on ' + selectedCountryCode + "'s known OSM convention" : '(generic worldwide default — OSM tagging is not standardized per country, so double check the preview)'}. If the preview looks wrong (too few, too many, or the wrong kind of area), just try another level.</div>
     </div>
     <div id="osmImportResults"></div>`;
 
