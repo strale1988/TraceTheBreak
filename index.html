@@ -861,6 +861,10 @@ body.nav-panel-open .driving-nav-card{
   user-select:none;
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
+  position:fixed;
+  top:calc(var(--header-h, 64px) + 12px);
+  right:12px;
+  z-index:2400;
 }
 .map-compass.heading-up-disabled{ opacity:.55; }
 .map-compass .compass-face{
@@ -1131,22 +1135,17 @@ body.driving-active .driving-float-action-row{ display:flex; }
 
 .driving-nav-card{
   display:none;
-  position:fixed;
-  top:var(--header-h, 64px);
-  left:0;
-  right:0;
-  z-index:2700;
-  flex-direction:row;
+  flex-direction:column;
+  gap:var(--space-8);
+  background:var(--bg-surface-alt);
+  border:1px solid var(--border-color-strong);
+  border-radius:14px;
+  padding:10px 12px;
+}
+.driving-nav-card-top{
+  display:flex;
   align-items:center;
   gap:var(--space-10);
-  background:var(--floating-bg);
-  border-bottom:1px solid var(--floating-border);
-  padding:10px 16px;
-  box-shadow:0 3px 12px var(--floating-shadow);
-  border-radius:0 0 12px 12px;
-}
-body.nav-card-open .driving-left-stack{
-  top: calc(var(--header-h, 64px) + 64px + 12px) !important;
 }
 
 .driving-report-sheet{
@@ -1258,19 +1257,8 @@ body.driving-active .driving-report-sheet{ display:flex; }
   white-space:nowrap;
   overflow:hidden;
   text-overflow:ellipsis;
-}
-.driving-nav-card-info{
-  display:flex;
-  flex-direction:column;
-  gap:var(--space-2);
-  min-width:0;
   flex:1;
-}
-.driving-nav-card-sub{
-  display:flex;
-  align-items:center;
-  gap:var(--space-8);
-  min-height:14px;
+  min-width:0;
 }
 .driving-nav-status-text{
   font-size:var(--fs-11);
@@ -1279,15 +1267,32 @@ body.driving-active .driving-report-sheet{ display:flex; }
 }
 .driving-nav-active-info{
   display:none;
-  align-items:center;
+  align-items:stretch;
   gap:var(--space-8);
 }
-.driving-nav-active-info #navigateDistanceText{
-  font-size:var(--fs-12);
-  font-weight:var(--fw-bold);
+.driving-nav-stat{
+  flex:1;
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:2px;
+  background:var(--bg-surface);
+  border-radius:10px;
+  padding:6px 4px;
+}
+.driving-nav-stat-value{
+  font-size:var(--fs-14);
+  font-weight:var(--fw-heavy);
   color:var(--nav-accent);
   white-space:nowrap;
-  flex-shrink:0;
+}
+.driving-nav-stat-label{
+  font-size:var(--fs-9-5);
+  font-weight:var(--fw-semibold);
+  color:var(--text-muted);
+  text-transform:uppercase;
+  letter-spacing:.03em;
 }
 .driving-nav-close-btn{
   flex-shrink:0;
@@ -1390,7 +1395,6 @@ body.driving-active #appPanel{
 .dashboard-badges-title-row{ display:flex; align-items:baseline; justify-content:space-between; margin-top:16px; }
 .dashboard-badges-title-row .dashboard-badges-title{ margin-top:0; }
 .dashboard-badges-count{ font-size:var(--fs-11); font-weight:var(--fw-semibold); color:var(--text-muted); }
-.dashboard-see-all-btn{ background:none; border:none; color:var(--accent); font-size:var(--fs-11); font-weight:var(--fw-semibold); cursor:pointer; padding:0; -webkit-tap-highlight-color:transparent; }
 .dashboard-next-badge{ display:flex; align-items:center; gap:var(--space-10); background:var(--bg-surface-alt); border-radius:var(--radius-lg); padding:10px 12px; margin-top:8px; }
 .dashboard-next-badge-icon{ width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 2px 6px rgba(0,0,0,.3); }
 .dashboard-next-badge-icon-glyph{ width:26px; height:26px; display:inline-block; }
@@ -1398,12 +1402,6 @@ body.driving-active #appPanel{
 .dashboard-next-badge-label{ font-size:var(--fs-9-5); font-weight:var(--fw-heavy); color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em; }
 .dashboard-next-badge-name{ font-size:var(--fs-13); font-weight:var(--fw-bold); color:var(--text-primary); margin:2px 0 5px; }
 .dashboard-next-badge-text{ font-size:var(--fs-11); color:var(--text-muted); margin-top:4px; }
-.dashboard-top-list{ display:flex; flex-direction:column; gap:6px; margin-top:8px; }
-.dashboard-top-row{ display:flex; align-items:center; gap:8px; background:var(--bg-surface-alt); border-radius:var(--radius-md); padding:6px 10px; }
-.dashboard-top-rank{ width:16px; text-align:center; font-size:var(--fs-11); font-weight:var(--fw-heavy); color:var(--text-muted); flex-shrink:0; }
-.dashboard-top-badge{ width:24px; height:24px; border-width:1.5px; flex-shrink:0; }
-.dashboard-top-name{ flex:1; min-width:0; font-size:var(--fs-12-5); font-weight:var(--fw-semibold); color:var(--text-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.dashboard-top-points{ font-size:var(--fs-12); font-weight:var(--fw-heavy); color:var(--accent); flex-shrink:0; }
 .dashboard-city-card{ display:flex; align-items:center; gap:14px; background:var(--bg-surface-alt); border-radius:var(--radius-lg); padding:12px; margin-top:8px; }
 .dashboard-city-ring-wrap{ position:relative; width:72px; height:72px; flex-shrink:0; }
 .dashboard-city-ring{ width:100%; height:100%; transform:rotate(-90deg); }
@@ -2058,20 +2056,6 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 .detail-loading{ font-size:var(--fs-12-5); color:var(--text-muted); }
 .detail-export-hint{ font-size:var(--fs-12); color:var(--text-secondary); margin:0 0 10px; line-height:1.4; }
 
-.leaderboard-tabs{
-  display:flex; flex-wrap:wrap; gap:var(--space-6); padding-bottom:2px;
-}
-.leaderboard-tab{
-  flex:1 1 auto; white-space:nowrap;
-  background:var(--bg-surface-alt); color:var(--text-secondary);
-  border:1px solid var(--border-color-strong); border-radius:var(--radius-md);
-  padding:8px 10px; font-size:var(--fs-12); font-weight:var(--fw-bold); cursor:pointer;
-  -webkit-tap-highlight-color:transparent; touch-action:manipulation;
-}
-.leaderboard-tab.active{ background:var(--accent); color:var(--accent-contrast); border-color:var(--accent); }
-.leaderboard-city-label{
-  font-size:var(--fs-11-5); color:var(--text-muted); text-align:center; margin-top:-4px;
-}
 .leaderboard-row{
   display:flex; align-items:center; gap:var(--space-10);
   background:var(--bg-surface); border:1px solid var(--border-color); border-radius:var(--radius-xl);
@@ -2436,15 +2420,12 @@ span.flatpickr-weekday {
 
 <header>
   <div class="header-top">
-    <div>
-      <h1>TraceTheBreak</h1>
-    </div>
-    <div class="right-controls">
-      <button class="help-icon-btn" id="settingsBtn" title="Settings" onclick="showSettingsModal()"><img class="icon-img" src="icons/settings.png" alt="Settings"></button>
-      <button class="help-icon-btn" id="municipalityContactsBtn" title="Contacts" style="display:none" onclick="showMunicipalityContactsModal()"><img class="icon-img" src="icons/phone.png" alt="Contacts"></button>
+    <div class="right-controls" style="margin-left:auto;">
       <button class="help-icon-btn" id="fullscreenBtn" title="Fullscreen / Preko celog ekrana" onclick="toggleFullscreen()"><img class="icon-img" id="fullscreenBtnIcon" src="icons/fullscreen-enter.png" alt="Fullscreen"></button>
-      <button class="help-icon-btn" id="leaderboardBtn" title="Rankings" onclick="showLeaderboardModal()"><img class="icon-img" src="icons/user.png" alt="Rankings"></button>
+      <button class="help-icon-btn" id="municipalityContactsBtn" title="Contacts" style="display:none" onclick="showMunicipalityContactsModal()"><img class="icon-img" src="icons/phone.png" alt="Contacts"></button>
+      <button class="help-icon-btn" id="settingsBtn" title="Settings" onclick="showSettingsModal()"><img class="icon-img" src="icons/settings.png" alt="Settings"></button>
       <button class="help-icon-btn" id="adminPanelBtn" title="Admin panel" style="display:none" onclick="showAdminPanelModal()"><img class="icon-img" id="adminPanelBtnIcon" src="icons/badges/badge-admin-admin-3.png" alt="Admin panel"></button>
+      <button class="help-icon-btn" id="leaderboardBtn" title="Rankings" onclick="showLeaderboardModal()"><img class="icon-img" src="icons/user.png" alt="Rankings"></button>
       <button class="help-icon-btn notification-btn" id="notificationBtn" title="Notifications" onclick="showNotificationModal()"><img class="icon-img" src="icons/notification.png" alt="Notifications"><span class="notification-badge" id="notificationBadge" style="display:none">0</span></button>
     </div>
   </div>
@@ -2629,19 +2610,6 @@ span.flatpickr-weekday {
   </div>
 </div>
 
-<div id="drivingNavCard" class="driving-nav-card">
-  <div class="driving-nav-card-info">
-    <span id="navigateDestText" class="driving-nav-dest"></span>
-    <div class="driving-nav-card-sub">
-      <span id="navigateStatusText" class="driving-nav-status-text" style="display:none"></span>
-      <div id="navigateActiveInfo" class="driving-nav-active-info">
-        <span id="navigateDistanceText"></span>
-      </div>
-    </div>
-  </div>
-  <button id="navigateClearBtn" class="driving-nav-close-btn" onclick="clearNavigation()" title="Close">✕</button>
-</div>
-
 <div id="drivingFloatActionRow" class="driving-float-action-row">
   <button class="driving-back-btn" onclick="toggleDrivingMode()" title="Back">
     <img class="icon-img" src="icons/arrow.png" alt="Back">
@@ -2660,6 +2628,27 @@ span.flatpickr-weekday {
 </div>
 
 <div id="drivingReportSheet" class="driving-report-sheet">
+  <div id="drivingNavCard" class="driving-nav-card">
+    <div class="driving-nav-card-top">
+      <span id="navigateDestText" class="driving-nav-dest"></span>
+      <button id="navigateClearBtn" class="driving-nav-close-btn" onclick="clearNavigation()" title="Close">✕</button>
+    </div>
+    <span id="navigateStatusText" class="driving-nav-status-text" style="display:none"></span>
+    <div id="navigateActiveInfo" class="driving-nav-active-info">
+      <div class="driving-nav-stat">
+        <span class="driving-nav-stat-value" id="navigateTimeText">--</span>
+        <span class="driving-nav-stat-label" id="navigateTimeLabel">Remaining</span>
+      </div>
+      <div class="driving-nav-stat">
+        <span class="driving-nav-stat-value" id="navigateDistanceText">--</span>
+        <span class="driving-nav-stat-label" id="navigateDistLabel">Distance</span>
+      </div>
+      <div class="driving-nav-stat">
+        <span class="driving-nav-stat-value" id="navigateEtaText">--</span>
+        <span class="driving-nav-stat-label" id="navigateEtaLabel">Arrival</span>
+      </div>
+    </div>
+  </div>
   <div id="sectionAwaitingBar" class="section-awaiting-bar" style="display:none">
     <span id="sectionAwaitingText">Tap a type below to save this section</span>
     <button class="section-awaiting-cancel" onclick="cancelPendingSection()" title="Discard">✕</button>
@@ -2873,17 +2862,6 @@ span.flatpickr-weekday {
     <button class="fullscreen-modal-close" onclick="hideLeaderboardModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
   </div>
   <div class="fullscreen-modal-body" style="gap:var(--space-12);">
-    <div class="leaderboard-tabs" id="leaderboardTabs">
-      <button type="button" class="leaderboard-tab active" data-tab="dashboard" onclick="switchLeaderboardTab('dashboard')"><span id="lbTabDashboard">Dashboard</span></button>
-      <button type="button" class="leaderboard-tab"        data-tab="all"   onclick="switchLeaderboardTab('all')"><span id="lbTabAll">All Time</span></button>
-      <button type="button" class="leaderboard-tab"        data-tab="month" onclick="switchLeaderboardTab('month')"><span id="lbTabMonth">This Month</span></button>
-      <button type="button" class="leaderboard-tab"        data-tab="week"  onclick="switchLeaderboardTab('week')"><span id="lbTabWeek">This Week</span></button>
-      <button type="button" class="leaderboard-tab"        data-tab="city"  onclick="switchLeaderboardTab('city')"><span id="lbTabCity">This City</span></button>
-      <button type="button" class="leaderboard-tab"        data-tab="admins" onclick="switchLeaderboardTab('admins')"><span id="lbTabAdmins">Admins</span></button>
-      <button type="button" class="leaderboard-tab"        data-tab="municipalities" onclick="switchLeaderboardTab('municipalities')"><span id="lbTabMunicipalities">Municipalities</span></button>
-    </div>
-    <div id="leaderboardCityLabel" class="leaderboard-city-label" style="display:none"></div>
-
     <div id="leaderboardDashboardTab" style="display:flex; flex-direction:column; gap:var(--space-12);">
       <div class="detail-section dashboard-section" id="dashboardSection" style="display:none">
         <div class="detail-section-title" id="dashboardSectionTitle">My Dashboard</div>
@@ -2967,12 +2945,6 @@ span.flatpickr-weekday {
             <div class="dashboard-city-detail" id="dashboardCityDetailText"></div>
           </div>
         </div>
-
-        <div class="dashboard-badges-title-row">
-          <span class="dashboard-badges-title" id="dashboardTopTitle">Top Contributors</span>
-          <button type="button" class="dashboard-see-all-btn" onclick="switchLeaderboardTab('all')" id="dashboardTopSeeAll">See all</button>
-        </div>
-        <div class="dashboard-top-list" id="dashboardTopList"></div>
 
         <div class="dashboard-badges-title-row">
           <span class="dashboard-badges-title" id="dashboardBadgesTitle">Badges</span>
@@ -3075,7 +3047,6 @@ span.flatpickr-weekday {
       <div class="dashboard-signed-out-hint" id="dashboardSignedOutHint" style="display:none">Sign in to see your dashboard.</div>
     </div>
 
-    <div id="leaderboardList"><div class="detail-loading" id="lbLoadingText">Loading…</div></div>
   </div>
 </div>
 
@@ -4110,17 +4081,15 @@ function hasFullPowerOverReport(report) {
   return isReportInAdminDomain(report) || isAdminOnSiteOf(report);
 }
 
-let leaderboardTab = 'dashboard';
 let leaderboardCityMuni = null;
 
-function showLeaderboardModal(tab) {
+function showLeaderboardModal() {
   document.getElementById('leaderboardModalTitle').innerHTML = '<img class="icon-img icon-img-inline" src="icons/trophy.png" alt=""> ' + t('leaderboardTitle');
   const lbModal = document.getElementById('leaderboardModal');
   bringModalToFront(lbModal);
   lbModal.style.display = 'flex';
   leaderboardCityMuni = null;
   renderDashboardTab();
-  switchLeaderboardTab(tab || leaderboardTab);
   openOverlay('leaderboardModal', hideLeaderboardModal);
 }
 function hideLeaderboardModal() {
@@ -4355,14 +4324,6 @@ function stopNotificationInboxAutoRefresh() {
   }
 }
 
-function switchLeaderboardTab(tab) {
-  leaderboardTab = tab;
-  document.querySelectorAll('#leaderboardTabs .leaderboard-tab').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.tab === tab);
-  });
-  loadLeaderboardTab(tab);
-}
-
 async function resolveLeaderboardCity() {
   if (leaderboardCityMuni) return leaderboardCityMuni;
   if (userCoords) {
@@ -4386,91 +4347,6 @@ async function resolveLeaderboardCity() {
     } catch (err) {   }
   }
   return null;
-}
-
-async function loadLeaderboardTab(tab) {
-  const listEl = document.getElementById('leaderboardList');
-  const cityLabelEl = document.getElementById('leaderboardCityLabel');
-  const dashboardTabEl = document.getElementById('leaderboardDashboardTab');
-
-  if (tab === 'dashboard') {
-    dashboardTabEl.style.display = 'flex';
-    listEl.style.display = 'none';
-    cityLabelEl.style.display = 'none';
-    renderDashboardTab();
-    return;
-  }
-  dashboardTabEl.style.display = 'none';
-  listEl.style.display = 'block';
-
-  listEl.innerHTML = `<div class="detail-loading">${t('detailLoading')}</div>`;
-  cityLabelEl.style.display = 'none';
-
-  if (tab === 'admins') { loadAdminsTab(); return; }
-  if (tab === 'municipalities') { loadMunicipalitiesTab(); return; }
-
-  let since = null;
-  if (tab === 'month') since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-  if (tab === 'week')  since = new Date(Date.now() -  7 * 24 * 60 * 60 * 1000).toISOString();
-
-  let municipalityId = null;
-  if (tab === 'city') {
-    const muni = await resolveLeaderboardCity();
-    if (!muni) {
-      listEl.innerHTML = `<div class="detail-empty">${t('leaderboardCityUnavailable')}</div>
-        <button type="button" class="settings-btn" style="margin-top:10px;width:100%;" onclick="retryLeaderboardCity()">${t('leaderboardEnableLocation')}</button>`;
-      return;
-    }
-    municipalityId = muni.id;
-    cityLabelEl.textContent = municipalityDisplayName(muni);
-    cityLabelEl.style.display = 'block';
-  }
-
-  try {
-    const { data, error } = await sb.rpc('get_leaderboard', {
-      p_since: since, p_municipality_id: municipalityId, p_limit: 50
-    });
-    if (error) throw error;
-    renderLeaderboardRows(data || []);
-  } catch (err) {
-    console.error('Leaderboard load failed:', err.message || err);
-    listEl.innerHTML = `<div class="detail-empty">${t('leaderboardLoadFailed')}</div>`;
-  }
-}
-
-function retryLeaderboardCity() {
-  if (typeof startWatching === 'function') startWatching();
-  const listEl = document.getElementById('leaderboardList');
-  listEl.innerHTML = `<div class="detail-loading">${t('detailLoading')}</div>`;
-  setTimeout(() => { leaderboardCityMuni = null; loadLeaderboardTab('city'); }, 1500);
-}
-
-function renderDashboardTopRows(rows) {
-  const el = document.getElementById('dashboardTopList');
-  if (!el) return;
-  if (!rows.length) { el.innerHTML = ''; return; }
-  el.innerHTML = rows.map((r, i) => {
-    const rank = i + 1;
-    const totalPts = Number(r.total_contributions) || 0;
-    const lvl = levelForPoints(totalPts);
-    const badgeIcon = levelBadgeIcon(lvl.level);
-    const iconHtml = badgeIcon ? `<img src="${cachedIconUrl('icons/badges/' + badgeIcon)}" alt="">` : '';
-    return `<div class="dashboard-top-row">
-      <span class="dashboard-top-rank">${rank}</span>
-      <span class="leaderboard-rank tier-level-${lvl.level} dashboard-top-badge">${iconHtml}</span>
-      <span class="dashboard-top-name">${escapeHtml(r.username || '\u2014')}</span>
-      <span class="dashboard-top-points">${totalPts}</span>
-    </div>`;
-  }).join('');
-}
-async function loadDashboardTopContributors() {
-  try {
-    const { data, error } = await sb.rpc('get_leaderboard', { p_since: null, p_municipality_id: null, p_limit: 3 });
-    if (error) throw error;
-    renderDashboardTopRows(data || []);
-  } catch (err) {
-    console.error('Failed to load top contributors preview:', err.message || err);
-  }
 }
 
 async function loadDashboardCityContribution(myReportCount) {
@@ -4501,144 +4377,6 @@ async function loadDashboardCityContribution(myReportCount) {
     console.error('Failed to load city contribution stat:', err.message || err);
     card.style.display = 'none';
   }
-}
-
-function renderLeaderboardRows(rows) {
-  const listEl = document.getElementById('leaderboardList');
-  if (!rows.length) {
-    listEl.innerHTML = `<div class="detail-empty">${t('leaderboardEmpty')}</div>`;
-    return;
-  }
-  listEl.innerHTML = rows.map((r, i) => {
-    const rank = i + 1;
-    const points = Number(r.window_points) || 0;
-    const totalPts = Number(r.total_contributions) || 0;
-    const successPts = Number(r.successful_contributions) || 0;
-    const lvl = levelForPoints(totalPts);
-    const reliabilityHtml = totalPts > 0
-      ? t('leaderboardReliability').replace('{p}', Math.round(successPts / totalPts * 100))
-      : t('leaderboardNewUser');
-    const badgeIcon = levelBadgeIcon(lvl.level);
-    const rankHtml = badgeIcon
-      ? `<img src="icons/badges/${badgeIcon}" alt="" onerror="this.style.display='none';">`
-      : '';
-    return `
-    <div class="leaderboard-row${rank <= 3 ? ' rank-' + rank : ''}">
-      <div class="leaderboard-rank tier-level-${lvl.level}">${rankHtml}</div>
-      <div class="leaderboard-info">
-        <div class="leaderboard-name-row">
-          <span class="leaderboard-name">${escapeHtml(r.username || '\u2014')}</span>
-          <span class="tier-pill tier-level-${lvl.level}">${escapeHtml(levelName(lvl))}</span>
-        </div>
-        <div class="leaderboard-reliability">${reliabilityHtml}</div>
-      </div>
-      <div class="leaderboard-points">
-        <div class="leaderboard-points-value">${points}</div>
-        <div class="leaderboard-points-label">${t('leaderboardPointsLabel')}</div>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-async function loadAdminsTab() {
-  const listEl = document.getElementById('leaderboardList');
-  try {
-    await loadMunicipalityCache();
-    const { data, error } = await sb.rpc('get_admins_list');
-    if (error) throw error;
-    renderAdminListRows(data || []);
-  } catch (err) {
-    console.error('Admins list load failed:', err.message || err);
-    listEl.innerHTML = `<div class="detail-empty">${t('leaderboardAdminsLoadFailed')}</div>`;
-  }
-}
-
-function adminRowTag(row) {
-  const lvl = row.admin_level || ADMIN_DEFAULT_LEVEL;
-  if (lvl >= 3) return t('adminTagGlobal');
-  if (lvl === 2) return row.admin_country_code ? countryDisplayName(row.admin_country_code) : t('adminTagUnset');
-  const muni = row.admin_municipality_id != null ? getMunicipalityForAdminAssignment(row.admin_municipality_id) : null;
-  return muni ? municipalityDisplayName(muni) : t('adminTagUnset');
-}
-
-function renderAdminListRows(rows) {
-  const listEl = document.getElementById('leaderboardList');
-  if (!rows.length) {
-    listEl.innerHTML = `<div class="detail-empty">${t('leaderboardAdminsEmpty')}</div>`;
-    return;
-  }
-  const sorted = rows.slice().sort((a, b) => {
-    const la = a.admin_level || ADMIN_DEFAULT_LEVEL, lb = b.admin_level || ADMIN_DEFAULT_LEVEL;
-    if (lb !== la) return lb - la;
-    return (a.username || '').localeCompare(b.username || '');
-  });
-  listEl.innerHTML = sorted.map(r => {
-    const lvl = r.admin_level || ADMIN_DEFAULT_LEVEL;
-    const tag = adminRowTag(r);
-    return `
-    <div class="leaderboard-row leaderboard-row-admin">
-      <div class="leaderboard-admin-badge tier-level-${lvl}">
-        <img src="icons/badges/badge-admin-admin-${lvl}.png" alt="" onerror="this.style.display='none';">
-      </div>
-      <div class="leaderboard-info">
-        <div class="leaderboard-name-row">
-          <span class="leaderboard-name">${escapeHtml(r.username || '\u2014')}</span>
-          <span class="tier-pill tier-level-${lvl}">${escapeHtml(adminLevelName(lvl))}</span>
-        </div>
-        <div class="leaderboard-admin-tag">${escapeHtml(tag)}</div>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-async function loadMunicipalitiesTab() {
-  const listEl = document.getElementById('leaderboardList');
-  try {
-    await loadMunicipalityCache();
-    await loadMunicipalityStatsCache();
-    const rows = municipalityCache
-      .map(muni => ({ muni, stats: municipalityStatsCache.get(muni.id) }))
-      .filter(row => row.stats && Number(row.stats.total_reports) > 0);
-    renderMunicipalityLeaderboardRows(rows);
-  } catch (err) {
-    console.error('Municipality leaderboard load failed:', err.message || err);
-    listEl.innerHTML = `<div class="detail-empty">${t('leaderboardLoadFailed')}</div>`;
-  }
-}
-
-function renderMunicipalityLeaderboardRows(rows) {
-  const listEl = document.getElementById('leaderboardList');
-  if (!rows.length) {
-    listEl.innerHTML = `<div class="detail-empty">${t('municipalityLbEmpty')}</div>`;
-    return;
-  }
-  const sorted = rows.slice().sort((a, b) => {
-    const da = a.stats.avg_repair_days != null ? parseFloat(a.stats.avg_repair_days) : Infinity;
-    const db = b.stats.avg_repair_days != null ? parseFloat(b.stats.avg_repair_days) : Infinity;
-    return da - db;
-  });
-  listEl.innerHTML = sorted.map((row, i) => {
-    const rank = i + 1;
-    const { muni, stats } = row;
-    const avgRepair = stats.avg_repair_days != null
-      ? t('muniStatsDaysUnit').replace('{n}', String(Math.round(parseFloat(stats.avg_repair_days) * 10) / 10))
-      : t('muniStatsNoRepairData');
-    const responseRate = stats.response_rate_pct != null ? `${Math.round(parseFloat(stats.response_rate_pct))}%` : '—';
-    return `
-    <div class="leaderboard-row${rank <= 3 ? ' rank-' + rank : ''}">
-      <div class="leaderboard-rank tier-level-0">${rank}</div>
-      <div class="leaderboard-info">
-        <div class="leaderboard-name-row">
-          <span class="leaderboard-name">${escapeHtml(municipalityDisplayName(muni))}</span>
-        </div>
-        <div class="leaderboard-reliability">${t('muniStatsReportsLabel')}: ${Number(stats.total_reports || 0).toLocaleString()} · ${t('muniStatsResponseRateLabel')}: ${escapeHtml(responseRate)}</div>
-      </div>
-      <div class="leaderboard-points">
-        <div class="leaderboard-points-value">${escapeHtml(avgRepair)}</div>
-        <div class="leaderboard-points-label">${t('muniStatsAvgRepairLabel')}</div>
-      </div>
-    </div>`;
-  }).join('');
 }
 
 async function getUserBadgeStats() {
@@ -4795,7 +4533,6 @@ async function renderUserDashboard() {
   setStat('dashboardStatCities', stats.distinctCities || 0);
   setStat('dashboardStatVotes', stats.voteCount || 0);
 
-  loadDashboardTopContributors();
   loadDashboardCityContribution(stats.reportCount || 0);
 
   const allBadges = [...BADGES, ...USER_BADGES_EXTRA];
@@ -5092,8 +4829,6 @@ const T = {
   adminDashboardStatNight:       { en:'Night shift resolves',    sr:'Noćna rešenja' },
   dashboardCityTitle:         { en:'City Contribution',      sr:'Doprinos gradu' },
   dashboardCityDetail:        { en:'{mine} of {total} reports in your city are yours', sr:'{mine} od {total} prijava u vašem gradu su vaše' },
-  dashboardTopTitle:          { en:'Top Contributors',       sr:'Najbolji doprinosioci' },
-  dashboardTopSeeAll:         { en:'See all',                 sr:'Vidi sve' },
   dashboardNextBadgeLabel:    { en:'Next badge',              sr:'Sledeća značka' },
   tooFarToVote:  { en:'You must be on-site (within 50m) to vote for a status change.', sr:'Morate biti na licu mesta (u krugu od 50m) da biste glasali za izmenu statusa.' },
   voteRecorded:  { en:'Vote recorded.',                            sr:'Glas je zabeležen.' },
@@ -5134,6 +4869,9 @@ const T = {
   navOffRoute:       { en:'Off route — recalculating shortly',        sr:'Skrenuli ste s rute — preračunavanje uskoro' },
   navRecalculating:  { en:'Recalculating route…',                     sr:'Preračunavanje rute…' },
   navigateArrived:   { en:'You have arrived',                         sr:'Stigli ste' },
+  navigateTimeLabel: { en:'Remaining',                                 sr:'Preostalo' },
+  navigateDistLabel: { en:'Distance',                                  sr:'Rastojanje' },
+  navigateEtaLabel:  { en:'Arrival',                                   sr:'Dolazak' },
   turnLeft:          { en:'Turn left',                                 sr:'Skrenite levo' },
   turnRight:         { en:'Turn right',                                sr:'Skrenite desno' },
   turnSlightLeft:    { en:'Slight left',                               sr:'Blago levo' },
@@ -5344,26 +5082,9 @@ const T = {
 
   leaderboardBtnTitle:     { en:'Rankings',                           sr:'Rang lista' },
   leaderboardTitle:        { en:'Rankings',                           sr:'Rang lista' },
-  lbTabDashboard:          { en:'Dashboard',                           sr:'Moja tabla' },
-  lbTabAll:                { en:'All Time',                            sr:'Ukupno' },
-  lbTabMonth:              { en:'This Month',                          sr:'Ovaj mesec' },
-  lbTabWeek:               { en:'This Week',                           sr:'Ova nedelja' },
-  lbTabCity:               { en:'This City',                           sr:'Ovaj grad' },
-  lbTabAdmins:             { en:'Admins',                              sr:'Administratori' },
-  lbTabMunicipalities:     { en:'Municipalities',                      sr:'Opštine' },
-  municipalityLbEmpty:     { en:'No municipality stats to show yet.',  sr:'Još nema statistike po opštinama.' },
-  leaderboardAdminsEmpty:      { en:'No admins to show.',                          sr:'Nema administratora za prikaz.' },
-  leaderboardAdminsLoadFailed: { en:'Could not load admins. Try again.',           sr:'Administratori nisu mogli da se učitaju. Pokušajte ponovo.' },
   signOutBtn:               { en:'Sign out',                          sr:'Odjavi se' },
   dashboardSignedOutHint:   { en:'Sign in to see your dashboard.',    sr:'Prijavite se da biste videli svoju tablu.' },
   adminDashboardLadderTitle:{ en:'Admin Authority',                   sr:'Administratorska ovlašćenja' },
-  leaderboardPointsLabel:  { en:'points',                              sr:'poena' },
-  leaderboardReliability:  { en:'{p}% reliable',                       sr:'{p}% pouzdanosti' },
-  leaderboardNewUser:      { en:'New contributor',                     sr:'Novi doprinosilac' },
-  leaderboardEmpty:        { en:'Nobody has scored any points here yet.', sr:'Ovde još niko nije osvojio poene.' },
-  leaderboardLoadFailed:   { en:'Could not load the leaderboard. Try again.', sr:'Rang lista nije mogla da se učita. Pokušajte ponovo.' },
-  leaderboardCityUnavailable: { en:'We need your location (or a report from you) to show your city\\u2019s leaderboard.', sr:'Potrebna nam je vaša lokacija (ili prijava koju ste podneli) da bismo prikazali rang listu vašeg grada.' },
-  leaderboardEnableLocation: { en:'Enable location',                   sr:'Omogući lokaciju' }
 };
 
 function t(k){ return T[k]?.[lang] ?? k; }
@@ -5469,22 +5190,8 @@ function applyLang(){
   if (document.getElementById('notificationModal').style.display !== 'none') renderNotificationModalBody();
   const lbTitleEl = document.getElementById('leaderboardModalTitle');
   if (lbTitleEl) lbTitleEl.innerHTML = '<img class="icon-img icon-img-inline" src="icons/trophy.png" alt=""> ' + t('leaderboardTitle');
-  const lbTabDashboardEl = document.getElementById('lbTabDashboard');
-  if (lbTabDashboardEl) lbTabDashboardEl.textContent = t('lbTabDashboard');
-  const lbTabAllEl = document.getElementById('lbTabAll');
-  if (lbTabAllEl) lbTabAllEl.textContent = t('lbTabAll');
-  const lbTabMonthEl = document.getElementById('lbTabMonth');
-  if (lbTabMonthEl) lbTabMonthEl.textContent = t('lbTabMonth');
-  const lbTabWeekEl = document.getElementById('lbTabWeek');
-  if (lbTabWeekEl) lbTabWeekEl.textContent = t('lbTabWeek');
-  const lbTabCityEl = document.getElementById('lbTabCity');
-  if (lbTabCityEl) lbTabCityEl.textContent = t('lbTabCity');
-  const lbTabAdminsEl = document.getElementById('lbTabAdmins');
-  if (lbTabAdminsEl) lbTabAdminsEl.textContent = t('lbTabAdmins');
-  const lbTabMunicipalitiesEl = document.getElementById('lbTabMunicipalities');
-  if (lbTabMunicipalitiesEl) lbTabMunicipalitiesEl.textContent = t('lbTabMunicipalities');
   if (document.getElementById('leaderboardModal').style.display !== 'none') {
-    loadLeaderboardTab(leaderboardTab);
+    renderDashboardTab();
   }
   document.getElementById('csvLabel').textContent         = t('csvLabel');
   document.getElementById('filterTitleLabel').textContent = t('timeFilter');
@@ -5615,6 +5322,9 @@ function applyLang(){
   document.getElementById('navigateSearchInput').placeholder = t('navigateSearchPH');
   document.getElementById('navigateClearBtn').title = t('navigateCloseTitle');
   document.getElementById('navigatePinBtn').title = t('navigatePinBtnTitle');
+  document.getElementById('navigateTimeLabel').textContent = t('navigateTimeLabel');
+  document.getElementById('navigateDistLabel').textContent = t('navigateDistLabel');
+  document.getElementById('navigateEtaLabel').textContent = t('navigateEtaLabel');
   document.getElementById('navigatePinHint').textContent = t('navigatePinHint');
   updateNavStatusText();
 
@@ -5671,10 +5381,6 @@ function applyLang(){
   if (adminDashNightLabel) adminDashNightLabel.textContent = t('adminDashboardStatNight');
   const dashCityTitleEl = document.getElementById('dashboardCityTitle');
   if (dashCityTitleEl) dashCityTitleEl.textContent = t('dashboardCityTitle');
-  const dashTopTitleEl = document.getElementById('dashboardTopTitle');
-  if (dashTopTitleEl) dashTopTitleEl.textContent = t('dashboardTopTitle');
-  const dashTopSeeAllEl = document.getElementById('dashboardTopSeeAll');
-  if (dashTopSeeAllEl) dashTopSeeAllEl.textContent = t('dashboardTopSeeAll');
   const dashNextBadgeLabelEl = document.getElementById('dashboardNextBadgeLabel');
   if (dashNextBadgeLabelEl) dashNextBadgeLabelEl.textContent = t('dashboardNextBadgeLabel');
   const adminDashNextBadgeLabelEl = document.getElementById('adminDashboardNextBadgeLabel');
@@ -5980,7 +5686,7 @@ async function initIconCaching() {
 function refreshVisibleBadgeGrids() {
   try {
     const lbModal = document.getElementById('leaderboardModal');
-    if (lbModal && lbModal.style.display !== 'none' && leaderboardTab === 'dashboard') renderUserDashboard();
+    if (lbModal && lbModal.style.display !== 'none') renderUserDashboard();
   } catch (e) {}
   try {
     const adminSection = document.getElementById('adminDashboardSection');
@@ -6143,6 +5849,24 @@ function applyMapBearing(targetHeadingDeg) {
   document.documentElement.style.setProperty('--pin-counter-rotate', `${mapBearing}deg`);
   updateAllPopupRotations();
   updateUserMarkerRotation();
+  updateZoomAnimationForRotation();
+}
+
+// Leaflet animates zoom by applying its own CSS transform directly to mapPane.
+// Since mapPane now lives inside rotWrapper (which carries our rotation transform),
+// the two transforms compose incorrectly mid-animation, making polylines/markers
+// visibly swim until Leaflet's post-zoom _resetView() snaps everything back into
+// place. Disabling the animated transform while rotated sidesteps the conflict
+// entirely — zooms become an instant (still correct) redraw instead of animating.
+const ROTATION_EPSILON_DEG = 0.5;
+function updateZoomAnimationForRotation() {
+  if (!map) return;
+  const rotated = Math.abs(((mapBearing % 360) + 360) % 360) > ROTATION_EPSILON_DEG &&
+    Math.abs(((mapBearing % 360) + 360) % 360) < 360 - ROTATION_EPSILON_DEG;
+  const shouldAnimate = !rotated && L.Browser.any3d;
+  if (map._zoomAnimated !== shouldAnimate) {
+    map._zoomAnimated = shouldAnimate;
+  }
 }
 
 function ensurePopupRotationWrap(popupEl) {
@@ -6854,11 +6578,20 @@ async function drawNavigationLine(force) {
 }
 
 function updateNavInfoText(meters, seconds, approximate) {
-  const distText = document.getElementById('navigateDistanceText');
-  if (!distText) return;
-  let str = (approximate ? '~' : '') + formatDistance(meters);
-  if (seconds != null) str += ' · ' + formatDuration(seconds);
-  distText.textContent = str;
+  const distEl = document.getElementById('navigateDistanceText');
+  const timeEl = document.getElementById('navigateTimeText');
+  const etaEl = document.getElementById('navigateEtaText');
+  if (!distEl) return;
+  distEl.textContent = (approximate ? '~' : '') + formatDistance(meters);
+  if (timeEl) timeEl.textContent = seconds != null ? formatDuration(seconds) : '--';
+  if (etaEl) {
+    if (seconds != null) {
+      const arrival = new Date(Date.now() + seconds * 1000);
+      etaEl.textContent = arrival.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    } else {
+      etaEl.textContent = '--';
+    }
+  }
 }
 
 /* ---------- Map button visibility prefs (hidden by default) ---------- */
@@ -7178,9 +6911,39 @@ function toggleFollowMode() {
   }
 }
 
-map.on('dragstart', () => {
-  if (followMode) setFollowMode(false);
-});
+const AUTO_REFOLLOW_DELAY_MS = 5000;
+let autoRefollowTimer = null;
+let pendingAutoRefollow = false;
+
+function cancelAutoRefollowTimer() {
+  if (autoRefollowTimer) { clearTimeout(autoRefollowTimer); autoRefollowTimer = null; }
+}
+
+function onUserMapInteractionStart() {
+  if (followMode) {
+    pendingAutoRefollow = true;
+    setFollowMode(false);
+  }
+  cancelAutoRefollowTimer();
+}
+
+function scheduleAutoRefollow() {
+  if (!pendingAutoRefollow) return;
+  cancelAutoRefollowTimer();
+  autoRefollowTimer = setTimeout(() => {
+    autoRefollowTimer = null;
+    if (pendingAutoRefollow && userCoords) {
+      pendingAutoRefollow = false;
+      setFollowMode(true);
+      followMapTo(userCoords.lat, userCoords.lon);
+    }
+  }, AUTO_REFOLLOW_DELAY_MS);
+}
+
+map.on('dragstart', onUserMapInteractionStart);
+map.on('zoomstart', onUserMapInteractionStart);
+map.on('moveend', scheduleAutoRefollow);
+map.on('zoomend', scheduleAutoRefollow);
 
 let customDragActive = false;
 let customDragLast   = null;
@@ -7230,6 +6993,62 @@ function customDragPointerUp() {
   el.addEventListener('pointermove', customDragPointerMove, { passive: true });
   window.addEventListener('pointerup', customDragPointerUp, { passive: true });
   window.addEventListener('pointercancel', customDragPointerUp, { passive: true });
+})();
+
+/* ---------- Two-finger rotate gesture (coexists with Leaflet's native pinch-zoom) ---------- */
+let twoFingerRotateActive     = false;
+let twoFingerRotateStartAngle = 0;
+let twoFingerRotateStartBearing = 0;
+const TWO_FINGER_ROTATE_DEADZONE_DEG = 3;
+
+function angleBetweenTouches(t0, t1) {
+  return Math.atan2(t1.clientY - t0.clientY, t1.clientX - t0.clientX) * 180 / Math.PI;
+}
+
+function disableAutoHeadingForManualRotation() {
+  if (drivingMode) {
+    if (headingUpMode) {
+      headingUpMode = false;
+      const btn = document.getElementById('mapCompass');
+      if (btn) btn.classList.add('heading-up-disabled');
+    }
+  } else if (walkingHeadingMode) {
+    walkingHeadingMode = false;
+    const btn = document.getElementById('mainMapCompass');
+    if (btn) btn.classList.add('heading-up-disabled');
+  }
+}
+
+function onMapTouchStart(e) {
+  if (e.touches.length === 2) {
+    twoFingerRotateActive = true;
+    twoFingerRotateStartAngle = angleBetweenTouches(e.touches[0], e.touches[1]);
+    twoFingerRotateStartBearing = mapBearing;
+    onUserMapInteractionStart();
+  }
+}
+function onMapTouchMove(e) {
+  if (!twoFingerRotateActive || e.touches.length !== 2) return;
+  const angle = angleBetweenTouches(e.touches[0], e.touches[1]);
+  let delta = angle - twoFingerRotateStartAngle;
+  if (delta > 180) delta -= 360;
+  if (delta < -180) delta += 360;
+  if (Math.abs(delta) < TWO_FINGER_ROTATE_DEADZONE_DEG) return;
+  disableAutoHeadingForManualRotation();
+  applyMapBearing(twoFingerRotateStartBearing + delta);
+}
+function onMapTouchEnd(e) {
+  if (e.touches.length < 2 && twoFingerRotateActive) {
+    twoFingerRotateActive = false;
+    scheduleAutoRefollow();
+  }
+}
+(function initTwoFingerRotate(){
+  const el = map.getContainer();
+  el.addEventListener('touchstart', onMapTouchStart, { passive: true });
+  el.addEventListener('touchmove', onMapTouchMove, { passive: true });
+  el.addEventListener('touchend', onMapTouchEnd, { passive: true });
+  el.addEventListener('touchcancel', onMapTouchEnd, { passive: true });
 })();
 
 
@@ -12366,9 +12185,42 @@ let themeMode = (function () {
 })();
 const systemDarkModeMQ = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
 
+/* Ambient light sensor is a nice-to-have: only a couple of Chromium-based
+   browsers support it (and only over HTTPS with the right permissions
+   policy), so this quietly does nothing when unavailable or denied — the
+   time-of-day + OS-preference fallback below still applies. */
+let ambientLux = null;
+let ambientSensorActive = false;
+const AMBIENT_DARK_LUX_THRESHOLD = 12;
+const NIGHT_START_HOUR = 20; // 8pm
+const NIGHT_END_HOUR   = 7;  // 7am
+
+function isNightByLocalClock() {
+  const h = new Date().getHours();
+  return h >= NIGHT_START_HOUR || h < NIGHT_END_HOUR;
+}
+
 function resolveThemeMode(mode) {
-  if (mode === 'auto') return (systemDarkModeMQ && systemDarkModeMQ.matches) ? 'dark' : 'light';
-  return mode;
+  if (mode !== 'auto') return mode;
+  if (ambientSensorActive && ambientLux != null) {
+    return ambientLux < AMBIENT_DARK_LUX_THRESHOLD ? 'dark' : 'light';
+  }
+  if (isNightByLocalClock()) return 'dark';
+  return (systemDarkModeMQ && systemDarkModeMQ.matches) ? 'dark' : 'light';
+}
+
+function initAmbientLightSensor() {
+  if (typeof AmbientLightSensor === 'undefined') return;
+  try {
+    const sensor = new AmbientLightSensor({ frequency: 0.2 });
+    sensor.addEventListener('reading', () => {
+      ambientLux = sensor.illuminance;
+      ambientSensorActive = true;
+      if (themeMode === 'auto') applyTheme('auto');
+    });
+    sensor.addEventListener('error', () => { ambientSensorActive = false; });
+    sensor.start();
+  } catch (e) { /* unsupported or permission denied — silently fall back */ }
 }
 
 function updateThemeSegmentUI() {
@@ -12397,7 +12249,11 @@ function initTheme() {
     if (systemDarkModeMQ.addEventListener) systemDarkModeMQ.addEventListener('change', onSystemThemeChange);
     else if (systemDarkModeMQ.addListener) systemDarkModeMQ.addListener(onSystemThemeChange);
   }
+  initAmbientLightSensor();
+  // Catch hour-boundary crossings (e.g. clock ticking past 20:00) while auto mode is active.
+  setInterval(() => { if (themeMode === 'auto') applyTheme('auto'); }, 15 * 60 * 1000);
 }
+
 
 const MAP_LOADING_OVERLAY_MIN_HOLD_MS = 500;
 function hideMapLoadingOverlay() {
