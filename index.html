@@ -2142,6 +2142,15 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   box-shadow:0 2px 6px rgba(0,0,0,.5);
   display:flex; align-items:center; justify-content:center;
 }
+.pin-confirm-badge{
+  position:absolute; top:-2px; right:-2px;
+  min-width:16px; height:16px; padding:0 3px; box-sizing:border-box;
+  border-radius:9px; border:2px solid #fff;
+  background:var(--nav-accent); color:#1a1a1a;
+  font-size:10px; font-weight:var(--fw-bold); line-height:12px; text-align:center;
+  box-shadow:0 1px 3px rgba(0,0,0,.5);
+  z-index:2;
+}
 .map-pin-glyph{
   width:14px; height:14px; display:inline-block;
   background-color:#fff;
@@ -5109,6 +5118,7 @@ const T = {
   helpStep3Body:{ en:'Add an optional note, then tap "REPORT BREAK".', sr:'Dodajte opcionu napomenu i pritisnite "PRIJAVI KVAR".' },
   popupStatus:  { en:'Status', sr:'Status' },
   reportedByLabel: { en:'Reported by', sr:'Prijavio' },
+  confirmedByLabel: { en:'Confirmed by {n} people', sr:'Potvrdilo {n} osoba' },
   statusFilterSectionTitle: { en:'Status shown on map', sr:'Statusi prikazani na mapi' },
   statusReported:   { en:'Reported',    sr:'Prijavljeno' },
   statusInProgress: { en:'In progress', sr:'U toku' },
@@ -6237,6 +6247,45 @@ let userMarkerNavStyle = false;
 let markerById    = new Map();
 let sectionPinById = new Map();
 let dateRangeOnlyData = [];
+
+// ---- Duplicate-report merging ---------------------------------------------------
+// When several people report the same real-world issue (e.g. a pothole), we don't want
+// N stacked pins on top of each other — we merge same-category, not-yet-fixed reports
+// within DUPLICATE_MERGE_RADIUS_M of one another into a single group. Only the earliest
+// report in each group ("primary") gets its own marker; its popup/detail view shows a
+// "Confirmed by N people" line, and status changes/votes applied to it are applied to
+// every report in the group so the whole physical issue moves together.
+const DUPLICATE_MERGE_RADIUS_M = 30;
+let duplicateGroupByReportId = new Map(); // reportId -> { ids, primaryId, count }
+
+function recomputeDuplicateGroups() {
+  duplicateGroupByReportId = new Map();
+  const candidates = globalActiveData
+    .filter(r => r.status !== 'fixed' && isValidLatLng(r.latitude, r.longitude) && !isSectionReport(r))
+    .slice()
+    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+  const groups = [];
+  candidates.forEach(r => {
+    const group = groups.find(g =>
+      g.anchor.category === r.category &&
+      distMeters({ lat: g.anchor.latitude, lon: g.anchor.longitude }, { lat: r.latitude, lon: r.longitude }) <= DUPLICATE_MERGE_RADIUS_M
+    );
+    if (group) group.ids.push(r.id);
+    else groups.push({ anchor: r, ids: [r.id] });
+  });
+
+  groups.forEach(g => {
+    if (g.ids.length < 2) return; // nothing to merge for a lone report
+    const info = { ids: g.ids.slice(), primaryId: g.ids[0], count: g.ids.length };
+    g.ids.forEach(id => duplicateGroupByReportId.set(id, info));
+  });
+}
+
+function duplicateGroupFor(reportId) {
+  return duplicateGroupByReportId.get(reportId) || null;
+}
+
 let pinMode       = false;
 let manualCoords  = null;
 let manualMarker  = null;
@@ -8239,7 +8288,7 @@ function updateProximityUi() {
   const isAdmin = !!(currentProfile && currentProfile.is_admin);
   const inOwnDomain = isAdmin && isMunicipalityInAdminDomain(manualPinMunicipality);
   const indicator = document.getElementById('proximityIndicator');
-  const active = !inOwnDomain && pinMode && manualCoords;
+  const active = !isAdmin && !inOwnDomain && pinMode && manualCoords;
 
   if (!active) {
     if (proximityCircle) { map.removeLayer(proximityCircle); proximityCircle = null; }
@@ -9582,7 +9631,11 @@ async function reportBreak(){
     // a huge accuracy radius, so we check that rather than just checking coords is non-null.
     if (!hasReliableGps()) { toast(t('gpsTooWeak'), 'error'); return; }
   }
-  if (!inOwnDomain && pinMode && manualCoords) {
+  // Admins never need to be within GPS radius of a dropped pin — that's the whole point of
+  // admin pin-drop mode, and it shouldn't depend on `inOwnDomain` resolving correctly (that
+  // value depends on an async reverse-geocode lookup of the dropped pin's municipality, which
+  // may still be in flight when the report is submitted). Non-admins still need to be on-site.
+  if (!isAdmin && !inOwnDomain && pinMode && manualCoords) {
     // Admins dropping a pin outside their own municipality/country need to actually be on
     // site, same as anyone else — so this still needs a real GPS fix to compare against.
     if (!userCoords || !hasReliableGps()) { toast(isAdmin ? t('gpsTooWeak') : t('waitGps'), 'error'); return; }
@@ -11238,6 +11291,8 @@ function buildPopupHtml(report) {
   const isOwner = !!(currentSession && report.owner_id === currentSession.user.id);
   const isAdmin = !!(currentProfile && currentProfile.is_admin);
   const reporterName = report.owner_username || (lang === 'sr' ? 'Nepoznato' : 'Unknown');
+  const dupGroup = duplicateGroupFor(report.id);
+  const groupIdsJson = escapeHtml(JSON.stringify(dupGroup ? dupGroup.ids : [report.id]));
   const headerTitle = report.subcategory
     ? `${translateCategory(report.category)} / ${subcategoryLabel(report.category, report.subcategory)}`
     : translateCategory(report.category);
@@ -11252,7 +11307,7 @@ function buildPopupHtml(report) {
       { key: 'fixed',       label: t('markFixed'),      bg: STATUS_COLORS.fixed }
     ].filter(s => s.key !== report.status && !(s.key === 'in_progress' && categorySkipsInProgress(report.category)));
     actionsHtml = `<div class="status-action-row">
-      ${statuses.map(s => `<button class="status-action-btn" style="background:${s.bg};" onclick="updateReportStatus('${report.id}','${s.key}')">${s.label}</button>`).join('')}
+      ${statuses.map(s => `<button class="status-action-btn" style="background:${s.bg};" onclick='updateReportStatus(${groupIdsJson},"${s.key}")'>${s.label}</button>`).join('')}
     </div>`;
   } else if (currentSession && report.status !== 'fixed') {
     const statuses = [
@@ -11261,7 +11316,7 @@ function buildPopupHtml(report) {
       { key: 'fixed',       label: t('markFixed'),      bg: STATUS_COLORS.fixed }
     ].filter(s => s.key !== report.status && !(s.key === 'in_progress' && categorySkipsInProgress(report.category)));
     actionsHtml = `<div class="status-action-row">
-      ${statuses.map(s => `<button class="status-action-btn" style="background:${s.bg};" onclick="castStatusVote('${report.id}','${s.key}')">${s.label}</button>`).join('')}
+      ${statuses.map(s => `<button class="status-action-btn" style="background:${s.bg};" onclick='castStatusVote(${groupIdsJson},"${s.key}")'>${s.label}</button>`).join('')}
     </div>
     ${buildVoteProgressHtml(report)}`;
   }
@@ -11295,6 +11350,10 @@ function buildPopupHtml(report) {
         <span class="popup-row-label">${t('reportedByLabel')}</span>
         <span class="popup-row-value">${escapeHtml(reporterName)}${isOwner ? ` <span class="owner-tag">(${t('yourReport')})</span>` : ''}</span>
       </div>
+      ${dupGroup ? `<div class="popup-row">
+        <span class="popup-row-label">✓</span>
+        <span class="popup-row-value">${t('confirmedByLabel').replace('{n}', dupGroup.count)}</span>
+      </div>` : ''}
     </div>
     ${noteRowHtml}
     <div class="status-action-row" style="border-top:none;padding-top:0;">
@@ -12422,6 +12481,7 @@ function buildDetailStatusReadonlyHtml(report, reporterName) {
     <div class="detail-row"><span class="detail-row-label">${t('popupStatus')}</span><span class="status-pill" style="background:${statusColor(report.status)};">${statusLabel(report.status)}</span></div>
     <div class="detail-row"><span class="detail-row-label">${t('priorityLabel')}</span><span class="status-pill" style="background:${priorityColor(report.priority)};">${priorityLabelText(report.priority)}</span></div>
     <div class="detail-row"><span class="detail-row-label">${t('reportedByLabel')}</span><span class="detail-row-value">${escapeHtml(reporterName)}</span>${reporterBanControlHtml(report)}</div>
+    ${(() => { const g = duplicateGroupFor(report.id); return g ? `<div class="detail-row"><span class="detail-row-label">✓</span><span class="detail-row-value">${t('confirmedByLabel').replace('{n}', g.count)}</span></div>` : ''; })()}
     <div class="popup-timeline" style="margin-top:8px;">
       ${buildTimelineItem(report.created_at, true, STATUS_COLORS.reported)}
       ${categorySkipsInProgress(report.category) ? '' : buildTimelineItem(report.in_progress_at, !!report.in_progress_at, STATUS_COLORS.in_progress)}
@@ -12613,29 +12673,35 @@ async function deleteReport(reportId) {
   }
 }
 
-async function updateReportStatus(reportId, newStatus) {
+async function updateReportStatus(reportIdOrIds, newStatus) {
   if (!currentSession) return;
+  const ids = Array.isArray(reportIdOrIds) ? reportIdOrIds : [reportIdOrIds];
   try {
-    // Optimistic concurrency guard: only apply this update if the report's status still
-    // matches what we last loaded it as. Without this, two admins opening the same report
-    // and both clicking a status button (e.g. both hitting "Mark In Progress") would both
-    // succeed — the second silently overwriting/timestamp-resetting the first's change with
-    // no indication anything raced. Scoping the .eq('status', ...) to the previously-known
-    // value turns that into "first write wins, second write is told it lost the race."
-    const knownReport = globalActiveData.find(r => r.id === reportId);
-    const expectedStatus = knownReport ? knownReport.status : null;
+    let anyConflict = false;
+    for (const reportId of ids) {
+      // Optimistic concurrency guard: only apply this update if the report's status still
+      // matches what we last loaded it as. Without this, two admins opening the same report
+      // and both clicking a status button (e.g. both hitting "Mark In Progress") would both
+      // succeed — the second silently overwriting/timestamp-resetting the first's change with
+      // no indication anything raced. Scoping the .eq('status', ...) to the previously-known
+      // value turns that into "first write wins, second write is told it lost the race."
+      const knownReport = globalActiveData.find(r => r.id === reportId);
+      const expectedStatus = knownReport ? knownReport.status : null;
 
-    let query = sb.from(TABLE)
-      .update({ updated_at: new Date().toISOString(), ...buildStatusPatch(newStatus) })
-      .eq('id', reportId);
-    if (expectedStatus) query = query.eq('status', expectedStatus);
-    const { data, error } = await query.select('id');
-    if (error) throw error;
+      let query = sb.from(TABLE)
+        .update({ updated_at: new Date().toISOString(), ...buildStatusPatch(newStatus) })
+        .eq('id', reportId);
+      if (expectedStatus) query = query.eq('status', expectedStatus);
+      const { data, error } = await query.select('id');
+      if (error) throw error;
 
-    if (expectedStatus && (!data || data.length === 0)) {
-      // Zero rows matched: someone else changed the status between us loading the report
-      // and clicking the button. Don't guess — reload and let the admin see what actually
-      // happened before trying again.
+      if (expectedStatus && (!data || data.length === 0)) anyConflict = true;
+    }
+
+    if (anyConflict) {
+      // Zero rows matched on at least one report: someone else changed its status between
+      // us loading it and clicking the button. Don't guess — reload and let the admin see
+      // what actually happened before trying again.
       myReportsCache = null;
       await loadPinsByWindow();
       toast(t('updateConflict'), 'error');
@@ -12644,40 +12710,48 @@ async function updateReportStatus(reportId, newStatus) {
 
     myReportsCache = null;
     await loadPinsByWindow();
-    if (newStatus === 'fixed') maybeOfferAfterPhoto(reportId);
+    if (newStatus === 'fixed') maybeOfferAfterPhoto(ids[0]);
   } catch (err) {
     console.error('Status update error (full):', err);
     toast(t('updateFail'), 'error');
   }
 }
 
-async function castStatusVote(reportId, suggestedStatus) {
+async function castStatusVote(reportIdOrIds, suggestedStatus) {
   if (!currentSession || !currentProfile) { toast(t('signInFirst'), 'error'); return; }
   if (!userCoords) { toast(t('waitGps'), 'error'); return; }
 
-  const report = globalActiveData.find(r => r.id === reportId);
+  const ids = Array.isArray(reportIdOrIds) ? reportIdOrIds : [reportIdOrIds];
   const isAdmin = !!(currentProfile.is_admin);
-  if (!isAdmin && report && isValidLatLng(report.latitude, report.longitude)) {
-    const dist = distMeters(userCoords, { lat: report.latitude, lon: report.longitude });
+  // All reports in a merged duplicate group sit within DUPLICATE_MERGE_RADIUS_M of one
+  // another, so checking proximity against any one of them is representative of the group.
+  const primaryReport = globalActiveData.find(r => r.id === ids[0]);
+  if (!isAdmin && primaryReport && isValidLatLng(primaryReport.latitude, primaryReport.longitude)) {
+    const dist = distMeters(userCoords, { lat: primaryReport.latitude, lon: primaryReport.longitude });
     if (dist > VOTE_PROXIMITY_MAX_M) { toast(t('tooFarToVote'), 'error'); return; }
   }
 
   try {
-    const { data, error } = await sb.rpc('cast_status_vote', {
-      p_report_id: reportId,
-      p_suggested_status: suggestedStatus,
-      p_lat: userCoords.lat,
-      p_lon: userCoords.lon
-    });
-    if (error) throw error;
+    let anyResolved = false;
+    for (const reportId of ids) {
+      const { data, error } = await sb.rpc('cast_status_vote', {
+        p_report_id: reportId,
+        p_suggested_status: suggestedStatus,
+        p_lat: userCoords.lat,
+        p_lon: userCoords.lon
+      });
+      if (error) throw error;
 
-    if (data && data.ok === false && data.reason === 'too_far') {
-      toast(t('tooFarToVote'), 'error');
-      return;
+      if (data && data.ok === false && data.reason === 'too_far') {
+        toast(t('tooFarToVote'), 'error');
+        return;
+      }
+      if (data && data.resolved) anyResolved = true;
     }
-    if (data && data.resolved) {
+
+    if (anyResolved) {
       toast('✓ ' + t('voteResolved'), 'success');
-      if (suggestedStatus === 'fixed') maybeOfferAfterPhoto(reportId);
+      if (suggestedStatus === 'fixed') maybeOfferAfterPhoto(ids[0]);
     } else {
       toast(t('voteRecorded'), 'success');
     }
@@ -12784,7 +12858,7 @@ function upsertSectionLine(report) {
   return line;
 }
 
-function buildPinIconHtml(category, status, priority) {
+function buildPinIconHtml(category, status, priority, confirmCount) {
   const catCol  = categoryColor(category);
   const sCol    = statusColor(status);
   const iconSrc = categoryIcon(category);
@@ -12798,11 +12872,13 @@ function buildPinIconHtml(category, status, priority) {
       ? `<span class="pin-status-halo" style="background:${sCol};width:${pulseSize}px;height:${pulseSize}px;animation-duration:${pulseDuration}s;animation-delay:${pulseDelay}s;"></span>`
       : `<span class="pin-status-ring" style="border-color:${sCol};"></span>`;
   }
+  const confirmBadgeHtml = (confirmCount && confirmCount > 1) ? `<span class="pin-confirm-badge">${confirmCount}</span>` : '';
   return `<div class="pin-upright" style="position:relative;width:40px;height:40px;">` +
     statusMarker +
     `<div class="map-pin-badge" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:${catCol};opacity:${opacity};">` +
     `<span class="map-pin-glyph" style="-webkit-mask-image:url('${iconSrc}');mask-image:url('${iconSrc}');"></span>` +
     `</div>` +
+    confirmBadgeHtml +
     `</div>`;
 }
 
@@ -12814,7 +12890,9 @@ function upsertMarker(report) {
     return null;
   }
 
-  const iconHtml = buildPinIconHtml(report.category, report.status, report.priority);
+  const dupGroup = duplicateGroupFor(report.id);
+  const confirmCount = dupGroup ? dupGroup.count : 0;
+  const iconHtml = buildPinIconHtml(report.category, report.status, report.priority, confirmCount);
   const zOffset = report.status === 'fixed' ? -1000 : 0;
 
   let marker = markerById.get(report.id);
@@ -12847,6 +12925,7 @@ function reportInBounds(report, bounds) {
   return bounds.contains(L.latLng(report.latitude, report.longitude));
 }
 function syncMarkers(refreshExisting) {
+  recomputeDuplicateGroups();
   const bounds = map.getBounds().pad(0.2);
   const desiredIds = new Set();
 
@@ -12854,6 +12933,8 @@ function syncMarkers(refreshExisting) {
     if (!reportInBounds(r, bounds)) return;
     if (!isCategoryVisible(r.category)) return;
     if (!isStatusVisible(r.status)) return;
+    const dupGroup = duplicateGroupFor(r.id);
+    if (dupGroup && r.id !== dupGroup.primaryId) return; // merged into another report's pin
     desiredIds.add(r.id);
     if (refreshExisting || !markerById.has(r.id)) upsertMarker(r);
   });
