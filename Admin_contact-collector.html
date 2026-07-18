@@ -626,8 +626,26 @@ function renderCountryPanel(){
   const munis = municipalitiesForCountry(selectedCountryCode).sort((a,b) => (a.name||'').localeCompare(b.name||''));
 
   let html = `<h2 class="paneTitle">${escapeHtml(country ? country.name : selectedCountryCode)}</h2>`;
-  html += `<div class="searchRow">
-      <input id="muniSearchInput" placeholder="Search a city/municipality (OpenStreetMap)...">
+
+  html += `<div class="warnBox" style="background:#eef7fb;border-color:var(--nav-accent);color:#0a5c6d;">
+      <b>Bulk import from OpenStreetMap</b><br>
+      Pulls every administrative area of a given level for this country in one go, so you can pick from a full list instead of searching one by one.
+      <div style="display:flex;gap:6px;align-items:center;margin-top:8px;">
+        <select id="osmAdminLevelSelect" style="flex:1;padding:6px;border:1px solid var(--border-color-strong);border-radius:var(--radius-sm);">
+          <option value="6">Level 6 (typically counties/districts)</option>
+          <option value="7" selected>Level 7 (typically municipalities, e.g. Serbian opštine)</option>
+          <option value="8">Level 8 (typically cities/towns/communes)</option>
+          <option value="9">Level 9</option>
+          <option value="10">Level 10</option>
+        </select>
+        <button class="btn small" onclick="previewOsmImport()">Preview</button>
+      </div>
+      <div style="font-size:11px;color:#0a5c6d;margin-top:4px;">Admin levels mean different things in different countries — if the preview looks wrong (too few, too many, or the wrong kind of area), just try another level.</div>
+    </div>
+    <div id="osmImportResults"></div>`;
+
+  html += `<div class="searchRow" style="margin-top:10px;">
+      <input id="muniSearchInput" placeholder="Or add one manually by name (OpenStreetMap search)...">
       <button class="btn small" onclick="searchMunicipality()">Search</button>
     </div>
     <div id="muniSearchResults"></div>`;
@@ -700,6 +718,107 @@ async function addMunicipalityFromSearch(i){
     refreshMapStyles();
   }catch(err){
     toast('Could not add municipality: ' + err.message, 'error');
+  }
+}
+
+/* ---- Bulk import of municipalities from OpenStreetMap (Overpass API) ---- */
+const OVERPASS_ENDPOINTS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
+async function fetchOverpass(query){
+  let lastErr;
+  for(const ep of OVERPASS_ENDPOINTS){
+    try{
+      const res = await fetch(ep, { method:'POST', body: 'data=' + encodeURIComponent(query) });
+      if(res.ok) return await res.json();
+      lastErr = new Error('HTTP ' + res.status);
+    }catch(e){ lastErr = e; }
+  }
+  throw lastErr || new Error('Overpass request failed.');
+}
+function buildOverpassQuery(countryCode, adminLevel){
+  return `[out:json][timeout:90];
+area["ISO3166-1"="${countryCode}"][admin_level=2]->.country;
+(
+  relation["boundary"="administrative"]["admin_level"="${adminLevel}"](area.country);
+);
+out center tags;`;
+}
+function parseOverpassMunicipalities(json, countryCode){
+  return (json.elements || [])
+    .filter(el => el.tags && el.tags.name && el.center)
+    .map(el => ({
+      osm_type: el.type,
+      osm_id: el.id,
+      admin_level: el.tags.admin_level ? parseInt(el.tags.admin_level, 10) : null,
+      name: cyrillicToLatin(el.tags.name),
+      name_en: cyrillicToLatin(el.tags['name:en'] || el.tags.name),
+      country_code: countryCode,
+      centroid_lat: el.center.lat,
+      centroid_lon: el.center.lon,
+      boundary: { type:'Polygon', coordinates:[] },
+      bbox: null,
+      slug: Math.random().toString(36).slice(2, 10)
+    }));
+}
+function splitNewVsExisting(rows, countryCode){
+  const existing = municipalitiesForCountry(countryCode);
+  const isKnown = row => existing.some(e =>
+    (e.osm_id != null && e.osm_id === row.osm_id) ||
+    normalizeNameForMatch(e.name) === normalizeNameForMatch(row.name)
+  );
+  return { fresh: rows.filter(r => !isKnown(r)), already: rows.filter(isKnown) };
+}
+async function previewOsmImport(){
+  if(!currentSession){ toast('Sign in first — adding municipalities requires an account.', 'error'); openModal('signInModal'); return; }
+  const level = document.getElementById('osmAdminLevelSelect').value;
+  const cc = selectedCountryCode;
+  const resultsEl = document.getElementById('osmImportResults');
+  resultsEl.innerHTML = '<div class="emptyState">Querying OpenStreetMap (Overpass) for admin level ' + level + '… this can take up to a minute for large countries.</div>';
+  try{
+    const json = await fetchOverpass(buildOverpassQuery(cc, level));
+    const rows = parseOverpassMunicipalities(json, cc);
+    const { fresh, already } = splitNewVsExisting(rows, cc);
+    window._osmImportCache = { fresh, already, level };
+    if(!rows.length){
+      resultsEl.innerHTML = '<div class="emptyState">No administrative areas found at level ' + level + ' for this country. Try a different level.</div>';
+      return;
+    }
+    const sample = fresh.slice(0, 15).map(r => escapeHtml(r.name_en)).join(', ');
+    const more = fresh.length > 15 ? ` … and ${fresh.length - 15} more` : '';
+    let warn = '';
+    if(fresh.length > 3000) warn = '<div class="warnBox">That\'s a very large batch — double check this is the right admin level before importing; consider a coarser level if this looks like far more than actual municipalities.</div>';
+    resultsEl.innerHTML = `
+      <div class="warnBox">Found ${rows.length} areas at level ${level}: <b>${fresh.length} new</b>, ${already.length} already on file.</div>
+      ${warn}
+      <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">${sample}${more}</div>
+      <button class="btn primary small" onclick="confirmOsmImport()" ${fresh.length ? '' : 'disabled'}>Import ${fresh.length} new municipalities</button>
+    `;
+  }catch(err){
+    resultsEl.innerHTML = '<div class="emptyState">Overpass query failed: ' + escapeHtml(err.message) + '</div>';
+  }
+}
+async function confirmOsmImport(){
+  const cache = window._osmImportCache;
+  if(!cache || !cache.fresh.length) return;
+  const resultsEl = document.getElementById('osmImportResults');
+  resultsEl.innerHTML = '<div class="emptyState">Importing ' + cache.fresh.length + ' municipalities…</div>';
+  const CHUNK = 300;
+  let imported = 0;
+  try{
+    for(let i = 0; i < cache.fresh.length; i += CHUNK){
+      const chunk = cache.fresh.slice(i, i + CHUNK);
+      const { data, error } = await sb.from(MUNICIPALITIES_TABLE).insert(chunk).select();
+      if(error) throw error;
+      municipalityCache.push(...(data || []));
+      imported += (data || []).length;
+    }
+    toast('Imported ' + imported + ' municipalities.', 'success');
+    resultsEl.innerHTML = '';
+    window._osmImportCache = null;
+    renderCountryPanel();
+    refreshMapStyles();
+  }catch(err){
+    resultsEl.innerHTML = `<div class="emptyState">Import stopped after ${imported} rows — error: ${escapeHtml(err.message)}</div>`;
+    if(imported){ renderCountryPanel(); refreshMapStyles(); }
   }
 }
 
