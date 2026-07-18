@@ -44,10 +44,12 @@
           resolved = systemDark ? 'dark' : 'light';
         } else if (mode === 'smart') {
           // Ambient-light reading isn't available synchronously this early, so fall back
-          // to local time first, then OS preference — matches resolveThemeMode() below.
+          // to local time — matches resolveThemeMode() below. Smart mode is meant to be
+          // day=light / night=dark regardless of the OS's own light/dark preference, so
+          // we don't consult systemDark here at all.
           var h = new Date().getHours();
           var isNight = h >= 20 || h < 7;
-          resolved = isNight ? 'dark' : (systemDark ? 'dark' : 'light');
+          resolved = isNight ? 'dark' : 'light';
         } else {
           resolved = mode;
         }
@@ -75,6 +77,7 @@ button, [onclick], [role="button"]{
   --text-muted:#999;
   --accent:#e16e11;
   --accent-contrast:#ffffff;
+  --accent-rgb: 225,110,17;
   --form-control-h: 40px;
   --icon-tint-filter: brightness(0) invert(32%);
   --floating-bg: rgba(255,255,255,.92);
@@ -141,6 +144,7 @@ html[data-theme="dark"]{
   --text-muted:#8a8a86;
   --accent:#ff9034;
   --accent-contrast:#1a1a1a;
+  --accent-rgb: 255,144,52;
   --icon-tint-filter: brightness(0) invert(88%);
   --floating-bg: rgba(28,28,28,.92);
   --floating-border: rgba(255,255,255,.12);
@@ -349,6 +353,9 @@ header p{ font-size:var(--fs-11); opacity:.7; margin-top:2px; }
 .notification-item-message{ font-size:var(--fs-13); color:var(--text-primary); white-space:pre-wrap; }
 .notification-item-meta{ font-size:var(--fs-10-5); color:var(--text-muted); }
 
+#map, .leaflet-container {
+  background: var(--bg-app);
+}
 #map {
   flex: 1;
   height: 0;
@@ -926,16 +933,16 @@ body.nav-panel-open .driving-nav-card{
   position:absolute;
   width:34px; height:34px;
   border-radius:50%;
-  background:rgba(0,208,255,.28);
+  background:rgba(var(--accent-rgb),.28);
   animation:navPulse 2s ease-out infinite;
 }
 .user-dot{
   position:relative;
   width:16px; height:16px;
   border-radius:50%;
-  background:#00d0ff;
+  background:var(--accent);
   border:2.5px solid white;
-  box-shadow:0 0 0 3px rgba(0,208,255,.4), 0 2px 8px rgba(0,0,0,.55);
+  box-shadow:0 0 0 3px rgba(var(--accent-rgb),.4), 0 2px 8px rgba(0,0,0,.55);
 }
 .user-nav-marker{
   position:relative;
@@ -948,7 +955,7 @@ body.nav-panel-open .driving-nav-card{
   position:absolute;
   width:40px; height:40px;
   border-radius:50%;
-  background:rgba(0,208,255,.28);
+  background:rgba(var(--accent-rgb),.28);
   animation:navPulse 2s ease-out infinite;
 }
 @keyframes navPulse{
@@ -1095,7 +1102,7 @@ body.nav-panel-open .driving-nav-card{
 }
 body.driving-active .driving-speed-widget{ display:flex; }
 .driving-speed-main{ display:flex; flex-direction:column; align-items:center; line-height:1; }
-.driving-speed-value{ font-size:var(--fs-32); font-weight:var(--fw-heavy); color:#00d0ff; line-height:1; text-shadow:0 1px 3px rgba(0,0,0,.85), 0 0 6px rgba(0,0,0,.6); }
+.driving-speed-value{ font-size:var(--fs-32); font-weight:var(--fw-heavy); color:var(--accent); line-height:1; text-shadow:0 1px 3px rgba(0,0,0,.85), 0 0 6px rgba(0,0,0,.6); }
 .driving-speed-unit{ font-size:var(--fs-12); font-weight:var(--fw-bold); color:#e2e2e2; letter-spacing:.3px; margin-top:2px; text-shadow:0 1px 3px rgba(0,0,0,.9); }
 .driving-speed-limit{
   width:40px; height:40px;
@@ -1130,7 +1137,7 @@ body.driving-active .driving-speed-widget{ display:flex; }
   flex-direction:row;
   align-items:center;
   gap:var(--space-10);
-  background:var(--nav-accent);
+  background:var(--accent);
   border-radius:14px;
   max-height:0;
   padding:0 12px;
@@ -1172,15 +1179,15 @@ body.driving-active .driving-float-action-row{ display:flex; }
 .driving-action-row-right{ display:flex; gap:var(--space-8); }
 .driving-back-btn, .driving-search-btn{
   background:var(--bg-surface-alt);
-  border:1px solid var(--nav-accent);
-  color:var(--nav-accent);
+  border:1px solid var(--accent);
+  color:var(--accent);
   width:40px; height:40px;
   font-size:var(--fs-16);
   box-shadow:0 3px 10px var(--floating-shadow);
   transition:background .15s;
 }
 .driving-back-btn img{ transform: rotate(-90deg); }
-.driving-search-btn.active{ background:var(--nav-accent); border-color:var(--nav-accent); color:var(--bg-surface); }
+.driving-search-btn.active{ background:var(--accent); border-color:var(--accent); color:var(--bg-surface); }
 .driving-search-btn:active{ background:var(--border-color-strong); }
 .driving-back-btn{ background:var(--bg-surface-alt); border-color:var(--border-color-strong); color:var(--text-primary); }
 .driving-back-btn:active{ background:var(--border-color-strong); }
@@ -1312,7 +1319,7 @@ body.driving-active .driving-report-sheet{ display:flex; }
 .driving-nav-status-text{
   font-size:var(--fs-11);
   font-weight:var(--fw-bold);
-  color:var(--nav-accent);
+  color:var(--accent);
 }
 .driving-nav-active-info{
   display:none;
@@ -1333,7 +1340,7 @@ body.driving-active .driving-report-sheet{ display:flex; }
 .driving-nav-stat-value{
   font-size:var(--fs-14);
   font-weight:var(--fw-heavy);
-  color:var(--nav-accent);
+  color:var(--accent);
   white-space:nowrap;
 }
 .driving-nav-stat-label{
@@ -2781,6 +2788,10 @@ span.flatpickr-weekday {
   <div class="generic-modal" id="nearbyCheckinModalInner"></div>
 </div>
 
+<div id="themedDialogModal" class="generic-modal-overlay" style="display:none">
+  <div class="generic-modal" id="themedDialogModalInner"></div>
+</div>
+
 
 <div id="settingsModal" class="fullscreen-modal-overlay" style="display:none">
   <div class="fullscreen-modal-header">
@@ -3370,7 +3381,7 @@ async function submitUsername() {
 }
 
 async function signOutUser() {
-  if (!confirm(t('signOutConfirm'))) return;
+  if (!(await themedConfirm(t('signOutConfirm')))) return;
   try {
     const { error } = await sb.auth.signOut();
     if (error) throw error;
@@ -4198,9 +4209,9 @@ async function toggleBanReportOwner(reportId, ownerId) {
   const currentlyBanned = !!(btn && btn.dataset.banned === '1');
   let reason = null;
   if (!currentlyBanned) {
-    reason = prompt(t('banReasonPrompt'), '');
+    reason = await themedPrompt(t('banReasonPrompt'), '');
     if (reason === null) return; // cancelled
-  } else if (!confirm(t('unbanConfirm'))) {
+  } else if (!(await themedConfirm(t('unbanConfirm')))) {
     return;
   }
   if (btn) btn.disabled = true;
@@ -4409,15 +4420,28 @@ function renderUserNotifications() {
     listEl.innerHTML = `<div class="detail-empty">${t('notificationsEmpty')}</div>`;
     return;
   }
-  listEl.innerHTML = userNotificationsCache.map(n => `
-    <div class="notification-item${n.is_read ? '' : ' unread'}">
+  const isAdmin = !!(currentProfile && currentProfile.is_admin);
+  listEl.innerHTML = userNotificationsCache.map(n => {
+    // Some notifications (e.g. "your report was flagged") are tied to a specific report.
+    // For admins, tapping one jumps straight to that report so it can be reviewed/edited
+    // instead of leaving them to go hunt for it in the queue.
+    const reportId = n.report_id || n.related_report_id || null;
+    const clickable = isAdmin && reportId;
+    return `
+    <div class="notification-item${n.is_read ? '' : ' unread'}"${clickable ? ` onclick="openNotificationReportTarget('${reportId}')" style="cursor:pointer;"` : ''}>
       <div class="notification-item-top">
         <span class="notification-item-sender">${escapeHtml(n.sender_username || t('detailUnknown'))}</span>
         ${n.is_read ? '' : '<span class="notification-item-dot"></span>'}
       </div>
       <div class="notification-item-message">${escapeHtml(n.message)}</div>
       <div class="notification-item-meta">${formatDate(n.created_at)}</div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
+}
+
+function openNotificationReportTarget(reportId) {
+  hideNotificationModal();
+  viewReportFromAdminQueue(reportId);
 }
 
 async function markVisibleNotificationsRead() {
@@ -6171,7 +6195,7 @@ function buildUserMarkerHtml(navStyle) {
              '<div class="user-nav-halo"></div>' +
              '<div class="user-nav-arrow">' +
                '<svg viewBox="0 0 24 24" width="20" height="20">' +
-                 '<path d="M12 2.2 L19.3 20 L12 15.6 L4.7 20 Z" fill="var(--nav-accent)" stroke="#0092b8" stroke-width="1" stroke-linejoin="round"/>' +
+                 '<path d="M12 2.2 L19.3 20 L12 15.6 L4.7 20 Z" fill="var(--accent)" stroke="rgba(0,0,0,.35)" stroke-width="1" stroke-linejoin="round"/>' +
                '</svg>' +
              '</div>' +
            '</div>';
@@ -6419,6 +6443,49 @@ function toast(msg, kind) {
     el.classList.remove('toast-show');
     setTimeout(() => el.remove(), 250);
   }, 2600);
+}
+
+// Themed replacements for window.confirm()/window.prompt() — same visual language as the
+// rest of the app's popups (nearby check-in, contact confirm, etc.) instead of the browser's
+// unstyled native dialog. Both return a Promise so call sites just `await` them.
+let themedDialogResolver = null;
+function closeThemedDialog(result) {
+  const overlay = document.getElementById('themedDialogModal');
+  if (overlay) overlay.style.display = 'none';
+  closeOverlay('themedDialogModal');
+  const resolve = themedDialogResolver;
+  themedDialogResolver = null;
+  if (resolve) resolve(result);
+}
+function renderThemedDialog(message, { okLabel, cancelLabel, showInput, inputValue } = {}) {
+  const overlay = document.getElementById('themedDialogModal');
+  const inner = document.getElementById('themedDialogModalInner');
+  bringModalToFront(overlay);
+  inner.innerHTML = `
+    <p style="white-space:pre-wrap;">${escapeHtml(message || '')}</p>
+    ${showInput ? `<input type="text" id="themedDialogInput" style="width:100%;box-sizing:border-box;margin-bottom:12px;" value="${escapeHtml(inputValue || '')}">` : ''}
+    <div style="display:flex;gap:10px;">
+      ${cancelLabel !== null ? `<button type="button" class="generic-modal-close" style="background:var(--bg-surface-alt);" onclick="closeThemedDialog(${showInput ? 'null' : 'false'})">${escapeHtml(cancelLabel || (lang === 'sr' ? 'Otkaži' : 'Cancel'))}</button>` : ''}
+      <button type="button" class="generic-modal-close" style="background:var(--accent);color:var(--accent-contrast);" id="themedDialogOkBtn">${escapeHtml(okLabel || 'OK')}</button>
+    </div>`;
+  overlay.style.display = 'flex';
+  openOverlay('themedDialogModal', () => closeThemedDialog(showInput ? null : false));
+  const okBtn = document.getElementById('themedDialogOkBtn');
+  const inputEl = document.getElementById('themedDialogInput');
+  if (inputEl) { inputEl.focus(); inputEl.select(); }
+  okBtn.onclick = () => closeThemedDialog(showInput ? (inputEl ? inputEl.value : '') : true);
+}
+function themedConfirm(message, opts) {
+  return new Promise(resolve => {
+    themedDialogResolver = resolve;
+    renderThemedDialog(message, { ...opts, showInput: false });
+  });
+}
+function themedPrompt(message, defaultValue, opts) {
+  return new Promise(resolve => {
+    themedDialogResolver = resolve;
+    renderThemedDialog(message, { ...opts, showInput: true, inputValue: defaultValue });
+  });
 }
 
 
@@ -8089,61 +8156,72 @@ const SUBCATEGORIES = {
     { key:'burst_leak',    en:'Burst pipe / Leak',            sr:'Puknuta cev / Curenje' },
     { key:'no_supply',     en:'No water supply',              sr:'Nema vode' },
     { key:'low_pressure',  en:'Low pressure',                 sr:'Nizak pritisak' },
-    { key:'discoloration', en:'Water quality / discoloration',sr:'Kvalitet vode / zamućenost' }
+    { key:'discoloration', en:'Water quality / discoloration',sr:'Kvalitet vode / zamućenost' },
+    { key:'other',         en:'Other',                        sr:'Drugo' }
   ],
   Electricity: [
     { key:'outage',       en:'Power outage',                       sr:'Nestanak struje' },
     { key:'exposed_wire', en:'Exposed / damaged wire',             sr:'Oštećen ili otkriven kabl' },
     { key:'transformer',  en:'Transformer / substation issue',     sr:'Kvar na trafostanici' },
-    { key:'voltage',      en:'Voltage fluctuation',                sr:'Kolebanje napona' }
+    { key:'voltage',      en:'Voltage fluctuation',                sr:'Kolebanje napona' },
+    { key:'other',        en:'Other',                              sr:'Drugo' }
   ],
   Sewage: [
     { key:'blockage', en:'Blockage / overflow',                sr:'Začepljenje / izlivanje' },
     { key:'manhole',  en:'Manhole cover damaged / missing',    sr:'Oštećen ili nedostaje šaht poklopac' },
-    { key:'odor',     en:'Bad odor',                           sr:'Neprijatan miris' }
+    { key:'odor',     en:'Bad odor',                           sr:'Neprijatan miris' },
+    { key:'other',    en:'Other',                              sr:'Drugo' }
   ],
   Gas: [
     { key:'leak',   en:'Gas leak / smell', sr:'Curenje / miris gasa' },
-    { key:'outage', en:'Gas outage',       sr:'Nestanak gasa' }
+    { key:'outage', en:'Gas outage',       sr:'Nestanak gasa' },
+    { key:'other',  en:'Other',            sr:'Drugo' }
   ],
   Heating: [
     { key:'no_heat',  en:'No heat',           sr:'Nema grejanja' },
     { key:'leak',     en:'Leak',              sr:'Curenje' },
-    { key:'low_temp', en:'Low temperature',   sr:'Niska temperatura' }
+    { key:'low_temp', en:'Low temperature',   sr:'Niska temperatura' },
+    { key:'other',    en:'Other',             sr:'Drugo' }
   ],
   Road: [
     { key:'pothole',  en:'Pothole',                          sr:'Rupa na putu' },
     { key:'cracked',  en:'Cracked / damaged pavement',       sr:'Oštećen kolovoz' },
     { key:'signage',  en:'Missing / damaged signage',        sr:'Nedostaje ili oštećena signalizacija' },
-    { key:'flooding', en:'Flooding on road',                 sr:'Poplavljen put' }
+    { key:'flooding', en:'Flooding on road',                 sr:'Poplavljen put' },
+    { key:'other',    en:'Other',                            sr:'Drugo' }
   ],
   Streetlight: [
     { key:'out',         en:'Light out',   sr:'Ne radi' },
     { key:'flickering',  en:'Flickering',  sr:'Treperi' },
-    { key:'pole_damage', en:'Pole damage', sr:'Oštećen stub' }
+    { key:'pole_damage', en:'Pole damage', sr:'Oštećen stub' },
+    { key:'other',       en:'Other',       sr:'Drugo' }
   ],
   Waste: [
     { key:'overflow', en:'Overflowing bin',    sr:'Prepunjena kanta' },
     { key:'missed',   en:'Missed collection',  sr:'Propušteno odnošenje' },
-    { key:'dumping',  en:'Illegal dumping',    sr:'Nelegalno odlaganje' }
+    { key:'dumping',  en:'Illegal dumping',    sr:'Nelegalno odlaganje' },
+    { key:'other',    en:'Other',              sr:'Drugo' }
   ],
   Walkways: [
     { key:'cracked_concrete', en:'Cracked concrete',              sr:'Napukao beton' },
     { key:'blocked_path',     en:'Blocked path',                  sr:'Blokirana staza' },
     { key:'missing_ramp',     en:'Missing ramp',                  sr:'Nedostatak rampe' },
-    { key:'trip_hazard',      en:'Trip hazard / uneven surface',  sr:'Neravna površina / opasnost od spoticanja' }
+    { key:'trip_hazard',      en:'Trip hazard / uneven surface',  sr:'Neravna površina / opasnost od spoticanja' },
+    { key:'other',            en:'Other',                         sr:'Drugo' }
   ],
   BikeLanes: [
     { key:'surface_damage',    en:'Surface damage',              sr:'Oštećenje površine staze' },
     { key:'missing_separation',en:'Missing separation',          sr:'Nedostatak fizičke barijere' },
     { key:'faded_markings',    en:'Faded markings',              sr:'Izbledela signalizacija' },
-    { key:'blocked_lane',      en:'Blocked by parked vehicles',  sr:'Blokirana parkiranim vozilima' }
+    { key:'blocked_lane',      en:'Blocked by parked vehicles',  sr:'Blokirana parkiranim vozilima' },
+    { key:'other',             en:'Other',                       sr:'Drugo' }
   ],
   GreenSpaces: [
     { key:'broken_equipment', en:'Broken equipment',       sr:'Polomljen parkovski inventar' },
     { key:'fallen_trees',     en:'Fallen trees',           sr:'Palo drveće' },
     { key:'overgrown_grass',  en:'Overgrown grass',        sr:'Nepokošena trava' },
-    { key:'illegal_dumping',  en:'Illegal dumping / litter',sr:'Nelegalno odlaganje otpada / smeće' }
+    { key:'illegal_dumping',  en:'Illegal dumping / litter',sr:'Nelegalno odlaganje otpada / smeće' },
+    { key:'other',            en:'Other',                  sr:'Drugo' }
   ],
   Parking: [],
   Suggestion: [],
@@ -8564,13 +8642,13 @@ async function uploadAfterReportPhoto(reportId, blob) {
   }
 }
 
-function maybeOfferAfterPhoto(reportId) {
+async function maybeOfferAfterPhoto(reportId) {
   const report = globalActiveData.find(r => r.id === reportId);
   if (!currentSession || !report || report.after_photo_path) return;
   const isOwner = report.owner_id === currentSession.user.id;
   const isAdmin = !!(currentProfile && currentProfile.is_admin);
   if (!isOwner && !isAdmin) return;
-  if (confirm(t('afterPhotoPrompt'))) addAfterPhotoToReport(reportId);
+  if (await themedConfirm(t('afterPhotoPrompt'))) addAfterPhotoToReport(reportId);
 }
 
 function refreshReportViews(reportId) {
@@ -8628,17 +8706,17 @@ const WIZ_CATEGORY_ICONS = {
   Suggestion: 'ui_suggestion.png', Other: 'ui_other.png',
 };
 const WIZ_SUBCATEGORY_ICONS = {
-  Water: { burst_leak:'water_leak.png', no_supply:'water_no_supply.png', low_pressure:'water_low_pressure.png', discoloration:'water_discoloration.png' },
-  Electricity: { outage:'electricity_outage.png', exposed_wire:'electricity_damaged_wire.png', transformer:'electricity_transformer_issue.png', voltage:'electricity_voltage_fluctuation.png' },
-  Sewage: { blockage:'sewage_overflow.png', manhole:'sewage_manhole_issue.png', odor:'sewage_odor.png' },
-  Gas: { leak:'gas_leak.png', outage:'gas_outage.png' },
-  Heating: { no_heat:'heating_no_heat.png', leak:'heating_leak.png', low_temp:'heating_low_temp.png' },
-  Road: { pothole:'road_pothole.png', cracked:'road_damaged_pavement.png', signage:'road_missing_sign.png', flooding:'road_flooding.png' },
-  Streetlight: { out:'street_light_out.png', flickering:'street_light_flickering.png', pole_damage:'street_light_damaged_pole.png' },
-  Waste: { overflow:'waste_overflowing_bin.png', missed:'waste_missed_collection.png', dumping:'waste_illegal_dumping.png' },
-  Walkways: { cracked_concrete:'walkway_cracked_concrete.png', blocked_path:'walkway_blocked_path.png', missing_ramp:'walkway_missing_ramp.png', trip_hazard:'walkway_trip_hazard.png' },
-  BikeLanes: { surface_damage:'bike_surface_damage.png', missing_separation:'bike_missing_separation.png', faded_markings:'bike_faded_markings.png', blocked_lane:'bike_blocked_by_car.png' },
-  GreenSpaces: { broken_equipment:'green_broken_equipment.png', fallen_trees:'green_fallen_tree.png', overgrown_grass:'green_overgrown_grass.png', illegal_dumping:'green_litter.png' },
+  Water: { burst_leak:'water_leak.png', no_supply:'water_no_supply.png', low_pressure:'water_low_pressure.png', discoloration:'water_discoloration.png', other:'ui_other.png' },
+  Electricity: { outage:'electricity_outage.png', exposed_wire:'electricity_damaged_wire.png', transformer:'electricity_transformer_issue.png', voltage:'electricity_voltage_fluctuation.png', other:'ui_other.png' },
+  Sewage: { blockage:'sewage_overflow.png', manhole:'sewage_manhole_issue.png', odor:'sewage_odor.png', other:'ui_other.png' },
+  Gas: { leak:'gas_leak.png', outage:'gas_outage.png', other:'ui_other.png' },
+  Heating: { no_heat:'heating_no_heat.png', leak:'heating_leak.png', low_temp:'heating_low_temp.png', other:'ui_other.png' },
+  Road: { pothole:'road_pothole.png', cracked:'road_damaged_pavement.png', signage:'road_missing_sign.png', flooding:'road_flooding.png', other:'ui_other.png' },
+  Streetlight: { out:'street_light_out.png', flickering:'street_light_flickering.png', pole_damage:'street_light_damaged_pole.png', other:'ui_other.png' },
+  Waste: { overflow:'waste_overflowing_bin.png', missed:'waste_missed_collection.png', dumping:'waste_illegal_dumping.png', other:'ui_other.png' },
+  Walkways: { cracked_concrete:'walkway_cracked_concrete.png', blocked_path:'walkway_blocked_path.png', missing_ramp:'walkway_missing_ramp.png', trip_hazard:'walkway_trip_hazard.png', other:'ui_other.png' },
+  BikeLanes: { surface_damage:'bike_surface_damage.png', missing_separation:'bike_missing_separation.png', faded_markings:'bike_faded_markings.png', blocked_lane:'bike_blocked_by_car.png', other:'ui_other.png' },
+  GreenSpaces: { broken_equipment:'green_broken_equipment.png', fallen_trees:'green_fallen_tree.png', overgrown_grass:'green_overgrown_grass.png', illegal_dumping:'green_litter.png', other:'ui_other.png' },
 };
 const WIZ_PRIORITY_ICONS = { low:'priority_low.png', normal:'priority_normal.png', high:'priority_high.png' };
 const WIZ_STATUS_ICONS = { reported:'status_reported.png', in_progress:'status_in_progress.png' };
@@ -10196,7 +10274,7 @@ async function approveReportPhoto(reportId) {
 }
 
 async function rejectReportPhoto(reportId) {
-  if (!confirm(t('photoRejectConfirm'))) return;
+  if (!(await themedConfirm(t('photoRejectConfirm')))) return;
   try {
     const { data, error } = await sb.from(TABLE).update({
       photo_status: 'rejected',
@@ -10234,7 +10312,7 @@ async function approveAfterReportPhoto(reportId) {
 }
 
 async function rejectAfterReportPhoto(reportId) {
-  if (!confirm(t('photoRejectConfirm'))) return;
+  if (!(await themedConfirm(t('photoRejectConfirm')))) return;
   try {
     const { data, error } = await sb.from(TABLE).update({
       after_photo_status: 'rejected',
@@ -10636,8 +10714,8 @@ function saveUtilityCompany() {
   return persistUcRow(false);
 }
 
-function verifyUtilityCompany() {
-  if (!confirm(t('ucVerifyConfirm'))) return;
+async function verifyUtilityCompany() {
+  if (!(await themedConfirm(t('ucVerifyConfirm')))) return;
   return persistUcRow(true);
 }
 
@@ -10663,7 +10741,7 @@ async function deleteUtilityCompany(id) {
     toast(t('ucOutOfDomainError'), 'error');
     return;
   }
-  if (!confirm(t('ucDeleteConfirm'))) return;
+  if (!(await themedConfirm(t('ucDeleteConfirm')))) return;
   try {
     const { error } = await sb.from(UTILITY_COMPANIES_TABLE).delete().eq('id', id);
     if (error) throw error;
@@ -11593,7 +11671,7 @@ async function shareReport(reportId) {
     toast(t('shareLinkCopied'), 'success');
   } catch (err) {
     console.error('Clipboard write failed:', err.message);
-    window.prompt(lang === 'sr' ? 'Kopirajte link:' : 'Copy this link:', url);
+    await themedPrompt(lang === 'sr' ? 'Kopirajte link:' : 'Copy this link:', url, { cancelLabel: null, okLabel: 'OK' });
   }
 }
 
@@ -12065,7 +12143,7 @@ function buildStatusPatch(newStatus) {
 }
 
 async function deleteReport(reportId) {
-  if (!confirm(t('deleteConfirm'))) return;
+  if (!(await themedConfirm(t('deleteConfirm')))) return;
   try {
     const { error } = await sb.from(TABLE).delete().eq('id', reportId);
     if (error) throw error;
@@ -12507,12 +12585,13 @@ function resolveThemeMode(mode) {
   }
   if (mode === 'smart') {
     // Ambient-light reading where the browser supports it, falls back to local time
-    // (dark 20:00–07:00), then OS preference as last resort.
+    // (dark 20:00–07:00, light otherwise). Smart mode intentionally ignores the OS's
+    // own light/dark preference — it should track real daylight/ambient conditions,
+    // not whatever theme the phone happens to be set to.
     if (ambientSensorActive && ambientLux != null) {
       return ambientLux < AMBIENT_DARK_LUX_THRESHOLD ? 'dark' : 'light';
     }
-    if (isNightByLocalClock()) return 'dark';
-    return (systemDarkModeMQ && systemDarkModeMQ.matches) ? 'dark' : 'light';
+    return isNightByLocalClock() ? 'dark' : 'light';
   }
   return mode;
 }
@@ -12568,13 +12647,41 @@ function initTheme() {
 // icons-8bit/) and, when a non-default pack is active, retarget every 'icons/...' image src
 // to '<pack>/...' — once for what's already in the DOM, then continuously via a
 // MutationObserver for anything rendered afterward (popups, modals, markers, etc).
-const ICON_PACKS = [
-  { id:'icons',      nameEn:'Modern', nameSr:'Moderni' },
-  { id:'icons-8bit', nameEn:'8-bit',  nameSr:'8-bit' }
-];
+// Icon pack discovery: the default folder is 'icons' (kept named "Modern"). Any sibling
+// folder named 'icons-something' is treated as an extra pack — its display name is derived
+// from the folder name itself (icons-modern-styled -> "Modern Styled"), so adding a new pack
+// is just "drop a folder next to icons/, list it in icons/packs.json". Browsers can't read a
+// server's directory listing on their own, so packs.json (a plain array of folder names, e.g.
+// ["icons-8bit","icons-modern-styled"]) is what makes a new folder "discoverable" — it's not
+// a name registry (no display names hardcoded there), just the list of folders to look at.
 const ICON_PACK_DEFAULT = 'icons';
+function iconPackNameFromId(id) {
+  if (id === ICON_PACK_DEFAULT) return { en:'Modern', sr:'Moderni' };
+  const words = id.replace(/^icons-/, '').split(/[-_]+/).filter(Boolean)
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1));
+  const name = words.join(' ') || id;
+  return { en:name, sr:name };
+}
+let ICON_PACKS = [{ id: ICON_PACK_DEFAULT, ...(() => { const n = iconPackNameFromId(ICON_PACK_DEFAULT); return { nameEn:n.en, nameSr:n.sr }; })() }];
 let iconPack = localStorage.getItem('ttb_icon_pack') || ICON_PACK_DEFAULT;
-if (!ICON_PACKS.some(p => p.id === iconPack)) iconPack = ICON_PACK_DEFAULT;
+
+async function discoverIconPacks() {
+  try {
+    const res = await fetch('icons/packs.json', { cache:'no-store' });
+    if (!res.ok) return;
+    const folders = await res.json();
+    if (!Array.isArray(folders)) return;
+    const discovered = folders
+      .filter(id => typeof id === 'string' && id && id !== ICON_PACK_DEFAULT)
+      .map(id => { const n = iconPackNameFromId(id); return { id, nameEn:n.en, nameSr:n.sr }; });
+    ICON_PACKS = [ICON_PACKS[0], ...discovered];
+  } catch (e) {
+    // No manifest found (or offline) — just the default pack is available.
+  } finally {
+    if (!ICON_PACKS.some(p => p.id === iconPack)) iconPack = ICON_PACK_DEFAULT;
+    renderIconPackSegment();
+  }
+}
 
 function rewriteIconSrc(img) {
   if (iconPack === ICON_PACK_DEFAULT || !img || img.tagName !== 'IMG') return;
@@ -12622,6 +12729,7 @@ function hideMapLoadingOverlay() {
 }
 
 initIconPackRewrite();
+discoverIconPacks();
 initTheme();
 initCalendarFilter();
 initLang();
