@@ -1179,12 +1179,6 @@ body.driving-active .driving-float-action-row{ display:flex; }
   border-radius:14px;
   padding:10px 12px;
 }
-.driving-nav-card-top{
-  display:flex;
-  align-items:center;
-  gap:var(--space-10);
-}
-
 .driving-report-sheet{
   position:fixed;
   left:0; right:0; bottom:0;
@@ -1334,11 +1328,15 @@ body.driving-active .driving-report-sheet{ display:flex; }
 .driving-nav-close-btn{
   flex-shrink:0;
   width:34px; height:34px;
-  margin-left:auto;
   background:var(--bg-surface-alt);
   border:1px solid var(--border-color-strong);
   color:var(--text-secondary);
   font-size:var(--fs-15);
+  position:fixed;
+  top:calc(var(--header-h, 64px) + 12px + 40px + 10px);
+  right:12px;
+  z-index:2400;
+  box-shadow:0 3px 12px var(--floating-shadow);
 }
 .driving-nav-close-btn:active{ background:var(--border-color-strong); }
 
@@ -2055,6 +2053,20 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 .contact-card:last-child{ margin-bottom:0; }
 .contact-card-name{ font-weight:var(--fw-bold); font-size:var(--fs-14); margin-bottom:8px; }
 .contact-card-row{ display:flex; align-items:flex-start; gap:9px; font-size:var(--fs-12-5); color:var(--text-secondary); padding:5px 0; min-width:0; }
+.contact-card-other-flag-row{ padding-top:2px; }
+.contact-card-other-flag-row .contact-flag-other-btn{ margin-left:0; }
+.detail-ban-btn{
+  flex-shrink:0;
+  border:none;
+  border-radius:var(--radius-sm, 6px);
+  padding:3px 10px;
+  font-size:var(--fs-11);
+  cursor:pointer;
+  background:var(--danger-strong);
+  color:#fff;
+}
+.detail-ban-btn.is-banned{ background:var(--bg-surface-alt); color:var(--text-secondary); border:1px solid var(--border-color-strong); }
+.detail-ban-btn:disabled{ opacity:.6; cursor:default; }
 .contact-flag-btn{ margin-left:auto; flex-shrink:0; background:none; border:none; padding:2px 6px; font-size:var(--fs-11); color:var(--text-muted); text-decoration:underline; cursor:pointer; }
 .contact-flag-btn:disabled{ text-decoration:none; cursor:default; opacity:.7; }
 .contact-card-row:not(:last-child){ border-bottom:1px solid var(--border-color); }
@@ -2616,6 +2628,7 @@ span.flatpickr-weekday {
     </div>
   </div>
 </div>
+<button type="button" id="navigateClearBtn" class="driving-nav-close-btn" onclick="clearNavigation()" title="Close" style="display:none">✕</button>
 <button type="button" class="report-fab-btn" id="reportFabBtn" style="display:none" title="Report a break" aria-label="Report a break" onclick="reportFabTap()">
   <img src="icons/reports/report_new.png" alt="">
 </button>
@@ -2670,10 +2683,7 @@ span.flatpickr-weekday {
 
 <div id="drivingReportSheet" class="driving-report-sheet">
   <div id="drivingNavCard" class="driving-nav-card">
-    <div class="driving-nav-card-top">
-      <span id="navigateDestText" class="driving-nav-dest" style="display:none"></span>
-      <button id="navigateClearBtn" class="driving-nav-close-btn" onclick="clearNavigation()" title="Close">✕</button>
-    </div>
+    <span id="navigateDestText" class="driving-nav-dest" style="display:none"></span>
     <span id="navigateStatusText" class="driving-nav-status-text" style="display:none"></span>
     <div id="navigateActiveInfo" class="driving-nav-active-info">
       <div class="driving-nav-stat">
@@ -2770,6 +2780,12 @@ span.flatpickr-weekday {
         <button type="button" class="theme-segment-btn" onclick="setThemeMode('smart')" id="themeBtnSmart">Smart</button>
       </div>
       <p class="detail-export-hint" id="themeSmartHint">Auto follows your device's light/dark setting. Smart adapts to ambient light where available, otherwise local time.</p>
+    </div>
+
+    <div class="detail-section" id="iconPackSettingsSection">
+      <div class="detail-section-title" id="iconPackSectionTitle">Icon pack</div>
+      <div class="theme-segment" id="iconPackSegment"></div>
+      <p class="detail-export-hint" id="iconPackHint">Changes how map pins and icons look. The app will reload after switching.</p>
     </div>
 
     <div class="detail-section" id="languageSettingsSection">
@@ -3355,6 +3371,9 @@ async function signOutUser() {
   hideNotificationModal();
   if (typeof drivingMode !== 'undefined' && drivingMode) toggleDrivingMode();
   if (typeof heatmapActive !== 'undefined' && heatmapActive) toggleHeatmap();
+  clearNavigation();
+  if (pinMode || manualMarker) resetReportingForm();
+  setFollowMode(!!userCoords);
 
   updateAuthUI();
   refreshRenderedPopups();
@@ -4110,7 +4129,13 @@ function isReportInAdminDomain(report) {
   if (!currentAdminLevel()) return false;
   if (currentAdminLevel() >= 3) return true;
   if (!report) return false;
-  const muni = report.municipality_id != null ? getMunicipalityById(report.municipality_id) : null;
+  let muni = report.municipality_id != null ? getMunicipalityById(report.municipality_id) : null;
+  if (!muni && isValidLatLng(report.latitude, report.longitude)) {
+    // municipality_id is attached asynchronously after a report is created (reverse-geocode
+    // can take a few seconds, or fail); fall back to a live spatial lookup against the cached
+    // municipality boundaries so municipality/country admins aren't locked out in the meantime.
+    muni = findMunicipalityInCache(report.latitude, report.longitude);
+  }
   return isMunicipalityInAdminDomain(muni);
 }
 
@@ -4122,6 +4147,70 @@ function isAdminOnSiteOf(report) {
 function hasFullPowerOverReport(report) {
   if (!currentProfile || !currentProfile.is_admin) return false;
   return isReportInAdminDomain(report) || isAdminOnSiteOf(report);
+}
+
+function reporterBanControlHtml(report) {
+  if (!currentSession || !report || !report.owner_id) return '';
+  if (currentAdminLevel() < 2) return '';
+  if (report.owner_id === currentSession.user.id) return '';
+  return `<button type="button" class="detail-ban-btn" id="banBtn-${report.id}" disabled onclick="toggleBanReportOwner('${report.id}','${report.owner_id}')">${t('banLoadingBtn')}</button>`;
+}
+
+async function refreshBanButtonState(reportId, ownerId) {
+  const btn = document.getElementById(`banBtn-${reportId}`);
+  if (!btn) return;
+  try {
+    const { data, error } = await sb.from('profiles').select('is_banned').eq('id', ownerId).maybeSingle();
+    if (error) throw error;
+    const banned = !!(data && data.is_banned);
+    btn.dataset.banned = banned ? '1' : '0';
+    btn.textContent = banned ? t('unbanBtn') : t('banBtn');
+    btn.classList.toggle('is-banned', banned);
+  } catch (err) {
+    console.error('Failed to load ban status:', err.message);
+    btn.textContent = t('banBtn');
+    btn.dataset.banned = '0';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function toggleBanReportOwner(reportId, ownerId) {
+  const btn = document.getElementById(`banBtn-${reportId}`);
+  const currentlyBanned = !!(btn && btn.dataset.banned === '1');
+  let reason = null;
+  if (!currentlyBanned) {
+    reason = prompt(t('banReasonPrompt'), '');
+    if (reason === null) return; // cancelled
+  } else if (!confirm(t('unbanConfirm'))) {
+    return;
+  }
+  if (btn) btn.disabled = true;
+  try {
+    const { data, error } = await sb.rpc('set_user_banned', {
+      p_user_id: ownerId,
+      p_banned: !currentlyBanned,
+      p_reason: reason ? cyrillicToLatin(reason) : null
+    });
+    if (error) throw error;
+    if (!data || !data.ok) {
+      const reasonMap = {
+        not_permitted:    t('banNotPermitted'),
+        cannot_ban_admin: t('banCannotBanAdmin'),
+        cannot_ban_self:  t('banCannotBanSelf'),
+        user_not_found:   t('banUserNotFound')
+      };
+      toast((data && reasonMap[data.reason]) || t('banActionFailed'), 'error');
+      if (btn) btn.disabled = false;
+      return;
+    }
+    toast(currentlyBanned ? t('unbanSuccess') : t('banSuccess'), 'success');
+    await refreshBanButtonState(reportId, ownerId);
+  } catch (err) {
+    console.error('Failed to update ban status:', err.message);
+    toast(t('banActionFailed'), 'error');
+    if (btn) btn.disabled = false;
+  }
 }
 
 let leaderboardCityMuni = null;
@@ -4599,7 +4688,7 @@ async function renderAdminDashboard() {
   }
   section.style.display = 'flex';
 
-  if (currentAdminLevel() === 1) await loadMunicipalityCache();
+  if (currentAdminLevel() === 1 || currentAdminLevel() === 2) await loadMunicipalityCache();
   if (!currentSession || !currentProfile || !currentProfile.is_admin) return;
 
   const lvl = currentAdminLevel();
@@ -4782,6 +4871,8 @@ const T = {
   themeAuto:         { en:'Auto',                        sr:'Automatski' },
   themeSmart:        { en:'Smart',                        sr:'Pametna' },
   themeSmartHint:    { en:'Auto follows your device\'s light/dark setting. Smart adapts to ambient light where available, otherwise local time.', sr:'Automatski prati podešavanje svetle/tamne teme uređaja. Pametna se prilagođava osvetljenju okoline gde je dostupno, inače lokalnom vremenu.' },
+  iconPackSectionTitle: { en:'Icon pack',                             sr:'Paket ikonica' },
+  iconPackHint:      { en:'Changes how map pins and icons look. The app will reload after switching.', sr:'Menja izgled ikonica i pinova na mapi. Aplikacija će se ponovo učitati nakon promene.' },
   languageSectionTitle: { en:'Language',                 sr:'Jezik' },
   langBtnAutoLabel:     { en:'Auto',                      sr:'Automatski' },
   langAutoHint:         { en:'We\'ll set the language based on your location.', sr:'Jezik ćemo postaviti na osnovu vaše lokacije.' },
@@ -4894,6 +4985,19 @@ const T = {
   cancelBtn:     { en:'Cancel',                                    sr:'Otkaži' },
   closeBtn:      { en:'Close',                                     sr:'Zatvori' },
   deleteConfirm: { en:'Delete this report permanently?',           sr:'Trajno obrisati ovu prijavu?' },
+  banLoadingBtn:    { en:'…',                                        sr:'…' },
+  banBtn:           { en:'Ban user',                                 sr:'Blokiraj korisnika' },
+  unbanBtn:         { en:'Unban user',                               sr:'Odblokiraj korisnika' },
+  banReasonPrompt:  { en:'Reason for banning this user (optional):', sr:'Razlog blokiranja korisnika (opciono):' },
+  unbanConfirm:     { en:'Unban this user?',                         sr:'Odblokirati ovog korisnika?' },
+  banSuccess:       { en:'User banned.',                             sr:'Korisnik je blokiran.' },
+  unbanSuccess:     { en:'User unbanned.',                           sr:'Korisnik je odblokiran.' },
+  banActionFailed:  { en:'Could not update ban status. Try again.',  sr:'Nije uspelo. Pokušajte ponovo.' },
+  banNotPermitted:  { en:'Only Regional/Global admins can ban users.', sr:'Samo regionalni/globalni administratori mogu da blokiraju korisnike.' },
+  banCannotBanAdmin:{ en:'Admins can\'t be banned from here.',       sr:'Administratori ne mogu biti blokirani odavde.' },
+  banCannotBanSelf: { en:'You can\'t ban yourself.',                 sr:'Ne možete blokirati sebe.' },
+  banUserNotFound:  { en:'User not found.',                          sr:'Korisnik nije pronađen.' },
+  bannedAccountNotice: { en:'Your account is suspended from posting reports, flags, or votes.', sr:'Vaš nalog je suspendovan i ne može da šalje prijave, oznake ni glasove.' },
   markReported:  { en:'Mark Reported',                             sr:'Označi kao prijavljeno' },
   navigateSearchPH:  { en:'Search destination...',                  sr:'Pretraži odredište...' },
   navigatePinPopupBtn: { en:'Navigate',                             sr:'Navigiraj' },
@@ -5071,6 +5175,8 @@ const T = {
   flagReportAlreadyFlaggedNote: { en:'You flagged this on {date}:',           sr:'Označili ste ovo {date}:' },
   flagReportError:        { en:'Could not submit. Try again.',                sr:'Slanje nije uspelo. Pokušajte ponovo.' },
   contactFlagBtn:          { en:'Didn\'t work?',                              sr:'Nije uspelo?' },
+  contactFlagOtherBtn:     { en:'Report a problem with this contact',        sr:'Prijavite problem sa ovim kontaktom' },
+  contactFlagOtherPH:      { en:'What\'s wrong with this contact? (wrong municipality, duplicate, closed down…)', sr:'Šta nije u redu sa ovim kontaktom? (pogrešna opština, duplikat, ugašen…)' },
   contactFlagLoginRequired:{ en:'Sign in to flag this contact.',              sr:'Prijavite se da biste označili ovaj kontakt.' },
   contactFlagSubmitted:    { en:'Thanks — flagged this contact for review.',  sr:'Hvala — kontakt je označen za proveru.' },
   contactFlagAlready:      { en:'Already flagged',                            sr:'Već označeno' },
@@ -5292,6 +5398,9 @@ function applyLang(){
   document.getElementById('themeBtnAuto').textContent = t('themeAuto');
   document.getElementById('themeBtnSmart').textContent = t('themeSmart');
   document.getElementById('themeSmartHint').textContent = t('themeSmartHint');
+  document.getElementById('iconPackSectionTitle').textContent = t('iconPackSectionTitle');
+  document.getElementById('iconPackHint').textContent = t('iconPackHint');
+  renderIconPackSegment();
   document.getElementById('languageSectionTitle').textContent = t('languageSectionTitle');
   const langBtnAutoLabelEl = document.getElementById('langBtnAutoLabel');
   if (langBtnAutoLabelEl) langBtnAutoLabelEl.textContent = t('langBtnAutoLabel');
@@ -6322,6 +6431,8 @@ function onNavStateChange(prev, next) {
   const navCardVisible = (next !== NavState.IDLE && next !== NavState.SEARCHING);
   const navCard = document.getElementById('drivingNavCard');
   if (navCard) navCard.style.display = navCardVisible ? 'flex' : 'none';
+  const navCloseBtn = document.getElementById('navigateClearBtn');
+  if (navCloseBtn) navCloseBtn.style.display = navCardVisible ? 'flex' : 'none';
   document.body.classList.toggle('nav-card-open', navCardVisible);
 
   if (next === NavState.PREVIEW) {
@@ -10805,6 +10916,9 @@ async function showReportDetailModal(reportId) {
   openOverlay('reportDetailModal', hideReportDetailModal);
 
   if (canFlagReport) loadReportFlagSection(report.id);
+  if (report.owner_id && currentSession && currentAdminLevel() >= 2 && report.owner_id !== currentSession.user.id) {
+    refreshBanButtonState(report.id, report.owner_id);
+  }
 
   if (showPhotoImage) {
     getReportPhotoSignedUrl(report.photo_path).then(url => {
@@ -10981,16 +11095,29 @@ function renderContactRows(c, reportId) {
   const companyIdAttr = c.id != null ? escapeHtml(String(c.id)) : '';
   const phoneClickAttr = reportId ? ` onclick="recordContactAttempt('${escapeHtml(reportId)}','phone','${companyIdAttr}')"` : '';
   const emailClickAttr = reportId ? ` onclick="recordContactAttempt('${escapeHtml(reportId)}','email','${companyIdAttr}')"` : '';
-  const phoneFlagBtn = (c.phone && c.id != null)
-    ? `<button type="button" class="contact-flag-btn" id="contact-flag-${companyIdAttr}-phone" onclick="flagUtilityContact('${companyIdAttr}','phone')">${t('contactFlagBtn')}</button>` : '';
-  const emailFlagBtn = (c.email && c.id != null)
-    ? `<button type="button" class="contact-flag-btn" id="contact-flag-${companyIdAttr}-email" onclick="flagUtilityContact('${companyIdAttr}','email')">${t('contactFlagBtn')}</button>` : '';
+  const flagBtn = (type, hasValue) => (hasValue && c.id != null)
+    ? `<button type="button" class="contact-flag-btn" id="contact-flag-${companyIdAttr}-${type}" onclick="flagUtilityContact('${companyIdAttr}','${type}')">${t('contactFlagBtn')}</button>` : '';
+  const phoneFlagBtn = flagBtn('phone', c.phone);
+  const emailFlagBtn = flagBtn('email', c.email);
+  const websiteFlagBtn = flagBtn('website', c.website);
+  const addressFlagBtn = flagBtn('address', c.address);
+  const notesFlagBtn = flagBtn('notes', c.notes);
+  const otherFlagBtn = c.id != null
+    ? `<button type="button" class="contact-flag-btn contact-flag-other-btn" onclick="toggleContactOtherFlagForm('${companyIdAttr}')">${t('contactFlagOtherBtn')}</button>` : '';
   return `
       ${c.phone ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/phone.png" alt="phone"><a href="tel:${escapeHtml(c.phone)}"${phoneClickAttr}>${escapeHtml(c.phone)}</a>${phoneFlagBtn}</div>` : ''}
       ${c.email ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/email.png" alt="email"><a href="mailto:${escapeHtml(c.email)}"${emailClickAttr}>${escapeHtml(c.email)}</a>${emailFlagBtn}</div>` : ''}
-      ${c.website ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/link.png" alt="link"><a href="${escapeHtml(c.website)}" target="_blank" rel="noopener">${escapeHtml(c.website)}</a></div>` : ''}
-      ${c.address && c.id != null ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/pin.png" alt="pin"><a href="javascript:void(0)" onclick="focusUtilityCompanyAddress('${escapeHtml(String(c.id))}')">${escapeHtml(c.address)}</a></div>` : c.address ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/pin.png" alt="pin"><span>${escapeHtml(c.address)}</span></div>` : ''}
-      ${c.notes ? `<div class="contact-card-row contact-card-notes"><span>${escapeHtml(c.notes)}</span></div>` : ''}
+      ${c.website ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/link.png" alt="link"><a href="${escapeHtml(c.website)}" target="_blank" rel="noopener">${escapeHtml(c.website)}</a>${websiteFlagBtn}</div>` : ''}
+      ${c.address && c.id != null ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/pin.png" alt="pin"><a href="javascript:void(0)" onclick="focusUtilityCompanyAddress('${escapeHtml(String(c.id))}')">${escapeHtml(c.address)}</a>${addressFlagBtn}</div>` : c.address ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/pin.png" alt="pin"><span>${escapeHtml(c.address)}</span></div>` : ''}
+      ${c.notes ? `<div class="contact-card-row contact-card-notes"><span>${escapeHtml(c.notes)}</span>${notesFlagBtn}</div>` : ''}
+      ${otherFlagBtn ? `<div class="contact-card-row contact-card-other-flag-row">${otherFlagBtn}</div>` : ''}
+      ${c.id != null ? `<div class="flag-report-form" id="contact-other-flag-form-${companyIdAttr}" style="display:none">
+        <textarea id="contact-other-flag-reason-${companyIdAttr}" placeholder="${t('contactFlagOtherPH')}"></textarea>
+        <div class="flag-report-form-row">
+          <button type="button" class="settings-btn" style="flex:1;" onclick="toggleContactOtherFlagForm('${companyIdAttr}')">${t('flagReportCancelBtn')}</button>
+          <button type="button" style="background:var(--accent);color:white;flex:1;" onclick="submitContactOtherFlag('${companyIdAttr}')" id="contact-other-flag-submit-${companyIdAttr}">${t('flagReportSubmitBtn')}</button>
+        </div>
+      </div>` : ''}
   `;
 }
 
@@ -11020,7 +11147,7 @@ function recordContactAttempt(reportId, type, companyId) {
   scheduleFallbackContactCheck();
 }
 
-async function flagUtilityContact(companyId, contactType) {
+async function flagUtilityContact(companyId, contactType, reason) {
   if (!currentSession) { toast(t('contactFlagLoginRequired'), 'error'); return; }
   const btn = document.getElementById(`contact-flag-${companyId}-${contactType}`);
   if (btn) btn.disabled = true;
@@ -11029,40 +11156,57 @@ async function flagUtilityContact(companyId, contactType) {
       company_id: companyId,
       contact_type: contactType,
       flagged_by: currentSession.user.id,
+      reason: reason || null,
       created_at: new Date().toISOString()
     }, { onConflict: 'company_id,contact_type,flagged_by' });
     if (error) throw error;
     toast(t('contactFlagSubmitted'), 'success');
     if (btn) btn.textContent = t('contactFlagAlready');
-    notifyAdminsOfContactFlag(companyId, contactType);
+    notifyAdminsOfContactFlag(companyId, contactType, reason);
   } catch (err) {
     console.error('Failed to flag utility contact:', err.message);
     toast(t('contactFlagError'), 'error');
     if (btn) btn.disabled = false;
+    throw err;
   }
 }
 
-async function notifyAdminsOfContactFlag(companyId, contactType) {
+function toggleContactOtherFlagForm(companyId) {
+  const form = document.getElementById(`contact-other-flag-form-${companyId}`);
+  if (!form) return;
+  const showing = form.style.display !== 'none';
+  form.style.display = showing ? 'none' : 'block';
+  if (!showing) {
+    const reasonEl = document.getElementById(`contact-other-flag-reason-${companyId}`);
+    if (reasonEl) reasonEl.focus();
+  }
+}
+
+async function submitContactOtherFlag(companyId) {
+  if (!currentSession) { toast(t('contactFlagLoginRequired'), 'error'); return; }
+  const reasonEl = document.getElementById(`contact-other-flag-reason-${companyId}`);
+  const reason = reasonEl ? reasonEl.value.trim() : '';
+  if (!reason) { toast(t('flagReportValidationError'), 'error'); return; }
+  const submitBtn = document.getElementById(`contact-other-flag-submit-${companyId}`);
+  if (submitBtn) submitBtn.disabled = true;
   try {
-    const company = utilityCompanyRegistry.get(String(companyId));
-    if (!company) return;
-    await loadMunicipalityCache();
-    const muni = getMunicipalityById(company.municipality_id);
-    const { data: admins, error } = await sb.rpc('get_admins_list');
+    await flagUtilityContact(companyId, 'other', cyrillicToLatin(reason));
+    toggleContactOtherFlagForm(companyId);
+  } catch (err) {
+    // flagUtilityContact already surfaced a toast; just re-enable the form.
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
+  }
+}
+
+async function notifyAdminsOfContactFlag(companyId, contactType, reason) {
+  try {
+    const { error } = await sb.rpc('notify_admins_of_contact_flag', {
+      p_company_id: companyId,
+      p_contact_type: contactType,
+      p_reason: reason || null
+    });
     if (error) throw error;
-    const typeLabel = contactType === 'email' ? t('ucEmailPH') : t('ucPhonePH');
-    const message = t('contactFlagAdminNotifyMsg')
-      .replace('{name}', company.name || '')
-      .replace('{type}', typeLabel);
-    const usernames = new Set(
-      (admins || [])
-        .filter(a => a.username && isMunicipalityInAdminRowDomain(muni, a))
-        .map(a => a.username)
-    );
-    await Promise.all(Array.from(usernames).map(username =>
-      sb.rpc('send_direct_notification', { p_username: username, p_message: message })
-        .catch(err => console.error('Failed to notify admin ' + username + ' of contact flag:', err.message || err))
-    ));
   } catch (err) {
     console.error('Failed to notify admins of contact flag:', err.message || err);
   }
@@ -11691,7 +11835,7 @@ function buildDetailStatusReadonlyHtml(report, reporterName) {
     </div>
     <div class="detail-row"><span class="detail-row-label">${t('popupStatus')}</span><span class="status-pill" style="background:${statusColor(report.status)};">${statusLabel(report.status)}</span></div>
     <div class="detail-row"><span class="detail-row-label">${t('priorityLabel')}</span><span class="status-pill" style="background:${priorityColor(report.priority)};">${priorityLabelText(report.priority)}</span></div>
-    <div class="detail-row"><span class="detail-row-label">${t('reportedByLabel')}</span><span class="detail-row-value">${escapeHtml(reporterName)}</span></div>
+    <div class="detail-row"><span class="detail-row-label">${t('reportedByLabel')}</span><span class="detail-row-value">${escapeHtml(reporterName)}</span>${reporterBanControlHtml(report)}</div>
     <div class="popup-timeline" style="margin-top:8px;">
       ${buildTimelineItem(report.created_at, true, STATUS_COLORS.reported)}
       ${buildTimelineItem(report.in_progress_at, !!report.in_progress_at, STATUS_COLORS.in_progress)}
@@ -12353,6 +12497,56 @@ function initTheme() {
   setInterval(() => { if (themeMode === 'smart') applyTheme('smart'); }, 15 * 60 * 1000);
 }
 
+// Icon packs: every icon in the app is referenced as 'icons/whatever.png' (in static HTML
+// and in hundreds of dynamically-built template strings). Rather than touch every call site,
+// we keep a registry of available packs (each just a sibling folder next to icons/, e.g.
+// icons-8bit/) and, when a non-default pack is active, retarget every 'icons/...' image src
+// to '<pack>/...' — once for what's already in the DOM, then continuously via a
+// MutationObserver for anything rendered afterward (popups, modals, markers, etc).
+const ICON_PACKS = [
+  { id:'icons',      nameEn:'Modern', nameSr:'Moderni' },
+  { id:'icons-8bit', nameEn:'8-bit',  nameSr:'8-bit' }
+];
+const ICON_PACK_DEFAULT = 'icons';
+let iconPack = localStorage.getItem('ttb_icon_pack') || ICON_PACK_DEFAULT;
+if (!ICON_PACKS.some(p => p.id === iconPack)) iconPack = ICON_PACK_DEFAULT;
+
+function rewriteIconSrc(img) {
+  if (iconPack === ICON_PACK_DEFAULT || !img || img.tagName !== 'IMG') return;
+  const raw = img.getAttribute('src');
+  if (!raw || !raw.startsWith('icons/')) return;
+  img.setAttribute('src', iconPack + '/' + raw.slice('icons/'.length));
+}
+
+function rewriteIconsIn(node) {
+  if (!node || node.nodeType !== 1) return;
+  if (node.tagName === 'IMG') rewriteIconSrc(node);
+  else if (node.querySelectorAll) node.querySelectorAll('img[src^="icons/"]').forEach(rewriteIconSrc);
+}
+
+function initIconPackRewrite() {
+  if (iconPack === ICON_PACK_DEFAULT) return;
+  rewriteIconsIn(document.body);
+  new MutationObserver(mutations => {
+    for (const m of mutations) {
+      if (m.type === 'childList') m.addedNodes.forEach(rewriteIconsIn);
+      else if (m.type === 'attributes' && m.attributeName === 'src') rewriteIconSrc(m.target);
+    }
+  }).observe(document.body, { childList:true, subtree:true, attributes:true, attributeFilter:['src'] });
+}
+
+function renderIconPackSegment() {
+  const seg = document.getElementById('iconPackSegment');
+  if (!seg) return;
+  seg.innerHTML = ICON_PACKS.map(p => `<button type="button" class="theme-segment-btn${p.id === iconPack ? ' active' : ''}" onclick="setIconPack('${p.id}')">${escapeHtml(lang === 'sr' ? p.nameSr : p.nameEn)}</button>`).join('');
+}
+
+function setIconPack(packId) {
+  if (packId === iconPack || !ICON_PACKS.some(p => p.id === packId)) return;
+  localStorage.setItem('ttb_icon_pack', packId);
+  location.reload();
+}
+
 
 const MAP_LOADING_OVERLAY_MIN_HOLD_MS = 500;
 function hideMapLoadingOverlay() {
@@ -12362,6 +12556,7 @@ function hideMapLoadingOverlay() {
   }, MAP_LOADING_OVERLAY_MIN_HOLD_MS);
 }
 
+initIconPackRewrite();
 initTheme();
 initCalendarFilter();
 initLang();
