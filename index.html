@@ -30,10 +30,27 @@
   <script>
     (function(){
       try {
+        // One-time migration: 'auto' used to mean the ambient/time/system "smart" chain.
+        // Now 'auto' means system-preference only, and that old behavior lives under 'smart'.
+        if (!localStorage.getItem('ttb_theme_mode_v2_migrated')) {
+          var legacy = localStorage.getItem('ttb_theme_mode');
+          if (legacy === 'auto') localStorage.setItem('ttb_theme_mode', 'smart');
+          localStorage.setItem('ttb_theme_mode_v2_migrated', '1');
+        }
         var mode = localStorage.getItem('ttb_theme_mode') || 'auto';
-        var resolved = mode === 'auto'
-          ? (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-          : mode;
+        var systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        var resolved;
+        if (mode === 'auto') {
+          resolved = systemDark ? 'dark' : 'light';
+        } else if (mode === 'smart') {
+          // Ambient-light reading isn't available synchronously this early, so fall back
+          // to local time first, then OS preference — matches resolveThemeMode() below.
+          var h = new Date().getHours();
+          var isNight = h >= 20 || h < 7;
+          resolved = isNight ? 'dark' : (systemDark ? 'dark' : 'light');
+        } else {
+          resolved = mode;
+        }
         document.documentElement.dataset.theme = resolved;
       } catch (e) {}
     })();
@@ -177,20 +194,35 @@ header{
 }
 
 .header-top{
-  display:flex;
-  justify-content:space-between;
-  align-items:flex-start;
+  display:grid;
+  grid-template-columns:1fr auto 1fr;
+  align-items:center;
   gap:var(--space-8);
 }
 
 header h1{ font-size:19px; }
 header p{ font-size:var(--fs-11); opacity:.7; margin-top:2px; }
 
+.left-controls{
+  display:flex;
+  gap:var(--space-8);
+  align-items:center;
+  justify-self:start;
+}
+
+.center-controls{
+  display:flex;
+  gap:var(--space-8);
+  align-items:center;
+  justify-self:center;
+}
+
 .right-controls{
   display:flex;
   gap:var(--space-8);
   align-items:center;
   flex-shrink:0;
+  justify-self:end;
 }
 
 .lang-dropdown{
@@ -598,8 +630,13 @@ body.driving-active .bottomright-stack{ display:none !important; }
   box-shadow:0 4px 14px rgba(0,0,0,.3);
   border:none;
   transition:transform .12s ease, box-shadow .12s ease;
+  position:fixed;
+  left:50%;
+  transform:translateX(-50%);
+  bottom:calc(var(--legend-bottom-gap, 0px) + var(--legend-row-h, 72px) + 16px + env(safe-area-inset-bottom, 0px));
+  z-index:420;
 }
-.report-fab-btn:active{ transform:scale(.9); box-shadow:0 2px 8px rgba(0,0,0,.3); }
+.report-fab-btn:active{ transform:translateX(-50%) scale(.9); box-shadow:0 2px 8px rgba(0,0,0,.3); }
 .report-fab-btn img{ width:26px; height:26px; filter:brightness(0) invert(1); }
 body.driving-active .report-fab-btn{ display:none !important; }
 
@@ -1297,6 +1334,7 @@ body.driving-active .driving-report-sheet{ display:flex; }
 .driving-nav-close-btn{
   flex-shrink:0;
   width:34px; height:34px;
+  margin-left:auto;
   background:var(--bg-surface-alt);
   border:1px solid var(--border-color-strong);
   color:var(--text-secondary);
@@ -2420,13 +2458,16 @@ span.flatpickr-weekday {
 
 <header>
   <div class="header-top">
-    <div class="right-controls" style="margin-left:auto;">
-      <button class="help-icon-btn" id="fullscreenBtn" title="Fullscreen / Preko celog ekrana" onclick="toggleFullscreen()"><img class="icon-img" id="fullscreenBtnIcon" src="icons/fullscreen-enter.png" alt="Fullscreen"></button>
+    <div class="left-controls"></div>
+    <div class="center-controls">
+      <button class="help-icon-btn" id="adminPanelBtn" title="Admin panel" style="display:none" onclick="showAdminPanelModal()"><img class="icon-img" id="adminPanelBtnIcon" src="icons/badges/badge-admin-admin-3.png" alt="Admin panel"></button>
+    </div>
+    <div class="right-controls">
+      <button class="help-icon-btn notification-btn" id="notificationBtn" title="Notifications" onclick="showNotificationModal()"><img class="icon-img" src="icons/notification.png" alt="Notifications"><span class="notification-badge" id="notificationBadge" style="display:none">0</span></button>
+      <button class="help-icon-btn" id="leaderboardBtn" title="Rankings" onclick="showLeaderboardModal()"><img class="icon-img" src="icons/user.png" alt="Rankings"></button>
       <button class="help-icon-btn" id="municipalityContactsBtn" title="Contacts" style="display:none" onclick="showMunicipalityContactsModal()"><img class="icon-img" src="icons/phone.png" alt="Contacts"></button>
       <button class="help-icon-btn" id="settingsBtn" title="Settings" onclick="showSettingsModal()"><img class="icon-img" src="icons/settings.png" alt="Settings"></button>
-      <button class="help-icon-btn" id="adminPanelBtn" title="Admin panel" style="display:none" onclick="showAdminPanelModal()"><img class="icon-img" id="adminPanelBtnIcon" src="icons/badges/badge-admin-admin-3.png" alt="Admin panel"></button>
-      <button class="help-icon-btn" id="leaderboardBtn" title="Rankings" onclick="showLeaderboardModal()"><img class="icon-img" src="icons/user.png" alt="Rankings"></button>
-      <button class="help-icon-btn notification-btn" id="notificationBtn" title="Notifications" onclick="showNotificationModal()"><img class="icon-img" src="icons/notification.png" alt="Notifications"><span class="notification-badge" id="notificationBadge" style="display:none">0</span></button>
+      <button class="help-icon-btn" id="fullscreenBtn" title="Fullscreen / Preko celog ekrana" onclick="toggleFullscreen()"><img class="icon-img" id="fullscreenBtnIcon" src="icons/fullscreen-enter.png" alt="Fullscreen"></button>
     </div>
   </div>
 </header>
@@ -2574,10 +2615,10 @@ span.flatpickr-weekday {
       </div>
     </div>
   </div>
-  <button type="button" class="report-fab-btn" id="reportFabBtn" style="display:none" title="Report a break" aria-label="Report a break" onclick="reportFabTap()">
-    <img src="icons/reports/report_new.png" alt="">
-  </button>
 </div>
+<button type="button" class="report-fab-btn" id="reportFabBtn" style="display:none" title="Report a break" aria-label="Report a break" onclick="reportFabTap()">
+  <img src="icons/reports/report_new.png" alt="">
+</button>
 <div id="drivingTopFade"></div>
 
 <div id="navigatePanel" class="navigate-panel">
@@ -2630,7 +2671,7 @@ span.flatpickr-weekday {
 <div id="drivingReportSheet" class="driving-report-sheet">
   <div id="drivingNavCard" class="driving-nav-card">
     <div class="driving-nav-card-top">
-      <span id="navigateDestText" class="driving-nav-dest"></span>
+      <span id="navigateDestText" class="driving-nav-dest" style="display:none"></span>
       <button id="navigateClearBtn" class="driving-nav-close-btn" onclick="clearNavigation()" title="Close">✕</button>
     </div>
     <span id="navigateStatusText" class="driving-nav-status-text" style="display:none"></span>
@@ -2726,7 +2767,9 @@ span.flatpickr-weekday {
         <button type="button" class="theme-segment-btn" onclick="setThemeMode('light')" id="themeBtnLight">Light</button>
         <button type="button" class="theme-segment-btn" onclick="setThemeMode('dark')" id="themeBtnDark">Dark</button>
         <button type="button" class="theme-segment-btn" onclick="setThemeMode('auto')" id="themeBtnAuto">Auto</button>
+        <button type="button" class="theme-segment-btn" onclick="setThemeMode('smart')" id="themeBtnSmart">Smart</button>
       </div>
+      <p class="detail-export-hint" id="themeSmartHint">Auto follows your device's light/dark setting. Smart adapts to ambient light where available, otherwise local time.</p>
     </div>
 
     <div class="detail-section" id="languageSettingsSection">
@@ -4737,6 +4780,8 @@ const T = {
   themeLight:        { en:'Light',                       sr:'Svetla' },
   themeDark:         { en:'Dark',                        sr:'Tamna' },
   themeAuto:         { en:'Auto',                        sr:'Automatski' },
+  themeSmart:        { en:'Smart',                        sr:'Pametna' },
+  themeSmartHint:    { en:'Auto follows your device\'s light/dark setting. Smart adapts to ambient light where available, otherwise local time.', sr:'Automatski prati podešavanje svetle/tamne teme uređaja. Pametna se prilagođava osvetljenju okoline gde je dostupno, inače lokalnom vremenu.' },
   languageSectionTitle: { en:'Language',                 sr:'Jezik' },
   langBtnAutoLabel:     { en:'Auto',                      sr:'Automatski' },
   langAutoHint:         { en:'We\'ll set the language based on your location.', sr:'Jezik ćemo postaviti na osnovu vaše lokacije.' },
@@ -5127,6 +5172,45 @@ function applyResolvedLang(l){
 }
 
 const LANG_AUTO_COUNTRY_MAP_SR = ['rs', 'me', 'ba'];
+// Timezone names covering the region where we default to Serbian. Works fully offline —
+// no network or GPS needed — since Intl already knows the OS/browser timezone.
+const LANG_AUTO_TIMEZONE_MAP_SR = ['Europe/Belgrade', 'Europe/Podgorica', 'Europe/Sarajevo'];
+
+function countryCodeToLang(countryCode) {
+  if (!countryCode) return null;
+  return LANG_AUTO_COUNTRY_MAP_SR.includes(String(countryCode).toLowerCase()) ? 'sr' : 'en';
+}
+
+// GPS is off/denied — try to still guess a sensible language without it.
+// We can't read SIM/carrier info from a browser (no web API exposes that), so instead:
+// 1) IP-based geolocation (uses the network/ISP's registered location), then
+// 2) the device's timezone (works fully offline), then
+// 3) the browser/OS language setting.
+async function detectLanguageWithoutCoords() {
+  try {
+    const res = await fetch('https://ipapi.co/json/');
+    if (res && res.ok) {
+      const json = await res.json();
+      const fromIp = countryCodeToLang(json && json.country_code);
+      if (fromIp) return fromIp;
+    }
+  } catch (err) {
+    console.warn('IP-based language detection failed:', err.message);
+  }
+
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (tz && LANG_AUTO_TIMEZONE_MAP_SR.includes(tz)) return 'sr';
+  } catch (err) { /* Intl unsupported — ignore */ }
+
+  const browserLangs = navigator.languages && navigator.languages.length
+    ? navigator.languages : [navigator.language].filter(Boolean);
+  if (browserLangs.some(l => String(l).toLowerCase().startsWith('sr'))) return 'sr';
+  if (browserLangs.length) return 'en';
+
+  return null;
+}
+
 let langAutoDetectInFlight = false;
 async function detectLanguageByLocation(){
   if (langAutoDetectInFlight) return;
@@ -5142,19 +5226,22 @@ async function detectLanguageByLocation(){
         );
       });
     }
-    if (!coords) { applyResolvedLang(lang); return; }
+    if (!coords) {
+      const fallback = await detectLanguageWithoutCoords();
+      applyResolvedLang(fallback || lang);
+      return;
+    }
     const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${coords.lat}&lon=${coords.lon}&zoom=5&addressdetails=1`;
     const res = await nominatimFetch(url, { headers: { 'Accept': 'application/json' } });
     const json = res && res.ok ? await res.json() : null;
     const countryCode = json && json.address && json.address.country_code
       ? String(json.address.country_code).toLowerCase() : null;
-    const detected = countryCode
-      ? (LANG_AUTO_COUNTRY_MAP_SR.includes(countryCode) ? 'sr' : 'en')
-      : lang;
+    const detected = countryCode ? countryCodeToLang(countryCode) : (await detectLanguageWithoutCoords()) || lang;
     applyResolvedLang(detected);
   } catch (err) {
     console.error('Language auto-detect failed:', err.message);
-    applyResolvedLang(lang);
+    const fallback = await detectLanguageWithoutCoords().catch(() => null);
+    applyResolvedLang(fallback || lang);
   } finally {
     langAutoDetectInFlight = false;
   }
@@ -5203,6 +5290,8 @@ function applyLang(){
   document.getElementById('themeBtnLight').textContent = t('themeLight');
   document.getElementById('themeBtnDark').textContent = t('themeDark');
   document.getElementById('themeBtnAuto').textContent = t('themeAuto');
+  document.getElementById('themeBtnSmart').textContent = t('themeSmart');
+  document.getElementById('themeSmartHint').textContent = t('themeSmartHint');
   document.getElementById('languageSectionTitle').textContent = t('languageSectionTitle');
   const langBtnAutoLabelEl = document.getElementById('langBtnAutoLabel');
   if (langBtnAutoLabelEl) langBtnAutoLabelEl.textContent = t('langBtnAutoLabel');
@@ -5842,11 +5931,11 @@ window.addEventListener('resize', updateRotationOrigin);
 function applyMapBearing(targetHeadingDeg) {
   const delta = shortestAngleDelta(mapBearing % 360, targetHeadingDeg);
   mapBearing += delta;
-  const cssRotation = `rotate(${-mapBearing}deg)`;
+  const cssRotation = `rotate(${mapBearing}deg)`;
   if (rotWrapper) rotWrapper.style.transform = cssRotation;
   document.querySelectorAll('.compass-needle').forEach(needle => { needle.style.transform = cssRotation; });
   if (typeof setNativeDraggingEnabled === 'function') setNativeDraggingEnabled(!rotationActive());
-  document.documentElement.style.setProperty('--pin-counter-rotate', `${mapBearing}deg`);
+  document.documentElement.style.setProperty('--pin-counter-rotate', `${-mapBearing}deg`);
   updateAllPopupRotations();
   updateUserMarkerRotation();
   updateZoomAnimationForRotation();
@@ -5886,7 +5975,7 @@ function ensurePopupRotationWrap(popupEl) {
 
 function rotatePopupElement(popupEl) {
   const wrap = ensurePopupRotationWrap(popupEl);
-  if (wrap) wrap.style.transform = `rotate(${mapBearing}deg)`;
+  if (wrap) wrap.style.transform = `rotate(${-mapBearing}deg)`;
 }
 
 function updateAllPopupRotations() {
@@ -5982,7 +6071,7 @@ function updateUserMarkerRotation() {
   if (!el) return;
   const arrow = el.querySelector('.user-nav-arrow');
   if (!arrow) return;
-  const angle = isHeadingUpActive() ? mapBearing : (currentHeading || 0);
+  const angle = isHeadingUpActive() ? -mapBearing : (currentHeading || 0);
   arrow.style.transform = `rotate(${angle}deg)`;
 }
 
@@ -6266,7 +6355,6 @@ function updateNavStatusText() {
   const labels = {
     [NavState.CALCULATING]:   t('navCalculating'),
     [NavState.PREVIEW]:       t('navPreview'),
-    [NavState.NAVIGATING]:    t('navNavigating'),
     [NavState.OFF_ROUTE]:     t('navOffRoute'),
     [NavState.RECALCULATING]: t('navRecalculating'),
     [NavState.ARRIVED]:       t('navigateArrived')
@@ -6583,13 +6671,14 @@ function updateNavInfoText(meters, seconds, approximate) {
   const etaEl = document.getElementById('navigateEtaText');
   if (!distEl) return;
   distEl.textContent = (approximate ? '~' : '') + formatDistance(meters);
-  if (timeEl) timeEl.textContent = seconds != null ? formatDuration(seconds) : '--';
-  if (etaEl) {
-    if (seconds != null) {
+  // Remaining time and arrival only come from a fresh route calculation (seconds != null).
+  // Between route refreshes we keep showing the last known values instead of blanking
+  // them out to '--', since the old numbers are still the best estimate we have.
+  if (seconds != null) {
+    if (timeEl) timeEl.textContent = formatDuration(seconds);
+    if (etaEl) {
       const arrival = new Date(Date.now() + seconds * 1000);
       etaEl.textContent = arrival.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-    } else {
-      etaEl.textContent = '--';
     }
   }
 }
@@ -6975,7 +7064,7 @@ function customDragPointerMove(e) {
   const dx = e.clientX - customDragLast.x;
   const dy = e.clientY - customDragLast.y;
   customDragLast = { x: e.clientX, y: e.clientY };
-  const rad = (mapBearing * Math.PI) / 180;
+  const rad = (-mapBearing * Math.PI) / 180;
   const cos = Math.cos(rad), sin = Math.sin(rad);
   const mapDx = dx * cos - dy * sin;
   const mapDy = dx * sin + dy * cos;
@@ -7541,6 +7630,8 @@ function startWatching() {
         }).addTo(map);
         map.setView(getFollowCenter(userCoords.lat, userCoords.lon, 13), 13);
         showMunicipalityBoundaryForPoint(userCoords.lat, userCoords.lon, userMarker);
+        // First GPS fix of the session: start out following the user automatically.
+        setFollowMode(true);
       } else if (drivingMode) {
         snapUserToRoadThenShow(userCoords.lat, userCoords.lon);
       } else {
@@ -12201,12 +12292,20 @@ function isNightByLocalClock() {
 }
 
 function resolveThemeMode(mode) {
-  if (mode !== 'auto') return mode;
-  if (ambientSensorActive && ambientLux != null) {
-    return ambientLux < AMBIENT_DARK_LUX_THRESHOLD ? 'dark' : 'light';
+  if (mode === 'auto') {
+    // Plain system-preference auto — mirrors the OS light/dark setting only.
+    return (systemDarkModeMQ && systemDarkModeMQ.matches) ? 'dark' : 'light';
   }
-  if (isNightByLocalClock()) return 'dark';
-  return (systemDarkModeMQ && systemDarkModeMQ.matches) ? 'dark' : 'light';
+  if (mode === 'smart') {
+    // Ambient-light reading where the browser supports it, falls back to local time
+    // (dark 20:00–07:00), then OS preference as last resort.
+    if (ambientSensorActive && ambientLux != null) {
+      return ambientLux < AMBIENT_DARK_LUX_THRESHOLD ? 'dark' : 'light';
+    }
+    if (isNightByLocalClock()) return 'dark';
+    return (systemDarkModeMQ && systemDarkModeMQ.matches) ? 'dark' : 'light';
+  }
+  return mode;
 }
 
 function initAmbientLightSensor() {
@@ -12216,7 +12315,7 @@ function initAmbientLightSensor() {
     sensor.addEventListener('reading', () => {
       ambientLux = sensor.illuminance;
       ambientSensorActive = true;
-      if (themeMode === 'auto') applyTheme('auto');
+      if (themeMode === 'smart') applyTheme('smart');
     });
     sensor.addEventListener('error', () => { ambientSensorActive = false; });
     sensor.start();
@@ -12224,7 +12323,7 @@ function initAmbientLightSensor() {
 }
 
 function updateThemeSegmentUI() {
-  ['Light', 'Dark', 'Auto'].forEach(label => {
+  ['Light', 'Dark', 'Auto', 'Smart'].forEach(label => {
     const btn = document.getElementById('themeBtn' + label);
     if (btn) btn.classList.toggle('active', themeMode === label.toLowerCase());
   });
@@ -12250,8 +12349,8 @@ function initTheme() {
     else if (systemDarkModeMQ.addListener) systemDarkModeMQ.addListener(onSystemThemeChange);
   }
   initAmbientLightSensor();
-  // Catch hour-boundary crossings (e.g. clock ticking past 20:00) while auto mode is active.
-  setInterval(() => { if (themeMode === 'auto') applyTheme('auto'); }, 15 * 60 * 1000);
+  // Catch hour-boundary crossings (e.g. clock ticking past 20:00) while smart mode is active.
+  setInterval(() => { if (themeMode === 'smart') applyTheme('smart'); }, 15 * 60 * 1000);
 }
 
 
