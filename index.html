@@ -2541,16 +2541,17 @@ span.flatpickr-weekday {
 
 <header>
   <div class="header-top">
-    <div class="left-controls"></div>
+    <div class="left-controls">
+      <button class="help-icon-btn" id="fullscreenBtn" title="Fullscreen / Preko celog ekrana" onclick="toggleFullscreen()"><img class="icon-img" id="fullscreenBtnIcon" src="icons/fullscreen-enter.png" alt="Fullscreen"></button>
+      <button class="help-icon-btn" id="settingsBtn" title="Settings" onclick="showSettingsModal()"><img class="icon-img" src="icons/settings.png" alt="Settings"></button>
+      <button class="help-icon-btn" id="municipalityContactsBtn" title="Contacts" style="display:none" onclick="showMunicipalityContactsModal()"><img class="icon-img" src="icons/phone.png" alt="Contacts"></button>
+    </div>
     <div class="center-controls">
       <button class="help-icon-btn" id="adminPanelBtn" title="Admin panel" style="display:none" onclick="showAdminPanelModal()"><img class="icon-img" id="adminPanelBtnIcon" src="icons/badges/badge-admin-admin-3.png" alt="Admin panel"></button>
     </div>
     <div class="right-controls">
       <button class="help-icon-btn notification-btn" id="notificationBtn" title="Notifications" onclick="showNotificationModal()"><img class="icon-img" src="icons/notification.png" alt="Notifications"><span class="notification-badge" id="notificationBadge" style="display:none">0</span></button>
       <button class="help-icon-btn" id="leaderboardBtn" title="Rankings" onclick="showLeaderboardModal()"><img class="icon-img" src="icons/user.png" alt="Rankings"></button>
-      <button class="help-icon-btn" id="municipalityContactsBtn" title="Contacts" style="display:none" onclick="showMunicipalityContactsModal()"><img class="icon-img" src="icons/phone.png" alt="Contacts"></button>
-      <button class="help-icon-btn" id="settingsBtn" title="Settings" onclick="showSettingsModal()"><img class="icon-img" src="icons/settings.png" alt="Settings"></button>
-      <button class="help-icon-btn" id="fullscreenBtn" title="Fullscreen / Preko celog ekrana" onclick="toggleFullscreen()"><img class="icon-img" id="fullscreenBtnIcon" src="icons/fullscreen-enter.png" alt="Fullscreen"></button>
     </div>
   </div>
 </header>
@@ -2567,10 +2568,6 @@ span.flatpickr-weekday {
 
 <div class="legend-row">
 <div id="mapLegend" class="map-legend-pill">
-  <span class="legend-item" id="legendItemReported" data-status="reported" onclick="onStatusFilterToggle('reported')"><span class="legend-badge" style="background:#ff4b4b"></span>
-  <span class="leg" data-en="Reported" data-sr="Prijavljeno">Prijavljeno</span><span class="legend-count" id="legendCountReported">0</span></span>
-  <span class="legend-item" id="legendItemInProgress" data-status="in_progress" onclick="onStatusFilterToggle('in_progress')"><span class="legend-badge" style="background:#f5a623"></span><span class="leg" data-en="In progress" data-sr="U toku">U toku</span><span class="legend-count" id="legendCountInProgress">0</span></span>
-  <span class="legend-item" id="legendItemFixed" data-status="fixed" onclick="onStatusFilterToggle('fixed')"><span class="legend-badge" style="background:var(--success)"></span><span class="leg" data-en="Fixed" data-sr="Popravljeno">Popravljeno</span><span class="legend-count" id="legendCountFixed">0</span></span>
 </div>
 </div>
 
@@ -2848,6 +2845,13 @@ span.flatpickr-weekday {
   </div>
   <div class="fullscreen-modal-body">
 
+    <div class="detail-section" id="helpSettingsSection">
+      <div class="detail-section-title" id="helpSectionTitle">Help</div>
+      <button type="button" class="settings-btn" onclick="showHelpModal()" id="settingsHelpBtn">
+        <img class="icon-img icon-img-inline icon-tint-dark" src="icons/help.png" alt=""> How to use TraceTheBreak
+      </button>
+    </div>
+
     <div class="detail-section" id="themeSettingsSection">
       <div class="detail-section-title" id="themeSectionTitle">Theme</div>
       <div class="theme-segment" id="themeSegment">
@@ -2873,13 +2877,6 @@ span.flatpickr-weekday {
         <button type="button" class="theme-segment-btn lang-btn" onclick="setLang('auto')" id="langBtnAuto"><img class="icon-img icon-img-inline" src="icons/pin.png" alt=""> <span id="langBtnAutoLabel">Auto</span></button>
       </div>
       <p class="detail-export-hint" id="langAutoHint">We'll set the language based on your location.</p>
-    </div>
-
-    <div class="detail-section" id="helpSettingsSection">
-      <div class="detail-section-title" id="helpSectionTitle">Help</div>
-      <button type="button" class="settings-btn" onclick="showHelpModal()" id="settingsHelpBtn">
-        <img class="icon-img icon-img-inline icon-tint-dark" src="icons/help.png" alt=""> How to use TraceTheBreak
-      </button>
     </div>
 
     <div class="detail-section" id="mapFilterSettingsSection">
