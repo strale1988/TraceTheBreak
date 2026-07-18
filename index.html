@@ -1454,6 +1454,20 @@ body.driving-active #appPanel{
 .weekly-chart-value{ font-size:var(--fs-11); font-weight:var(--fw-heavy); color:var(--text-primary); margin-bottom:3px; }
 .weekly-chart-bar{ width:60%; max-width:20px; border-radius:5px 5px 2px 2px; background:var(--success); min-height:4px; }
 .weekly-chart-day{ font-size:var(--fs-9-5); color:var(--text-muted); text-transform:uppercase; letter-spacing:.02em; margin-top:6px; }
+.analytics-range-row{ display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+.analytics-range-chip{
+  padding:6px 14px; border-radius:var(--radius-pill); font-size:var(--fs-12-5); font-weight:var(--fw-semibold);
+  background:var(--bg-surface-alt); color:var(--text-secondary); cursor:pointer; border:1px solid transparent;
+  -webkit-tap-highlight-color:transparent; user-select:none;
+}
+.analytics-range-chip.active{ background:var(--accent); color:#fff; }
+.analytics-trend-chart{ height:110px; }
+.analytics-bar-list{ display:flex; flex-direction:column; gap:8px; margin-top:8px; }
+.analytics-bar-row{ display:flex; align-items:center; gap:10px; }
+.analytics-bar-label{ flex:0 0 auto; width:108px; font-size:var(--fs-12-5); color:var(--text-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.analytics-bar-track{ flex:1; height:10px; border-radius:5px; background:var(--bg-surface-alt); overflow:hidden; }
+.analytics-bar-fill{ height:100%; border-radius:5px; min-width:3px; }
+.analytics-bar-count{ flex:0 0 auto; width:34px; text-align:right; font-size:var(--fs-12-5); font-weight:var(--fw-bold); color:var(--text-primary); }
 .dashboard-badges-title{ font-size:var(--fs-12); font-weight:var(--fw-bold); color:var(--text-secondary); text-transform:uppercase; letter-spacing:.03em; margin-top:16px; }
 .dashboard-badges-title-row{ display:flex; align-items:baseline; justify-content:space-between; margin-top:16px; }
 .dashboard-badges-title-row .dashboard-badges-title{ margin-top:0; }
@@ -2921,6 +2935,33 @@ span.flatpickr-weekday {
       </label>
     </div>
 
+    <div class="detail-section" id="offlineMapSettingsSection">
+      <div class="detail-section-title" id="offlineMapSectionTitle">Offline maps</div>
+      <p class="detail-export-hint" id="offlineMapHint">Download map tiles around a spot so they still load without signal.</p>
+      <div class="theme-segment" id="offlineMapRadiusSegment">
+        <button type="button" class="theme-segment-btn" onclick="setOfflineMapRadius(5)" id="offlineMapRadiusBtn5">5 km</button>
+        <button type="button" class="theme-segment-btn" onclick="setOfflineMapRadius(15)" id="offlineMapRadiusBtn15">15 km</button>
+        <button type="button" class="theme-segment-btn" onclick="setOfflineMapRadius(30)" id="offlineMapRadiusBtn30">30 km</button>
+      </div>
+      <button type="button" class="settings-btn" onclick="startOfflineMapDownload()" id="offlineMapDownloadBtn">
+        <img class="icon-img icon-img-inline icon-tint-dark" src="icons/pin.png" alt=""> <span id="offlineMapDownloadBtnLabel">Download map around here</span>
+      </button>
+      <div id="offlineMapProgressWrap" style="display:none;margin-top:10px;">
+        <div class="profile-progress-track"><div class="profile-progress-fill" id="offlineMapProgressFill" style="width:0%;"></div></div>
+        <div class="dashboard-progress-text" id="offlineMapProgressText"></div>
+        <button type="button" class="settings-btn" onclick="cancelOfflineMapDownload()" id="offlineMapCancelBtn" style="margin-top:8px;background:transparent;"></button>
+      </div>
+      <label class="settings-toggle-row" id="offlineAutoCacheToggleRow" style="margin-top:14px;">
+        <span id="offlineAutoCacheToggleLabel">Auto-cache map around areas you view</span>
+        <span class="toggle-switch">
+          <input type="checkbox" id="offlineAutoCacheToggleInput" checked onchange="setOfflineAutoCacheEnabled(this.checked)">
+          <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+        </span>
+      </label>
+      <p class="detail-export-hint" id="offlineAutoCacheHint">Quietly extends your offline map outward, in the background, up to roughly a country's worth of coverage.</p>
+      <div class="dashboard-progress-text" id="offlineMapStorageText"></div>
+    </div>
+
     <div class="detail-section" id="soundSettingsSection">
       <div class="detail-section-title" id="soundSectionTitle">Sound</div>
       <label class="settings-toggle-row" id="soundToggleRow">
@@ -3109,7 +3150,10 @@ span.flatpickr-weekday {
       </div>
 
       <div class="detail-section dashboard-section" id="adminDashboardSection" style="display:none">
-        <div class="detail-section-title" id="adminDashboardSectionTitle">My Admin Role</div>
+        <div class="detail-section-title" id="adminDashboardSectionTitle" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <span>My Admin Role</span>
+          <button type="button" class="settings-btn" id="openAnalyticsBtn" onclick="openAnalyticsModal()" style="margin:0;padding:6px 12px;font-size:var(--fs-12-5);width:auto;flex:none;">📊 <span id="openAnalyticsBtnLabel">Analytics</span></button>
+        </div>
         <div class="dashboard-stats-grid">
           <div class="dashboard-stat-box">
             <span class="dashboard-stat-icon-glyph" style="background-color:#f472b6;-webkit-mask:url('icons/badges/badge-admin-district-keeper.png') center/contain no-repeat;mask:url('icons/badges/badge-admin-district-keeper.png') center/contain no-repeat;"></span>
@@ -3252,6 +3296,30 @@ span.flatpickr-weekday {
       </div>
 
       <input type="text" id="adminSearchInput" oninput="onAdminSearchInput()" placeholder="Search reports…" style="width:100%;box-sizing:border-box;margin-bottom:10px;margin-top:18px;">
+    </div>
+  </div>
+</div>
+
+<div id="analyticsModal" class="fullscreen-modal-overlay" style="display:none">
+  <div class="fullscreen-modal-header">
+    <h2 id="analyticsModalTitle">Analytics</h2>
+    <button class="fullscreen-modal-close" onclick="closeAnalyticsModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
+  </div>
+  <div class="fullscreen-modal-body">
+    <div class="detail-section" style="border-top:none;">
+      <div class="analytics-range-row" id="analyticsRangeRow"></div>
+      <div class="dashboard-stats-grid" id="analyticsSummaryGrid"></div>
+
+      <div class="dashboard-badges-title" id="analyticsTrendTitle">Trend</div>
+      <div class="weekly-chart analytics-trend-chart" id="analyticsTrendChart"></div>
+
+      <div class="dashboard-badges-title" id="analyticsCategoryTitle">By category</div>
+      <div class="analytics-bar-list" id="analyticsCategoryList"></div>
+
+      <div class="dashboard-badges-title" id="analyticsAreaTitle">Top areas</div>
+      <div class="analytics-bar-list" id="analyticsAreaList"></div>
+
+      <div class="detail-empty" id="analyticsEmpty" style="display:none;"></div>
     </div>
   </div>
 </div>
@@ -5082,6 +5150,18 @@ const T = {
   settingsModalTitle: { en:'Settings',                   sr:'Podešavanja' },
   adminPanelBtnTitle:   { en:'Admin panel',               sr:'Admin panel' },
   adminPanelModalTitle: { en:'Admin panel',               sr:'Admin panel' },
+  openAnalyticsBtnLabel:  { en:'Analytics',                        sr:'Analitika' },
+  analyticsModalTitle:    { en:'Analytics',                        sr:'Analitika' },
+  analyticsRangeDaysSuffix: { en:'d',                               sr:'d' },
+  analyticsTrendTitle:    { en:'Trend',                             sr:'Trend' },
+  analyticsCategoryTitle: { en:'By category',                      sr:'Po kategoriji' },
+  analyticsAreaTitle:     { en:'Top areas',                        sr:'Najaktivnije oblasti' },
+  analyticsStatTotal:     { en:'Total reports',                    sr:'Ukupno prijava' },
+  analyticsStatActive:    { en:'Still open',                       sr:'Još uvek otvoreno' },
+  analyticsStatResolveRate: { en:'Resolved',                       sr:'Rešeno' },
+  analyticsEmptyState:    { en:'No reports in this range.',        sr:'Nema prijava u ovom periodu.' },
+  analyticsUnknownArea:   { en:'Unknown area',                     sr:'Nepoznata oblast' },
+  analyticsWeekAbbrev:    { en:'W',                                 sr:'N' },
   themeSectionTitle: { en:'Theme',                       sr:'Tema' },
   themeLight:        { en:'Light',                       sr:'Svetla' },
   themeDark:         { en:'Dark',                        sr:'Tamna' },
@@ -5099,6 +5179,16 @@ const T = {
   pulseToggleLabel:  { en:'Status pulse animation',      sr:'Animacija pulsiranja statusa' },
   navBtnToggleLabel:      { en:'Show driving / navigation button on map', sr:'Prikaži dugme za vožnju / navigaciju na mapi' },
   heatmapBtnToggleLabel:  { en:'Show heatmap button on map',              sr:'Prikaži dugme za toplotnu mapu' },
+  offlineMapSectionTitle: { en:'Offline maps',                     sr:'Mape van mreže' },
+  offlineMapHint:         { en:"Download map tiles around a spot so they still load without signal.", sr:'Preuzmite delove mape oko lokacije da bi radila i bez signala.' },
+  offlineMapDownloadBtnLabel: { en:'Download map around here',     sr:'Preuzmi mapu za ovo područje' },
+  offlineMapCancelBtn:    { en:'Cancel download',                  sr:'Otkaži preuzimanje' },
+  offlineMapCancelled:    { en:'Download cancelled',                sr:'Preuzimanje otkazano' },
+  offlineMapDone:         { en:'Offline map ready for this area',   sr:'Mapa za ovo područje je spremna van mreže' },
+  offlineMapTooLarge:     { en:'That area is too large — try a smaller radius or zoom in first.', sr:'To područje je preveliko — probajte manji radijus ili prvo uvećajte mapu.' },
+  offlineAutoCacheToggleLabel: { en:'Auto-cache map around areas you view', sr:'Automatski keširaj mapu oko oblasti koje pregledate' },
+  offlineAutoCacheHint:   { en:"Quietly extends your offline map outward, in the background, up to roughly a country's worth of coverage.", sr:'U pozadini tiho proširuje vašu mapu van mreže, otprilike do pokrivenosti cele zemlje.' },
+  offlineMapStorageUsed:  { en:'Offline data stored: {mb} MB',      sr:'Sačuvano podataka van mreže: {mb} MB' },
   mainCompassTitle:  { en:'Heading — tap to rotate the map with your direction of travel', sr:'Pravac — dodirnite da rotirate mapu prema pravcu kretanja' },
   catPH:        { en:'Select break type…',               sr:'Izaberite vrstu kvara…' },
   prioPH:       { en:'Select priority…',                 sr:'Izaberite prioritet…' },
@@ -5231,6 +5321,7 @@ const T = {
   navigatePinnedLabel: { en:'Pinned location',                          sr:'Ručno postavljena lokacija' },
   invalidLocation:   { en:'Location looks invalid. Try setting it again.', sr:'Lokacija izgleda neispravno. Pokušajte ponovo.' },
   loadFailed:        { en:'Could not load reports. Check your connection.', sr:'Prijave nisu učitane. Proverite konekciju.' },
+  reportRemovedElsewhere: { en:'This report was removed', sr:'Ova prijava je uklonjena' },
   loadingMap:        { en:'Loading reports…', sr:'Učitavanje prijava…' },
   navCalculating:    { en:'Calculating route…',                      sr:'Računanje rute…' },
   navPreview:        { en:'Route ready',                             sr:'Ruta spremna' },
@@ -5655,6 +5746,17 @@ function applyLang(){
   if (navBtnToggleLabelEl) navBtnToggleLabelEl.textContent = t('navBtnToggleLabel');
   const heatmapBtnToggleLabelEl = document.getElementById('heatmapBtnToggleLabel');
   if (heatmapBtnToggleLabelEl) heatmapBtnToggleLabelEl.textContent = t('heatmapBtnToggleLabel');
+  const offlineMapSectionTitleEl = document.getElementById('offlineMapSectionTitle');
+  if (offlineMapSectionTitleEl) offlineMapSectionTitleEl.textContent = t('offlineMapSectionTitle');
+  const offlineMapHintEl = document.getElementById('offlineMapHint');
+  if (offlineMapHintEl) offlineMapHintEl.textContent = t('offlineMapHint');
+  const offlineMapDownloadBtnLabelEl = document.getElementById('offlineMapDownloadBtnLabel');
+  if (offlineMapDownloadBtnLabelEl) offlineMapDownloadBtnLabelEl.textContent = t('offlineMapDownloadBtnLabel');
+  const offlineAutoCacheToggleLabelEl = document.getElementById('offlineAutoCacheToggleLabel');
+  if (offlineAutoCacheToggleLabelEl) offlineAutoCacheToggleLabelEl.textContent = t('offlineAutoCacheToggleLabel');
+  const offlineAutoCacheHintEl = document.getElementById('offlineAutoCacheHint');
+  if (offlineAutoCacheHintEl) offlineAutoCacheHintEl.textContent = t('offlineAutoCacheHint');
+  updateOfflineMapStorageText();
   const soundSectionTitleEl = document.getElementById('soundSectionTitle');
   if (soundSectionTitleEl) soundSectionTitleEl.textContent = t('soundSectionTitle');
   const soundToggleLabelEl = document.getElementById('soundToggleLabel');
@@ -5726,6 +5828,17 @@ function applyLang(){
 
   buildHelpModalContent();
   refreshRenderedPopups();
+
+  const openAnalyticsBtnLabelEl = document.getElementById('openAnalyticsBtnLabel');
+  if (openAnalyticsBtnLabelEl) openAnalyticsBtnLabelEl.textContent = t('openAnalyticsBtnLabel');
+  if (document.getElementById('analyticsModal').style.display !== 'none') {
+    document.getElementById('analyticsModalTitle').textContent = t('analyticsModalTitle');
+    document.getElementById('analyticsTrendTitle').textContent = t('analyticsTrendTitle');
+    document.getElementById('analyticsCategoryTitle').textContent = t('analyticsCategoryTitle');
+    document.getElementById('analyticsAreaTitle').textContent = t('analyticsAreaTitle');
+    renderAnalyticsRangeChips();
+    loadAndRenderAnalytics();
+  }
 
   if (currentProfile && currentProfile.is_admin && document.getElementById('adminPanelModal').style.display !== 'none') {
     document.getElementById('adminPanelModalTitle').textContent = t('adminPanelModalTitle');
@@ -5868,6 +5981,7 @@ function showSettingsModal() {
   initSoundSettingsUi();
   initMapButtonToggleUi();
   updateNearbyCheckinSegmentUI();
+  initOfflineMapSettingsUi();
   openOverlay('settingsModal', hideSettingsModal);
 }
 function hideSettingsModal() {
@@ -5890,6 +6004,193 @@ function showAdminPanelModal() {
 function hideAdminPanelModal() {
   document.getElementById('adminPanelModal').style.display = 'none';
   closeOverlay('adminPanelModal');
+}
+
+// ---- Analytics dashboard ---------------------------------------------------------
+// Category/area/time trends for admins, scoped to whatever the admin can already see
+// via isReportInAdminDomain (municipality / country / global depending on admin_level).
+const ANALYTICS_RANGE_OPTIONS = [7, 30, 90];
+let analyticsRangeDays = 30;
+let analyticsLoadToken = 0;
+
+function openAnalyticsModal() {
+  if (!currentProfile || !currentProfile.is_admin) return;
+  document.getElementById('analyticsModalTitle').textContent = t('analyticsModalTitle');
+  document.getElementById('analyticsTrendTitle').textContent = t('analyticsTrendTitle');
+  document.getElementById('analyticsCategoryTitle').textContent = t('analyticsCategoryTitle');
+  document.getElementById('analyticsAreaTitle').textContent = t('analyticsAreaTitle');
+  const modal = document.getElementById('analyticsModal');
+  bringModalToFront(modal);
+  modal.style.display = 'flex';
+  renderAnalyticsRangeChips();
+  loadAndRenderAnalytics();
+  openOverlay('analyticsModal', closeAnalyticsModal);
+}
+function closeAnalyticsModal() {
+  document.getElementById('analyticsModal').style.display = 'none';
+  closeOverlay('analyticsModal');
+}
+
+function renderAnalyticsRangeChips() {
+  const row = document.getElementById('analyticsRangeRow');
+  if (!row) return;
+  row.innerHTML = ANALYTICS_RANGE_OPTIONS.map(d => `
+    <span class="analytics-range-chip${d === analyticsRangeDays ? ' active' : ''}" onclick="setAnalyticsRange(${d})">${d}${t('analyticsRangeDaysSuffix') || 'd'}</span>
+  `).join('');
+}
+
+function setAnalyticsRange(days) {
+  if (analyticsRangeDays === days) return;
+  analyticsRangeDays = days;
+  renderAnalyticsRangeChips();
+  loadAndRenderAnalytics();
+}
+
+async function loadAndRenderAnalytics() {
+  const myToken = ++analyticsLoadToken;
+  const summaryGrid = document.getElementById('analyticsSummaryGrid');
+  const emptyEl = document.getElementById('analyticsEmpty');
+  if (summaryGrid) summaryGrid.innerHTML = `<div class="dashboard-stat-box"><div class="dashboard-stat-body"><div class="dashboard-stat-value">…</div></div></div>`;
+  if (emptyEl) emptyEl.style.display = 'none';
+
+  const since = new Date(Date.now() - analyticsRangeDays * 24 * 60 * 60 * 1000);
+  let rows = [];
+  try {
+    const { data, error } = await sb.from(TABLE)
+      .select('id, category, status, priority, created_at, municipality_id, latitude, longitude')
+      .gte('created_at', since.toISOString())
+      .order('created_at', { ascending: true })
+      .limit(20000);
+    if (error) throw error;
+    rows = data || [];
+  } catch (err) {
+    console.error('Failed to load analytics data:', err.message || err);
+    if (myToken === analyticsLoadToken && summaryGrid) {
+      summaryGrid.innerHTML = '';
+      if (emptyEl) { emptyEl.style.display = 'block'; emptyEl.textContent = t('loadFailed'); }
+    }
+    return;
+  }
+  if (myToken !== analyticsLoadToken) return; // a newer range was selected meanwhile
+
+  const scoped = rows.filter(isReportInAdminDomain);
+  renderAnalytics(scoped);
+}
+
+function renderAnalytics(rows) {
+  const summaryGrid = document.getElementById('analyticsSummaryGrid');
+  const emptyEl = document.getElementById('analyticsEmpty');
+
+  if (!rows.length) {
+    if (summaryGrid) summaryGrid.innerHTML = '';
+    document.getElementById('analyticsTrendChart').innerHTML = '';
+    document.getElementById('analyticsCategoryList').innerHTML = '';
+    document.getElementById('analyticsAreaList').innerHTML = '';
+    if (emptyEl) { emptyEl.style.display = 'block'; emptyEl.textContent = t('analyticsEmptyState') || 'No reports in this range.'; }
+    return;
+  }
+  if (emptyEl) emptyEl.style.display = 'none';
+
+  const total = rows.length;
+  const fixedCount = rows.filter(r => r.status === 'fixed').length;
+  const activeCount = total - fixedCount;
+  const resolveRate = total ? Math.round((fixedCount / total) * 100) : 0;
+
+  if (summaryGrid) {
+    summaryGrid.innerHTML = `
+      <div class="dashboard-stat-box">
+        <div class="dashboard-stat-body">
+          <div class="dashboard-stat-value">${total}</div>
+          <div class="dashboard-stat-label">${t('analyticsStatTotal') || 'Total reports'}</div>
+        </div>
+      </div>
+      <div class="dashboard-stat-box">
+        <div class="dashboard-stat-body">
+          <div class="dashboard-stat-value">${activeCount}</div>
+          <div class="dashboard-stat-label">${t('analyticsStatActive') || 'Still open'}</div>
+        </div>
+      </div>
+      <div class="dashboard-stat-box">
+        <div class="dashboard-stat-body">
+          <div class="dashboard-stat-value">${resolveRate}%</div>
+          <div class="dashboard-stat-label">${t('analyticsStatResolveRate') || 'Resolved'}</div>
+        </div>
+      </div>`;
+  }
+
+  renderAnalyticsTrend(rows);
+  renderAnalyticsBarList('analyticsCategoryList', analyticsGroupByCategory(rows), r => translateCategory(r.key), r => categoryColor(r.key));
+  renderAnalyticsBarList('analyticsAreaList', analyticsGroupByArea(rows), r => r.key, () => 'var(--accent)');
+}
+
+function analyticsTrendBucketCount(days) {
+  // Daily buckets for short ranges stay readable; longer ranges collapse to weekly
+  // buckets so the chart doesn't turn into an unreadable wall of thin bars.
+  return days <= 30 ? days : Math.ceil(days / 7);
+}
+
+function renderAnalyticsTrend(rows) {
+  const el = document.getElementById('analyticsTrendChart');
+  if (!el) return;
+  const days = analyticsRangeDays;
+  const useWeekly = days > 30;
+  const bucketMs = (useWeekly ? 7 : 1) * 24 * 60 * 60 * 1000;
+  const bucketCount = analyticsTrendBucketCount(days);
+  const now = Date.now();
+  const counts = new Array(bucketCount).fill(0);
+  rows.forEach(r => {
+    if (!r.created_at) return;
+    const age = now - new Date(r.created_at).getTime();
+    const idx = bucketCount - 1 - Math.floor(age / bucketMs);
+    if (idx >= 0 && idx < bucketCount) counts[idx]++;
+  });
+  const max = Math.max(1, ...counts);
+  el.innerHTML = counts.map((c, i) => {
+    const pct = Math.max(4, Math.round((c / max) * 100));
+    const label = useWeekly ? `${t('analyticsWeekAbbrev') || 'W'}${bucketCount - i}` : '';
+    return `
+    <div class="weekly-chart-col">
+      <div class="weekly-chart-bar-wrap">
+        <div class="weekly-chart-value">${c}</div>
+        <div class="weekly-chart-bar" style="height:${pct}%"></div>
+      </div>
+      <div class="weekly-chart-day">${label}</div>
+    </div>`;
+  }).join('');
+}
+
+function analyticsGroupByCategory(rows) {
+  const counts = {};
+  rows.forEach(r => { counts[r.category || 'Other'] = (counts[r.category || 'Other'] || 0) + 1; });
+  return Object.keys(counts).map(key => ({ key, count: counts[key] })).sort((a, b) => b.count - a.count);
+}
+
+function analyticsGroupByArea(rows) {
+  const counts = {};
+  rows.forEach(r => {
+    const muni = r.municipality_id != null ? getMunicipalityById(r.municipality_id) : null;
+    const name = muni ? (lang === 'sr' ? muni.name : (muni.name_en || muni.name)) : (t('analyticsUnknownArea') || 'Unknown area');
+    counts[name] = (counts[name] || 0) + 1;
+  });
+  return Object.keys(counts).map(key => ({ key, count: counts[key] }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+}
+
+function renderAnalyticsBarList(elId, items, labelFn, colorFn) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  if (!items.length) { el.innerHTML = ''; return; }
+  const max = Math.max(1, ...items.map(i => i.count));
+  el.innerHTML = items.map(item => {
+    const pct = Math.max(3, Math.round((item.count / max) * 100));
+    return `
+    <div class="analytics-bar-row">
+      <span class="analytics-bar-label">${escapeHtml(labelFn(item))}</span>
+      <span class="analytics-bar-track"><span class="analytics-bar-fill" style="width:${pct}%;background:${colorFn(item)};"></span></span>
+      <span class="analytics-bar-count">${item.count}</span>
+    </div>`;
+  }).join('');
 }
 function buildHelpModalContent() {
   document.getElementById('helpModalTitle').textContent = t('helpTitle');
@@ -6027,6 +6328,230 @@ new CachedTileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
   maxNativeZoom: 19,
   keepBuffer: 6
 }).addTo(map);
+
+// ---- Offline tile pre-caching ----------------------------------------------------
+// Everyday panning already caches whatever tiles pass through the view (see
+// CachedTileLayer above), but that only covers ground you've actually looked at.
+// This adds two ways to get ahead of that: a manual "download this area" action, and
+// a quiet automatic background job that keeps nudging the cached area outward from
+// wherever you already browse, capped at a country-ish radius so it can't run away.
+const OSM_TILE_SUBDOMAINS = ['a', 'b', 'c'];
+const OFFLINE_PRECACHE_CONCURRENCY = 2; // deliberately gentle — this hits the public OSM tile servers
+const AUTO_CACHE_MAX_RADIUS_KM = 120;   // practical stand-in for "the whole country" without real border lookups
+const AUTO_CACHE_TILE_BUDGET = 6000;    // lifetime cap on tiles the background job will fetch
+const AUTO_CACHE_STORAGE_KEY = 'ttb_auto_cache_state_v1';
+const AUTO_CACHE_ENABLED_KEY = 'ttb_auto_cache_enabled_v1';
+
+function lonToTileX(lon, z) { return Math.floor((lon + 180) / 360 * Math.pow(2, z)); }
+function latToTileY(lat, z) {
+  const rad = Math.max(-85.05, Math.min(85.05, lat)) * Math.PI / 180;
+  return Math.floor((1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2 * Math.pow(2, z));
+}
+function bboxAroundKm(lat, lon, radiusKm) {
+  const latDelta = radiusKm / 111;
+  const lonDelta = radiusKm / (111 * Math.cos(lat * Math.PI / 180 || 0.01));
+  return { minLat: lat - latDelta, maxLat: lat + latDelta, minLon: lon - lonDelta, maxLon: lon + lonDelta };
+}
+function tilesForBBoxZoom(bbox, z) {
+  const xMin = lonToTileX(bbox.minLon, z), xMax = lonToTileX(bbox.maxLon, z);
+  const yMin = latToTileY(bbox.maxLat, z), yMax = latToTileY(bbox.minLat, z);
+  const tiles = [];
+  for (let x = xMin; x <= xMax; x++) {
+    for (let y = yMin; y <= yMax; y++) tiles.push({ x, y, z });
+  }
+  return tiles;
+}
+function tilesForBBoxZoomRange(bbox, minZ, maxZ) {
+  const tiles = [];
+  for (let z = minZ; z <= maxZ; z++) tiles.push(...tilesForBBoxZoom(bbox, z));
+  return tiles;
+}
+function tileUrl(tile, i) {
+  const s = OSM_TILE_SUBDOMAINS[i % OSM_TILE_SUBDOMAINS.length];
+  return `https://${s}.tile.openstreetmap.org/${tile.z}/${tile.x}/${tile.y}.png`;
+}
+
+async function precacheTiles(tiles, { onProgress, shouldAbort } = {}) {
+  if (!('caches' in window)) return { done: 0, fetched: 0, failed: 0, aborted: false };
+  const cache = await caches.open(TILE_CACHE_NAME);
+  let done = 0, fetched = 0, failed = 0, aborted = false;
+  let idx = 0;
+  async function worker() {
+    while (idx < tiles.length) {
+      if (shouldAbort && shouldAbort()) { aborted = true; return; }
+      const i = idx++;
+      const url = tileUrl(tiles[i], i);
+      try {
+        const existing = await cache.match(url);
+        if (!existing) {
+          const res = await fetch(url);
+          if (res && res.ok) { await cache.put(url, res.clone()); fetched++; }
+          else failed++;
+        }
+      } catch (e) { failed++; }
+      done++;
+      if (onProgress) onProgress(done, tiles.length);
+    }
+  }
+  await Promise.all(Array.from({ length: OFFLINE_PRECACHE_CONCURRENCY }, worker));
+  return { done, fetched, failed, aborted };
+}
+
+// -- Manual "download this area" ---------------------------------------------------
+let offlineMapRadiusKm = 15;
+let offlineDownloadAbort = false;
+let offlineDownloadInFlight = false;
+
+function setOfflineMapRadius(km) {
+  offlineMapRadiusKm = km;
+  ['5', '15', '30'].forEach(k => {
+    const btn = document.getElementById('offlineMapRadiusBtn' + k);
+    if (btn) btn.classList.toggle('active', Number(k) === km);
+  });
+}
+
+async function startOfflineMapDownload() {
+  if (offlineDownloadInFlight) return;
+  const center = userCoords || { lat: map.getCenter().lat, lon: map.getCenter().lng };
+  const bbox = bboxAroundKm(center.lat, center.lon, offlineMapRadiusKm);
+  const z = Math.round(map.getZoom());
+  const minZ = Math.max(5, z - 2);
+  const maxZ = Math.min(17, z + 2);
+  const tiles = tilesForBBoxZoomRange(bbox, minZ, maxZ);
+
+  if (tiles.length > 15000) {
+    toast(t('offlineMapTooLarge') || 'That area is too large — try a smaller radius or zoom in first.', 'error');
+    return;
+  }
+
+  offlineDownloadInFlight = true;
+  offlineDownloadAbort = false;
+  const wrap = document.getElementById('offlineMapProgressWrap');
+  const fill = document.getElementById('offlineMapProgressFill');
+  const text = document.getElementById('offlineMapProgressText');
+  const dlBtn = document.getElementById('offlineMapDownloadBtn');
+  const cancelBtn = document.getElementById('offlineMapCancelBtn');
+  if (wrap) wrap.style.display = 'block';
+  if (dlBtn) dlBtn.disabled = true;
+  if (cancelBtn) cancelBtn.textContent = t('offlineMapCancelBtn') || 'Cancel download';
+
+  const result = await precacheTiles(tiles, {
+    onProgress: (done, total) => {
+      if (fill) fill.style.width = Math.round((done / total) * 100) + '%';
+      if (text) text.textContent = `${done} / ${total}`;
+    },
+    shouldAbort: () => offlineDownloadAbort
+  });
+
+  offlineDownloadInFlight = false;
+  if (dlBtn) dlBtn.disabled = false;
+  if (wrap) wrap.style.display = 'none';
+  updateOfflineMapStorageText();
+
+  if (result.aborted) {
+    toast(t('offlineMapCancelled') || 'Download cancelled', 'error');
+  } else {
+    toast('✓ ' + (t('offlineMapDone') || 'Offline map ready for this area'), 'success');
+  }
+}
+function cancelOfflineMapDownload() {
+  offlineDownloadAbort = true;
+}
+
+// -- Automatic background expansion ------------------------------------------------
+function readAutoCacheState() {
+  try {
+    const raw = localStorage.getItem(AUTO_CACHE_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : { doneRingKm: 0, tilesUsed: 0, center: null };
+  } catch (e) { return { doneRingKm: 0, tilesUsed: 0, center: null }; }
+}
+function writeAutoCacheState(state) {
+  try { localStorage.setItem(AUTO_CACHE_STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+}
+function isAutoCacheEnabled() {
+  try { return localStorage.getItem(AUTO_CACHE_ENABLED_KEY) !== '0'; } catch (e) { return true; }
+}
+function setOfflineAutoCacheEnabled(enabled) {
+  try { localStorage.setItem(AUTO_CACHE_ENABLED_KEY, enabled ? '1' : '0'); } catch (e) {}
+  const input = document.getElementById('offlineAutoCacheToggleInput');
+  if (input) input.checked = enabled;
+}
+
+const AUTO_CACHE_RING_STEP_KM = 10;   // how far outward each background pass reaches
+const AUTO_CACHE_RING_TILE_CAP = 800; // per-pass cap so a single tick can't binge the budget
+let autoCacheRunning = false;
+
+async function runAutoCacheTick() {
+  if (autoCacheRunning || !isAutoCacheEnabled() || !('caches' in window)) return;
+  if (!navigator.onLine) return;
+  // Be a good citizen of shared connections and of the OSM tile servers: only run on
+  // WiFi where that's knowable, and only once a real position/map center is available.
+  const conn = navigator.connection;
+  if (conn && conn.type && conn.type !== 'wifi' && conn.saveData) return;
+
+  const state = readAutoCacheState();
+  if (state.tilesUsed >= AUTO_CACHE_TILE_BUDGET) return;
+  if (state.doneRingKm >= AUTO_CACHE_MAX_RADIUS_KM) return;
+
+  const center = userCoords || (state.center ? state.center : (map ? { lat: map.getCenter().lat, lon: map.getCenter().lng } : null));
+  if (!center) return;
+  state.center = center;
+
+  autoCacheRunning = true;
+  try {
+    const ringOuter = Math.min(AUTO_CACHE_MAX_RADIUS_KM, state.doneRingKm + AUTO_CACHE_RING_STEP_KM);
+    const outerBbox = bboxAroundKm(center.lat, center.lon, ringOuter);
+    // Farther-out rings get progressively lower max zoom — country-scale coverage only
+    // needs to be good enough for an overview, not street-level detail everywhere.
+    const maxZ = ringOuter <= 20 ? 15 : ringOuter <= 50 ? 13 : 11;
+    let tiles = tilesForBBoxZoomRange(outerBbox, 6, maxZ);
+    if (state.doneRingKm > 0) {
+      const innerBbox = bboxAroundKm(center.lat, center.lon, state.doneRingKm);
+      const innerSet = new Set(tilesForBBoxZoomRange(innerBbox, 6, maxZ).map(t => `${t.z}/${t.x}/${t.y}`));
+      tiles = tiles.filter(t => !innerSet.has(`${t.z}/${t.x}/${t.y}`));
+    }
+    const remaining = AUTO_CACHE_TILE_BUDGET - state.tilesUsed;
+    tiles = tiles.slice(0, Math.min(AUTO_CACHE_RING_TILE_CAP, remaining));
+
+    if (tiles.length) {
+      const result = await precacheTiles(tiles, { shouldAbort: () => !isAutoCacheEnabled() });
+      state.tilesUsed += result.done;
+    }
+    state.doneRingKm = ringOuter;
+    writeAutoCacheState(state);
+    updateOfflineMapStorageText();
+  } finally {
+    autoCacheRunning = false;
+  }
+}
+
+// Runs occasionally while idle rather than all at once — a background map-caching job
+// has no business competing with real usage for bandwidth or the main thread.
+const AUTO_CACHE_TICK_MS = 45000;
+setInterval(() => {
+  const kickoff = () => runAutoCacheTick();
+  if ('requestIdleCallback' in window) requestIdleCallback(kickoff, { timeout: 5000 });
+  else setTimeout(kickoff, 0);
+}, AUTO_CACHE_TICK_MS);
+
+async function updateOfflineMapStorageText() {
+  const el = document.getElementById('offlineMapStorageText');
+  if (!el) return;
+  try {
+    if (navigator.storage && navigator.storage.estimate) {
+      const est = await navigator.storage.estimate();
+      const mb = est.usage ? Math.round(est.usage / 1024 / 1024) : 0;
+      el.textContent = (t('offlineMapStorageUsed') || 'Offline data stored: {mb} MB').replace('{mb}', mb);
+    }
+  } catch (e) {}
+}
+
+function initOfflineMapSettingsUi() {
+  setOfflineMapRadius(offlineMapRadiusKm);
+  const input = document.getElementById('offlineAutoCacheToggleInput');
+  if (input) input.checked = isAutoCacheEnabled();
+  updateOfflineMapStorageText();
+}
 
 const ICON_CACHE_NAME = 'ttb-icons-v2';
 const iconObjectUrlCache = new Map();
@@ -7466,7 +7991,7 @@ function toggleFollowMode() {
   }
 }
 
-const AUTO_REFOLLOW_DELAY_MS = 5000;
+const AUTO_REFOLLOW_DELAY_MS = 10000;
 let autoRefollowTimer = null;
 let pendingAutoRefollow = false;
 
@@ -13076,6 +13601,93 @@ async function loadPinsByWindow() {
   }
 }
 
+// ---- Live sync -----------------------------------------------------------------
+// Without this, a report added/edited/deleted by *another* device only shows up on
+// this map after the next loadPinsByWindow() call (pan/zoom or manual refresh). This
+// subscribes to Postgres changes on the reports table so every connected client's map,
+// counters, and any open detail modal update the moment the row changes anywhere —
+// no page refresh needed. Own-device actions already update immediately via the
+// explicit loadPinsByWindow() calls sprinkled through the submit/edit/delete flows;
+// this only adds the *remote* half of that.
+let reportsRealtimeChannel = null;
+
+function isReportWithinLoadedWindow(report) {
+  // Mirrors the two loadPinsByWindow queries: always show not-yet-fixed reports, and
+  // otherwise only ones inside the currently selected date range (if any is picked yet).
+  if (!report) return false;
+  if (report.status !== 'fixed') return true;
+  if (!fp || !fp.selectedDates || fp.selectedDates.length < 2) return false;
+  const created = new Date(report.created_at).getTime();
+  const start = new Date(fp.selectedDates[0]); start.setHours(0,0,0,0);
+  const end = new Date(fp.selectedDates[1]); end.setHours(23,59,59,999);
+  return created >= start.getTime() && created <= end.getTime();
+}
+
+function applyRealtimeReportChange(eventType, newRow, oldRow) {
+  if (eventType === 'DELETE') {
+    const id = oldRow && oldRow.id;
+    if (!id) return;
+    const existed = globalActiveData.some(r => r.id === id);
+    if (!existed) return;
+    globalActiveData = globalActiveData.filter(r => r.id !== id);
+    const marker = markerById.get(id);
+    if (marker) { removeReportLayer(marker); markerById.delete(id); }
+    const pin = sectionPinById.get(id);
+    if (pin) { removeReportLayer(pin); sectionPinById.delete(id); }
+    const modal = document.getElementById('reportDetailModal');
+    if (modal && modal.style.display === 'flex' && modal.dataset.openReportId === id) {
+      hideReportDetailModal();
+      toast(t('reportRemovedElsewhere') || 'This report was removed', 'error');
+    }
+    updateReportCount();
+    refreshHeatLayer();
+    return;
+  }
+
+  if (!newRow || !newRow.id) return;
+  const idx = globalActiveData.findIndex(r => r.id === newRow.id);
+  const inWindow = isReportWithinLoadedWindow(newRow);
+
+  if (!inWindow) {
+    // Fell outside what we'd otherwise have loaded (e.g. marked fixed outside the
+    // selected date range) — drop it like loadPinsByWindow would.
+    if (idx !== -1) {
+      globalActiveData.splice(idx, 1);
+      const marker = markerById.get(newRow.id);
+      if (marker) { removeReportLayer(marker); markerById.delete(newRow.id); }
+      const pin = sectionPinById.get(newRow.id);
+      if (pin) { removeReportLayer(pin); sectionPinById.delete(newRow.id); }
+      updateReportCount();
+      refreshHeatLayer();
+    }
+    return;
+  }
+
+  if (idx === -1) globalActiveData.push(newRow);
+  else globalActiveData[idx] = newRow;
+
+  syncMarkers(true);
+  updateReportCount();
+  refreshHeatLayer();
+  refreshReportViews(newRow.id);
+  if (eventType === 'INSERT' && (!currentSession || newRow.owner_id !== currentSession.user.id)) {
+    playNearbyReportChime();
+  }
+}
+
+function setupReportsRealtimeSync() {
+  if (reportsRealtimeChannel) return;
+  reportsRealtimeChannel = sb.channel('reports-live-sync')
+    .on('postgres_changes', { event: '*', schema: 'public', table: TABLE }, payload => {
+      try {
+        applyRealtimeReportChange(payload.eventType, payload.new, payload.old);
+      } catch (err) {
+        console.error('Realtime report sync error:', err);
+      }
+    })
+    .subscribe();
+}
+
 async function loadVoteProgress(reportIds) {
   if (!currentSession || !reportIds.length) { voteProgressByReport = new Map(); return; }
   try {
@@ -13491,6 +14103,7 @@ async function runInitialLoadSequence() {
   await loadPinsByWindow();
 }
 runInitialLoadSequence().finally(hideMapLoadingOverlay);
+setupReportsRealtimeSync();
 openSharedReportFromUrl();
 loadAllCompanyMarkers();
 loadMunicipalityStatsCache();
