@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>TraceTheBreak — Contact Collector</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/libphonenumber-js@1/bundle/libphonenumber-js.min.js"></script>
+<style>
+:root{
+  --bg-app:#f4f4f2;
+  --bg-surface:#ffffff;
+  --bg-surface-alt:#ececeb;
+  --border-color:#e2e2e0;
+  --border-color-strong:#ddd;
+  --text-primary:#1a1a1a;
+  --text-secondary:#555;
+  --text-muted:#999;
+  --accent:#e16e11;
+  --accent-contrast:#ffffff;
+  --nav-accent:#0090ab;
+  --warn-bg:#fdf1da;
+  --warn-border:#e16e11;
+  --warn-text:#8a6212;
+  --success:#2ecc71;
+  --danger:#ff4b4b;
+  --danger-strong:#7a1f1f;
+  --radius-xs:4px; --radius-sm:6px; --radius-md:8px; --radius-lg:10px; --radius-xl:12px; --radius-pill:20px;
+  --fs-11:11px; --fs-12:12px; --fs-13:13px; --fs-14:14px; --fs-15:15px; --fs-16:16px; --fs-18:18px; --fs-20:20px;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;height:100%;background:var(--bg-app);color:var(--text-primary);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:var(--fs-14);}
+button{font-family:inherit;cursor:pointer;}
+input,select,textarea{font-family:inherit;font-size:var(--fs-13);}
+a{color:var(--nav-accent);}
+
+#appHeader{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 16px;background:var(--bg-surface);border-bottom:1px solid var(--border-color);
+  position:sticky;top:0;z-index:1000;
+}
+#appHeader h1{font-size:var(--fs-16);margin:0;font-weight:700;}
+#appHeader h1 span{color:var(--accent);}
+.headerRight{display:flex;align-items:center;gap:8px;}
+.pill{padding:4px 10px;border-radius:var(--radius-pill);font-size:var(--fs-11);font-weight:600;}
+.pill.admin{background:#e8f8ee;color:#1e8449;}
+.pill.notadmin{background:var(--warn-bg);color:var(--warn-text);}
+.pill.signedout{background:var(--bg-surface-alt);color:var(--text-muted);}
+
+.btn{
+  border:1px solid var(--border-color-strong);background:var(--bg-surface);color:var(--text-primary);
+  padding:6px 12px;border-radius:var(--radius-md);font-size:var(--fs-13);font-weight:600;
+}
+.btn:hover{background:var(--bg-surface-alt);}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-contrast);}
+.btn.primary:hover{filter:brightness(0.95);}
+.btn.danger{background:var(--danger);border-color:var(--danger);color:#fff;}
+.btn.ghost{background:transparent;border-color:transparent;}
+.btn:disabled{opacity:0.45;cursor:not-allowed;}
+.btn.small{padding:3px 8px;font-size:var(--fs-11);}
+.iconBtn{width:32px;height:32px;border-radius:50%;border:1px solid var(--border-color-strong);background:var(--bg-surface);
+  display:flex;align-items:center;justify-content:center;font-size:16px;}
+
+#layout{display:grid;grid-template-columns:minmax(320px,420px) 1fr;height:calc(100vh - 53px);}
+#leftPane{border-right:1px solid var(--border-color);display:flex;flex-direction:column;overflow:hidden;}
+#sidePanel{flex:1;overflow-y:auto;padding:14px 16px;background:var(--bg-surface);}
+#rightPane{overflow-y:auto;padding:16px 20px;}
+
+h2.paneTitle{font-size:var(--fs-15);margin:0 0 10px;}
+h3.subTitle{font-size:var(--fs-13);margin:16px 0 6px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.03em;}
+
+.muniRow{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border:1px solid var(--border-color);
+  border-radius:var(--radius-md);margin-bottom:6px;background:var(--bg-surface);}
+.muniRow:hover{border-color:var(--accent);}
+.muniRow.active{border-color:var(--accent);background:#fff6ee;}
+.muniRow .name{font-weight:600;font-size:var(--fs-13);}
+.muniRow .cov{font-size:var(--fs-11);color:var(--text-muted);}
+.covBar{width:60px;height:6px;background:var(--bg-surface-alt);border-radius:4px;overflow:hidden;display:inline-block;margin-left:6px;vertical-align:middle;}
+.covBar > i{display:block;height:100%;background:var(--success);}
+
+.searchRow{display:flex;gap:6px;margin-bottom:8px;}
+.searchRow input{flex:1;padding:7px 9px;border:1px solid var(--border-color-strong);border-radius:var(--radius-md);}
+
+.catGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:18px;}
+.catCard{border:1px solid var(--border-color);border-radius:var(--radius-md);padding:10px;background:var(--bg-surface);}
+.catCard.covered{background:#f3fbf5;border-color:#bfe8c8;}
+.catCard.conflict{background:#fff3f0;border-color:#f3b3a4;}
+.catCard .icon{font-size:18px;}
+.catCard .label{font-weight:600;font-size:var(--fs-12);margin:4px 0 2px;}
+.catCard .status{font-size:var(--fs-11);color:var(--text-muted);margin-bottom:6px;}
+
+.companyCard{border:1px solid var(--border-color);border-radius:var(--radius-md);padding:10px 12px;margin-bottom:8px;background:var(--bg-surface);}
+.companyCard .catChip{display:inline-block;background:var(--bg-surface-alt);border-radius:var(--radius-pill);padding:2px 8px;
+  font-size:var(--fs-11);margin:2px 3px 0 0;}
+.badge{display:inline-block;padding:1px 7px;border-radius:var(--radius-pill);font-size:10px;font-weight:700;margin-left:6px;vertical-align:middle;}
+.badge.verified{background:#e8f8ee;color:#1e8449;}
+.badge.review{background:var(--warn-bg);color:var(--warn-text);}
+.badge.conflict{background:#ffe3dd;color:var(--danger-strong);}
+.badge.dup{background:#eee5ff;color:#5b3aa5;}
+
+.reviewCard{border:1.5px solid var(--accent);border-radius:var(--radius-lg);padding:14px;margin-bottom:16px;background:#fffaf5;}
+.field{margin-bottom:8px;}
+.field label{display:block;font-size:var(--fs-11);color:var(--text-secondary);margin-bottom:2px;font-weight:600;}
+.field input, .field textarea{width:100%;padding:7px 9px;border:1px solid var(--border-color-strong);border-radius:var(--radius-sm);}
+.field textarea{min-height:44px;resize:vertical;}
+.fieldRow{display:flex;gap:8px;}
+.fieldRow > .field{flex:1;}
+.confBadge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:var(--radius-pill);}
+.confBadge.high{background:#e8f8ee;color:#1e8449;}
+.confBadge.medium{background:var(--warn-bg);color:var(--warn-text);}
+.confBadge.low{background:#ffe3dd;color:var(--danger-strong);}
+
+.warnBox{background:var(--warn-bg);border:1px solid var(--warn-border);color:var(--warn-text);
+  border-radius:var(--radius-md);padding:8px 10px;font-size:var(--fs-12);margin-bottom:10px;}
+.emptyState{color:var(--text-muted);font-size:var(--fs-13);padding:20px 4px;}
+
+#toastHost{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:5000;display:flex;flex-direction:column;gap:6px;}
+.toast{background:#1a1a1a;color:#fff;padding:9px 16px;border-radius:var(--radius-md);font-size:var(--fs-13);box-shadow:0 4px 14px rgba(0,0,0,.25);}
+.toast.error{background:var(--danger-strong);}
+.toast.success{background:#1e8449;}
+
+.modalOverlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:4000;}
+.modalBox{background:var(--bg-surface);border-radius:var(--radius-lg);padding:22px;max-width:440px;width:92%;}
+.modalBox h3{margin-top:0;}
+.hidden{display:none !important;}
+
+#countrySelect, #municipalitySelect{width:100%;padding:7px 9px;border:1px solid var(--border-color-strong);border-radius:var(--radius-sm);}
+</style>
+</head>
+<body>
+
+<div id="appHeader">
+  <h1>TraceTheBreak <span>Contact Collector</span></h1>
+  <div class="headerRight">
+    <span id="authPill" class="pill signedout">Signed out</span>
+    <button class="btn" id="signInBtn">Sign in</button>
+    <button class="iconBtn" id="settingsBtn" title="Settings">⚙️</button>
+  </div>
+</div>
+
+<div id="layout">
+  <div id="leftPane">
+    <div id="sidePanel" style="flex:1;">
+      <h2 class="paneTitle">Pick a location</h2>
+      <div class="field">
+        <label>Country</label>
+        <select id="countrySelect" onchange="onCountrySelectChange()"></select>
+      </div>
+      <div class="field">
+        <label>Municipality</label>
+        <select id="municipalitySelect" onchange="onMunicipalitySelectChange()" disabled></select>
+      </div>
+      <p style="font-size:11px;color:var(--text-muted);margin-top:4px;">Don't see a country or municipality listed? Add it first with the separate <b>Municipality Collector</b> tool, then come back here.</p>
+      <h3 class="subTitle" id="muniListTitle" style="display:none;"></h3>
+      <div id="muniListArea"></div>
+    </div>
+  </div>
+  <div id="rightPane">
+    <div id="rightEmpty" class="emptyState">Pick a country and municipality on the left to see which categories still need a contact, and research new ones.</div>
+    <div id="muniPanel" class="hidden"></div>
+  </div>
+</div>
+
+<div id="toastHost"></div>
+
+<div id="signInModal" class="modalOverlay hidden">
+  <div class="modalBox">
+    <h3>Sign in</h3>
+    <p style="font-size:13px;color:var(--text-secondary)">Use the same account you use as an admin in the main app. Only admins can save contacts here — everyone can browse and research.</p>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px;">
+      <button class="btn primary" onclick="signInWithProvider('google')">Continue with Google</button>
+      <button class="btn" onclick="signInWithProvider('github')">Continue with GitHub</button>
+    </div>
+    <div style="text-align:right;margin-top:14px;"><button class="btn ghost" onclick="closeModal('signInModal')">Close</button></div>
+  </div>
+</div>
+
+<div id="settingsModal" class="modalOverlay hidden">
+  <div class="modalBox">
+    <h3>Settings</h3>
+    <div class="field">
+      <label>Research backend</label>
+      <select id="backendSelect" onchange="onBackendChange()" style="width:100%;padding:7px 9px;border:1px solid var(--border-color-strong);border-radius:var(--radius-sm);">
+        <option value="anthropic">Anthropic (Claude) — console.anthropic.com</option>
+        <option value="gemini">Google (Gemini) — aistudio.google.com</option>
+      </select>
+    </div>
+    <div class="field">
+      <label id="apiKeyLabel">API key (used to research contacts)</label>
+      <div style="display:flex;gap:6px;">
+        <input type="password" id="apiKeyInput" placeholder="sk-ant-api03-..." style="flex:1;">
+        <button class="btn small" type="button" onclick="toggleKeyVisibility()" id="toggleKeyBtn">Show</button>
+      </div>
+      <div id="apiKeyPreview" style="font-size:11px;color:var(--text-muted);margin-top:4px;"></div>
+    </div>
+    <p id="apiKeyHelp" style="font-size:11px;color:var(--text-muted)"></p>
+    <p style="font-size:11px;color:var(--text-muted)">Keys are stored only in this browser (localStorage) and sent directly from your browser to the provider's API — never to any server of ours.</p>
+    <p style="font-size:11px;color:var(--text-muted)">Connected Supabase project: <b>TraceTheStuff</b> (fnkqmwweljsupbmerbkh) — read-only view for everyone, writes require an admin sign-in.</p>
+    <div id="testKeyResult" style="font-size:12px;margin-top:6px;"></div>
+    <div style="display:flex;justify-content:space-between;margin-top:14px;">
+      <button class="btn danger small" onclick="clearApiKey()">Clear this key</button>
+      <div>
+        <button class="btn small" onclick="testApiKey()">Test key</button>
+        <button class="btn ghost" onclick="closeModal('settingsModal')">Cancel</button>
+        <button class="btn primary" onclick="saveApiKey()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<script>
+/* =========================================================================
+   CONFIG / CONSTANTS
+   ========================================================================= */
+const SUPABASE_URL = 'https://fnkqmwweljsupbmerbkh.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZua3Ftd3dlbGpzdXBibWVyYmtoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3OTcwODUsImV4cCI6MjA5NzM3MzA4NX0.eX3mxnSpGmJ6Ebw7Y4F_jHiJarPH4ri9WNYXwmLi16I';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const UTILITY_COMPANIES_TABLE = 'utility_companies';
+const MUNICIPALITIES_TABLE = 'municipalities';
+const COUNTRIES_TABLE = 'countries';
+const PROFILES_TABLE = 'profiles';
+
+const ANTHROPIC_MODEL = 'claude-sonnet-4-6';
+const GEMINI_MODEL = 'gemini-3.5-flash';
+
+// Real, responsible-authority categories vs. the two fallback-only tags.
+const REAL_CATEGORIES = ['Water','Electricity','Sewage','Gas','Heating','Road','Streetlight','Waste','Walkways','BikeLanes','GreenSpaces','Parking'];
+const FALLBACK_CATEGORIES = ['Suggestion','Other'];
+const UC_CATEGORIES = [...REAL_CATEGORIES, ...FALLBACK_CATEGORIES];
+
+const CATEGORY_META = {
+  Water:       { label:'Water supply / leaks',    icon:'💧' },
+  Electricity: { label:'Electricity',             icon:'⚡' },
+  Sewage:      { label:'Sewage',                  icon:'🚱' },
+  Gas:         { label:'Gas',                     icon:'🔥' },
+  Heating:     { label:'District heating',        icon:'♨️' },
+  Road:        { label:'Roads / potholes',        icon:'🛣️' },
+  Streetlight: { label:'Street lighting',         icon:'💡' },
+  Waste:       { label:'Waste collection',        icon:'🗑️' },
+  Walkways:    { label:'Footpaths / sidewalks',   icon:'🚶' },
+  BikeLanes:   { label:'Bike lanes',               icon:'🚲' },
+  GreenSpaces: { label:'Green spaces / parks',    icon:'🌳' },
+  Parking:     { label:'Illegal parking',         icon:'🚗' },
+  Suggestion:  { label:'Suggestions (city hall)', icon:'💬' },
+  Other:       { label:'Other (city hall)',       icon:'❔' }
+};
+
+// ISO-2 -> international calling code (from Google libphonenumber's metadata), used as a
+// fallback when the AI returns a local-format number without a country code.
+const DIAL_CODES = {"AC":247,"AD":376,"AE":971,"AF":93,"AG":1,"AI":1,"AL":355,"AM":374,"AO":244,"AR":54,"AS":1,"AT":43,"AU":61,"AW":297,"AX":358,"AZ":994,"BA":387,"BB":1,"BD":880,"BE":32,"BF":226,"BG":359,"BH":973,"BI":257,"BJ":229,"BL":590,"BM":1,"BN":673,"BO":591,"BQ":599,"BR":55,"BS":1,"BT":975,"BW":267,"BY":375,"BZ":501,"CA":1,"CC":61,"CD":243,"CF":236,"CG":242,"CH":41,"CI":225,"CK":682,"CL":56,"CM":237,"CN":86,"CO":57,"CR":506,"CU":53,"CV":238,"CW":599,"CX":61,"CY":357,"CZ":420,"DE":49,"DJ":253,"DK":45,"DM":1,"DO":1,"DZ":213,"EC":593,"EE":372,"EG":20,"EH":212,"ER":291,"ES":34,"ET":251,"FI":358,"FJ":679,"FK":500,"FM":691,"FO":298,"FR":33,"GA":241,"GB":44,"GD":1,"GE":995,"GF":594,"GG":44,"GH":233,"GI":350,"GL":299,"GM":220,"GN":224,"GP":590,"GQ":240,"GR":30,"GT":502,"GU":1,"GW":245,"GY":592,"HK":852,"HN":504,"HR":385,"HT":509,"HU":36,"ID":62,"IE":353,"IL":972,"IM":44,"IN":91,"IO":246,"IQ":964,"IR":98,"IS":354,"IT":39,"JE":44,"JM":1,"JO":962,"JP":81,"KE":254,"KG":996,"KH":855,"KI":686,"KM":269,"KN":1,"KP":850,"KR":82,"KW":965,"KY":1,"KZ":7,"LA":856,"LB":961,"LC":1,"LI":423,"LK":94,"LR":231,"LS":266,"LT":370,"LU":352,"LV":371,"LY":218,"MA":212,"MC":377,"MD":373,"ME":382,"MF":590,"MG":261,"MH":692,"MK":389,"ML":223,"MM":95,"MN":976,"MO":853,"MP":1,"MQ":596,"MR":222,"MS":1,"MT":356,"MU":230,"MV":960,"MW":265,"MX":52,"MY":60,"MZ":258,"NA":264,"NC":687,"NE":227,"NF":672,"NG":234,"NI":505,"NL":31,"NO":47,"NP":977,"NR":674,"NU":683,"NZ":64,"OM":968,"PA":507,"PE":51,"PF":689,"PG":675,"PH":63,"PK":92,"PL":48,"PM":508,"PR":1,"PS":970,"PT":351,"PW":680,"PY":595,"QA":974,"RE":262,"RO":40,"RS":381,"RU":7,"RW":250,"SA":966,"SB":677,"SC":248,"SD":249,"SE":46,"SG":65,"SH":290,"SI":386,"SJ":47,"SK":421,"SL":232,"SM":378,"SN":221,"SO":252,"SR":597,"SS":211,"ST":239,"SV":503,"SX":1,"SY":963,"SZ":268,"TA":290,"TC":1,"TD":235,"TG":228,"TH":66,"TJ":992,"TK":690,"TL":670,"TM":993,"TN":216,"TO":676,"TR":90,"TT":1,"TV":688,"TW":886,"TZ":255,"UA":380,"UG":256,"US":1,"UY":598,"UZ":998,"VA":39,"VC":1,"VE":58,"VG":1,"VI":1,"VN":84,"VU":678,"WF":681,"WS":685,"XK":383,"YE":967,"YT":262,"ZA":27,"ZM":260,"ZW":263};
+
+const CYRILLIC_TO_LATIN_MAP = {
+  'А':'A','Б':'B','В':'V','Г':'G','Д':'D','Ђ':'Đ','Е':'E','Ж':'Ž','З':'Z','И':'I',
+  'Ј':'J','К':'K','Л':'L','Љ':'Lj','М':'M','Н':'N','Њ':'Nj','О':'O','П':'P','Р':'R',
+  'С':'S','Т':'T','Ћ':'Ć','У':'U','Ф':'F','Х':'H','Ц':'C','Ч':'Č','Џ':'Dž','Ш':'Š',
+  'а':'a','б':'b','в':'v','г':'g','д':'d','ђ':'đ','е':'e','ж':'ž','з':'z','и':'i',
+  'ј':'j','к':'k','л':'l','љ':'lj','м':'m','н':'n','њ':'nj','о':'o','п':'p','р':'r',
+  'с':'s','т':'t','ћ':'ć','у':'u','ф':'f','х':'h','ц':'c','ч':'č','џ':'dž','ш':'š'
+};
+function cyrillicToLatin(str){
+  if(!str) return str;
+  return String(str).replace(/[А-Яа-яЂђЈјЉљЊњЋћЏџ]/g, ch => CYRILLIC_TO_LATIN_MAP[ch] ?? ch);
+}
+
+/* =========================================================================
+   STATE
+   ========================================================================= */
+let currentSession = null;
+let currentProfile = null;
+let countriesByCode = {};      // code -> {code, name}
+let municipalityCache = [];    // all rows from municipalities table
+let companiesCache = [];       // all rows from utility_companies table
+let selectedCountryCode = null;
+let selectedMunicipalityId = null;
+
+/* =========================================================================
+   TOAST
+   ========================================================================= */
+function toast(msg, type){
+  const host = document.getElementById('toastHost');
+  const el = document.createElement('div');
+  el.className = 'toast' + (type ? ' ' + type : '');
+  el.textContent = msg;
+  host.appendChild(el);
+  setTimeout(() => el.remove(), 4200);
+}
+function escapeHtml(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function openModal(id){ document.getElementById(id).classList.remove('hidden'); }
+function closeModal(id){ document.getElementById(id).classList.add('hidden'); }
+
+/* =========================================================================
+   AUTH  (mirrors the main app's Supabase auth: Google / GitHub OAuth,
+   profile lookup, is_admin gate for writes)
+   ========================================================================= */
+function describeAuthError(err){
+  if(!err) return 'Unknown error';
+  if(typeof err === 'string') return err;
+  return err.message || err.error_description || err.msg || JSON.stringify(err);
+}
+async function signInWithProvider(provider){
+  try{
+    const redirectTo = window.location.origin + window.location.pathname;
+    const { error } = await sb.auth.signInWithOAuth({ provider, options: { redirectTo } });
+    if(error) throw error;
+  }catch(err){
+    toast('Sign-in failed: ' + describeAuthError(err), 'error');
+  }
+}
+async function signOutUser(){
+  await sb.auth.signOut();
+  currentSession = null;
+  currentProfile = null;
+  updateAuthUI();
+}
+async function loadProfile(){
+  if(!currentSession) return;
+  try{
+    const { data, error } = await sb.from(PROFILES_TABLE).select('*').eq('id', currentSession.user.id).maybeSingle();
+    if(error) throw error;
+    currentProfile = data || null;
+  }catch(err){
+    console.error('Failed to load profile:', err.message);
+  }
+  updateAuthUI();
+}
+function isAdmin(){ return !!(currentProfile && currentProfile.is_admin); }
+function currentUserLabel(){
+  if(!currentSession) return 'anonymous';
+  return (currentProfile && currentProfile.username) || currentSession.user.email || currentSession.user.id;
+}
+function updateAuthUI(){
+  const pill = document.getElementById('authPill');
+  const signInBtn = document.getElementById('signInBtn');
+  if(!currentSession){
+    pill.textContent = 'Signed out';
+    pill.className = 'pill signedout';
+    signInBtn.textContent = 'Sign in';
+    signInBtn.onclick = () => openModal('signInModal');
+  } else if(isAdmin()){
+    pill.textContent = 'Admin: ' + currentUserLabel();
+    pill.className = 'pill admin';
+    signInBtn.textContent = 'Sign out';
+    signInBtn.onclick = signOutUser;
+  } else {
+    pill.textContent = 'Signed in (not admin)';
+    pill.className = 'pill notadmin';
+    signInBtn.textContent = 'Sign out';
+    signInBtn.onclick = signOutUser;
+  }
+  if(selectedMunicipalityId != null) renderMunicipalityPanel();
+}
+
+/* =========================================================================
+   API KEY (Anthropic) — stored client-side only
+   ========================================================================= */
+function getBackend(){ return localStorage.getItem('ttb_collector_backend') || 'anthropic'; }
+function setBackend(b){ localStorage.setItem('ttb_collector_backend', b); }
+function keyStorageName(backend){ return backend === 'gemini' ? 'ttb_collector_gemini_key' : 'ttb_collector_anthropic_key'; }
+function getApiKey(backend){
+  backend = backend || getBackend();
+  return localStorage.getItem(keyStorageName(backend)) || '';
+}
+function maskKey(k){
+  if(!k) return '(no key saved)';
+  const clean = k.trim();
+  if(clean.length <= 14) return 'Saved key: ' + clean[0] + '••••• (' + clean.length + ' chars — looks too short for a real key)';
+  return 'Saved key: ' + clean.slice(0,12) + '…' + clean.slice(-4) + ' (' + clean.length + ' chars)';
+}
+function refreshKeyPreview(){
+  document.getElementById('apiKeyPreview').textContent = maskKey(getApiKey(getBackend()));
+}
+function toggleKeyVisibility(){
+  const input = document.getElementById('apiKeyInput');
+  const btn = document.getElementById('toggleKeyBtn');
+  if(input.type === 'password'){ input.type = 'text'; btn.textContent = 'Hide'; }
+  else { input.type = 'password'; btn.textContent = 'Show'; }
+}
+function onBackendChange(){
+  const backend = document.getElementById('backendSelect').value;
+  setBackend(backend);
+  document.getElementById('apiKeyInput').value = getApiKey(backend);
+  document.getElementById('testKeyResult').textContent = '';
+  refreshKeyPreview();
+  if(backend === 'gemini'){
+    document.getElementById('apiKeyLabel').textContent = 'Google AI (Gemini) API key';
+    document.getElementById('apiKeyInput').placeholder = 'AIza...';
+    document.getElementById('apiKeyHelp').innerHTML = 'Get a free key at <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">aistudio.google.com/app/apikey</a>.';
+  } else {
+    document.getElementById('apiKeyLabel').textContent = 'Anthropic API key';
+    document.getElementById('apiKeyInput').placeholder = 'sk-ant-api03-...';
+    document.getElementById('apiKeyHelp').innerHTML = 'Get a key at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>. Must be a Console API key (starts with <code>sk-ant-api03-</code>), not a claude.ai login.';
+  }
+}
+function saveApiKey(){
+  const backend = document.getElementById('backendSelect').value;
+  setBackend(backend);
+  const val = document.getElementById('apiKeyInput').value.trim();
+  if(val) localStorage.setItem(keyStorageName(backend), val);
+  refreshKeyPreview();
+  closeModal('settingsModal');
+  toast('API key saved to this browser.', 'success');
+}
+function clearApiKey(){
+  const backend = getBackend();
+  localStorage.removeItem(keyStorageName(backend));
+  document.getElementById('apiKeyInput').value = '';
+  refreshKeyPreview();
+  toast('API key cleared.');
+}
+async function testApiKey(){
+  const resultEl = document.getElementById('testKeyResult');
+  const backend = document.getElementById('backendSelect').value;
+  const val = document.getElementById('apiKeyInput').value.trim() || getApiKey(backend);
+  if(!val){ resultEl.innerHTML = '<span style="color:var(--danger-strong)">Enter a key first.</span>'; return; }
+  resultEl.textContent = 'Testing…';
+  try{
+    if(backend === 'gemini'){
+      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', 'x-goog-api-key': val },
+        body: JSON.stringify({ contents:[{ parts:[{ text:'hi' }] }] })
+      });
+      const data = await resp.json();
+      if(resp.ok && !data.error){
+        resultEl.innerHTML = '<span style="color:var(--success)">✓ Key works (HTTP ' + resp.status + ').</span>';
+      } else {
+        resultEl.innerHTML = '<span style="color:var(--danger-strong)">✗ HTTP ' + resp.status + ' — ' + escapeHtml((data.error && data.error.message) || 'unknown error') + '</span>';
+      }
+    } else {
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          'x-api-key': val,
+          'anthropic-version':'2023-06-01',
+          'anthropic-dangerous-direct-browser-access':'true'
+        },
+        body: JSON.stringify({ model: ANTHROPIC_MODEL, max_tokens: 8, messages:[{role:'user', content:'hi'}] })
+      });
+      const data = await resp.json();
+      if(resp.ok && !data.error){
+        resultEl.innerHTML = '<span style="color:var(--success)">✓ Key works (HTTP ' + resp.status + ').</span>';
+      } else {
+        resultEl.innerHTML = '<span style="color:var(--danger-strong)">✗ HTTP ' + resp.status + ' — ' + escapeHtml((data.error && data.error.message) || 'unknown error') + '</span>';
+      }
+    }
+  }catch(err){
+    resultEl.innerHTML = '<span style="color:var(--danger-strong)">✗ Request failed: ' + escapeHtml(err.message) + ' (likely a network/CORS issue, not the key itself)</span>';
+  }
+}
+document.getElementById('settingsBtn').addEventListener('click', () => {
+  document.getElementById('backendSelect').value = getBackend();
+  document.getElementById('apiKeyInput').value = getApiKey(getBackend());
+  document.getElementById('testKeyResult').textContent = '';
+  onBackendChange();
+  openModal('settingsModal');
+});
+
+/* =========================================================================
+   FORMATTING HELPERS
+   ========================================================================= */
+function formatPhone(raw, countryCode){
+  if(!raw) return '';
+  let candidate = String(raw).trim();
+  try{
+    if(window.libphonenumber){
+      const parsed = window.libphonenumber.parsePhoneNumberFromString(candidate, countryCode ? countryCode.toUpperCase() : undefined);
+      if(parsed && parsed.isValid()) return parsed.formatInternational();
+    }
+  }catch(e){ /* fall through to manual cleanup */ }
+  let digits = candidate.replace(/[^\d+]/g, '');
+  if(digits.startsWith('00')) digits = '+' + digits.slice(2);
+  if(!digits.startsWith('+') && countryCode && DIAL_CODES[countryCode.toUpperCase()]){
+    digits = '+' + DIAL_CODES[countryCode.toUpperCase()] + digits.replace(/^0+/, '');
+  }
+  return digits;
+}
+function normalizeAddress(raw){
+  if(!raw) return '';
+  let s = cyrillicToLatin(String(raw)).replace(/\s+/g, ' ').trim();
+  s = s.replace(/\s*,\s*/g, ', ').replace(/,\s*$/, '');
+  return s;
+}
+function normalizeNameForMatch(name){
+  if(!name) return '';
+  let s = cyrillicToLatin(String(name)).toLowerCase();
+  s = s.replace(/\b(jp|jkp|jkkp|doo|d\.o\.o\.|ad|a\.d\.|joint\s*stock|company|co\.|inc\.?|ltd\.?|llc)\b/g, ' ');
+  s = s.replace(/[^a-z0-9]+/g, ' ').trim();
+  return s;
+}
+function levenshtein(a, b){
+  const m = a.length, n = b.length;
+  if(!m) return n; if(!n) return m;
+  const d = Array.from({length:m+1}, (_,i) => [i, ...Array(n).fill(0)]);
+  for(let j=0;j<=n;j++) d[0][j] = j;
+  for(let i=1;i<=m;i++){
+    for(let j=1;j<=n;j++){
+      const cost = a[i-1] === b[j-1] ? 0 : 1;
+      d[i][j] = Math.min(d[i-1][j]+1, d[i][j-1]+1, d[i-1][j-1]+cost);
+    }
+  }
+  return d[m][n];
+}
+function nameSimilarity(a, b){
+  const na = normalizeNameForMatch(a), nb = normalizeNameForMatch(b);
+  if(!na || !nb) return 0;
+  const dist = levenshtein(na, nb);
+  return 1 - dist / Math.max(na.length, nb.length);
+}
+
+/* =========================================================================
+   DATA LOADING
+   ========================================================================= */
+async function loadCountries(){
+  const { data, error } = await sb.from(COUNTRIES_TABLE).select('*').order('name');
+  if(error){ toast('Failed to load countries: ' + error.message, 'error'); return; }
+  countriesByCode = {};
+  (data || []).forEach(c => countriesByCode[c.code] = c);
+}
+async function loadMunicipalities(){
+  const { data, error } = await sb.from(MUNICIPALITIES_TABLE).select('*').order('name');
+  if(error){ toast('Failed to load municipalities: ' + error.message, 'error'); return; }
+  municipalityCache = data || [];
+}
+async function loadCompanies(){
+  const { data, error } = await sb.from(UTILITY_COMPANIES_TABLE).select('*').order('name');
+  if(error){ toast('Failed to load utility companies: ' + error.message, 'error'); return; }
+  companiesCache = data || [];
+}
+function municipalitiesForCountry(code){
+  return municipalityCache.filter(m => (m.country_code || '').toUpperCase() === code);
+}
+function companiesForMunicipality(id){
+  return companiesCache.filter(c => c.municipality_id === id);
+}
+function coverageForMunicipality(id){
+  const companies = companiesForMunicipality(id);
+  const covered = new Set();
+  companies.forEach(c => (c.categories || []).forEach(cat => covered.add(cat)));
+  return { covered, companies };
+}
+/* =========================================================================
+   COUNTRY / MUNICIPALITY PICKER (dropdowns, populated from Supabase — the
+   actual map-based collection now lives in the separate Municipality Collector tool)
+   ========================================================================= */
+function populateCountrySelect(){
+  const sel = document.getElementById('countrySelect');
+  const codesWithMunis = new Set(municipalityCache.map(m => (m.country_code||'').toUpperCase()));
+  const countries = Object.values(countriesByCode)
+    .filter(c => codesWithMunis.has(c.code))
+    .sort((a,b) => a.name.localeCompare(b.name));
+  sel.innerHTML = '<option value="">Select a country…</option>' +
+    countries.map(c => `<option value="${c.code}">${escapeHtml(c.name)} (${municipalitiesForCountry(c.code).length})</option>`).join('');
+  if(!countries.length){
+    sel.innerHTML = '<option value="">No municipalities on file yet</option>';
+  }
+}
+function onCountrySelectChange(){
+  const code = document.getElementById('countrySelect').value;
+  selectedCountryCode = code || null;
+  selectedMunicipalityId = null;
+  document.getElementById('rightEmpty').classList.remove('hidden');
+  document.getElementById('muniPanel').classList.add('hidden');
+  populateMunicipalitySelect(code);
+  renderMuniListForCountry(code);
+}
+function populateMunicipalitySelect(code){
+  const sel = document.getElementById('municipalitySelect');
+  if(!code){
+    sel.innerHTML = '<option value="">Pick a country first</option>';
+    sel.disabled = true;
+    return;
+  }
+  const munis = municipalitiesForCountry(code).sort((a,b) => (a.name_en||a.name||'').localeCompare(b.name_en||b.name||''));
+  sel.innerHTML = '<option value="">Select a municipality…</option>' +
+    munis.map(m => `<option value="${m.id}">${escapeHtml(m.name_en || m.name)}</option>`).join('');
+  sel.disabled = false;
+}
+function onMunicipalitySelectChange(){
+  const id = document.getElementById('municipalitySelect').value;
+  if(!id) return;
+  selectMunicipality(parseInt(id, 10));
+}
+function renderMuniListForCountry(code){
+  const titleEl = document.getElementById('muniListTitle');
+  const listEl = document.getElementById('muniListArea');
+  if(!code){ titleEl.style.display = 'none'; listEl.innerHTML = ''; return; }
+  const munis = municipalitiesForCountry(code).sort((a,b) => (a.name_en||a.name||'').localeCompare(b.name_en||b.name||''));
+  titleEl.style.display = '';
+  titleEl.textContent = `Municipalities in this country (${munis.length})`;
+  listEl.innerHTML = munis.map(m => {
+    const { covered } = coverageForMunicipality(m.id);
+    const realCovered = REAL_CATEGORIES.filter(c => covered.has(c)).length;
+    const pct = Math.round(100 * realCovered / REAL_CATEGORIES.length);
+    return `<div class="muniRow ${m.id === selectedMunicipalityId ? 'active' : ''}" onclick="selectMunicipalityFromList(${m.id})" style="cursor:pointer;">
+        <span class="name">${escapeHtml(m.name_en || m.name)}</span>
+        <span class="cov">${realCovered}/${REAL_CATEGORIES.length}<span class="covBar"><i style="width:${pct}%"></i></span></span>
+      </div>`;
+  }).join('');
+}
+function selectMunicipalityFromList(id){
+  document.getElementById('municipalitySelect').value = String(id);
+  selectMunicipality(id);
+  renderMuniListForCountry(selectedCountryCode);
+}
+
+/* =========================================================================
+   MUNICIPALITY PANEL — category coverage grid + company list + research
+   ========================================================================= */
+function selectMunicipality(id){
+  selectedMunicipalityId = id;
+  renderMuniListForCountry(selectedCountryCode);
+  renderMunicipalityPanel();
+}
+function renderMunicipalityPanel(){
+  document.getElementById('rightEmpty').classList.add('hidden');
+  const panel = document.getElementById('muniPanel');
+  panel.classList.remove('hidden');
+  const muni = municipalityCache.find(m => m.id === selectedMunicipalityId);
+  if(!muni){ panel.innerHTML = ''; return; }
+  const { covered, companies } = coverageForMunicipality(muni.id);
+
+  let html = `<h2 class="paneTitle">${escapeHtml(muni.name_en || muni.name)}</h2>`;
+  if(!isAdmin()){
+    html += `<div class="warnBox">You can research and preview here, but saving requires an admin sign-in scoped to this country/municipality.</div>`;
+  }
+
+  html += `<h3 class="subTitle">Category coverage</h3><div class="catGrid">`;
+  UC_CATEGORIES.forEach(cat => {
+    const isCovered = covered.has(cat);
+    const holder = companies.find(c => (c.categories||[]).includes(cat));
+    const conflictHere = holder && holder.flagged_category_conflict;
+    html += `<div class="catCard ${isCovered ? 'covered':''} ${conflictHere ? 'conflict':''}">
+        <div class="icon">${CATEGORY_META[cat].icon}</div>
+        <div class="label">${CATEGORY_META[cat].label}</div>
+        <div class="status">${isCovered ? ('Covered: ' + escapeHtml(holder ? holder.name : '')) : 'No contact yet'}</div>
+        <button class="btn small" onclick="startResearch('${cat}')">${isCovered ? 'Re-check' : 'Research'}</button>
+      </div>`;
+  });
+  html += `</div>`;
+
+  html += `<div id="researchArea"></div>`;
+
+  html += `<h3 class="subTitle">Contacts on file (${companies.length})</h3>`;
+  if(!companies.length){
+    html += `<div class="emptyState">No contacts saved yet for this municipality.</div>`;
+  } else {
+    companies.forEach(c => { html += renderCompanyCard(c); });
+  }
+  panel.innerHTML = html;
+}
+function renderCompanyCard(c){
+  const chips = (c.categories||[]).map(cat => `<span class="catChip">${CATEGORY_META[cat] ? CATEGORY_META[cat].icon : ''} ${cat}</span>`).join('');
+  const badges = [
+    c.verified ? '<span class="badge verified">verified</span>' : '',
+    c.needs_review ? '<span class="badge review">needs review</span>' : '',
+    c.flagged_category_conflict ? '<span class="badge conflict">conflict</span>' : '',
+    c.possible_duplicate_of ? '<span class="badge dup">possible duplicate</span>' : ''
+  ].join('');
+  return `<div class="companyCard">
+      <div><b>${escapeHtml(c.name)}</b>${badges}</div>
+      <div style="margin:4px 0;">${chips}</div>
+      <div style="font-size:12px;color:var(--text-secondary)">
+        ${c.phone ? '📞 ' + escapeHtml(c.phone) : ''} ${c.email ? ' · ✉️ ' + escapeHtml(c.email) : ''}
+      </div>
+      ${c.address ? `<div style="font-size:12px;color:var(--text-muted)">📍 ${escapeHtml(c.address)}</div>` : ''}
+      ${c.flag_reason ? `<div class="warnBox" style="margin-top:6px;">${escapeHtml(c.flag_reason)}</div>` : ''}
+    </div>`;
+}
+
+/* =========================================================================
+   RESEARCH (Anthropic API, user's own key, with web_search tool)
+   ========================================================================= */
+async function startResearch(category){
+  const backend = getBackend();
+  const apiKey = getApiKey(backend);
+  if(!apiKey){
+    toast(`Add your ${backend === 'gemini' ? 'Gemini' : 'Anthropic'} API key in Settings first.`, 'error');
+    openModal('settingsModal');
+    return;
+  }
+  const muni = municipalityCache.find(m => m.id === selectedMunicipalityId);
+  const country = countriesByCode[(muni.country_code||'').toUpperCase()];
+  const countryName = country ? country.name : (muni.country_code || '');
+  const { companies } = coverageForMunicipality(muni.id);
+
+  const area = document.getElementById('researchArea');
+  area.innerHTML = `<div class="reviewCard">Researching ${CATEGORY_META[category].label} for ${escapeHtml(muni.name_en||muni.name)}… this calls ${backend === 'gemini' ? 'Gemini' : 'Claude'} with web search and can take up to a minute.</div>`;
+
+  try{
+    const result = await researchContact({ backend, apiKey, muni, countryName, category, existingCompanies: companies });
+    renderReviewCard(category, result, muni);
+  }catch(err){
+    area.innerHTML = `<div class="reviewCard" style="border-color:var(--danger)">Research failed: ${escapeHtml(err.message)}</div>`;
+  }
+}
+function buildResearchPrompt({ muni, countryName, category, existingCompanies }){
+  const label = CATEGORY_META[category].label;
+  const isFallback = FALLBACK_CATEGORIES.includes(category);
+  const existingList = existingCompanies.length
+    ? existingCompanies.map(c => `- ${c.name} (covers: ${(c.categories||[]).join(', ')}) phone:${c.phone||'?'} email:${c.email||'?'} website:${c.website||'?'}`).join('\n')
+    : '(none on file yet)';
+  const muniName = muni.name_en || muni.name;
+
+  const task = isFallback
+    ? `Find the general public switchboard / main contact line for the municipal government (city hall / municipal administration) of ${muniName}, ${countryName}. This is used as a fallback contact for general suggestions and issues that don't fit a specific utility category.`
+    : `Find the current, official public utility company or municipal department responsible for handling "${label}" issues in ${muniName}, ${countryName} — the entity a resident should contact to report a problem such as a break, outage, or damage in this category.`;
+
+  const systemPrompt = `You are a research assistant populating a civic-issue-reporting app with accurate, current public-service contact information.
+
+${task}
+
+Companies already on file for this municipality (if one of these is actually responsible, say so instead of inventing a duplicate):
+${existingList}
+
+Search the web for the most current official information (municipal government website, official utility company site). Prefer primary/official sources over aggregators or directories.
+
+Respond with ONLY a single JSON object, no markdown code fences, no other text, in exactly this shape:
+{
+  "found": boolean,
+  "company_name": string or null,
+  "matches_existing_company": string or null,
+  "phone": string or null,
+  "phones_extra": string[],
+  "email": string or null,
+  "emails_extra": string[],
+  "website": string or null,
+  "address": string or null,
+  "notes": string or null,
+  "source_url": string or null,
+  "confidence": "high" or "medium" or "low"
+}
+If you cannot find a specific responsible entity, set "found" to false, still try to fill "company_name" with the general municipal switchboard as a fallback, and set "confidence" to "low".`;
+
+  const userMessage = `Research the contact now for: ${muniName}, ${countryName} — category: ${label}.`;
+  return { systemPrompt, userMessage };
+}
+function extractJsonObject(text){
+  const clean = String(text||'').replace(/```json|```/g, '').trim();
+  const start = clean.indexOf('{');
+  const end = clean.lastIndexOf('}');
+  if(start === -1 || end === -1) throw new Error('Could not parse a JSON result from the model.');
+  return JSON.parse(clean.slice(start, end + 1));
+}
+async function researchContact({ backend, apiKey, muni, countryName, category, existingCompanies }){
+  const { systemPrompt, userMessage } = buildResearchPrompt({ muni, countryName, category, existingCompanies });
+  if(backend === 'gemini') return await researchWithGemini({ apiKey, systemPrompt, userMessage });
+  return await researchWithAnthropic({ apiKey, systemPrompt, userMessage });
+}
+async function researchWithAnthropic({ apiKey, systemPrompt, userMessage }){
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version':'2023-06-01',
+      'anthropic-dangerous-direct-browser-access':'true'
+    },
+    body: JSON.stringify({
+      model: ANTHROPIC_MODEL,
+      max_tokens: 1500,
+      system: systemPrompt,
+      messages: [{ role:'user', content: userMessage }],
+      tools: [{ type:'web_search_20250305', name:'web_search' }]
+    })
+  });
+  const data = await resp.json();
+  if(data.error) throw new Error(data.error.message || 'Anthropic API error');
+  const textBlocks = (data.content || []).filter(b => b.type === 'text').map(b => b.text);
+  return extractJsonObject(textBlocks.join('\n'));
+}
+async function researchWithGemini({ apiKey, systemPrompt, userMessage }){
+  const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json', 'x-goog-api-key': apiKey },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: systemPrompt }] },
+      contents: [{ role:'user', parts: [{ text: userMessage }] }],
+      tools: [{ google_search: {} }]
+    })
+  });
+  const data = await resp.json();
+  if(data.error) throw new Error(data.error.message || 'Gemini API error');
+  const cand = data.candidates && data.candidates[0];
+  const parts = cand && cand.content && cand.content.parts ? cand.content.parts : [];
+  const text = parts.map(p => p.text || '').join('\n');
+  return extractJsonObject(text);
+}
+
+/* =========================================================================
+   REVIEW CARD — editable preview + save / merge / flag actions
+   ========================================================================= */
+function renderReviewCard(category, result, muni){
+  const area = document.getElementById('researchArea');
+  const cc = muni.country_code;
+  const phone = formatPhone(result.phone, cc);
+  const phonesExtra = (result.phones_extra||[]).map(p => formatPhone(p, cc)).filter(Boolean);
+  const address = normalizeAddress(result.address);
+
+  // Best-effort match against existing companies in this municipality (by AI suggestion or name similarity)
+  const { companies } = coverageForMunicipality(muni.id);
+  let bestMatch = null;
+  if(result.matches_existing_company){
+    bestMatch = companies.find(c => nameSimilarity(c.name, result.matches_existing_company) > 0.6);
+  }
+  if(!bestMatch && result.company_name){
+    const candidate = companies.map(c => ({ c, sim: nameSimilarity(c.name, result.company_name) })).sort((a,b)=>b.sim-a.sim)[0];
+    if(candidate && candidate.sim > 0.82) bestMatch = candidate.c;
+  }
+  const conflictHolder = companies.find(c => (c.categories||[]).includes(category) && (!bestMatch || c.id !== bestMatch.id));
+
+  const conf = (result.confidence || 'low').toLowerCase();
+
+  const html = `<div class="reviewCard" id="reviewCardInner">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <b>${CATEGORY_META[category].label} — proposed contact</b>
+      <span class="confBadge ${conf}">${conf} confidence</span>
+    </div>
+    ${!result.found ? '<div class="warnBox">No dedicated authority found — showing a fallback contact instead.</div>' : ''}
+    ${bestMatch ? `<div class="warnBox">This looks like an existing company: <b>${escapeHtml(bestMatch.name)}</b>. Choose "Add category to existing" below to avoid a duplicate.</div>` : ''}
+    ${conflictHolder ? `<div class="warnBox">⚠ ${category} is already assigned to a different company here: <b>${escapeHtml(conflictHolder.name)}</b>. Saving as new will be flagged for manual conflict review.</div>` : ''}
+
+    <div class="field"><label>Company / department name</label><input id="rc_name" value="${escapeHtml(result.company_name||'')}"></div>
+    <div class="fieldRow">
+      <div class="field"><label>Primary phone</label><input id="rc_phone" value="${escapeHtml(phone)}"></div>
+      <div class="field"><label>Primary email</label><input id="rc_email" value="${escapeHtml(result.email||'')}"></div>
+    </div>
+    <div class="field"><label>Extra phones (comma-separated)</label><input id="rc_phones_extra" value="${escapeHtml(phonesExtra.join(', '))}"></div>
+    <div class="field"><label>Extra emails (comma-separated)</label><input id="rc_emails_extra" value="${escapeHtml((result.emails_extra||[]).join(', '))}"></div>
+    <div class="field"><label>Website</label><input id="rc_website" value="${escapeHtml(result.website||'')}"></div>
+    <div class="field"><label>Address</label><input id="rc_address" value="${escapeHtml(address)}"></div>
+    <div class="field"><label>Notes</label><textarea id="rc_notes">${escapeHtml(result.notes||'')}</textarea></div>
+    <div class="field"><label>Source URL</label><input id="rc_source" value="${escapeHtml(result.source_url||'')}"></div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+      ${bestMatch ? `<button class="btn primary" onclick="saveResearch('${category}', ${muni.id}, ${bestMatch.id})">Add category to existing (${escapeHtml(bestMatch.name)})</button>` : ''}
+      <button class="btn ${bestMatch ? '' : 'primary'}" onclick="saveResearch('${category}', ${muni.id}, null)">Save as new contact</button>
+      <button class="btn ghost" onclick="document.getElementById('researchArea').innerHTML=''">Discard</button>
+    </div>
+  </div>`;
+  area.innerHTML = html;
+}
+async function saveResearch(category, municipalityId, mergeIntoId){
+  if(!isAdmin()){ toast('You need to be signed in as an admin scoped to this municipality to save.', 'error'); return; }
+  const name = document.getElementById('rc_name').value.trim();
+  const phone = document.getElementById('rc_phone').value.trim();
+  const email = document.getElementById('rc_email').value.trim();
+  const phonesExtra = document.getElementById('rc_phones_extra').value.split(',').map(s=>s.trim()).filter(Boolean);
+  const emailsExtra = document.getElementById('rc_emails_extra').value.split(',').map(s=>s.trim()).filter(Boolean);
+  const website = document.getElementById('rc_website').value.trim();
+  const address = document.getElementById('rc_address').value.trim();
+  const notes = document.getElementById('rc_notes').value.trim();
+  const sourceUrl = document.getElementById('rc_source').value.trim();
+  if(!name){ toast('Company/department name is required.', 'error'); return; }
+
+  try{
+    if(mergeIntoId){
+      const existing = companiesCache.find(c => c.id === mergeIntoId);
+      const newCategories = Array.from(new Set([...(existing.categories||[]), category]));
+      const newPhonesExtra = Array.from(new Set([...(existing.phones_extra||[]), ...phonesExtra, ...(phone && phone !== existing.phone ? [phone] : [])]));
+      const newEmailsExtra = Array.from(new Set([...(existing.emails_extra||[]), ...emailsExtra, ...(email && email !== existing.email ? [email] : [])]));
+      const { data, error } = await sb.from(UTILITY_COMPANIES_TABLE).update({
+        categories: newCategories,
+        phones_extra: newPhonesExtra,
+        emails_extra: newEmailsExtra,
+        website: existing.website || website || null,
+        address: existing.address || address || null,
+        source_url: existing.source_url || sourceUrl || null,
+        collection_notes: [existing.collection_notes, notes].filter(Boolean).join(' | ') || null,
+        collected_by: currentUserLabel(),
+        updated_at: new Date().toISOString()
+      }).eq('id', mergeIntoId).select().single();
+      if(error) throw error;
+      const idx = companiesCache.findIndex(c => c.id === mergeIntoId);
+      companiesCache[idx] = data;
+      toast('Added ' + category + ' to ' + data.name, 'success');
+    } else {
+      const { companies } = coverageForMunicipality(municipalityId);
+      const conflictHolder = companies.find(c => (c.categories||[]).includes(category));
+      const dupCandidate = companies.map(c => ({ c, sim: nameSimilarity(c.name, name) })).sort((a,b)=>b.sim-a.sim)[0];
+      const possibleDup = dupCandidate && dupCandidate.sim > 0.82 ? dupCandidate.c.id : null;
+
+      const row = {
+        municipality_id: municipalityId,
+        name,
+        categories: [category],
+        phone: phone || null,
+        phones_extra: phonesExtra,
+        email: email || null,
+        emails_extra: emailsExtra,
+        website: website || null,
+        address: address || null,
+        notes: notes || null,
+        verified: false,
+        needs_review: true,
+        flagged_category_conflict: !!conflictHolder,
+        flag_reason: conflictHolder ? `Category ${category} already assigned to "${conflictHolder.name}" — review before verifying.` : null,
+        possible_duplicate_of: possibleDup,
+        source_url: sourceUrl || null,
+        collection_notes: notes || null,
+        collected_by: currentUserLabel(),
+        created_by: currentSession ? currentSession.user.id : null
+      };
+      const { data, error } = await sb.from(UTILITY_COMPANIES_TABLE).insert(row).select().single();
+      if(error) throw error;
+      companiesCache.push(data);
+      toast(conflictHolder ? 'Saved, flagged for conflict review.' : 'Saved as new contact (unverified).', 'success');
+    }
+    document.getElementById('researchArea').innerHTML = '';
+    renderMunicipalityPanel();
+  }catch(err){
+    toast('Save failed: ' + err.message, 'error');
+  }
+}
+
+/* =========================================================================
+   INIT
+   ========================================================================= */
+async function init(){
+  const { data: { session } } = await sb.auth.getSession();
+  currentSession = session;
+  if(currentSession) await loadProfile();
+  updateAuthUI();
+  sb.auth.onAuthStateChange(async (event, session) => {
+    currentSession = session;
+    if(currentSession) await loadProfile(); else { currentProfile = null; updateAuthUI(); }
+  });
+
+  await Promise.all([loadCountries(), loadMunicipalities(), loadCompanies()]);
+  populateCountrySelect();
+  populateMunicipalitySelect(null);
+}
+document.getElementById('signInBtn').addEventListener('click', () => openModal('signInModal'));
+init();
+</script>
+</body>
+</html>

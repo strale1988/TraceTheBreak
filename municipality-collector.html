@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>TraceTheBreak — Municipality Collector</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+:root{
+  --bg-app:#f4f4f2; --bg-surface:#ffffff; --bg-surface-alt:#ececeb;
+  --border-color:#e2e2e0; --border-color-strong:#ddd;
+  --text-primary:#1a1a1a; --text-secondary:#555; --text-muted:#999;
+  --accent:#e16e11; --accent-contrast:#ffffff; --nav-accent:#0090ab;
+  --warn-bg:#fdf1da; --warn-border:#e16e11; --warn-text:#8a6212;
+  --success:#2ecc71; --danger:#ff4b4b; --danger-strong:#7a1f1f;
+  --radius-sm:6px; --radius-md:8px; --radius-lg:10px; --radius-pill:20px;
+  --fs-11:11px; --fs-12:12px; --fs-13:13px; --fs-14:14px; --fs-15:15px; --fs-16:16px;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;height:100%;background:var(--bg-app);color:var(--text-primary);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:var(--fs-14);}
+button{font-family:inherit;cursor:pointer;}
+input,select{font-family:inherit;font-size:var(--fs-13);}
+a{color:var(--nav-accent);}
+
+#appHeader{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;
+  background:var(--bg-surface);border-bottom:1px solid var(--border-color);position:sticky;top:0;z-index:1000;}
+#appHeader h1{font-size:var(--fs-16);margin:0;font-weight:700;}
+#appHeader h1 span{color:var(--accent);}
+.headerRight{display:flex;align-items:center;gap:8px;}
+.pill{padding:4px 10px;border-radius:var(--radius-pill);font-size:var(--fs-11);font-weight:600;}
+.pill.signedin{background:#e8f8ee;color:#1e8449;}
+.pill.signedout{background:var(--bg-surface-alt);color:var(--text-muted);}
+
+.btn{border:1px solid var(--border-color-strong);background:var(--bg-surface);color:var(--text-primary);
+  padding:6px 12px;border-radius:var(--radius-md);font-size:var(--fs-13);font-weight:600;}
+.btn:hover{background:var(--bg-surface-alt);}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-contrast);}
+.btn.primary:hover{filter:brightness(0.95);}
+.btn.ghost{background:transparent;border-color:transparent;}
+.btn:disabled{opacity:0.45;cursor:not-allowed;}
+.btn.small{padding:3px 8px;font-size:var(--fs-11);}
+
+#layout{display:grid;grid-template-columns:minmax(340px,460px) 1fr;height:calc(100vh - 53px);}
+#worldMap{height:100%;}
+#sidePanel{overflow-y:auto;padding:14px 16px;background:var(--bg-surface);border-right:1px solid var(--border-color);}
+
+h2.paneTitle{font-size:var(--fs-16);margin:0 0 10px;}
+h3.subTitle{font-size:var(--fs-13);margin:16px 0 6px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.03em;}
+
+.searchRow{display:flex;gap:6px;margin-bottom:8px;}
+.searchRow input{flex:1;padding:7px 9px;border:1px solid var(--border-color-strong);border-radius:var(--radius-md);}
+
+.muniRow{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border:1px solid var(--border-color);
+  border-radius:var(--radius-md);margin-bottom:6px;background:var(--bg-surface);font-size:var(--fs-13);}
+
+.warnBox{background:var(--warn-bg);border:1px solid var(--warn-border);color:var(--warn-text);
+  border-radius:var(--radius-md);padding:9px 11px;font-size:var(--fs-12);margin-bottom:10px;}
+.infoBox{background:#eef7fb;border:1px solid var(--nav-accent);color:#0a5c6d;
+  border-radius:var(--radius-md);padding:9px 11px;font-size:var(--fs-12);margin-bottom:10px;}
+.emptyState{color:var(--text-muted);font-size:var(--fs-13);padding:16px 4px;}
+
+#toastHost{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:5000;display:flex;flex-direction:column;gap:6px;}
+.toast{background:#1a1a1a;color:#fff;padding:9px 16px;border-radius:var(--radius-md);font-size:var(--fs-13);box-shadow:0 4px 14px rgba(0,0,0,.25);}
+.toast.error{background:var(--danger-strong);}
+.toast.success{background:#1e8449;}
+
+.modalOverlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:4000;}
+.modalBox{background:var(--bg-surface);border-radius:var(--radius-lg);padding:22px;max-width:420px;width:92%;}
+.modalBox h3{margin-top:0;}
+.hidden{display:none !important;}
+.leaflet-interactive.countryPoly{transition:fill-opacity .15s;}
+</style>
+</head>
+<body>
+
+<div id="appHeader">
+  <h1>TraceTheBreak <span>Municipality Collector</span></h1>
+  <div class="headerRight">
+    <span id="authPill" class="pill signedout">Signed out</span>
+    <button class="btn" id="signInBtn">Sign in</button>
+  </div>
+</div>
+
+<div id="layout">
+  <div id="sidePanel">
+    <div id="countryEmpty" class="emptyState">Click a country on the map to see and add its municipalities.</div>
+    <div id="countryPanel" class="hidden"></div>
+  </div>
+  <div id="worldMap"></div>
+</div>
+
+<div id="toastHost"></div>
+
+<div id="signInModal" class="modalOverlay hidden">
+  <div class="modalBox">
+    <h3>Sign in</h3>
+    <p style="font-size:13px;color:var(--text-secondary)">Use any account — adding municipalities just requires being signed in (no admin role needed).</p>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px;">
+      <button class="btn primary" onclick="signInWithProvider('google')">Continue with Google</button>
+      <button class="btn" onclick="signInWithProvider('github')">Continue with GitHub</button>
+    </div>
+    <div style="text-align:right;margin-top:14px;"><button class="btn ghost" onclick="closeModal('signInModal')">Close</button></div>
+  </div>
+</div>
+
+<script>
+/* =========================================================================
+   CONFIG
+   ========================================================================= */
+const SUPABASE_URL = 'https://fnkqmwweljsupbmerbkh.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZua3Ftd3dlbGpzdXBibWVyYmtoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3OTcwODUsImV4cCI6MjA5NzM3MzA4NX0.eX3mxnSpGmJ6Ebw7Y4F_jHiJarPH4ri9WNYXwmLi16I';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const MUNICIPALITIES_TABLE = 'municipalities';
+const COUNTRIES_TABLE = 'countries';
+
+const WORLD_GEOJSON_URLS = [
+  'https://cdn.jsdelivr.net/gh/datasets/geo-countries@master/data/countries.geojson',
+  'https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson'
+];
+
+// OSM's admin_level tagging is NOT consistent worldwide. Level 8 is documented as the single most
+// common value for "municipality" globally; a few countries are confidently known to differ.
+// Everything else falls back to 8 and is adjustable in the UI regardless.
+const COUNTRY_ADMIN_LEVEL_HINTS = { RS: 7, GB: 6, US: 8, FR: 8, DE: 8 };
+function defaultAdminLevelFor(countryCode){ return COUNTRY_ADMIN_LEVEL_HINTS[countryCode] || 8; }
+
+const CYRILLIC_TO_LATIN_MAP = {
+  'А':'A','Б':'B','В':'V','Г':'G','Д':'D','Ђ':'Đ','Е':'E','Ж':'Ž','З':'Z','И':'I',
+  'Ј':'J','К':'K','Л':'L','Љ':'Lj','М':'M','Н':'N','Њ':'Nj','О':'O','П':'P','Р':'R',
+  'С':'S','Т':'T','Ћ':'Ć','У':'U','Ф':'F','Х':'H','Ц':'C','Ч':'Č','Џ':'Dž','Ш':'Š',
+  'а':'a','б':'b','в':'v','г':'g','д':'d','ђ':'đ','е':'e','ж':'ž','з':'z','и':'i',
+  'ј':'j','к':'k','л':'l','љ':'lj','м':'m','н':'n','њ':'nj','о':'o','п':'p','р':'r',
+  'с':'s','т':'t','ћ':'ć','у':'u','ф':'f','х':'h','ц':'c','ч':'č','џ':'dž','ш':'š'
+};
+function cyrillicToLatin(str){
+  if(!str) return str;
+  return String(str).replace(/[А-Яа-яЂђЈјЉљЊњЋћЏџ]/g, ch => CYRILLIC_TO_LATIN_MAP[ch] ?? ch);
+}
+function normalizeNameForMatch(name){
+  if(!name) return '';
+  let s = cyrillicToLatin(String(name)).toLowerCase();
+  s = s.replace(/[^a-z0-9]+/g, ' ').trim();
+  return s;
+}
+
+/* =========================================================================
+   STATE
+   ========================================================================= */
+let currentSession = null;
+let countriesByCode = {};
+let municipalityCache = [];
+let selectedCountryCode = null;
+let worldLayer = null;
+let map = null;
+
+/* =========================================================================
+   TOAST / MODAL HELPERS
+   ========================================================================= */
+function toast(msg, type){
+  const host = document.getElementById('toastHost');
+  const el = document.createElement('div');
+  el.className = 'toast' + (type ? ' ' + type : '');
+  el.textContent = msg;
+  host.appendChild(el);
+  setTimeout(() => el.remove(), 4200);
+}
+function escapeHtml(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function openModal(id){ document.getElementById(id).classList.remove('hidden'); }
+function closeModal(id){ document.getElementById(id).classList.add('hidden'); }
+
+/* =========================================================================
+   AUTH — any signed-in account (no admin role required for this tool)
+   ========================================================================= */
+function describeAuthError(err){
+  if(!err) return 'Unknown error';
+  if(typeof err === 'string') return err;
+  return err.message || err.error_description || err.msg || JSON.stringify(err);
+}
+async function signInWithProvider(provider){
+  try{
+    const redirectTo = window.location.origin + window.location.pathname;
+    const { error } = await sb.auth.signInWithOAuth({ provider, options: { redirectTo } });
+    if(error) throw error;
+  }catch(err){
+    toast('Sign-in failed: ' + describeAuthError(err), 'error');
+  }
+}
+async function signOutUser(){
+  await sb.auth.signOut();
+  currentSession = null;
+  updateAuthUI();
+}
+function updateAuthUI(){
+  const pill = document.getElementById('authPill');
+  const signInBtn = document.getElementById('signInBtn');
+  if(!currentSession){
+    pill.textContent = 'Signed out';
+    pill.className = 'pill signedout';
+    signInBtn.textContent = 'Sign in';
+    signInBtn.onclick = () => openModal('signInModal');
+  } else {
+    pill.textContent = 'Signed in: ' + (currentSession.user.email || currentSession.user.id);
+    pill.className = 'pill signedin';
+    signInBtn.textContent = 'Sign out';
+    signInBtn.onclick = signOutUser;
+  }
+}
+
+/* =========================================================================
+   DATA LOADING
+   ========================================================================= */
+async function loadCountries(){
+  const { data, error } = await sb.from(COUNTRIES_TABLE).select('*').order('name');
+  if(error){ toast('Failed to load countries: ' + error.message, 'error'); return; }
+  countriesByCode = {};
+  (data || []).forEach(c => countriesByCode[c.code] = c);
+}
+async function loadMunicipalities(){
+  const { data, error } = await sb.from(MUNICIPALITIES_TABLE).select('*').order('name');
+  if(error){ toast('Failed to load municipalities: ' + error.message, 'error'); return; }
+  municipalityCache = data || [];
+}
+function municipalitiesForCountry(code){
+  return municipalityCache.filter(m => (m.country_code || '').toUpperCase() === code);
+}
+
+/* =========================================================================
+   WORLD MAP
+   ========================================================================= */
+async function initMap(){
+  map = L.map('worldMap', { worldCopyJump:true, minZoom:1 }).setView([30, 15], 2);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors', maxZoom: 8
+  }).addTo(map);
+
+  let geojson = null;
+  for(const url of WORLD_GEOJSON_URLS){
+    try{
+      const res = await fetch(url);
+      if(res.ok){ geojson = await res.json(); break; }
+    }catch(e){ /* try next mirror */ }
+  }
+  if(!geojson){ toast('Could not load world boundaries — check your connection.', 'error'); return; }
+
+  worldLayer = L.geoJSON(geojson, {
+    style: feature => styleForCountry(feature),
+    onEachFeature: (feature, layer) => {
+      layer.on('click', () => selectCountry(countryCodeFromFeature(feature)));
+      layer.on('mouseover', () => layer.setStyle({ fillOpacity: 0.75 }));
+      layer.on('mouseout', () => worldLayer.resetStyle(layer));
+      layer.bindTooltip(feature.properties.name || feature.properties.ADMIN || '', { sticky:true });
+    }
+  }).addTo(map);
+}
+function countryCodeFromFeature(feature){
+  const p = feature.properties || {};
+  const raw = p['ISO3166-1-Alpha-2'] || p.ISO_A2 || p.iso_a2 || p['iso_a2_eh'] || p.ISO2 || null;
+  return raw && raw !== '-99' ? String(raw).toUpperCase() : null;
+}
+function styleForCountry(feature){
+  const code = countryCodeFromFeature(feature) || '';
+  const count = municipalitiesForCountry(code).length;
+  let fill = '#cfcfcc';
+  if(count > 0) fill = '#2ecc71';
+  return {
+    className:'countryPoly',
+    color:'#888', weight:0.6,
+    fillColor: fill, fillOpacity: code === selectedCountryCode ? 0.85 : 0.5
+  };
+}
+function refreshMapStyles(){ if(worldLayer) worldLayer.eachLayer(l => worldLayer.resetStyle(l)); }
+
+/* =========================================================================
+   COUNTRY PANEL — bulk import (Overpass) + manual single-add fallback
+   ========================================================================= */
+function selectCountry(code){
+  if(!code) return;
+  selectedCountryCode = code.toUpperCase();
+  refreshMapStyles();
+  renderCountryPanel();
+}
+function renderCountryPanel(){
+  document.getElementById('countryEmpty').classList.add('hidden');
+  const panel = document.getElementById('countryPanel');
+  panel.classList.remove('hidden');
+  const country = countriesByCode[selectedCountryCode];
+  const munis = municipalitiesForCountry(selectedCountryCode).sort((a,b) => (a.name||'').localeCompare(b.name||''));
+  const suggestedLevel = defaultAdminLevelFor(selectedCountryCode);
+  const levelOption = (val, label) => `<option value="${val}" ${val === suggestedLevel ? 'selected' : ''}>${label}</option>`;
+
+  let html = `<h2 class="paneTitle">${escapeHtml(country ? country.name : selectedCountryCode)}</h2>`;
+
+  html += `<div class="infoBox">
+      <b>Bulk import from OpenStreetMap</b><br>
+      Pulls every administrative area of a given level for this country in one go — the level that actually runs local public services (like Serbia's 174 opštine, each covering its own villages), not raw village/hamlet lists.
+      <div style="display:flex;gap:6px;align-items:center;margin-top:8px;">
+        <select id="osmAdminLevelSelect" style="flex:1;padding:6px;border:1px solid var(--border-color-strong);border-radius:var(--radius-sm);">
+          ${levelOption(4, 'Level 4 (states/provinces — rarely right)')}
+          ${levelOption(6, 'Level 6 (counties/districts)')}
+          ${levelOption(7, 'Level 7 (e.g. Serbian opštine)')}
+          ${levelOption(8, 'Level 8 (most common: municipalities/communes)')}
+          ${levelOption(9, 'Level 9')}
+          ${levelOption(10, 'Level 10')}
+        </select>
+        <button class="btn small" onclick="previewOsmImport()">Preview</button>
+      </div>
+      <div style="font-size:11px;color:#0a5c6d;margin-top:4px;">Pre-selected level ${suggestedLevel} ${COUNTRY_ADMIN_LEVEL_HINTS[selectedCountryCode] ? 'based on ' + selectedCountryCode + "'s known OSM convention" : '(generic worldwide default — double check the preview)'}. If it looks wrong, try another level.</div>
+    </div>
+    <div id="osmImportResults"></div>`;
+
+  html += `<div class="searchRow" style="margin-top:10px;">
+      <input id="muniSearchInput" placeholder="Or add one manually by name (OpenStreetMap search)...">
+      <button class="btn small" onclick="searchMunicipality()">Search</button>
+    </div>
+    <div id="muniSearchResults"></div>`;
+
+  html += `<h3 class="subTitle">On file (${munis.length})</h3>`;
+  if(!munis.length){
+    html += `<div class="emptyState">No municipalities cached for this country yet.</div>`;
+  } else {
+    munis.forEach(m => {
+      html += `<div class="muniRow"><span>${escapeHtml(m.name_en || m.name)}</span></div>`;
+    });
+  }
+  panel.innerHTML = html;
+}
+async function searchMunicipality(){
+  const q = document.getElementById('muniSearchInput').value.trim();
+  if(!q) return;
+  const resultsEl = document.getElementById('muniSearchResults');
+  resultsEl.innerHTML = '<div class="emptyState">Searching…</div>';
+  try{
+    const params = new URLSearchParams({ format:'jsonv2', q, limit:'5', addressdetails:'1' });
+    if(selectedCountryCode) params.set('countrycodes', selectedCountryCode.toLowerCase());
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, { headers:{ 'Accept':'application/json' } });
+    const json = await res.json();
+    if(!Array.isArray(json) || !json.length){
+      resultsEl.innerHTML = '<div class="emptyState">No results.</div>';
+      return;
+    }
+    resultsEl.innerHTML = json.map((hit, i) => `
+      <div class="muniRow" onclick="addMunicipalityFromSearch(${i})" style="cursor:pointer;">
+        <span>${escapeHtml(hit.display_name)}</span>
+        <button class="btn small">Add</button>
+      </div>`).join('');
+    window._muniSearchCache = json;
+  }catch(err){
+    resultsEl.innerHTML = '<div class="emptyState">Search failed: ' + escapeHtml(err.message) + '</div>';
+  }
+}
+async function addMunicipalityFromSearch(i){
+  if(!currentSession){ toast('Sign in first — adding municipalities requires an account.', 'error'); openModal('signInModal'); return; }
+  const hit = (window._muniSearchCache || [])[i];
+  if(!hit) return;
+  const cc = (hit.address && hit.address.country_code ? hit.address.country_code : selectedCountryCode || '').toUpperCase();
+  const row = {
+    osm_type: hit.osm_type || 'unknown',
+    osm_id: hit.osm_id != null ? hit.osm_id : -Math.floor(Math.random() * 1e9),
+    admin_level: null,
+    name: cyrillicToLatin(hit.name || hit.display_name.split(',')[0]),
+    name_en: cyrillicToLatin(hit.name || hit.display_name.split(',')[0]),
+    country_code: cc || null,
+    centroid_lat: parseFloat(hit.lat),
+    centroid_lon: parseFloat(hit.lon),
+    boundary: { type:'Polygon', coordinates:[] },
+    bbox: null,
+    slug: Math.random().toString(36).slice(2, 10)
+  };
+  try{
+    const { data, error } = await sb.from(MUNICIPALITIES_TABLE).insert(row).select().single();
+    if(error) throw error;
+    municipalityCache.push(data);
+    toast('Added ' + data.name_en, 'success');
+    document.getElementById('muniSearchResults').innerHTML = '';
+    document.getElementById('muniSearchInput').value = '';
+    renderCountryPanel();
+    refreshMapStyles();
+  }catch(err){
+    toast('Could not add municipality: ' + err.message, 'error');
+  }
+}
+
+/* ---- Bulk import via Overpass ---- */
+const OVERPASS_ENDPOINTS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
+async function fetchOverpass(query){
+  let lastErr;
+  for(const ep of OVERPASS_ENDPOINTS){
+    try{
+      const res = await fetch(ep, { method:'POST', body: 'data=' + encodeURIComponent(query) });
+      if(res.ok) return await res.json();
+      lastErr = new Error('HTTP ' + res.status);
+    }catch(e){ lastErr = e; }
+  }
+  throw lastErr || new Error('Overpass request failed.');
+}
+function buildOverpassQuery(countryCode, adminLevel){
+  return `[out:json][timeout:90];
+area["ISO3166-1"="${countryCode}"][admin_level=2]->.country;
+(
+  relation["boundary"="administrative"]["admin_level"="${adminLevel}"](area.country);
+);
+out center tags;`;
+}
+function parseOverpassMunicipalities(json, countryCode){
+  return (json.elements || [])
+    .filter(el => el.tags && el.tags.name && el.center)
+    .map(el => ({
+      osm_type: el.type,
+      osm_id: el.id,
+      admin_level: el.tags.admin_level ? parseInt(el.tags.admin_level, 10) : null,
+      name: cyrillicToLatin(el.tags.name),
+      name_en: cyrillicToLatin(el.tags['name:en'] || el.tags.name),
+      country_code: countryCode,
+      centroid_lat: el.center.lat,
+      centroid_lon: el.center.lon,
+      boundary: { type:'Polygon', coordinates:[] },
+      bbox: null,
+      slug: Math.random().toString(36).slice(2, 10)
+    }));
+}
+function splitNewVsExisting(rows, countryCode){
+  const existing = municipalitiesForCountry(countryCode);
+  const isKnown = row => existing.some(e =>
+    (e.osm_id != null && e.osm_id === row.osm_id) ||
+    normalizeNameForMatch(e.name) === normalizeNameForMatch(row.name)
+  );
+  return { fresh: rows.filter(r => !isKnown(r)), already: rows.filter(isKnown) };
+}
+async function previewOsmImport(){
+  if(!currentSession){ toast('Sign in first — adding municipalities requires an account.', 'error'); openModal('signInModal'); return; }
+  const level = document.getElementById('osmAdminLevelSelect').value;
+  const cc = selectedCountryCode;
+  const resultsEl = document.getElementById('osmImportResults');
+  resultsEl.innerHTML = '<div class="emptyState">Querying OpenStreetMap (Overpass) for admin level ' + level + '… this can take up to a minute for large countries.</div>';
+  try{
+    const json = await fetchOverpass(buildOverpassQuery(cc, level));
+    const rows = parseOverpassMunicipalities(json, cc);
+    const { fresh, already } = splitNewVsExisting(rows, cc);
+    window._osmImportCache = { fresh, already, level };
+    if(!rows.length){
+      resultsEl.innerHTML = '<div class="emptyState">No administrative areas found at level ' + level + ' for this country. Try a different level.</div>';
+      return;
+    }
+    const sample = fresh.slice(0, 15).map(r => escapeHtml(r.name_en)).join(', ');
+    const more = fresh.length > 15 ? ` … and ${fresh.length - 15} more` : '';
+    let warn = '';
+    if(fresh.length > 3000) warn = '<div class="warnBox">That\'s a very large batch — double check this is the right admin level before importing.</div>';
+    resultsEl.innerHTML = `
+      <div class="warnBox">Found ${rows.length} areas at level ${level}: <b>${fresh.length} new</b>, ${already.length} already on file.</div>
+      ${warn}
+      <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">${sample}${more}</div>
+      <button class="btn primary small" onclick="confirmOsmImport()" ${fresh.length ? '' : 'disabled'}>Import ${fresh.length} new municipalities</button>
+    `;
+  }catch(err){
+    resultsEl.innerHTML = '<div class="emptyState">Overpass query failed: ' + escapeHtml(err.message) + '</div>';
+  }
+}
+async function confirmOsmImport(){
+  const cache = window._osmImportCache;
+  if(!cache || !cache.fresh.length) return;
+  const resultsEl = document.getElementById('osmImportResults');
+  resultsEl.innerHTML = '<div class="emptyState">Importing ' + cache.fresh.length + ' municipalities…</div>';
+  const CHUNK = 300;
+  let imported = 0;
+  try{
+    for(let i = 0; i < cache.fresh.length; i += CHUNK){
+      const chunk = cache.fresh.slice(i, i + CHUNK);
+      const { data, error } = await sb.from(MUNICIPALITIES_TABLE).insert(chunk).select();
+      if(error) throw error;
+      municipalityCache.push(...(data || []));
+      imported += (data || []).length;
+    }
+    toast('Imported ' + imported + ' municipalities.', 'success');
+    resultsEl.innerHTML = '';
+    window._osmImportCache = null;
+    renderCountryPanel();
+    refreshMapStyles();
+  }catch(err){
+    resultsEl.innerHTML = `<div class="emptyState">Import stopped after ${imported} rows — error: ${escapeHtml(err.message)}</div>`;
+    if(imported){ renderCountryPanel(); refreshMapStyles(); }
+  }
+}
+
+/* =========================================================================
+   INIT
+   ========================================================================= */
+async function init(){
+  const { data: { session } } = await sb.auth.getSession();
+  currentSession = session;
+  updateAuthUI();
+  sb.auth.onAuthStateChange((event, session) => {
+    currentSession = session;
+    updateAuthUI();
+  });
+
+  await Promise.all([loadCountries(), loadMunicipalities()]);
+  await initMap();
+}
+document.getElementById('signInBtn').addEventListener('click', () => openModal('signInModal'));
+init();
+</script>
+</body>
+</html>
