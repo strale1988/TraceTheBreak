@@ -1457,7 +1457,9 @@ body.driving-active #appPanel{
 .dashboard-badges-title-row .dashboard-badges-title{ margin-top:0; }
 .dashboard-badges-count{ font-size:var(--fs-11); font-weight:var(--fw-semibold); color:var(--text-muted); }
 .my-reports-filter-row{ margin-top:10px; flex-wrap:wrap; }
-.my-reports-list{ display:flex; flex-direction:column; gap:var(--space-8); margin-top:12px; }
+.my-reports-list{ display:flex; flex-direction:column; gap:var(--space-8); margin-top:12px; max-height:340px; overflow-y:auto; padding-right:2px; }
+.status-filter-settings-btn{ display:inline-flex; align-items:center; gap:6px; }
+.status-filter-settings-btn .legend-badge{ width:10px; height:10px; border-radius:50%; display:inline-block; }
 .my-report-card{
   display:flex; align-items:center; gap:var(--space-10);
   background:var(--bg-surface-alt); border-radius:var(--radius-lg);
@@ -2886,6 +2888,8 @@ span.flatpickr-weekday {
         <img class="icon-img icon-img-inline icon-tint-dark" src="icons/category-filter.png" alt=""> <span id="mapFilterSettingsBtnLabel">Filter categories</span>
         <span class="settings-btn-active-dot" id="mapFilterActiveDot" style="display:none"></span>
       </button>
+      <div class="detail-section-title" id="statusFilterSectionTitle" style="margin-top:14px;">Status shown on map</div>
+      <div class="theme-segment" id="statusFilterSettingsSegment"></div>
       <label class="settings-toggle-row" id="pulseToggleRow">
         <span id="pulseToggleLabel">Status pulse animation</span>
         <span class="toggle-switch">
@@ -3096,22 +3100,6 @@ span.flatpickr-weekday {
         <div class="badge-grid" id="dashboardBadgeGrid"></div>
       </div>
 
-      <div class="detail-section dashboard-section" id="myReportsSection" style="display:none">
-        <div class="dashboard-badges-title-row">
-          <span class="dashboard-badges-title" id="myReportsTitle">My Reports</span>
-          <span class="dashboard-badges-count" id="myReportsCount"></span>
-        </div>
-        <div class="theme-segment my-reports-filter-row" id="myReportsFilterRow">
-          <button type="button" class="theme-segment-btn active" data-filter="all" onclick="setMyReportsFilter('all')" id="myReportsFilterAllBtn">All</button>
-          <button type="button" class="theme-segment-btn" data-filter="reported" onclick="setMyReportsFilter('reported')" id="myReportsFilterReportedBtn">Reported</button>
-          <button type="button" class="theme-segment-btn" data-filter="in_progress" onclick="setMyReportsFilter('in_progress')" id="myReportsFilterProgressBtn">In progress</button>
-          <button type="button" class="theme-segment-btn" data-filter="fixed" onclick="setMyReportsFilter('fixed')" id="myReportsFilterFixedBtn">Fixed</button>
-        </div>
-        <div class="my-reports-list" id="myReportsList"></div>
-        <div class="my-reports-empty" id="myReportsEmpty" style="display:none"></div>
-        <div class="my-reports-loading" id="myReportsLoading" style="display:none"></div>
-      </div>
-
       <div class="detail-section dashboard-section" id="adminDashboardSection" style="display:none">
         <div class="detail-section-title" id="adminDashboardSectionTitle">My Admin Role</div>
         <div class="dashboard-stats-grid">
@@ -3192,6 +3180,22 @@ span.flatpickr-weekday {
           </div>
         </div>
         <div class="badge-grid" id="adminDashboardBadgeGrid"></div>
+      </div>
+
+      <div class="detail-section dashboard-section" id="myReportsSection" style="display:none">
+        <div class="dashboard-badges-title-row">
+          <span class="dashboard-badges-title" id="myReportsTitle">My Reports</span>
+          <span class="dashboard-badges-count" id="myReportsCount"></span>
+        </div>
+        <div class="theme-segment my-reports-filter-row" id="myReportsFilterRow">
+          <button type="button" class="theme-segment-btn active" data-filter="all" onclick="setMyReportsFilter('all')" id="myReportsFilterAllBtn">All</button>
+          <button type="button" class="theme-segment-btn" data-filter="reported" onclick="setMyReportsFilter('reported')" id="myReportsFilterReportedBtn">Reported</button>
+          <button type="button" class="theme-segment-btn" data-filter="in_progress" onclick="setMyReportsFilter('in_progress')" id="myReportsFilterProgressBtn">In progress</button>
+          <button type="button" class="theme-segment-btn" data-filter="fixed" onclick="setMyReportsFilter('fixed')" id="myReportsFilterFixedBtn">Fixed</button>
+        </div>
+        <div class="my-reports-list" id="myReportsList"></div>
+        <div class="my-reports-empty" id="myReportsEmpty" style="display:none"></div>
+        <div class="my-reports-loading" id="myReportsLoading" style="display:none"></div>
       </div>
 
       <div class="dashboard-signed-out-hint" id="dashboardSignedOutHint" style="display:none">Sign in to see your dashboard.</div>
@@ -5102,6 +5106,7 @@ const T = {
   helpStep3Body:{ en:'Add an optional note, then tap "REPORT BREAK".', sr:'Dodajte opcionu napomenu i pritisnite "PRIJAVI KVAR".' },
   popupStatus:  { en:'Status', sr:'Status' },
   reportedByLabel: { en:'Reported by', sr:'Prijavio' },
+  statusFilterSectionTitle: { en:'Status shown on map', sr:'Statusi prikazani na mapi' },
   statusReported:   { en:'Reported',    sr:'Prijavljeno' },
   statusInProgress: { en:'In progress', sr:'U toku' },
   statusFixed:      { en:'Fixed',       sr:'Popravljeno' },
@@ -5115,6 +5120,7 @@ const T = {
   markFixed:     { en:'Mark Fixed',                                sr:'Označi Popravljeno' },
   yourReport:    { en:'Your report',                               sr:'Vaša prijava' },
   updateFail:    { en:'Could not update status. Try again.',       sr:'Ažuriranje statusa nije uspelo. Pokušajte ponovo.' },
+  updateConflict:{ en:'Another admin already changed this report\u2019s status. Refreshed to show the latest.', sr:'Drugi administrator je već promenio status ove prijave. Osveženo sa najnovijim stanjem.' },
   adminBadge:    { en:'ADMIN',                                     sr:'ADMIN' },
   adminTagGlobal:   { en:'Global',                                 sr:'Globalno' },
   adminTagUnset:    { en:'Unassigned',                             sr:'Nedodeljeno' },
@@ -5619,6 +5625,9 @@ function applyLang(){
   document.getElementById('iconPackSectionTitle').textContent = t('iconPackSectionTitle');
   document.getElementById('iconPackHint').textContent = t('iconPackHint');
   renderIconPackSegment();
+  const statusFilterSectionTitleEl = document.getElementById('statusFilterSectionTitle');
+  if (statusFilterSectionTitleEl) statusFilterSectionTitleEl.textContent = t('statusFilterSectionTitle');
+  renderStatusFilterSettings();
   document.getElementById('languageSectionTitle').textContent = t('languageSectionTitle');
   const langBtnAutoLabelEl = document.getElementById('langBtnAutoLabel');
   if (langBtnAutoLabelEl) langBtnAutoLabelEl.textContent = t('langBtnAutoLabel');
@@ -5842,6 +5851,7 @@ function showSettingsModal() {
   modal.style.display = 'flex';
   const pulseToggleEl = document.getElementById('pulseToggleInput');
   if (pulseToggleEl) pulseToggleEl.checked = statusPulseEnabled;
+  renderStatusFilterSettings();
   initSoundSettingsUi();
   initMapButtonToggleUi();
   updateNearbyCheckinSegmentUI();
@@ -8494,8 +8504,27 @@ function onStatusFilterToggle(status) {
   const el = document.getElementById(idByStatus[status]);
   if (el) el.classList.toggle('status-off', !isStatusVisible(status));
 
+  renderStatusFilterSettings();
   syncMarkers(true);
   refreshHeatLayer();
+}
+
+// Status filtering itself still lives on the map legend bar (bottom-right pill) — this just
+// mirrors the same three toggles into Settings so they're reachable from there too. Both
+// controls share the same statusMarkerFilter state / onStatusFilterToggle() code path, so
+// toggling either one keeps the other in sync. The legend bar UI/UX is left as-is for now.
+const STATUS_FILTER_SETTINGS_OPTS = [
+  { status: 'reported',    color: '#ff4b4b',         labelKey: 'statusReported' },
+  { status: 'in_progress', color: '#f5a623',         labelKey: 'statusInProgress' },
+  { status: 'fixed',       color: 'var(--success)',  labelKey: 'statusFixed' },
+];
+function renderStatusFilterSettings() {
+  const seg = document.getElementById('statusFilterSettingsSegment');
+  if (!seg) return;
+  seg.innerHTML = STATUS_FILTER_SETTINGS_OPTS.map(o => `
+    <button type="button" class="theme-segment-btn status-filter-settings-btn${isStatusVisible(o.status) ? ' active' : ''}" onclick="onStatusFilterToggle('${o.status}')">
+      <span class="legend-badge" style="background:${o.color}"></span> ${escapeHtml(t(o.labelKey))}
+    </button>`).join('');
 }
 
 function populateCategoryFilterList() {
@@ -12479,10 +12508,32 @@ async function deleteReport(reportId) {
 async function updateReportStatus(reportId, newStatus) {
   if (!currentSession) return;
   try {
-    const { error } = await sb.from(TABLE)
+    // Optimistic concurrency guard: only apply this update if the report's status still
+    // matches what we last loaded it as. Without this, two admins opening the same report
+    // and both clicking a status button (e.g. both hitting "Mark In Progress") would both
+    // succeed — the second silently overwriting/timestamp-resetting the first's change with
+    // no indication anything raced. Scoping the .eq('status', ...) to the previously-known
+    // value turns that into "first write wins, second write is told it lost the race."
+    const knownReport = globalActiveData.find(r => r.id === reportId);
+    const expectedStatus = knownReport ? knownReport.status : null;
+
+    let query = sb.from(TABLE)
       .update({ updated_at: new Date().toISOString(), ...buildStatusPatch(newStatus) })
       .eq('id', reportId);
+    if (expectedStatus) query = query.eq('status', expectedStatus);
+    const { data, error } = await query.select('id');
     if (error) throw error;
+
+    if (expectedStatus && (!data || data.length === 0)) {
+      // Zero rows matched: someone else changed the status between us loading the report
+      // and clicking the button. Don't guess — reload and let the admin see what actually
+      // happened before trying again.
+      myReportsCache = null;
+      await loadPinsByWindow();
+      toast(t('updateConflict'), 'error');
+      return;
+    }
+
     myReportsCache = null;
     await loadPinsByWindow();
     if (newStatus === 'fixed') maybeOfferAfterPhoto(reportId);
@@ -13005,11 +13056,37 @@ async function discoverIconPacks() {
   }
 }
 
+// Icon packs are frequently incomplete mirrors of icons/ (e.g. a pack added later is missing
+// a subfolder like icons/reports/ or a handful of root files). Blindly swapping 'icons/x.png'
+// -> '<pack>/x.png' then leaves a 404'd, invisible icon for anything the pack doesn't have.
+// probeIconExists() actually tries to load each swapped path once (cached) and reports back
+// whether it's real, so callers can fall back to the guaranteed-complete default pack per-icon
+// instead of silently breaking.
+const iconExistsCache = new Map(); // path -> Promise<boolean>
+function probeIconExists(path) {
+  if (!iconExistsCache.has(path)) {
+    iconExistsCache.set(path, new Promise(resolve => {
+      const probe = new Image();
+      probe.onload = () => resolve(true);
+      probe.onerror = () => resolve(false);
+      probe.src = path;
+    }));
+  }
+  return iconExistsCache.get(path);
+}
+
 function rewriteIconSrc(img) {
   if (iconPack === ICON_PACK_DEFAULT || !img || img.tagName !== 'IMG') return;
   const raw = img.getAttribute('src');
   if (!raw || !raw.startsWith('icons/')) return;
-  img.setAttribute('src', iconPack + '/' + raw.slice('icons/'.length));
+  const packSrc = iconPack + '/' + raw.slice('icons/'.length);
+  img.setAttribute('src', packSrc);
+  probeIconExists(packSrc).then(ok => {
+    if (ok) return;
+    // This pack doesn't have this icon — fall back to the default pack rather than a
+    // broken image. Only revert if nothing else has since changed the src (e.g. re-render).
+    if (img.getAttribute('src') === packSrc) img.setAttribute('src', raw);
+  });
 }
 
 // Most icons in this app aren't <img> tags at all — they're tinted via CSS
@@ -13017,14 +13094,30 @@ function rewriteIconSrc(img) {
 // dashboard glyphs, category markers, etc.), set inline via style="...url('icons/x.png')...".
 // The old rewrite only ever touched <img src>, so switching packs updated a small handful
 // of header/button icons and left everything CSS-mask-based on the default pack. This
-// rewrites any inline style referencing 'icons/...' the same way.
+// rewrites any inline style referencing 'icons/...' the same way, then verifies each
+// resulting pack path and reverts that one occurrence to the default icon if it 404s.
 const ICON_STYLE_URL_RE = /(url\(['"]?)(?:\.\/)?icons\//g;
 function rewriteIconStyle(el) {
   if (iconPack === ICON_PACK_DEFAULT || !el || !el.getAttribute) return;
   const style = el.getAttribute('style');
   if (!style || style.indexOf('icons/') === -1) return;
   const rewritten = style.replace(ICON_STYLE_URL_RE, (m, prefix) => prefix + iconPack + '/');
-  if (rewritten !== style) el.setAttribute('style', rewritten);
+  if (rewritten === style) return;
+  el.setAttribute('style', rewritten);
+
+  const packUrlRe = new RegExp("url\\(['\"]?(" + iconPack.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + "\\/[^'\")]+)['\"]?\\)", 'g');
+  let m;
+  while ((m = packUrlRe.exec(rewritten))) {
+    const packPath = m[1];
+    const defaultPath = ICON_PACK_DEFAULT + '/' + packPath.slice(iconPack.length + 1);
+    probeIconExists(packPath).then(ok => {
+      if (ok) return;
+      const current = el.getAttribute('style');
+      if (current && current.indexOf(packPath) !== -1) {
+        el.setAttribute('style', current.split(packPath).join(defaultPath));
+      }
+    });
+  }
 }
 
 function rewriteIconsIn(node) {
@@ -13084,15 +13177,23 @@ initLang();
 applyLang();
 loadPinsByWindow().finally(hideMapLoadingOverlay);
 openSharedReportFromUrl();
-loadMunicipalityCache().then(() => {
+loadAllCompanyMarkers();
+loadMunicipalityStatsCache();
+// NOTE: currentProfile/currentSession are only populated once initAuth() resolves. The old
+// code rendered the admin dashboard/header button as soon as loadMunicipalityCache() resolved,
+// racing independently against initAuth() — on a page load/refresh where the municipality
+// cache happened to finish first, currentProfile was still null, so admin-only UI (the admin
+// panel button, "My Admin Role" dashboard section) silently stayed hidden until the user
+// manually opened their dashboard. Waiting on both promises removes that race.
+const municipalityCacheReady = loadMunicipalityCache();
+const authReady = initAuth();
+Promise.all([municipalityCacheReady, authReady]).then(() => {
   if (currentProfile && currentProfile.is_admin) {
     updateAuthUI();
     renderAdminDashboard();
   }
 });
-loadAllCompanyMarkers();
-loadMunicipalityStatsCache();
-initAuth().then(() => {
+authReady.then(() => {
   if (!currentSession) showHelpModal();
   updateOfflineQueueBadge();
   syncOfflineQueue(false);
