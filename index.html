@@ -2066,18 +2066,20 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   font-size:var(--fs-10); font-weight:var(--fw-bold); letter-spacing:.4px; text-transform:uppercase;
   color:var(--text-muted); margin-bottom:10px;
 }
-.detail-row{ display:flex; align-items:center; justify-content:space-between; gap:var(--space-10); padding:7px 0; font-size:var(--fs-12-5); }
+.detail-row{ display:flex; align-items:center; justify-content:space-between; gap:var(--space-10); padding:7px 0; font-size:var(--fs-12-5); min-width:0; }
 .detail-row:not(:last-child){ border-bottom:1px solid var(--border-color); }
-.detail-row-label{ color:var(--text-muted); flex-shrink:0; display:flex; align-items:center; gap:var(--space-8); }
+.detail-row-label{ color:var(--text-muted); flex-shrink:0; display:flex; align-items:center; gap:var(--space-8); line-height:1.3; }
 .detail-row-icon{ width:14px; height:14px; flex-shrink:0; filter:var(--icon-tint-filter); opacity:.85; }
-.detail-row-value{ color:var(--text-primary); text-align:right; }
+/* Same one-line-and-ellipsize treatment as contact-card-row: values shrink instead of
+   wrapping to a second line or overflowing the modal — tap through for the full text. */
+.detail-row-value{ color:var(--text-primary); text-align:right; flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; line-height:1.3; }
 .detail-row-value a{ color:#4ea1ff; text-decoration:none; }
 .contact-card{
   background:var(--bg-surface-alt); border:1px solid var(--border-color); border-radius:var(--radius-xl); padding:14px 16px; margin-bottom:10px;
 }
 .contact-card:last-child{ margin-bottom:0; }
 .contact-card-name{ font-weight:var(--fw-bold); font-size:var(--fs-14); margin-bottom:8px; }
-.contact-card-row{ display:flex; align-items:center; gap:9px; font-size:var(--fs-12-5); color:var(--text-secondary); padding:5px 0; min-width:0; }
+.contact-card-row{ display:flex; flex-wrap:nowrap; align-items:center; gap:9px; font-size:var(--fs-12-5); color:var(--text-secondary); padding:5px 0; min-width:0; }
 .contact-card-other-flag-row{ padding-top:2px; }
 .contact-card-other-flag-row .contact-flag-other-btn{ margin-left:0; }
 .detail-ban-btn{
@@ -2092,7 +2094,7 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 }
 .detail-ban-btn.is-banned{ background:var(--bg-surface-alt); color:var(--text-secondary); border:1px solid var(--border-color-strong); }
 .detail-ban-btn:disabled{ opacity:.6; cursor:default; }
-.contact-flag-btn{ margin-left:auto; flex-shrink:0; background:none; border:none; padding:2px 6px; font-size:var(--fs-11); color:var(--text-muted); text-decoration:underline; cursor:pointer; }
+.contact-flag-btn{ margin-left:auto; flex-shrink:0; align-self:center; background:none; border:none; padding:2px 6px; font-size:var(--fs-11); color:var(--text-muted); text-decoration:underline; cursor:pointer; line-height:1.3; white-space:nowrap; }
 .contact-flag-btn:disabled{ text-decoration:none; cursor:default; opacity:.7; }
 .contact-card-row:not(:last-child){ border-bottom:1px solid var(--border-color); }
 .contact-card-row a{ color:#4ea1ff; text-decoration:none; }
@@ -2563,6 +2565,8 @@ span.flatpickr-weekday {
       <option value="GreenSpaces" data-sr="Zelene površine">Zelene površine</option>
       <option value="Parking" data-sr="Često Nepropisno parkiranje">Često Nepropisno parkiranje</option>
       <option value="Suggestion" data-sr="Predlog za poboljšanje">Predlog za poboljšanje</option>
+      <option value="Forest" data-sr="Šuma">Šuma</option>
+      <option value="FarmersMarket" data-sr="Pijaca">Pijaca</option>
       <option value="Other" data-sr="Ostalo">Ostalo</option>
     </select>
     <select id="priority" onchange="checkFormReady()" style="flex:1 1 130px;">
@@ -8155,6 +8159,8 @@ const CATEGORY_COLORS = {
   'GreenSpaces':  '#3fa34d',
   'Parking':      '#5c6bc0',
   'Suggestion':   '#26a69a',
+  'Forest':       '#1b5e20',
+  'FarmersMarket':'#c77d1e',
   'Other':        '#8342a1',
 };
 const CATEGORY_ICONS = {
@@ -8171,6 +8177,8 @@ const CATEGORY_ICONS = {
   'GreenSpaces':  'green.png',
   'Parking':      'no-parking.png',
   'Suggestion':   'suggest.png',
+  'Forest':       'forest.png',
+  'FarmersMarket':'market.png',
   'Other':        'warning-symbol.png',
 };
 const SUBCATEGORIES = {
@@ -8244,6 +8252,22 @@ const SUBCATEGORIES = {
     { key:'overgrown_grass',  en:'Overgrown grass',        sr:'Nepokošena trava' },
     { key:'illegal_dumping',  en:'Illegal dumping / litter',sr:'Nelegalno odlaganje otpada / smeće' },
     { key:'other',            en:'Other',                  sr:'Drugo' }
+  ],
+  Forest: [
+    { key:'illegal_logging', en:'Illegal logging',                  sr:'Nelegalna seča' },
+    { key:'fire_hazard',     en:'Fire hazard',                      sr:'Opasnost od požara' },
+    { key:'fallen_trees',    en:'Fallen trees blocking trail',      sr:'Palo drveće na stazi' },
+    { key:'illegal_dumping', en:'Illegal dumping',                  sr:'Nelegalno odlaganje otpada' },
+    { key:'trail_damage',    en:'Damaged trail / markings',         sr:'Oštećena staza / markacija' },
+    { key:'other',           en:'Other',                            sr:'Drugo' }
+  ],
+  FarmersMarket: [
+    { key:'hygiene',        en:'Hygiene / cleanliness issue',        sr:'Higijena / čistoća' },
+    { key:'overpricing',    en:'Suspected overpricing',              sr:'Sumnja na prekomerne cene' },
+    { key:'illegal_vendor', en:'Unregistered / illegal vendor',      sr:'Neregistrovan prodavac' },
+    { key:'infrastructure', en:'Damaged stall / infrastructure',     sr:'Oštećen štand / infrastruktura' },
+    { key:'parking',        en:'Parking / access issue',             sr:'Problem sa parkingom / pristupom' },
+    { key:'other',          en:'Other',                              sr:'Drugo' }
   ],
   Parking: [],
   Suggestion: [],
@@ -8448,14 +8472,14 @@ function statusLabel(s) {
   return t('statusReported');
 }
 function translateCategory(cat) {
-  const labelsEn = { Water:'Water', Electricity:'Electricity', Sewage:'Sewage', Gas:'Gas', Heating:'Heating', Road:'Road', Streetlight:'Streetlight', Waste:'Waste', Walkways:'Walkways', BikeLanes:'Bike Lanes', GreenSpaces:'Green Spaces', Parking:'Frequent Parking Violations', Suggestion:'Suggest an Improvement', Other:'Other' };
-  const labelsSr = { Water:'Voda', Electricity:'Struja', Sewage:'Kanalizacija', Gas:'Gas', Heating:'Grejanje', Road:'Put', Streetlight:'Ulična rasveta', Waste:'Otpad', Walkways:'Pešačke staze', BikeLanes:'Biciklističke staze', GreenSpaces:'Zelene površine', Parking:'Često Nepropisno parkiranje', Suggestion:'Predlog za poboljšanje', Other:'Ostalo' };
+  const labelsEn = { Water:'Water', Electricity:'Electricity', Sewage:'Sewage', Gas:'Gas', Heating:'Heating', Road:'Road', Streetlight:'Streetlight', Waste:'Waste', Walkways:'Walkways', BikeLanes:'Bike Lanes', GreenSpaces:'Green Spaces', Parking:'Frequent Parking Violations', Suggestion:'Suggest an Improvement', Forest:'Forest', FarmersMarket:'Farmers Market', Other:'Other' };
+  const labelsSr = { Water:'Voda', Electricity:'Struja', Sewage:'Kanalizacija', Gas:'Gas', Heating:'Grejanje', Road:'Put', Streetlight:'Ulična rasveta', Waste:'Otpad', Walkways:'Pešačke staze', BikeLanes:'Biciklističke staze', GreenSpaces:'Zelene površine', Parking:'Često Nepropisno parkiranje', Suggestion:'Predlog za poboljšanje', Forest:'Šuma', FarmersMarket:'Pijaca', Other:'Ostalo' };
   return (lang === 'sr' ? labelsSr[cat] : labelsEn[cat]) || cat;
 }
 
 function categorySearchText(cat) {
-  const labelsEn = { Water:'Water', Electricity:'Electricity', Sewage:'Sewage', Gas:'Gas', Heating:'Heating', Road:'Road', Streetlight:'Streetlight', Waste:'Waste', Walkways:'Walkways', BikeLanes:'Bike Lanes', GreenSpaces:'Green Spaces', Parking:'Frequent Parking Violations', Suggestion:'Suggest an Improvement', Other:'Other' };
-  const labelsSr = { Water:'Voda', Electricity:'Struja', Sewage:'Kanalizacija', Gas:'Gas', Heating:'Grejanje', Road:'Put', Streetlight:'Ulična rasveta', Waste:'Otpad', Walkways:'Pešačke staze', BikeLanes:'Biciklističke staze', GreenSpaces:'Zelene površine', Parking:'Često Nepropisno parkiranje', Suggestion:'Predlog za poboljšanje', Other:'Ostalo' };
+  const labelsEn = { Water:'Water', Electricity:'Electricity', Sewage:'Sewage', Gas:'Gas', Heating:'Heating', Road:'Road', Streetlight:'Streetlight', Waste:'Waste', Walkways:'Walkways', BikeLanes:'Bike Lanes', GreenSpaces:'Green Spaces', Parking:'Frequent Parking Violations', Suggestion:'Suggest an Improvement', Forest:'Forest', FarmersMarket:'Farmers Market', Other:'Other' };
+  const labelsSr = { Water:'Voda', Electricity:'Struja', Sewage:'Kanalizacija', Gas:'Gas', Heating:'Grejanje', Road:'Put', Streetlight:'Ulična rasveta', Waste:'Otpad', Walkways:'Pešačke staze', BikeLanes:'Biciklističke staze', GreenSpaces:'Zelene površine', Parking:'Često Nepropisno parkiranje', Suggestion:'Predlog za poboljšanje', Forest:'Šuma', FarmersMarket:'Pijaca', Other:'Ostalo' };
   return [labelsEn[cat], labelsSr[cat], cat].filter(Boolean).join(' ');
 }
 
@@ -8731,7 +8755,7 @@ async function addGalleryPhotoToReport(reportId) {
       return;
     }
     try {
-      const path = `gallery/${reportId}/${currentSession.user.id}_${Date.now()}.jpg`;
+      const path = `gallery/${currentSession.user.id}/${reportId}_${Date.now()}.jpg`;
       const { error: uploadError } = await sb.storage.from(REPORT_PHOTO_BUCKET)
         .upload(path, blob, { contentType: 'image/jpeg', upsert: false });
       if (uploadError) throw uploadError;
@@ -8827,7 +8851,7 @@ const WIZ_CATEGORY_ICONS = {
   Gas: 'gas.png', Heating: 'heating.png', Road: 'road.png',
   Streetlight: 'streetlight.png', Waste: 'waste.png', Walkways: 'walkways.png',
   BikeLanes: 'bike_lanes.png', GreenSpaces: 'green_spaces.png', Parking: 'parking.png',
-  Suggestion: 'ui_suggestion.png', Other: 'ui_other.png',
+  Suggestion: 'ui_suggestion.png', Forest: 'forest.png', FarmersMarket: 'farmers_market.png', Other: 'ui_other.png',
 };
 const WIZ_SUBCATEGORY_ICONS = {
   Water: { burst_leak:'water_leak.png', no_supply:'water_no_supply.png', low_pressure:'water_low_pressure.png', discoloration:'water_discoloration.png', other:'ui_other.png' },
@@ -11143,6 +11167,13 @@ async function showReportDetailModal(reportId) {
       <div id="reportFlagContent"><div class="detail-loading">${t('detailLoading')}</div></div>
     </div>` : '';
 
+  const gallerySectionHtml = `
+    <div class="detail-section">
+      <div class="detail-section-title">${t('detailGalleryTitle')}</div>
+      <div class="detail-gallery-strip" id="detailGalleryStrip"><div class="detail-loading">${t('detailLoading')}</div></div>
+      ${currentSession ? `<button type="button" class="settings-btn" style="margin-top:10px;" onclick="addGalleryPhotoToReport('${report.id}')"><img class="icon-img icon-img-inline" src="icons/camera.png" alt=""> ${t('addGalleryPhotoBtn')}</button>` : ''}
+    </div>`;
+
   body.innerHTML = `
     <div class="detail-section">
       <div class="detail-section-title">${t('detailLocationTitle')}</div>
@@ -11165,6 +11196,7 @@ async function showReportDetailModal(reportId) {
       <div class="detail-section-title">${t('contactCountsTitle')}</div>
       <div id="detailContactCountsContainer"><div class="detail-loading">${t('detailLoading')}</div></div>
     </div>
+    ${gallerySectionHtml}
     ${flagSectionHtml}
     <div class="detail-section">
       <div class="detail-section-title">${t('detailExportTitle')}</div>
@@ -11206,6 +11238,8 @@ async function showReportDetailModal(reportId) {
         : `<div class="detail-empty">${t('photoLoadFailed')}</div>`;
     });
   }
+
+  renderReportGallery(report.id);
 
   fetchAddressForPoint(report.latitude, report.longitude).then(addr => {
     const streetEl = document.getElementById('detailStreetValue');
@@ -12113,7 +12147,7 @@ function buildDetailStatusReadonlyHtml(report, reporterName) {
 }
 
 function buildDetailEditFieldsHtml(report) {
-  const cats = ['Water','Electricity','Sewage','Gas','Heating','Road','Streetlight','Waste','Walkways','BikeLanes','GreenSpaces','Parking','Suggestion','Other'];
+  const cats = ['Water','Electricity','Sewage','Gas','Heating','Road','Streetlight','Waste','Walkways','BikeLanes','GreenSpaces','Parking','Suggestion','Forest','FarmersMarket','Other'];
   const catOptions = cats.map(c => `<option value="${c}" ${c === report.category ? 'selected' : ''}>${translateCategory(c)}</option>`).join('');
   const statuses = [
     { key:'reported', label: statusLabel('reported') },
