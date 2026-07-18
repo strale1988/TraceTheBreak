@@ -1456,32 +1456,6 @@ body.driving-active #appPanel{
 .dashboard-badges-title-row{ display:flex; align-items:baseline; justify-content:space-between; margin-top:16px; }
 .dashboard-badges-title-row .dashboard-badges-title{ margin-top:0; }
 .dashboard-badges-count{ font-size:var(--fs-11); font-weight:var(--fw-semibold); color:var(--text-muted); }
-.my-reports-filter-row{ margin-top:10px; flex-wrap:wrap; }
-.my-reports-list{ display:flex; flex-direction:column; gap:var(--space-8); margin-top:12px; }
-.my-report-card{
-  display:flex; align-items:center; gap:var(--space-10);
-  background:var(--bg-surface-alt); border-radius:var(--radius-lg);
-  padding:9px 10px; cursor:pointer; border:1px solid var(--border-color);
-  transition:background .12s ease;
-}
-.my-report-card:active{ background:var(--border-color); }
-.my-report-card-icon{
-  width:34px; height:34px; border-radius:50%; flex-shrink:0;
-  display:flex; align-items:center; justify-content:center;
-}
-.my-report-card-glyph{ width:18px; height:18px; background-color:#fff; }
-.my-report-card-body{ flex:1; min-width:0; }
-.my-report-card-title{ font-size:var(--fs-12-5); font-weight:var(--fw-semibold); color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.my-report-card-meta{ font-size:var(--fs-10-5); color:var(--text-muted); margin-top:2px; }
-.my-report-card-status{
-  font-size:var(--fs-9-5); font-weight:var(--fw-bold); color:#fff;
-  padding:3px 8px; border-radius:var(--radius-pill); flex-shrink:0; white-space:nowrap;
-}
-.my-reports-empty, .my-reports-loading{
-  text-align:center; color:var(--text-muted); font-size:var(--fs-12-5);
-  padding:18px 10px;
-}
-.my-reports-error{ cursor:pointer; text-decoration:underline; }
 .dashboard-next-badge{ display:flex; align-items:center; gap:var(--space-10); background:var(--bg-surface-alt); border-radius:var(--radius-lg); padding:10px 12px; margin-top:8px; }
 .dashboard-next-badge-icon{ width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 2px 6px rgba(0,0,0,.3); }
 .dashboard-next-badge-icon-glyph{ width:26px; height:26px; display:inline-block; }
@@ -2092,20 +2066,18 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   font-size:var(--fs-10); font-weight:var(--fw-bold); letter-spacing:.4px; text-transform:uppercase;
   color:var(--text-muted); margin-bottom:10px;
 }
-.detail-row{ display:flex; align-items:center; justify-content:space-between; gap:var(--space-10); padding:7px 0; font-size:var(--fs-12-5); min-width:0; }
+.detail-row{ display:flex; align-items:center; justify-content:space-between; gap:var(--space-10); padding:7px 0; font-size:var(--fs-12-5); }
 .detail-row:not(:last-child){ border-bottom:1px solid var(--border-color); }
-.detail-row-label{ color:var(--text-muted); flex-shrink:0; display:flex; align-items:center; gap:var(--space-8); line-height:1.3; }
+.detail-row-label{ color:var(--text-muted); flex-shrink:0; display:flex; align-items:center; gap:var(--space-8); }
 .detail-row-icon{ width:14px; height:14px; flex-shrink:0; filter:var(--icon-tint-filter); opacity:.85; }
-/* Same one-line-and-ellipsize treatment as contact-card-row: values shrink instead of
-   wrapping to a second line or overflowing the modal — tap through for the full text. */
-.detail-row-value{ color:var(--text-primary); text-align:right; flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; line-height:1.3; }
+.detail-row-value{ color:var(--text-primary); text-align:right; }
 .detail-row-value a{ color:#4ea1ff; text-decoration:none; }
 .contact-card{
   background:var(--bg-surface-alt); border:1px solid var(--border-color); border-radius:var(--radius-xl); padding:14px 16px; margin-bottom:10px;
 }
 .contact-card:last-child{ margin-bottom:0; }
 .contact-card-name{ font-weight:var(--fw-bold); font-size:var(--fs-14); margin-bottom:8px; }
-.contact-card-row{ display:flex; flex-wrap:nowrap; align-items:center; gap:9px; font-size:var(--fs-12-5); color:var(--text-secondary); padding:5px 0; min-width:0; }
+.contact-card-row{ display:flex; align-items:center; gap:9px; font-size:var(--fs-12-5); color:var(--text-secondary); padding:5px 0; min-width:0; }
 .contact-card-other-flag-row{ padding-top:2px; }
 .contact-card-other-flag-row .contact-flag-other-btn{ margin-left:0; }
 .detail-ban-btn{
@@ -2120,7 +2092,7 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 }
 .detail-ban-btn.is-banned{ background:var(--bg-surface-alt); color:var(--text-secondary); border:1px solid var(--border-color-strong); }
 .detail-ban-btn:disabled{ opacity:.6; cursor:default; }
-.contact-flag-btn{ margin-left:auto; flex-shrink:0; align-self:center; background:none; border:none; padding:2px 6px; font-size:var(--fs-11); color:var(--text-muted); text-decoration:underline; cursor:pointer; line-height:1.3; white-space:nowrap; }
+.contact-flag-btn{ margin-left:auto; flex-shrink:0; background:none; border:none; padding:2px 6px; font-size:var(--fs-11); color:var(--text-muted); text-decoration:underline; cursor:pointer; }
 .contact-flag-btn:disabled{ text-decoration:none; cursor:default; opacity:.7; }
 .contact-card-row:not(:last-child){ border-bottom:1px solid var(--border-color); }
 .contact-card-row a{ color:#4ea1ff; text-decoration:none; }
@@ -2591,8 +2563,6 @@ span.flatpickr-weekday {
       <option value="GreenSpaces" data-sr="Zelene površine">Zelene površine</option>
       <option value="Parking" data-sr="Često Nepropisno parkiranje">Često Nepropisno parkiranje</option>
       <option value="Suggestion" data-sr="Predlog za poboljšanje">Predlog za poboljšanje</option>
-      <option value="Forest" data-sr="Šuma">Šuma</option>
-      <option value="FarmersMarket" data-sr="Pijaca">Pijaca</option>
       <option value="Other" data-sr="Ostalo">Ostalo</option>
     </select>
     <select id="priority" onchange="checkFormReady()" style="flex:1 1 130px;">
@@ -3094,22 +3064,6 @@ span.flatpickr-weekday {
           </div>
         </div>
         <div class="badge-grid" id="dashboardBadgeGrid"></div>
-      </div>
-
-      <div class="detail-section dashboard-section" id="myReportsSection" style="display:none">
-        <div class="dashboard-badges-title-row">
-          <span class="dashboard-badges-title" id="myReportsTitle">My Reports</span>
-          <span class="dashboard-badges-count" id="myReportsCount"></span>
-        </div>
-        <div class="theme-segment my-reports-filter-row" id="myReportsFilterRow">
-          <button type="button" class="theme-segment-btn active" data-filter="all" onclick="setMyReportsFilter('all')" id="myReportsFilterAllBtn">All</button>
-          <button type="button" class="theme-segment-btn" data-filter="reported" onclick="setMyReportsFilter('reported')" id="myReportsFilterReportedBtn">Reported</button>
-          <button type="button" class="theme-segment-btn" data-filter="in_progress" onclick="setMyReportsFilter('in_progress')" id="myReportsFilterProgressBtn">In progress</button>
-          <button type="button" class="theme-segment-btn" data-filter="fixed" onclick="setMyReportsFilter('fixed')" id="myReportsFilterFixedBtn">Fixed</button>
-        </div>
-        <div class="my-reports-list" id="myReportsList"></div>
-        <div class="my-reports-empty" id="myReportsEmpty" style="display:none"></div>
-        <div class="my-reports-loading" id="myReportsLoading" style="display:none"></div>
       </div>
 
       <div class="detail-section dashboard-section" id="adminDashboardSection" style="display:none">
@@ -4781,102 +4735,6 @@ async function renderUserDashboard() {
   }
 }
 
-// ---- My Reports: a signed-in user's own submitted reports, with live status ----
-let myReportsCache = null;   // null = not loaded yet, [] = loaded but empty
-let myReportsFilter = 'all';
-let myReportsLoadToken = 0;
-
-function buildMyReportCardHtml(report) {
-  const catCol = categoryColor(report.category);
-  const sCol = statusColor(report.status);
-  const iconSrc = categoryIcon(report.category);
-  const title = report.subcategory
-    ? `${translateCategory(report.category)} / ${subcategoryLabel(report.category, report.subcategory)}`
-    : translateCategory(report.category);
-  return `<div class="my-report-card" onclick="showReportDetailModal('${report.id}')">
-    <div class="my-report-card-icon" style="background:${catCol};">
-      <span class="my-report-card-glyph" style="-webkit-mask-image:url('${iconSrc}');mask-image:url('${iconSrc}');-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center;"></span>
-    </div>
-    <div class="my-report-card-body">
-      <div class="my-report-card-title">${escapeHtml(title)}</div>
-      <div class="my-report-card-meta">${formatDate(report.created_at)}</div>
-    </div>
-    <span class="my-report-card-status" style="background:${sCol};">${statusLabel(report.status)}</span>
-  </div>`;
-}
-
-function setMyReportsFilter(filter) {
-  myReportsFilter = filter;
-  const row = document.getElementById('myReportsFilterRow');
-  if (row) row.querySelectorAll('.theme-segment-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.filter === filter);
-  });
-  renderMyReportsList();
-}
-
-function renderMyReportsList() {
-  const list = document.getElementById('myReportsList');
-  const empty = document.getElementById('myReportsEmpty');
-  const countEl = document.getElementById('myReportsCount');
-  if (!list || !empty) return;
-  if (!Array.isArray(myReportsCache)) return;
-
-  const filtered = myReportsFilter === 'all'
-    ? myReportsCache
-    : myReportsCache.filter(r => r.status === myReportsFilter);
-
-  if (countEl) countEl.textContent = myReportsCache.length ? `${myReportsCache.length} ${t('myReportsCountSuffix')}` : '';
-
-  if (!filtered.length) {
-    list.innerHTML = '';
-    empty.style.display = 'block';
-    empty.textContent = myReportsCache.length ? t('myReportsEmptyFiltered') : t('myReportsEmpty');
-    return;
-  }
-  empty.style.display = 'none';
-  list.innerHTML = filtered.map(buildMyReportCardHtml).join('');
-}
-
-async function renderMyReportsSection() {
-  const section = document.getElementById('myReportsSection');
-  if (!section) return;
-  if (!currentSession || !currentProfile) { section.style.display = 'none'; return; }
-  section.style.display = 'flex';
-
-  const loading = document.getElementById('myReportsLoading');
-  const empty = document.getElementById('myReportsEmpty');
-  const list = document.getElementById('myReportsList');
-  const token = ++myReportsLoadToken;
-
-  if (!Array.isArray(myReportsCache)) {
-    if (loading) { loading.style.display = 'block'; loading.textContent = t('myReportsLoading'); loading.classList.remove('my-reports-error'); loading.onclick = null; }
-    if (empty) empty.style.display = 'none';
-    if (list) list.innerHTML = '';
-  }
-
-  try {
-    const { data, error } = await sb.from(TABLE)
-      .select('id,category,subcategory,status,priority,created_at,latitude,longitude')
-      .eq('owner_id', currentSession.user.id)
-      .order('created_at', { ascending: false });
-    if (token !== myReportsLoadToken) return;
-    if (error) throw error;
-    myReportsCache = data || [];
-    if (loading) loading.style.display = 'none';
-    renderMyReportsList();
-  } catch (err) {
-    if (token !== myReportsLoadToken) return;
-    console.error('Failed to load my reports:', err.message);
-    if (loading) {
-      loading.style.display = 'block';
-      loading.textContent = t('myReportsError');
-      loading.classList.add('my-reports-error');
-      loading.onclick = () => { myReportsCache = null; renderMyReportsSection(); };
-    }
-  }
-}
-
-
 async function renderAdminDashboard() {
   updateAdminPanelButtonVisibility();
   const section = document.getElementById('adminDashboardSection');
@@ -4982,7 +4840,6 @@ function renderDashboardTab() {
 
   renderUserDashboard();
   renderAdminDashboard();
-  renderMyReportsSection();
 }
 
 async function initAuth() {
@@ -5238,17 +5095,6 @@ const T = {
   turnRoundabout:    { en:'Enter the roundabout',                      sr:'Uđite u kružni tok' },
   turnExit:          { en:'exit',                                      sr:'izlaz' },
   turnArrive:        { en:'Arrive at destination',                     sr:'Stigli ste na odredište' },
-
-  myReportsTitle:        { en:'My Reports',                                 sr:'Moje prijave' },
-  myReportsFilterAll:    { en:'All',                                        sr:'Sve' },
-  myReportsFilterReported:{ en:'Reported',                                  sr:'Prijavljeno' },
-  myReportsFilterProgress:{ en:'In progress',                               sr:'U toku' },
-  myReportsFilterFixed:  { en:'Fixed',                                      sr:'Rešeno' },
-  myReportsEmpty:        { en:"You haven't submitted any reports yet.",     sr:'Još uvek niste podneli nijednu prijavu.' },
-  myReportsEmptyFiltered:{ en:'No reports match this filter.',              sr:'Nema prijava koje odgovaraju ovom filteru.' },
-  myReportsLoading:      { en:'Loading your reports…',                      sr:'Učitavanje vaših prijava…' },
-  myReportsError:        { en:"Couldn't load your reports. Tap to retry.",  sr:'Prijave nisu učitane. Dodirnite za ponovni pokušaj.' },
-  myReportsCountSuffix:  { en:'reports',                                    sr:'prijava' },
 
   detailsBtn:            { en:'Details',                                    sr:'Detalji' },
   detailLocationTitle:   { en:'Location',                                   sr:'Lokacija' },
@@ -5770,17 +5616,6 @@ function applyLang(){
   if (dashBadgesTitleEl) dashBadgesTitleEl.textContent = t('dashboardBadgesTitle');
   const dashWeekTitleEl = document.getElementById('dashboardWeekTitle');
   if (dashWeekTitleEl) dashWeekTitleEl.textContent = t('dashboardWeekTitle');
-  const myReportsTitleEl = document.getElementById('myReportsTitle');
-  if (myReportsTitleEl) myReportsTitleEl.textContent = t('myReportsTitle');
-  const myReportsFilterAllBtnEl = document.getElementById('myReportsFilterAllBtn');
-  if (myReportsFilterAllBtnEl) myReportsFilterAllBtnEl.textContent = t('myReportsFilterAll');
-  const myReportsFilterReportedBtnEl = document.getElementById('myReportsFilterReportedBtn');
-  if (myReportsFilterReportedBtnEl) myReportsFilterReportedBtnEl.textContent = t('myReportsFilterReported');
-  const myReportsFilterProgressBtnEl = document.getElementById('myReportsFilterProgressBtn');
-  if (myReportsFilterProgressBtnEl) myReportsFilterProgressBtnEl.textContent = t('myReportsFilterProgress');
-  const myReportsFilterFixedBtnEl = document.getElementById('myReportsFilterFixedBtn');
-  if (myReportsFilterFixedBtnEl) myReportsFilterFixedBtnEl.textContent = t('myReportsFilterFixed');
-  renderMyReportsList();
   const heatmapBtnEl = document.getElementById('heatmapBtn');
   if (heatmapBtnEl) heatmapBtnEl.title = t('heatmapBtnTitle');
   const categoryFilterPanelTitleEl = document.getElementById('categoryFilterPanelTitle');
@@ -6055,7 +5890,8 @@ function collectAllIconPaths() {
     'icons/category-filter.png', 'icons/heatmap.png', 'icons/camera.png', 'icons/gallery.png',
     'icons/reports/report_new.png',
     'icons/google.png', 'icons/github.png', 'icons/osm.png', 'icons/close.png', 'icons/help.png',
-    'icons/arrow.png', 'icons/search.png', 'icons/trophy.png',
+    'icons/arrow.png', 'icons/search.png', 'icons/pothole.png', 'icons/road-damaged.png',
+    'icons/traffic-cone.png', 'icons/flood-risk.png', 'icons/warning-symbol.png', 'icons/trophy.png',
     'icons/public.png', 'icons/email.png', 'icons/phone.png', 'icons/link.png',
     'icons/badges/badge-admin-admin-1.png', 'icons/badges/badge-admin-admin-2.png', 'icons/badges/badge-admin-admin-3.png',
     'icons/turn-arrive.png', 'icons/turn-roundabout.png', 'icons/turn-merge.png',
@@ -6071,8 +5907,9 @@ function collectAllIconPaths() {
   const turnIcons = (typeof TURN_ICONS !== 'undefined')
     ? Object.values(TURN_ICONS).map(f => `icons/${f}`)
     : [];
-  // CATEGORY_ICONS and WIZ_CATEGORY_ICONS are the same object (see WIZ_CATEGORY_ICONS
-  // definition) — only listed once here, correctly pathed under icons/reports/.
+  const categoryIcons = (typeof CATEGORY_ICONS !== 'undefined')
+    ? Object.values(CATEGORY_ICONS).map(f => `icons/${f}`)
+    : [];
   const wizCategoryIcons = (typeof WIZ_CATEGORY_ICONS !== 'undefined')
     ? Object.values(WIZ_CATEGORY_ICONS).map(f => `icons/reports/${f}`)
     : [];
@@ -6086,7 +5923,7 @@ function collectAllIconPaths() {
     ? Object.values(WIZ_STATUS_ICONS).map(f => `icons/reports/${f}`)
     : [];
   return [...new Set([
-    ...staticIcons, ...badgeIcons, ...turnIcons,
+    ...staticIcons, ...badgeIcons, ...turnIcons, ...categoryIcons,
     ...wizCategoryIcons, ...wizSubcategoryIcons, ...wizPriorityIcons, ...wizStatusIcons,
   ])];
 }
@@ -7642,7 +7479,6 @@ function recordReportSubmission() {
   const recent = getRecentReportTimestamps();
   recent.push(Date.now());
   try { localStorage.setItem(REPORT_RATE_LIMIT_STORAGE_KEY, JSON.stringify(recent)); } catch (e) {}
-  myReportsCache = null; // a fresh report was filed — reload "My Reports" next time it's shown
 }
 
 function shouldBlockReportSubmission() {
@@ -8319,13 +8155,8 @@ const CATEGORY_COLORS = {
   'GreenSpaces':  '#3fa34d',
   'Parking':      '#5c6bc0',
   'Suggestion':   '#26a69a',
-  'Forest':       '#1b5e20',
-  'FarmersMarket':'#c77d1e',
   'Other':        '#8342a1',
 };
-// Canonical source for every category's icon filename — these live in icons/reports/
-// (never icons/ root). Used both for the report wizard and for map pins / cards,
-// so there is exactly one filename per category instead of two mismatched sets.
 const CATEGORY_ICONS = {
   'Water':        'water.png',
   'Electricity':  'electricity.png',
@@ -8336,13 +8167,11 @@ const CATEGORY_ICONS = {
   'Streetlight':  'streetlight.png',
   'Waste':        'waste.png',
   'Walkways':     'walkways.png',
-  'BikeLanes':    'bike_lanes.png',
-  'GreenSpaces':  'green_spaces.png',
-  'Parking':      'parking.png',
-  'Suggestion':   'ui_suggestion.png',
-  'Forest':       'forest.png',
-  'FarmersMarket':'farmers_market.png',
-  'Other':        'ui_other.png',
+  'BikeLanes':    'bicycle.png',
+  'GreenSpaces':  'green.png',
+  'Parking':      'no-parking.png',
+  'Suggestion':   'suggest.png',
+  'Other':        'warning-symbol.png',
 };
 const SUBCATEGORIES = {
   Water: [
@@ -8416,22 +8245,6 @@ const SUBCATEGORIES = {
     { key:'illegal_dumping',  en:'Illegal dumping / litter',sr:'Nelegalno odlaganje otpada / smeće' },
     { key:'other',            en:'Other',                  sr:'Drugo' }
   ],
-  Forest: [
-    { key:'illegal_logging', en:'Illegal logging',                  sr:'Nelegalna seča' },
-    { key:'fire_hazard',     en:'Fire hazard',                      sr:'Opasnost od požara' },
-    { key:'fallen_trees',    en:'Fallen trees blocking trail',      sr:'Palo drveće na stazi' },
-    { key:'illegal_dumping', en:'Illegal dumping',                  sr:'Nelegalno odlaganje otpada' },
-    { key:'trail_damage',    en:'Damaged trail / markings',         sr:'Oštećena staza / markacija' },
-    { key:'other',           en:'Other',                            sr:'Drugo' }
-  ],
-  FarmersMarket: [
-    { key:'hygiene',        en:'Hygiene / cleanliness issue',        sr:'Higijena / čistoća' },
-    { key:'overpricing',    en:'Suspected overpricing',              sr:'Sumnja na prekomerne cene' },
-    { key:'illegal_vendor', en:'Unregistered / illegal vendor',      sr:'Neregistrovan prodavac' },
-    { key:'infrastructure', en:'Damaged stall / infrastructure',     sr:'Oštećen štand / infrastruktura' },
-    { key:'parking',        en:'Parking / access issue',             sr:'Problem sa parkingom / pristupom' },
-    { key:'other',          en:'Other',                              sr:'Drugo' }
-  ],
   Parking: [],
   Suggestion: [],
   Other: []
@@ -8459,7 +8272,7 @@ function priorityLabelText(p) {
   return t('priorityNormal');
 }
 function categoryColor(cat) { return CATEGORY_COLORS[cat] || '#aaaaaa'; }
-function categoryIcon(cat)  { return 'icons/reports/' + (CATEGORY_ICONS[cat] || CATEGORY_ICONS.Other); }
+function categoryIcon(cat)  { return CATEGORY_ICONS[cat] || CATEGORY_ICONS.Other; }
 
 let categoryMarkerFilter = null;
 
@@ -8635,14 +8448,14 @@ function statusLabel(s) {
   return t('statusReported');
 }
 function translateCategory(cat) {
-  const labelsEn = { Water:'Water', Electricity:'Electricity', Sewage:'Sewage', Gas:'Gas', Heating:'Heating', Road:'Road', Streetlight:'Streetlight', Waste:'Waste', Walkways:'Walkways', BikeLanes:'Bike Lanes', GreenSpaces:'Green Spaces', Parking:'Frequent Parking Violations', Suggestion:'Suggest an Improvement', Forest:'Forest', FarmersMarket:'Farmers Market', Other:'Other' };
-  const labelsSr = { Water:'Voda', Electricity:'Struja', Sewage:'Kanalizacija', Gas:'Gas', Heating:'Grejanje', Road:'Put', Streetlight:'Ulična rasveta', Waste:'Otpad', Walkways:'Pešačke staze', BikeLanes:'Biciklističke staze', GreenSpaces:'Zelene površine', Parking:'Često Nepropisno parkiranje', Suggestion:'Predlog za poboljšanje', Forest:'Šuma', FarmersMarket:'Pijaca', Other:'Ostalo' };
+  const labelsEn = { Water:'Water', Electricity:'Electricity', Sewage:'Sewage', Gas:'Gas', Heating:'Heating', Road:'Road', Streetlight:'Streetlight', Waste:'Waste', Walkways:'Walkways', BikeLanes:'Bike Lanes', GreenSpaces:'Green Spaces', Parking:'Frequent Parking Violations', Suggestion:'Suggest an Improvement', Other:'Other' };
+  const labelsSr = { Water:'Voda', Electricity:'Struja', Sewage:'Kanalizacija', Gas:'Gas', Heating:'Grejanje', Road:'Put', Streetlight:'Ulična rasveta', Waste:'Otpad', Walkways:'Pešačke staze', BikeLanes:'Biciklističke staze', GreenSpaces:'Zelene površine', Parking:'Često Nepropisno parkiranje', Suggestion:'Predlog za poboljšanje', Other:'Ostalo' };
   return (lang === 'sr' ? labelsSr[cat] : labelsEn[cat]) || cat;
 }
 
 function categorySearchText(cat) {
-  const labelsEn = { Water:'Water', Electricity:'Electricity', Sewage:'Sewage', Gas:'Gas', Heating:'Heating', Road:'Road', Streetlight:'Streetlight', Waste:'Waste', Walkways:'Walkways', BikeLanes:'Bike Lanes', GreenSpaces:'Green Spaces', Parking:'Frequent Parking Violations', Suggestion:'Suggest an Improvement', Forest:'Forest', FarmersMarket:'Farmers Market', Other:'Other' };
-  const labelsSr = { Water:'Voda', Electricity:'Struja', Sewage:'Kanalizacija', Gas:'Gas', Heating:'Grejanje', Road:'Put', Streetlight:'Ulična rasveta', Waste:'Otpad', Walkways:'Pešačke staze', BikeLanes:'Biciklističke staze', GreenSpaces:'Zelene površine', Parking:'Često Nepropisno parkiranje', Suggestion:'Predlog za poboljšanje', Forest:'Šuma', FarmersMarket:'Pijaca', Other:'Ostalo' };
+  const labelsEn = { Water:'Water', Electricity:'Electricity', Sewage:'Sewage', Gas:'Gas', Heating:'Heating', Road:'Road', Streetlight:'Streetlight', Waste:'Waste', Walkways:'Walkways', BikeLanes:'Bike Lanes', GreenSpaces:'Green Spaces', Parking:'Frequent Parking Violations', Suggestion:'Suggest an Improvement', Other:'Other' };
+  const labelsSr = { Water:'Voda', Electricity:'Struja', Sewage:'Kanalizacija', Gas:'Gas', Heating:'Grejanje', Road:'Put', Streetlight:'Ulična rasveta', Waste:'Otpad', Walkways:'Pešačke staze', BikeLanes:'Biciklističke staze', GreenSpaces:'Zelene površine', Parking:'Često Nepropisno parkiranje', Suggestion:'Predlog za poboljšanje', Other:'Ostalo' };
   return [labelsEn[cat], labelsSr[cat], cat].filter(Boolean).join(' ');
 }
 
@@ -8918,7 +8731,7 @@ async function addGalleryPhotoToReport(reportId) {
       return;
     }
     try {
-      const path = `gallery/${currentSession.user.id}/${reportId}_${Date.now()}.jpg`;
+      const path = `gallery/${reportId}/${currentSession.user.id}_${Date.now()}.jpg`;
       const { error: uploadError } = await sb.storage.from(REPORT_PHOTO_BUCKET)
         .upload(path, blob, { contentType: 'image/jpeg', upsert: false });
       if (uploadError) throw uploadError;
@@ -9009,10 +8822,13 @@ function resetReportingForm() {
   closeReportWizard();
 }
 
-// Same filenames as CATEGORY_ICONS (defined earlier, used for map pins/cards) — kept as
-// one alias instead of a second hand-maintained copy, so the wizard and the rest of the
-// app can never drift apart on which file a category uses.
-const WIZ_CATEGORY_ICONS = CATEGORY_ICONS;
+const WIZ_CATEGORY_ICONS = {
+  Water: 'water.png', Electricity: 'electricity.png', Sewage: 'sewage.png',
+  Gas: 'gas.png', Heating: 'heating.png', Road: 'road.png',
+  Streetlight: 'streetlight.png', Waste: 'waste.png', Walkways: 'walkways.png',
+  BikeLanes: 'bike_lanes.png', GreenSpaces: 'green_spaces.png', Parking: 'parking.png',
+  Suggestion: 'ui_suggestion.png', Other: 'ui_other.png',
+};
 const WIZ_SUBCATEGORY_ICONS = {
   Water: { burst_leak:'water_leak.png', no_supply:'water_no_supply.png', low_pressure:'water_low_pressure.png', discoloration:'water_discoloration.png', other:'ui_other.png' },
   Electricity: { outage:'electricity_outage.png', exposed_wire:'electricity_damaged_wire.png', transformer:'electricity_transformer_issue.png', voltage:'electricity_voltage_fluctuation.png', other:'ui_other.png' },
@@ -9025,8 +8841,6 @@ const WIZ_SUBCATEGORY_ICONS = {
   Walkways: { cracked_concrete:'walkway_cracked_concrete.png', blocked_path:'walkway_blocked_path.png', missing_ramp:'walkway_missing_ramp.png', trip_hazard:'walkway_trip_hazard.png', other:'ui_other.png' },
   BikeLanes: { surface_damage:'bike_surface_damage.png', missing_separation:'bike_missing_separation.png', faded_markings:'bike_faded_markings.png', blocked_lane:'bike_blocked_by_car.png', other:'ui_other.png' },
   GreenSpaces: { broken_equipment:'green_broken_equipment.png', fallen_trees:'green_fallen_tree.png', overgrown_grass:'green_overgrown_grass.png', illegal_dumping:'green_litter.png', other:'ui_other.png' },
-  Forest: { illegal_logging:'forest_illegal_logging.png', fire_hazard:'forest_fire_hazard.png', fallen_trees:'forest_fallen_trees.png', illegal_dumping:'forest_illegal_dumping.png', trail_damage:'forest_trail_damage.png', other:'ui_other.png' },
-  FarmersMarket: { hygiene:'farmers_market_hygiene.png', overpricing:'farmers_market_overpricing.png', illegal_vendor:'farmers_market_illegal_vendor.png', infrastructure:'farmers_market_infrastructure.png', parking:'farmers_market_parking.png', other:'ui_other.png' },
 };
 const WIZ_PRIORITY_ICONS = { low:'priority_low.png', normal:'priority_normal.png', high:'priority_high.png' };
 const WIZ_STATUS_ICONS = { reported:'status_reported.png', in_progress:'status_in_progress.png' };
@@ -11329,13 +11143,6 @@ async function showReportDetailModal(reportId) {
       <div id="reportFlagContent"><div class="detail-loading">${t('detailLoading')}</div></div>
     </div>` : '';
 
-  const gallerySectionHtml = `
-    <div class="detail-section">
-      <div class="detail-section-title">${t('detailGalleryTitle')}</div>
-      <div class="detail-gallery-strip" id="detailGalleryStrip"><div class="detail-loading">${t('detailLoading')}</div></div>
-      ${currentSession ? `<button type="button" class="settings-btn" style="margin-top:10px;" onclick="addGalleryPhotoToReport('${report.id}')"><img class="icon-img icon-img-inline" src="icons/camera.png" alt=""> ${t('addGalleryPhotoBtn')}</button>` : ''}
-    </div>`;
-
   body.innerHTML = `
     <div class="detail-section">
       <div class="detail-section-title">${t('detailLocationTitle')}</div>
@@ -11358,7 +11165,6 @@ async function showReportDetailModal(reportId) {
       <div class="detail-section-title">${t('contactCountsTitle')}</div>
       <div id="detailContactCountsContainer"><div class="detail-loading">${t('detailLoading')}</div></div>
     </div>
-    ${gallerySectionHtml}
     ${flagSectionHtml}
     <div class="detail-section">
       <div class="detail-section-title">${t('detailExportTitle')}</div>
@@ -11400,8 +11206,6 @@ async function showReportDetailModal(reportId) {
         : `<div class="detail-empty">${t('photoLoadFailed')}</div>`;
     });
   }
-
-  renderReportGallery(report.id);
 
   fetchAddressForPoint(report.latitude, report.longitude).then(addr => {
     const streetEl = document.getElementById('detailStreetValue');
@@ -12309,7 +12113,7 @@ function buildDetailStatusReadonlyHtml(report, reporterName) {
 }
 
 function buildDetailEditFieldsHtml(report) {
-  const cats = ['Water','Electricity','Sewage','Gas','Heating','Road','Streetlight','Waste','Walkways','BikeLanes','GreenSpaces','Parking','Suggestion','Forest','FarmersMarket','Other'];
+  const cats = ['Water','Electricity','Sewage','Gas','Heating','Road','Streetlight','Waste','Walkways','BikeLanes','GreenSpaces','Parking','Suggestion','Other'];
   const catOptions = cats.map(c => `<option value="${c}" ${c === report.category ? 'selected' : ''}>${translateCategory(c)}</option>`).join('');
   const statuses = [
     { key:'reported', label: statusLabel('reported') },
@@ -12467,7 +12271,6 @@ async function deleteReport(reportId) {
   try {
     const { error } = await sb.from(TABLE).delete().eq('id', reportId);
     if (error) throw error;
-    myReportsCache = null;
     await loadPinsByWindow();
     hideReportDetailModal();
   } catch (err) {
@@ -12483,7 +12286,6 @@ async function updateReportStatus(reportId, newStatus) {
       .update({ updated_at: new Date().toISOString(), ...buildStatusPatch(newStatus) })
       .eq('id', reportId);
     if (error) throw error;
-    myReportsCache = null;
     await loadPinsByWindow();
     if (newStatus === 'fixed') maybeOfferAfterPhoto(reportId);
   } catch (err) {
@@ -12594,7 +12396,7 @@ function upsertSectionLine(report) {
 function buildPinIconHtml(category, status, priority) {
   const catCol  = categoryColor(category);
   const sCol    = statusColor(status);
-  const iconSrc = categoryIcon(category);
+  const iconSrc = `icons/${categoryIcon(category)}`;
   const opacity = status === 'fixed' ? 0.55 : 1;
   const pulseDuration = status === 'reported' ? 1.6 : 2.6;
   const pulseSize = priority === 'high' ? 34 : priority === 'low' ? 20 : 26;
@@ -13070,14 +12872,8 @@ function hideMapLoadingOverlay() {
   }, MAP_LOADING_OVERLAY_MIN_HOLD_MS);
 }
 
-// NOTE: discoverIconPacks() must resolve (and correct `iconPack` if the persisted
-// pack turns out invalid/missing) BEFORE initIconPackRewrite() runs its first pass
-// and attaches the MutationObserver. Running them in parallel used to mean the
-// observer could start with a not-yet-validated pack, get silently reset to
-// ICON_PACK_DEFAULT once the fetch resolved, and then stop rewriting anything
-// rendered afterwards (badges, report/subcategory icons, wizard tiles, markers) —
-// leaving only whatever handful of icons were already in the DOM at that instant.
-discoverIconPacks().finally(initIconPackRewrite);
+initIconPackRewrite();
+discoverIconPacks();
 initTheme();
 initCalendarFilter();
 initLang();
