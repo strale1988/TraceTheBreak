@@ -175,20 +175,27 @@ h3.subTitle{font-size:var(--fs-13);margin:16px 0 6px;color:var(--text-secondary)
     <h3>Settings</h3>
     <div class="field">
       <label>Anthropic API key (used to research contacts)</label>
-      <input type="password" id="apiKeyInput" placeholder="sk-ant-...">
+      <div style="display:flex;gap:6px;">
+        <input type="password" id="apiKeyInput" placeholder="sk-ant-api03-..." style="flex:1;">
+        <button class="btn small" type="button" onclick="toggleKeyVisibility()" id="toggleKeyBtn">Show</button>
+      </div>
+      <div id="apiKeyPreview" style="font-size:11px;color:var(--text-muted);margin-top:4px;"></div>
     </div>
     <p style="font-size:11px;color:var(--text-muted)">Stored only in this browser (localStorage) and sent directly from your browser to api.anthropic.com — it never touches any server of ours. Get a key at
-      <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>.</p>
+      <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>. It must be a Console API key (starts with <code>sk-ant-api03-</code>), not a claude.ai login.</p>
     <p style="font-size:11px;color:var(--text-muted)">Connected Supabase project: <b>TraceTheStuff</b> (fnkqmwweljsupbmerbkh) — read-only view for everyone, writes require an admin sign-in.</p>
+    <div id="testKeyResult" style="font-size:12px;margin-top:6px;"></div>
     <div style="display:flex;justify-content:space-between;margin-top:14px;">
       <button class="btn danger small" onclick="clearApiKey()">Clear key</button>
       <div>
+        <button class="btn small" onclick="testApiKey()">Test key</button>
         <button class="btn ghost" onclick="closeModal('settingsModal')">Cancel</button>
         <button class="btn primary" onclick="saveApiKey()">Save</button>
       </div>
     </div>
   </div>
 </div>
+
 
 <script>
 /* =========================================================================
@@ -344,19 +351,64 @@ function updateAuthUI(){
    API KEY (Anthropic) — stored client-side only
    ========================================================================= */
 function getApiKey(){ return localStorage.getItem('ttb_collector_anthropic_key') || ''; }
+function maskKey(k){
+  if(!k) return '(no key saved)';
+  const clean = k.trim();
+  if(clean.length <= 14) return 'Saved key: ' + clean[0] + '••••• (' + clean.length + ' chars — looks too short for a real key)';
+  return 'Saved key: ' + clean.slice(0,12) + '…' + clean.slice(-4) + ' (' + clean.length + ' chars)';
+}
+function refreshKeyPreview(){
+  document.getElementById('apiKeyPreview').textContent = maskKey(getApiKey());
+}
+function toggleKeyVisibility(){
+  const input = document.getElementById('apiKeyInput');
+  const btn = document.getElementById('toggleKeyBtn');
+  if(input.type === 'password'){ input.type = 'text'; btn.textContent = 'Hide'; }
+  else { input.type = 'password'; btn.textContent = 'Show'; }
+}
 function saveApiKey(){
   const val = document.getElementById('apiKeyInput').value.trim();
   if(val) localStorage.setItem('ttb_collector_anthropic_key', val);
+  refreshKeyPreview();
   closeModal('settingsModal');
   toast('API key saved to this browser.', 'success');
 }
 function clearApiKey(){
   localStorage.removeItem('ttb_collector_anthropic_key');
   document.getElementById('apiKeyInput').value = '';
+  refreshKeyPreview();
   toast('API key cleared.');
+}
+async function testApiKey(){
+  const resultEl = document.getElementById('testKeyResult');
+  const val = document.getElementById('apiKeyInput').value.trim() || getApiKey();
+  if(!val){ resultEl.innerHTML = '<span style="color:var(--danger-strong)">Enter a key first.</span>'; return; }
+  resultEl.textContent = 'Testing…';
+  try{
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'x-api-key': val,
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true'
+      },
+      body: JSON.stringify({ model: ANTHROPIC_MODEL, max_tokens: 8, messages:[{role:'user', content:'hi'}] })
+    });
+    const data = await resp.json();
+    if(resp.ok && !data.error){
+      resultEl.innerHTML = '<span style="color:var(--success)">✓ Key works (HTTP ' + resp.status + ').</span>';
+    } else {
+      resultEl.innerHTML = '<span style="color:var(--danger-strong)">✗ HTTP ' + resp.status + ' — ' + escapeHtml((data.error && data.error.message) || 'unknown error') + '</span>';
+    }
+  }catch(err){
+    resultEl.innerHTML = '<span style="color:var(--danger-strong)">✗ Request failed: ' + escapeHtml(err.message) + ' (likely a network/CORS issue, not the key itself)</span>';
+  }
 }
 document.getElementById('settingsBtn').addEventListener('click', () => {
   document.getElementById('apiKeyInput').value = getApiKey();
+  document.getElementById('testKeyResult').textContent = '';
+  refreshKeyPreview();
   openModal('settingsModal');
 });
 
