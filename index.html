@@ -1011,7 +1011,9 @@ body.nav-panel-open .driving-nav-card{
   width:86px; height:86px;
   object-fit:contain;
   border-radius:24px;
+  animation:map-loading-logo-pulse 1.8s ease-in-out infinite;
 }
+@keyframes map-loading-logo-pulse{ 0%,100%{ opacity:1; } 50%{ opacity:.45; } }
 .map-loading-spinner{
   position:absolute;
   inset:0;
@@ -3426,6 +3428,7 @@ async function submitUsername() {
     toast(lang === 'sr' ? 'Korisničko ime mora imati bar 3 karaktera.' : 'Username must be at least 3 characters.', 'error');
     return;
   }
+  if (blockIfProfane(username)) return;
   if (!currentSession) return;
   try {
     const { error } = await sb.from(PROFILES_TABLE)
@@ -5042,6 +5045,7 @@ const T = {
   csvLabel:     { en:'CSV',                              sr:'CSV' },
   commentPH:    { en:'Optional notes...',                sr:'Opciona napomena...' },
   commentPHRequired: { en:'Describe your suggestion... (required)', sr:'Opišite svoj predlog... (obavezno)' },
+  profanityBlocked: { en:'Please remove offensive language and try again.', sr:'Molimo uklonite uvredljiv jezik i pokušajte ponovo.' },
   suggestionCommentRequired: { en:'Please describe your suggestion in the notes field.', sr:'Opišite svoj predlog u polju za napomenu.' },
   waitGps:      { en:'Waiting for GPS...',               sr:'Čekanje GPS-a...' },
   gpsTooWeak:   { en:"Your location signal is too weak or inaccurate to submit a report from here. Move to an open area and try again.", sr:'Signal lokacije je preslab ili netačan da bi se prijava poslala odavde. Pomerite se na otvoren prostor i pokušajte ponovo.' },
@@ -6300,6 +6304,12 @@ function updateZoomAnimationForRotation() {
   const shouldAnimate = !rotated && L.Browser.any3d;
   if (map._zoomAnimated !== shouldAnimate) {
     map._zoomAnimated = shouldAnimate;
+    // Flipping this private flag outside Leaflet's own zoom lifecycle leaves the map
+    // pane's cached transform/position out of sync with the new animation mode — the
+    // symptom is dragging feeling "stuck" or offset on the very next pan after a zoom.
+    // Forcing the same internal resync Leaflet performs after its own animated zooms
+    // snaps the pane back to a clean baseline so subsequent drags compute correctly.
+    try { map._resetView(map.getCenter(), map.getZoom(), true); } catch (e) {}
   }
 }
 
@@ -8345,6 +8355,25 @@ map.on('click', function(e) {
 map.on('moveend', function(){ if (!pinMode) syncMarkers(false); });
 map.on('zoomend', function(){ if (!pinMode) syncMarkers(false); });
 
+// As the person pans or zooms out, fetch more reports only once the view has actually
+// moved outside the padded box we last loaded (see loadPinsByWindow) — small pans within
+// an already-loaded area don't trigger a new network call.
+let viewportReloadTimer = null;
+const VIEWPORT_RELOAD_DEBOUNCE_MS = 400;
+function scheduleViewportReloadIfNeeded() {
+  if (pinMode) return;
+  if (viewportReloadTimer) clearTimeout(viewportReloadTimer);
+  viewportReloadTimer = setTimeout(() => {
+    viewportReloadTimer = null;
+    if (typeof lastLoadedBBox === 'undefined' || typeof currentViewportBBox !== 'function') return;
+    const b = map.getBounds();
+    const visible = { minLat: b.getSouthWest().lat, maxLat: b.getNorthEast().lat, minLon: b.getSouthWest().lng, maxLon: b.getNorthEast().lng };
+    if (!bboxContains(lastLoadedBBox, visible)) loadPinsByWindow();
+  }, VIEWPORT_RELOAD_DEBOUNCE_MS);
+}
+map.on('moveend', scheduleViewportReloadIfNeeded);
+map.on('zoomend', scheduleViewportReloadIfNeeded);
+
 const CATEGORY_COLORS = {
   'Water':        '#1e90ff',
   'Electricity':  '#f5c518',
@@ -8477,6 +8506,11 @@ const SUBCATEGORIES = {
   Other: []
 };
 const CATEGORIES_REQUIRING_COMMENT = new Set(['Suggestion']);
+// "Nepropisno parkiranje" reports just need to be reported and later marked fixed —
+// there's no meaningful "in progress" phase for a parking violation, so we skip that
+// status everywhere it would otherwise show up (popups, edit form, timeline).
+const CATEGORIES_SKIPPING_IN_PROGRESS = new Set(['Parking']);
+function categorySkipsInProgress(category) { return CATEGORIES_SKIPPING_IN_PROGRESS.has(category); }
 const STATUS_COLORS = {
   'reported':    '#ff4b4b',
   'in_progress': '#f5a623',
@@ -9098,7 +9132,7 @@ function wizStepsFor(cat) {
   const steps = ['category'];
   if (cat && (SUBCATEGORIES[cat] || []).length) steps.push('subcategory');
   steps.push('priority');
-  if (cat !== 'Suggestion') steps.push('status');
+  if (cat !== 'Suggestion' && !categorySkipsInProgress(cat)) steps.push('status');
   steps.push('details');
   return steps;
 }
@@ -9578,6 +9612,7 @@ async function reportBreak(){
     toast(t('suggestionCommentRequired'), 'error');
     return;
   }
+  if (blockIfProfane(comment)) return;
 
   reportSubmissionInFlight = true;
   const reportBtn = document.getElementById('reportBtn');
@@ -11215,7 +11250,7 @@ function buildPopupHtml(report) {
       { key: 'reported',    label: t('markReported'),   bg: STATUS_COLORS.reported },
       { key: 'in_progress', label: t('markInProgress'), bg: STATUS_COLORS.in_progress },
       { key: 'fixed',       label: t('markFixed'),      bg: STATUS_COLORS.fixed }
-    ].filter(s => s.key !== report.status);
+    ].filter(s => s.key !== report.status && !(s.key === 'in_progress' && categorySkipsInProgress(report.category)));
     actionsHtml = `<div class="status-action-row">
       ${statuses.map(s => `<button class="status-action-btn" style="background:${s.bg};" onclick="updateReportStatus('${report.id}','${s.key}')">${s.label}</button>`).join('')}
     </div>`;
@@ -11224,7 +11259,7 @@ function buildPopupHtml(report) {
       { key: 'reported',    label: t('markReported'),   bg: STATUS_COLORS.reported },
       { key: 'in_progress', label: t('markInProgress'), bg: STATUS_COLORS.in_progress },
       { key: 'fixed',       label: t('markFixed'),      bg: STATUS_COLORS.fixed }
-    ].filter(s => s.key !== report.status);
+    ].filter(s => s.key !== report.status && !(s.key === 'in_progress' && categorySkipsInProgress(report.category)));
     actionsHtml = `<div class="status-action-row">
       ${statuses.map(s => `<button class="status-action-btn" style="background:${s.bg};" onclick="castStatusVote('${report.id}','${s.key}')">${s.label}</button>`).join('')}
     </div>
@@ -11574,6 +11609,7 @@ async function submitReportFlag(reportId) {
   const reasonEl = document.getElementById('flagReportReason');
   const reason = reasonEl ? reasonEl.value.trim() : '';
   if (!reason) { toast(t('flagReportValidationError'), 'error'); return; }
+  if (blockIfProfane(reason)) return;
   const submitBtn = document.getElementById('flagReportSubmitBtn');
   if (submitBtn) submitBtn.disabled = true;
   try {
@@ -11736,6 +11772,7 @@ async function submitContactOtherFlag(companyId) {
   const reasonEl = document.getElementById(`contact-other-flag-reason-${companyId}`);
   const reason = reasonEl ? reasonEl.value.trim() : '';
   if (!reason) { toast(t('flagReportValidationError'), 'error'); return; }
+  if (blockIfProfane(reason)) return;
   const submitBtn = document.getElementById(`contact-other-flag-submit-${companyId}`);
   if (submitBtn) submitBtn.disabled = true;
   try {
@@ -12387,7 +12424,7 @@ function buildDetailStatusReadonlyHtml(report, reporterName) {
     <div class="detail-row"><span class="detail-row-label">${t('reportedByLabel')}</span><span class="detail-row-value">${escapeHtml(reporterName)}</span>${reporterBanControlHtml(report)}</div>
     <div class="popup-timeline" style="margin-top:8px;">
       ${buildTimelineItem(report.created_at, true, STATUS_COLORS.reported)}
-      ${buildTimelineItem(report.in_progress_at, !!report.in_progress_at, STATUS_COLORS.in_progress)}
+      ${categorySkipsInProgress(report.category) ? '' : buildTimelineItem(report.in_progress_at, !!report.in_progress_at, STATUS_COLORS.in_progress)}
       ${buildTimelineItem(report.fixed_at, !!report.fixed_at, STATUS_COLORS.fixed)}
     </div>
     ${noteRowHtml}
@@ -12401,7 +12438,7 @@ function buildDetailEditFieldsHtml(report) {
     { key:'reported', label: statusLabel('reported') },
     { key:'in_progress', label: statusLabel('in_progress') },
     { key:'fixed', label: statusLabel('fixed') }
-  ];
+  ].filter(s => s.key !== 'in_progress' || !categorySkipsInProgress(report.category));
   const statusOptions = statuses.map(s => `<option value="${s.key}" ${s.key === report.status ? 'selected' : ''}>${s.label}</option>`).join('');
   const currentPriority = report.priority || 'normal';
   const priorities = [
@@ -12445,6 +12482,18 @@ function onDetailEditCategoryChange(reportId) {
   const subSelect = document.getElementById(`detailEditSubcat-${reportId}`);
   if (!catSelect || !subSelect) return;
   populateSubcategoryOptions(subSelect, catSelect.value, null);
+
+  const statusSelect = document.getElementById(`detailEditStatus-${reportId}`);
+  if (statusSelect) {
+    const currentStatus = statusSelect.value;
+    const statuses = [
+      { key:'reported', label: statusLabel('reported') },
+      { key:'in_progress', label: statusLabel('in_progress') },
+      { key:'fixed', label: statusLabel('fixed') }
+    ].filter(s => s.key !== 'in_progress' || !categorySkipsInProgress(catSelect.value));
+    const nextStatus = statuses.some(s => s.key === currentStatus) ? currentStatus : 'reported';
+    statusSelect.innerHTML = statuses.map(s => `<option value="${s.key}" ${s.key === nextStatus ? 'selected' : ''}>${s.label}</option>`).join('');
+  }
 }
 
 function enterReportDetailEditMode(reportId) {
@@ -12472,6 +12521,7 @@ async function saveReportDetailEdits(reportId) {
   const priorityEl   = document.getElementById(`detailEditPriority-${reportId}`);
   const priority      = (priorityEl && priorityEl.value) ? priorityEl.value : 'normal';
   const comment       = cyrillicToLatin(document.getElementById(`detailEditComment-${reportId}`).value);
+  if (blockIfProfane(comment)) return;
   try {
     const { error } = await sb.from(TABLE)
       .update({ category, subcategory, priority, comment, updated_at: new Date().toISOString(), ...buildStatusPatch(status) })
@@ -12519,6 +12569,7 @@ async function saveOwnerNote(reportId) {
   const input = document.getElementById(`edit-note-${reportId}`);
   if (!input) return;
   const comment = cyrillicToLatin(input.value);
+  if (blockIfProfane(comment)) return;
   try {
     const { error } = await sb.from(TABLE)
       .update({ comment, updated_at: new Date().toISOString() })
@@ -12671,6 +12722,40 @@ function cyrillicToLatin(str) {
   return String(str).replace(/[А-Яа-яЂђЈјЉљЊњЋћЏџ]/g, ch => CYRILLIC_TO_LATIN_MAP[ch] ?? ch);
 }
 
+// ---- Profanity filter -----------------------------------------------------
+// Blocks a small, editable list of offensive/vulgar words (English + Serbian) from
+// being typed into any free-text field in the app (report comments, notes, username,
+// direct-message text, report-flag reason). This is a lightweight client-side check —
+// it normalizes accents/Cyrillic/leetspeak/repeated letters before matching, but it is
+// not a substitute for a real moderation pipeline; add words to BLOCKED_WORDS as needed.
+const BLOCKED_WORDS = [
+  // English
+  'fuck','shit','bitch','asshole','bastard','cunt','dick','pussy','faggot','nigger','whore','slut',
+  // Serbian/Balkan (Latin-normalized forms; Cyrillic input is converted before checking)
+  'jebem','jebo','jebote','picka','pizda','kurac','kurca','govno','djubre','dzukela','peder',
+  'kurvo','kurva','seronja','budalo','idiote','glupane','majmune','svinjo'
+];
+function normalizeForProfanityCheck(str) {
+  return cyrillicToLatin(String(str || ''))
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // strip accents (č->c, š->s, etc.)
+    .replace(/0/g, 'o').replace(/1/g, 'i').replace(/3/g, 'e').replace(/4/g, 'a').replace(/5/g, 's').replace(/7/g, 't')
+    .replace(/[^a-z]/g, ' ')
+    .replace(/(.)\1{2,}/g, '$1$1'); // collapse 3+ repeated letters (fuuuck -> fuuck)
+}
+function containsProfanity(str) {
+  if (!str) return false;
+  const normalized = normalizeForProfanityCheck(str);
+  return BLOCKED_WORDS.some(w => normalized.includes(w));
+}
+// Call before saving any user-typed text. Shows a toast and returns true if the text
+// should be blocked; returns false (and shows nothing) if the text is fine to save.
+function blockIfProfane(str) {
+  if (!containsProfanity(str)) return false;
+  toast(t('profanityBlocked'), 'error');
+  return true;
+}
+
 const sectionLineRenderer = L.svg({ tolerance: 32 });
 
 function isSectionReport(report) {
@@ -12812,6 +12897,51 @@ function updateReportCount() {
   setCount('legendCountFixed',      counts.fixed);
 }
 
+// ---- Viewport-bounded loading ---------------------------------------------------
+// Reports are fetched for a padded box around the current map view instead of the
+// whole database. As the person pans/zooms, onViewportMayNeedMoreData() below checks
+// whether the view has moved outside the box we last loaded and, only then, fetches
+// again — merging new reports into what's already in memory rather than replacing it.
+// A hard cap (MAX_LOADED_REPORTS) plus pruneLoadedReportsIfNeeded() keeps memory bounded
+// even after a long session of panning around, by dropping whatever is currently
+// farthest from the view. Net effect: initial load and payload size stay roughly
+// constant as the total number of reports in the database grows over time.
+const VIEWPORT_LOAD_PAD_RATIO = 0.6;  // fetch a bit beyond the visible edges so small pans don't re-trigger a fetch
+const MAX_ALWAYS_ON_FETCH     = 800;  // hard cap on the "not yet fixed" fetch, regardless of viewport size
+const MAX_LOADED_REPORTS      = 4000; // hard cap on reports kept in memory/rendered at once
+let lastLoadedBBox = null;
+
+function currentViewportBBox() {
+  const b = map.getBounds();
+  const sw = b.getSouthWest(), ne = b.getNorthEast();
+  const latPad = (ne.lat - sw.lat) * VIEWPORT_LOAD_PAD_RATIO;
+  const lonPad = (ne.lng - sw.lng) * VIEWPORT_LOAD_PAD_RATIO;
+  return {
+    minLat: Math.max(-90, sw.lat - latPad),
+    maxLat: Math.min(90, ne.lat + latPad),
+    minLon: sw.lng - lonPad,
+    maxLon: ne.lng + lonPad
+  };
+}
+
+function bboxContains(outer, inner) {
+  return !!outer && !!inner &&
+    inner.minLat >= outer.minLat && inner.maxLat <= outer.maxLat &&
+    inner.minLon >= outer.minLon && inner.maxLon <= outer.maxLon;
+}
+
+function pruneLoadedReportsIfNeeded() {
+  if (globalActiveData.length <= MAX_LOADED_REPORTS) return;
+  const c = map.getCenter();
+  const center = { lat: c.lat, lon: c.lng };
+  globalActiveData.sort((a, b) => {
+    const da = isValidLatLng(a.latitude, a.longitude) ? distMeters(center, { lat: a.latitude, lon: a.longitude }) : Infinity;
+    const db = isValidLatLng(b.latitude, b.longitude) ? distMeters(center, { lat: b.latitude, lon: b.longitude }) : Infinity;
+    return da - db;
+  });
+  globalActiveData = globalActiveData.slice(0, MAX_LOADED_REPORTS);
+}
+
 async function loadPinsByWindow() {
   if (!fp || !fp.selectedDates || fp.selectedDates.length < 2) return;
 
@@ -12820,24 +12950,39 @@ async function loadPinsByWindow() {
   const end = new Date(fp.selectedDates[1]);
   end.setHours(23,59,59,999);
 
+  const bbox = currentViewportBBox();
+  lastLoadedBBox = bbox;
+
   try {
     const [dateRangeRes, alwaysOnRes] = await Promise.all([
       sb.from(TABLE).select('*')
         .gte('created_at', start.toISOString())
         .lte('created_at', end.toISOString())
+        .gte('latitude', bbox.minLat).lte('latitude', bbox.maxLat)
+        .gte('longitude', bbox.minLon).lte('longitude', bbox.maxLon)
         .order('created_at', { ascending: true }),
       sb.from(TABLE).select('*').neq('status', 'fixed')
+        .gte('latitude', bbox.minLat).lte('latitude', bbox.maxLat)
+        .gte('longitude', bbox.minLon).lte('longitude', bbox.maxLon)
+        .order('created_at', { ascending: false })
+        .limit(MAX_ALWAYS_ON_FETCH)
     ]);
 
     if (dateRangeRes.error) throw dateRangeRes.error;
     if (alwaysOnRes.error) throw alwaysOnRes.error;
 
-    dateRangeOnlyData = dateRangeRes.data || [];
+    const freshInWindow = dateRangeRes.data || [];
+    dateRangeOnlyData = freshInWindow;
 
-    const merged = new Map();
-    dateRangeOnlyData.forEach(r => merged.set(r.id, r));
+    // Merge into what's already loaded (rather than replacing it outright) so panning
+    // back to a previously-visited area doesn't need a fresh network round-trip, while
+    // reports that are no longer in the date range but were previously merged in get
+    // dropped so switching the date filter still narrows things down correctly.
+    const merged = new Map(globalActiveData.map(r => [r.id, r]));
+    freshInWindow.forEach(r => merged.set(r.id, r));
     (alwaysOnRes.data || []).forEach(r => merged.set(r.id, r));
     globalActiveData = Array.from(merged.values());
+    pruneLoadedReportsIfNeeded();
 
     await loadVoteProgress(globalActiveData.map(r => r.id));
 
@@ -13232,7 +13377,39 @@ initTheme();
 initCalendarFilter();
 initLang();
 applyLang();
-loadPinsByWindow().finally(hideMapLoadingOverlay);
+// On a person's very first-ever visit (no remembered map view yet) we'd otherwise make
+// our first fetch against the wide, zoomed-out Europe default view — pulling in reports
+// from a huge area. Instead, give geolocation a brief window to resolve a rough fix and
+// recenter/zoom onto it first, so the first thing loaded is the person's own area; if it
+// doesn't resolve in time we just fall back to the default view as before.
+const INITIAL_LOCATION_ZOOM = 13;
+const INITIAL_LOCATION_FIX_TIMEOUT_MS = 2500;
+function getQuickInitialFix(timeoutMs) {
+  return new Promise(resolve => {
+    if (!navigator.geolocation) { resolve(null); return; }
+    let settled = false;
+    const timer = setTimeout(() => { if (!settled) { settled = true; resolve(null); } }, timeoutMs);
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(isValidLatLng(pos.coords.latitude, pos.coords.longitude)
+          ? { lat: pos.coords.latitude, lon: pos.coords.longitude } : null);
+      },
+      () => { if (!settled) { settled = true; clearTimeout(timer); resolve(null); } },
+      { enableHighAccuracy: false, timeout: timeoutMs, maximumAge: 60000 }
+    );
+  });
+}
+async function runInitialLoadSequence() {
+  if (!savedMapView) {
+    const quickFix = await getQuickInitialFix(INITIAL_LOCATION_FIX_TIMEOUT_MS);
+    if (quickFix) map.setView([quickFix.lat, quickFix.lon], INITIAL_LOCATION_ZOOM, { animate: false });
+  }
+  await loadPinsByWindow();
+}
+runInitialLoadSequence().finally(hideMapLoadingOverlay);
 openSharedReportFromUrl();
 loadAllCompanyMarkers();
 loadMunicipalityStatsCache();
