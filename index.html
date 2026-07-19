@@ -28,6 +28,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
+  <script>window.__ttbSplashShownAt = Date.now();</script>
   <script>
     (function(){
       try {
@@ -3357,6 +3358,7 @@ span.flatpickr-weekday {
       <input type="text" id="ucSearchInput" oninput="renderUcList()" placeholder="Search contacts…" style="width:100%;box-sizing:border-box;margin-bottom:10px;">
       <div class="uc-list" id="ucList"></div>
       <button type="button" class="settings-btn" onclick="backfillUcCoordinates()" id="ucGeocodeBackfillBtn">Geocode missing addresses</button>
+      <button type="button" class="settings-btn" onclick="fixAllMunicipalityBoundaries()" id="ucFixBoundariesBtn"><img class="icon-img icon-img-inline icon-tint-dark" src="icons/pin.png" alt="Pin"> Fix all municipality boundaries</button>
       <div id="ucFormAnchor"></div>
 
       <div class="uc-form" id="ucForm" style="display:none">
@@ -5401,12 +5403,14 @@ const T = {
   calendarPH:   { en:'Select date range...',             sr:'Izaberi vremenski opseg...' },
   helpTitle:    { en:'How to use TraceTheBreak',         sr:'Kako se koristi TraceTheBreak' },
   helpClose:    { en:'Close',                            sr:'Zatvori' },
-  helpStep1:    { en:'1. Choose what broke:',            sr:'1. Izaberite šta se pokvarilo:' },
-  helpStep1Body:{ en:'Select the type of break — water, electricity, sewage, gas, heating, road, streetlight, waste, walkways, bike lanes, green spaces, or other.', sr:'Izaberite vrstu kvara — voda, struja, kanalizacija, gas, grejanje, put, ulična rasveta, otpad, pešačke staze, biciklističke staze, zelene površine ili ostalo.' },
-  helpStep2:    { en:'2. Set your location:',            sr:'2. Odredite vašu lokaciju:' },
-  helpStep2Body:{ en:'Make sure your device GPS is on, or tap the manual pin button (<img class="icon-img icon-img-inline" src="icons/pin.png" alt="pin">) to drop a point on the map yourself.', sr:'Proverite da li je GPS uključen, ili pritisnite dugme za ručnu lokaciju (<img class="icon-img icon-img-inline" src="icons/pin.png" alt="pin">) da sami postavite tačku na mapi.' },
-  helpStep3:    { en:'3. Submit:',                       sr:'3. Pošalji:' },
-  helpStep3Body:{ en:'Add an optional note, then tap "REPORT BREAK".', sr:'Dodajte opcionu napomenu i pritisnite "PRIJAVI KVAR".' },
+  helpStep1:    { en:'1. Set your location:',            sr:'1. Odredite vašu lokaciju:' },
+  helpStep1Body:{ en:'Make sure your device GPS is on, or tap the manual pin button (<img class="icon-img icon-img-inline" src="icons/pin.png" alt="pin">) to drop a point on the map yourself.', sr:'Proverite da li je GPS uključen, ili pritisnite dugme za ručnu lokaciju (<img class="icon-img icon-img-inline" src="icons/pin.png" alt="pin">) da sami postavite tačku na mapi.' },
+  helpStep2:    { en:'2. Tap the report button:',        sr:'2. Pritisnite dugme za prijavu:' },
+  helpStep2Body:{ en:'Tap the red report button (<img class="icon-img icon-img-inline" src="icons/reports/report_new.png" alt="report">) to start a report at your location.', sr:'Pritisnite crveno dugme za prijavu (<img class="icon-img icon-img-inline" src="icons/reports/report_new.png" alt="report">) da započnete prijavu na vašoj lokaciji.' },
+  helpStep3:    { en:'3. Choose what broke:',            sr:'3. Izaberite šta se pokvarilo:' },
+  helpStep3Body:{ en:'Select the type of break — water, electricity, sewage, gas, heating, road, streetlight, waste, walkways, bike lanes, green spaces, or other.', sr:'Izaberite vrstu kvara — voda, struja, kanalizacija, gas, grejanje, put, ulična rasveta, otpad, pešačke staze, biciklističke staze, zelene površine ili ostalo.' },
+  helpStep4:    { en:'4. Submit:',                       sr:'4. Pošalji:' },
+  helpStep4Body:{ en:'Add an optional note, then tap "REPORT BREAK".', sr:'Dodajte opcionu napomenu i pritisnite "PRIJAVI KVAR".' },
   popupStatus:  { en:'Status', sr:'Status' },
   reportedByLabel: { en:'Reported by', sr:'Prijavio' },
   confirmedByLabel: { en:'Confirmed by {n} people', sr:'Potvrdilo {n} osoba' },
@@ -5661,6 +5665,12 @@ const T = {
   ucAddMuniBtn:      { en:'Add municipality from map center',  sr:'Dodaj opštinu sa centra mape' },
   ucAddMuniLoading:  { en:'Looking up municipality…',            sr:'Tražim opštinu…' },
   ucAddMuniFail:     { en:'Could not find a municipality at the current map center.', sr:'Nije pronađena opština na trenutnom centru mape.' },
+  ucFixBoundariesBtn:      { en:'Fix all municipality boundaries', sr:'Popravi sve granice opština' },
+  ucFixBoundariesConfirm:  { en:'This will merge duplicate municipalities and re-fetch boundaries for {count} municipalities with missing borders. It may take a few minutes and cannot be undone. Continue?', sr:'Ovo će spojiti duplirane opštine i ponovo preuzeti granice za {count} opština kojima nedostaju granice. Može potrajati nekoliko minuta i ne može se poništiti. Nastaviti?' },
+  ucFixBoundariesNone:     { en:'No duplicate or broken municipality boundaries found — everything looks clean.', sr:'Nema dupliranih ili oštećenih granica opština — sve izgleda ispravno.' },
+  ucFixBoundariesMerging:  { en:'Merging duplicates {current}/{total}…', sr:'Spajanje duplikata {current}/{total}…' },
+  ucFixBoundariesRunning:  { en:'Fetching borders {current}/{total}…', sr:'Preuzimanje granica {current}/{total}…' },
+  ucFixBoundariesDone:     { en:'Done — merged {merged}, fixed {fixed}/{total} borders.', sr:'Gotovo — spojeno {merged}, popravljeno {fixed}/{total} granica.' },
   ucNamePH:          { en:'Company name',                        sr:'Naziv preduzeća' },
   ucPhonePH:         { en:'Phone',                                sr:'Telefon' },
   ucEmailPH:         { en:'Email',                                sr:'E-mail' },
@@ -6455,6 +6465,7 @@ function buildHelpModalContent() {
       <p><strong>${t('helpStep1')}</strong> ${t('helpStep1Body')}</p>
       <p><strong>${t('helpStep2')}</strong> ${t('helpStep2Body')}</p>
       <p><strong>${t('helpStep3')}</strong> ${t('helpStep3Body')}</p>
+      <p><strong>${t('helpStep4')}</strong> ${t('helpStep4Body')}</p>
       <p><strong><img class="icon-img icon-img-inline" src="icons/target.png" alt="compass"></strong> ${lang === 'sr' ? 'Uključite praćenje da mapa uvek prati vašu lokaciju, kao navigacija.' : 'Turn on follow mode to keep the map centered on you, like a navigation app.'}</p>
       <p><strong>${lang === 'sr' ? 'Prijavljivanje na licu mesta' : 'On-site reporting'}</strong> ${lang === 'sr'
         ? 'Prijavljivanje je dostupno samo na mobilnom uređaju, a ako ručno postavite pin na mapu, morate biti u krugu od 50 metara od njega da biste ga prijavili — mala isprekidana kružnica na mapi pokazuje koliko ste blizu.'
@@ -6482,7 +6493,7 @@ function buildHelpModalContent() {
           'Every report you submit and every vote you cast earns points and climbs you through five levels, from Citizen up to Community Hero. A higher level means your status vote counts for more when the community decides whether a report is fixed. You also unlock badges for milestones like your first report, night-owl reports, or upvoting new users. Check your progress anytime in Settings → My Dashboard.',
           'Svaka prijava koju pošaljete i svaki glas koji date donose poene i podižu vas kroz pet nivoa, od Građanina do Heroja zajednice. Viši nivo znači da vaš glas za status prijave vredi više kada zajednica odlučuje da li je kvar otklonjen. Usput otključavate i značke za prekretnice poput prve prijave, noćnih prijava ili podržavanja novih korisnika. Pogledajte svoj napredak bilo kad u Podešavanja → Moja tabla.'
         )}
-        ${acc(null,
+        ${acc('icons/suggest.png',
           'Voting on report status',
           'Glasanje o statusu prijave',
           'Anyone can browse reports, but changing a report\'s status (for example marking it as fixed) works by community vote. As a regular user you need to be on-site — within 50 meters of the pin — to cast that vote, and your vote carries more weight the higher your level is; once enough weighted votes agree on the same status, it updates automatically. Admins are the exception: an admin voting within their own municipality or country can resolve the status instantly with a single vote, without needing to be on-site.',
@@ -6494,7 +6505,7 @@ function buildHelpModalContent() {
           'The phone icon in the top bar shows verified contacts — phone numbers, emails, and utility companies — for whichever municipality you are currently in. Use it to report an issue directly to the responsible office, and log the call or email as a "contact event" so other users can see it has already been reported and when.',
           'Ikonica telefona u gornjoj traci prikazuje proverene kontakte — telefone, email adrese i komunalna preduzeća — za opštinu u kojoj se trenutno nalazite. Koristite je da prijavite problem direktno nadležnoj službi i zabeležite poziv ili email kao "kontakt događaj" kako bi drugi korisnici videli da je već prijavljeno i kada.'
         )}
-        ${acc(null,
+        ${acc('icons/camera.png',
           'Photos & before/after',
           'Fotografije i pre/posle',
           'You can attach a photo when submitting a report, and add more photos to it later from the report detail view — they show up in that report\'s community gallery. Once a report is marked fixed, you can add an "after" photo, which pairs with the original to create a before/after comparison anyone can view.',
@@ -10640,7 +10651,10 @@ function nominatimFetch(url, options) {
 
 const NOMINATIM_MUNICIPALITY_ZOOM_LEVELS = [10, 8, 12, 6];
 
-async function fetchMunicipalityFromNominatim(lat, lon) {
+// Does the actual Nominatim reverse lookup + zoom-level fallback, but only returns the
+// parsed geometry/name/etc — it never touches the DB or cache. Shared by the original
+// "add municipality from map center" flow and the bulk boundary-repair tool below.
+async function fetchBoundaryGeometryForPoint(lat, lon) {
   for (const zoom of NOMINATIM_MUNICIPALITY_ZOOM_LEVELS) {
     const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=${zoom}&addressdetails=1&polygon_geojson=1&${NOMINATIM_LATIN_LANG}`;
     let json;
@@ -10678,36 +10692,51 @@ async function fetchMunicipalityFromNominatim(lat, lon) {
       bbox = [west, south, east, north];
     }
 
-    const row = {
+    return {
       osm_type: json.osm_type || null,
       osm_id: json.osm_id != null ? json.osm_id : null,
-      admin_level: null,
       name,
-      name_en: null,
       country_code: (addr.country_code || '').toUpperCase() || null,
       centroid_lat: parseFloat(json.lat) || lat,
       centroid_lon: parseFloat(json.lon) || lon,
       boundary: geo,
-      bbox,
-
-      slug: generateMuniSlug()
+      bbox
     };
-
-    try {
-      const { data, error } = await sb.from(MUNICIPALITIES_TABLE)
-        .upsert(row, { onConflict: 'osm_type,osm_id', ignoreDuplicates: false })
-        .select()
-        .single();
-      if (error) throw error;
-      municipalityCache.push(data);
-      writeMunicipalityCacheToStorage(municipalityCache);
-      return data;
-    } catch (err) {
-      console.error('Failed to cache municipality:', err.message);
-      return row;
-    }
   }
   return null;
+}
+
+async function fetchMunicipalityFromNominatim(lat, lon) {
+  const geo = await fetchBoundaryGeometryForPoint(lat, lon);
+  if (!geo) return null;
+
+  const row = {
+    osm_type: geo.osm_type,
+    osm_id: geo.osm_id,
+    admin_level: null,
+    name: geo.name,
+    name_en: null,
+    country_code: geo.country_code,
+    centroid_lat: geo.centroid_lat,
+    centroid_lon: geo.centroid_lon,
+    boundary: geo.boundary,
+    bbox: geo.bbox,
+    slug: generateMuniSlug()
+  };
+
+  try {
+    const { data, error } = await sb.from(MUNICIPALITIES_TABLE)
+      .upsert(row, { onConflict: 'osm_type,osm_id', ignoreDuplicates: false })
+      .select()
+      .single();
+    if (error) throw error;
+    municipalityCache.push(data);
+    writeMunicipalityCacheToStorage(municipalityCache);
+    return data;
+  } catch (err) {
+    console.error('Failed to cache municipality:', err.message);
+    return row;
+  }
 }
 
 async function resolveMunicipality(lat, lon) {
@@ -11089,6 +11118,186 @@ async function backfillUcCoordinates() {
     setTimeout(() => { btn.textContent = t('ucGeocodeBackfillBtn'); }, 4000);
   }
   loadAllCompanyMarkers();
+}
+
+// ---- Municipality boundary repair tool ------------------------------------
+//
+// Two problems this fixes, both caused by autoRegisterMunicipality() saving a
+// placeholder row (boundary: { type:'Polygon', coordinates: [] }) whenever a
+// point falls through cache + name-match:
+//   1. Rows with empty/missing rings that never match any point again.
+//   2. The same real-world municipality getting registered more than once
+//      under different ids (since the placeholder's osm_id is often a random
+//      negative number, so it doesn't collide with a later "real" osm_id).
+
+function boundaryHasRings(boundary) {
+  if (!boundary || !boundary.coordinates) return false;
+  const rings = boundary.type === 'MultiPolygon'
+    ? (boundary.coordinates || []).reduce((n, p) => n + (p && p.length ? 1 : 0), 0)
+    : boundary.coordinates.length;
+  return rings > 0;
+}
+
+function isSessionOnlyMuniId(id) {
+  return typeof id === 'string' && id.startsWith('session:');
+}
+
+function municipalityMergeKey(m) {
+  const norm = normalizeMuniNameForMatch(m.name_en || m.name);
+  return norm ? norm + '|' + (m.country_code || '').toUpperCase() : null;
+}
+
+function pickCanonicalMunicipality(group) {
+  const withRings = group.filter(m => boundaryHasRings(m.boundary));
+  const pool = withRings.length ? withRings : group;
+  return pool.slice().sort((a, b) => {
+    const aSession = isSessionOnlyMuniId(a.id), bSession = isSessionOnlyMuniId(b.id);
+    if (aSession !== bSession) return aSession ? 1 : -1;
+    const an = Number(a.id), bn = Number(b.id);
+    if (!isNaN(an) && !isNaN(bn)) return an - bn;
+    return 0;
+  })[0];
+}
+
+// Groups the cache by normalized name + country, keeps the best record in each
+// group (preferring one with real boundary rings, then the oldest id), and
+// merges the rest into it: reassigns any reports pointing at a duplicate's id,
+// then deletes the duplicate row. Returns the list of merges performed.
+async function mergeDuplicateMunicipalities(onProgress) {
+  const groups = new Map();
+  for (const m of municipalityCache) {
+    const key = municipalityMergeKey(m);
+    if (!key) continue;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(m);
+  }
+
+  const dupGroups = [...groups.values()].filter(g => g.length > 1);
+  const merges = [];
+  let done = 0;
+  const totalDupes = dupGroups.reduce((n, g) => n + g.length - 1, 0);
+
+  for (const group of dupGroups) {
+    const canonical = pickCanonicalMunicipality(group);
+    for (const dup of group) {
+      if (dup === canonical) continue;
+      done++;
+      if (onProgress) onProgress(done, totalDupes);
+
+      if (!isSessionOnlyMuniId(dup.id)) {
+        try {
+          const { error: reportErr } = await sb.from(TABLE)
+            .update({ municipality_id: canonical.id })
+            .eq('municipality_id', dup.id);
+          if (reportErr) throw reportErr;
+        } catch (err) {
+          console.error(`Failed to reassign reports from municipality ${dup.id} to ${canonical.id}:`, err.message);
+          continue;
+        }
+        try {
+          const { error: delErr } = await sb.from(MUNICIPALITIES_TABLE).delete().eq('id', dup.id);
+          if (delErr) throw delErr;
+        } catch (err) {
+          console.error(`Failed to delete duplicate municipality ${dup.id}:`, err.message);
+          continue;
+        }
+      }
+
+      municipalityCache = municipalityCache.filter(m => m !== dup);
+      merges.push({ removedId: dup.id, keptId: canonical.id, name: dup.name_en || dup.name });
+    }
+  }
+
+  writeMunicipalityCacheToStorage(municipalityCache);
+  return merges;
+}
+
+// Re-fetches boundary geometry (via the same Nominatim lookup used by "Add
+// municipality from map center") for every cached municipality whose rings
+// are empty, and updates the existing DB row in place by id — it does not
+// create a new row, so it can't reintroduce a duplicate.
+async function repairEmptyMunicipalityBoundaries(onProgress) {
+  const broken = municipalityCache.filter(m => !boundaryHasRings(m.boundary) && isValidLatLng(m.centroid_lat, m.centroid_lon));
+  let fixed = 0;
+  for (let i = 0; i < broken.length; i++) {
+    const m = broken[i];
+    if (onProgress) onProgress(i + 1, broken.length);
+
+    const geo = await fetchBoundaryGeometryForPoint(m.centroid_lat, m.centroid_lon);
+    if (!geo) continue;
+
+    const patch = {
+      boundary: geo.boundary,
+      bbox: geo.bbox,
+      osm_type: geo.osm_type || m.osm_type,
+      osm_id: geo.osm_id != null ? geo.osm_id : m.osm_id
+    };
+
+    if (isSessionOnlyMuniId(m.id)) {
+      // Never made it into the DB the first time — nothing to update by id,
+      // so just patch it in memory/localStorage for this session.
+      Object.assign(m, patch);
+      fixed++;
+      continue;
+    }
+
+    try {
+      const { data, error } = await sb.from(MUNICIPALITIES_TABLE).update(patch).eq('id', m.id).select().single();
+      if (error) throw error;
+      Object.assign(m, data);
+      fixed++;
+    } catch (err) {
+      console.error(`Failed to repair boundary for municipality ${m.id} (${m.name}):`, err.message);
+    }
+  }
+  writeMunicipalityCacheToStorage(municipalityCache);
+  return { fixed, total: broken.length };
+}
+
+async function fixAllMunicipalityBoundaries() {
+  if (!currentProfile || !currentProfile.is_admin) return;
+  const btn = document.getElementById('ucFixBoundariesBtn');
+  await loadMunicipalityCache();
+
+  const dupeCount = [...new Map(municipalityCache
+    .filter(m => municipalityMergeKey(m))
+    .map(m => [municipalityMergeKey(m), true])).keys()]
+    .reduce((n, key) => n + (municipalityCache.filter(m => municipalityMergeKey(m) === key).length > 1 ? 1 : 0), 0);
+  const brokenCount = municipalityCache.filter(m => !boundaryHasRings(m.boundary) && isValidLatLng(m.centroid_lat, m.centroid_lon)).length;
+
+  if (!dupeCount && !brokenCount) {
+    if (btn) btn.textContent = t('ucFixBoundariesNone');
+    setTimeout(() => { if (btn) btn.textContent = t('ucFixBoundariesBtn'); }, 3000);
+    return;
+  }
+
+  if (!confirm(t('ucFixBoundariesConfirm').replace('{count}', String(brokenCount)))) return;
+
+  const original = btn ? btn.innerHTML : '';
+  if (btn) btn.disabled = true;
+
+  const merges = await mergeDuplicateMunicipalities((current, total) => {
+    if (btn) btn.textContent = t('ucFixBoundariesMerging').replace('{current}', String(current)).replace('{total}', String(total));
+  });
+
+  const { fixed, total } = await repairEmptyMunicipalityBoundaries((current, tot) => {
+    if (btn) btn.textContent = t('ucFixBoundariesRunning').replace('{current}', String(current)).replace('{total}', String(tot));
+  });
+
+  if (btn) {
+    btn.textContent = t('ucFixBoundariesDone')
+      .replace('{merged}', String(merges.length))
+      .replace('{fixed}', String(fixed))
+      .replace('{total}', String(total));
+    btn.disabled = false;
+    setTimeout(() => { btn.innerHTML = original || t('ucFixBoundariesBtn'); }, 5000);
+  }
+
+  populateUcMunicipalitySelect();
+  toast(t('ucFixBoundariesDone')
+    .replace('{merged}', String(merges.length))
+    .replace('{fixed}', String(fixed))
+    .replace('{total}', String(total)), 'success');
 }
 
 function buildCompanyPopupHtml(c, lat, lon) {
@@ -14910,12 +15119,15 @@ function setIconPack(packId) {
 }
 
 
-const MAP_LOADING_OVERLAY_MIN_HOLD_MS = 500;
+const MAP_LOADING_OVERLAY_MIN_TOTAL_MS = 2000;
 function hideMapLoadingOverlay() {
+  const shownAt = window.__ttbSplashShownAt || Date.now();
+  const elapsed = Date.now() - shownAt;
+  const remaining = Math.max(0, MAP_LOADING_OVERLAY_MIN_TOTAL_MS - elapsed);
   setTimeout(() => {
     const el = document.getElementById('mapLoadingOverlay');
     if (el) el.classList.add('map-loading-hidden');
-  }, MAP_LOADING_OVERLAY_MIN_HOLD_MS);
+  }, remaining);
 }
 
 // NOTE: discoverIconPacks() must resolve (and correct `iconPack` if the persisted
