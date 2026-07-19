@@ -268,6 +268,7 @@ function cyrillicToLatin(str){
 let currentSession = null;
 let currentProfile = null;
 let countriesByCode = {};      // code -> {code, name}
+let allCountries = [];         // every row as-is, for name-based lookup when the code doesn't match
 let municipalityCache = [];    // all rows from municipalities table
 let companiesCache = [];       // all rows from utility_companies table
 let selectedCountryCode = null;
@@ -459,6 +460,7 @@ async function loadCountries(){
   const { data, error } = await sb.from(COUNTRIES_TABLE).select('*').order('name');
   if(error){ toast('Failed to load countries: ' + error.message, 'error'); return; }
   countriesByCode = {};
+  allCountries = data || [];
   // Key by uppercase code — municipalities are already matched case-insensitively
   // (see municipalitiesForCountry), so a countries row stored as e.g. "rs" instead of
   // "RS" shouldn't make us think the country is missing when it isn't.
@@ -617,10 +619,20 @@ function renderCountryPanel(){
   const panel = document.getElementById('countryPanel');
   panel.classList.remove('hidden');
   const country = countriesByCode[selectedCountryCode];
+  // If the code lookup missed, check whether a row with a matching *name* already exists —
+  // that means the country IS in the database, just under a different/mistyped code, and we
+  // should offer to fix that one row rather than insert a duplicate (which RLS also blocks).
+  const nameMatch = !country
+    ? allCountries.find(c => normalizeMuniNameForMatch(c.name) === normalizeMuniNameForMatch(selectedCountryName || ''))
+    : null;
   const munis = municipalitiesForCountry(selectedCountryCode).sort((a,b) => (a.name||'').localeCompare(b.name||''));
 
   let html = `<h2 class="paneTitle">${escapeHtml(country ? country.name : (selectedCountryName || selectedCountryCode))}</h2>`;
-  if(!country){
+  if(!country && nameMatch){
+    html += `<div class="warnBox">Found "${escapeHtml(nameMatch.name)}" already in the database with code "${escapeHtml(nameMatch.code)}" — looks like a code mismatch rather than a missing country.
+      <div style="margin-top:6px;"><button class="btn small primary" onclick="fixCountryCode(${nameMatch.id}, '${escapeHtml(selectedCountryCode)}')">Fix code to "${escapeHtml(selectedCountryCode)}"</button></div>
+    </div>`;
+  } else if(!country){
     html += `<div class="warnBox">This country isn't in our database yet — municipalities can't be saved against it until it's added.
       <div style="margin-top:6px;"><button class="btn small primary" onclick="addCurrentCountry()">Add ${escapeHtml(selectedCountryName || selectedCountryCode)} (${escapeHtml(selectedCountryCode)}) to database</button></div>
     </div>`;
@@ -650,13 +662,27 @@ function renderCountryPanel(){
   renderDiscoverBox();
 }
 
+async function fixCountryCode(id, newCode){
+  try{
+    const { data, error } = await sb.from(COUNTRIES_TABLE).update({ code: newCode }).eq('id', id).select().single();
+    if(error) throw error;
+    const idx = allCountries.findIndex(c => c.id === id);
+    if(idx >= 0) allCountries[idx] = data;
+    countriesByCode[(data.code || '').toUpperCase()] = data;
+    toast('Fixed — ' + data.name + ' is now code "' + data.code + '".', 'success');
+    renderCountryPanel();
+  }catch(err){
+    toast('Could not fix country code: ' + err.message, 'error');
+  }
+}
 async function addCurrentCountry(){
   const code = selectedCountryCode;
   const name = selectedCountryName || code;
   try{
     const { data, error } = await sb.from(COUNTRIES_TABLE).insert({ code, name }).select().single();
     if(error) throw error;
-    countriesByCode[code] = data;
+    allCountries.push(data);
+    countriesByCode[(data.code || '').toUpperCase()] = data;
     toast('Added ' + data.name + ' to the database.', 'success');
     renderCountryPanel();
   }catch(err){
