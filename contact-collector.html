@@ -519,7 +519,7 @@ async function initMap(){
   // Populate the dropdown from the same data the map uses, regardless of whether the
   // Leaflet layer itself renders/clicks correctly — this is the guaranteed-to-work path.
   const countryList = geojson.features
-    .map(f => ({ code: (f.properties.ISO_A2 || '').toUpperCase(), name: f.properties.ADMIN || f.properties.name || f.properties.ISO_A2 }))
+    .map(f => ({ code: featureCountryCode(f.properties), name: featureCountryName(f.properties) || featureCountryCode(f.properties) }))
     .filter(c => c.code && c.code !== '-99');
   populateCountryPicker(countryList);
 
@@ -529,7 +529,7 @@ async function initMap(){
       onEachFeature: (feature, layer) => {
         layer.on('click', () => {
           try{
-            selectCountry(feature.properties.ISO_A2, feature.properties.ADMIN || feature.properties.name);
+            selectCountry(featureCountryCode(feature.properties), featureCountryName(feature.properties));
           }catch(err){
             console.error('Failed to open country panel:', err);
             toast('Could not open that country: ' + err.message, 'error');
@@ -537,7 +537,7 @@ async function initMap(){
         });
         layer.on('mouseover', () => layer.setStyle({ fillOpacity: 0.75 }));
         layer.on('mouseout', () => worldLayer.resetStyle(layer));
-        layer.bindTooltip(feature.properties.ADMIN || feature.properties.name || '', { sticky:true });
+        layer.bindTooltip(featureCountryName(feature.properties) || '', { sticky:true });
       }
     }).addTo(map);
   }catch(err){
@@ -563,7 +563,7 @@ document.getElementById('countryPicker').addEventListener('change', (e) => {
   }
 });
 function styleForCountry(feature){
-  const code = (feature.properties.ISO_A2 || '').toUpperCase();
+  const code = featureCountryCode(feature.properties);
   const stats = countryCoverageStats(code);
   let fill = '#cfcfcc';       // no municipalities on file yet
   if(stats.munis > 0){
@@ -576,6 +576,19 @@ function styleForCountry(feature){
   };
 }
 function refreshMapStyles(){ if(worldLayer) worldLayer.eachLayer(l => worldLayer.resetStyle(l)); }
+// The datasets/geo-countries world-boundaries file (our primary + mirror source) uses
+// "ISO3166-1-Alpha-2" and "name" as property keys — NOT "ISO_A2"/"ADMIN" (those are
+// Natural Earth's naming, from a different, unrelated dataset). Reading the wrong keys
+// silently returned undefined for every country, so every click's country code was
+// falsy and selectCountry() bailed out immediately with no error — this was the root
+// cause of "clicking a country does nothing". These helpers read the real keys, with
+// the Natural Earth names kept as a fallback in case a mirror ever serves that schema.
+function featureCountryCode(props){
+  return String(props['ISO3166-1-Alpha-2'] || props.ISO_A2 || props.iso_a2 || '').toUpperCase();
+}
+function featureCountryName(props){
+  return props.name || props.ADMIN || props.admin || '';
+}
 
 /* =========================================================================
    COUNTRY PANEL
