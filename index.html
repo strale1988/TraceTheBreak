@@ -2596,8 +2596,9 @@ span.flatpickr-weekday {
 <div id="bottomMuniBar" class="bottom-muni-bar" style="display:none">
   <img class="icon-img bottom-muni-bar-pin" src="icons/pin.png" alt="">
   <span id="bottomMuniBarName" class="bottom-muni-bar-name"></span>
-  <button class="help-icon-btn bottom-muni-bar-contacts-btn" id="municipalityContactsBtn" title="Contacts" style="display:none" onclick="showMunicipalityContactsModal()"><img class="icon-img" src="icons/phone.png" alt="Contacts"></button>
+  <button class="help-icon-btn" id="municipalityContactsBtn" title="Contacts" style="display:none" onclick="showMunicipalityContactsModal()"><img class="icon-img" src="icons/phone.png" alt="Contacts"></button>
 </div>
+<div id="bottomMuniStatsRow" class="bottom-muni-stats-row" style="display:none"></div>
 <div id="mapLegend" class="map-legend-pill">
 </div>
 </div>
@@ -8902,7 +8903,7 @@ map.on('click', function(e) {
     }).addTo(map);
   }
   manualPinMunicipality = null;
-  showMunicipalityBoundaryForPoint(manualCoords.lat, manualCoords.lon, manualMarker)
+  showMunicipalityBoundaryForPoint(manualCoords.lat, manualCoords.lon, manualMarker, 'pin')
     .then(muni => { manualPinMunicipality = muni; updateProximityUi(); })
     .catch(() => {});
   updateProximityUi();
@@ -9736,7 +9737,7 @@ function reportFabTap() {
     }).addTo(map);
   }
   manualPinMunicipality = null;
-  showMunicipalityBoundaryForPoint(manualCoords.lat, manualCoords.lon, manualMarker)
+  showMunicipalityBoundaryForPoint(manualCoords.lat, manualCoords.lon, manualMarker, 'pin')
     .then(muni => { manualPinMunicipality = muni; updateProximityUi(); })
     .catch(() => {});
   updateProximityUi();
@@ -10615,29 +10616,30 @@ function hideMunicipalityLabel() {
 }
 
 // Controls only the phone/contacts button embedded in the bottom bar — separate from
-// showMunicipalityLabel/hideMunicipalityLabel because the button must stay scoped to the user's
-// real GPS municipality (see renderMunicipalityBoundary's `source` param), while the bar's name
-// text can reflect whatever point is currently focused.
-function updateBottomMunicipalityBar(gpsMuni) {
+// showMunicipalityLabel/hideMunicipalityLabel because the button must stay scoped to
+// currentContactsMunicipality (see renderMunicipalityBoundary's `source` param), while the bar's
+// name text can reflect whatever point is currently focused.
+function updateBottomMunicipalityBar(muni) {
   const contactsBtn = document.getElementById('municipalityContactsBtn');
-  if (contactsBtn) contactsBtn.style.display = gpsMuni ? 'flex' : 'none';
+  if (contactsBtn) contactsBtn.style.display = muni ? 'flex' : 'none';
 }
 
 // `currentUserMunicipality` reflects whatever point last drew a boundary on the map — GPS
 // position, a manually-dropped report pin, or a report being viewed in the detail sheet. That's
 // fine as a source for the on-map label/shape, which is always about "whatever is focused right
-// now". But the header Contacts button means something more specific: "the municipality I am
-// physically standing in" — so it must NOT be driven by pin drops or report views, or it'll show
-// stale/wrong contacts (or none) depending on whatever the user last touched. Kept as separate
-// state, updated only from genuine GPS-sourced calls (see the `source` param below).
+// now". But the Contacts button means something more specific: "the municipality I actually care
+// about contacting right now" — your real position, or a pin you've deliberately dropped
+// somewhere else to report on. It must NOT be driven by just browsing report details, or it'll
+// show stale/wrong contacts depending on whatever report you last opened. Kept as separate state,
+// updated only from GPS- or pin-sourced calls (see the `source` param below).
 let currentUserMunicipality = null;
-let currentGpsMunicipality = null;
+let currentContactsMunicipality = null;
 
 function renderMunicipalityBoundary(muni, source) {
   currentUserMunicipality = muni || null;
-  if (source === 'gps') {
-    currentGpsMunicipality = muni || null;
-    updateBottomMunicipalityBar(currentGpsMunicipality);
+  if (source === 'gps' || source === 'pin') {
+    currentContactsMunicipality = muni || null;
+    updateBottomMunicipalityBar(currentContactsMunicipality);
   }
   if (!muni) {
     hideMunicipalityLabel();
@@ -10832,11 +10834,11 @@ function hideMunicipalityContactsModal() {
 }
 
 async function showMunicipalityContactsModal() {
-  if (!currentGpsMunicipality) {
+  if (!currentContactsMunicipality) {
     toast(t('municipalityContactsNoMuni'), 'error');
     return;
   }
-  const muni = currentGpsMunicipality;
+  const muni = currentContactsMunicipality;
   const modal = document.getElementById('municipalityContactsModal');
   const titleEl = document.getElementById('municipalityContactsTitle');
   const bodyEl = document.getElementById('municipalityContactsBody');
