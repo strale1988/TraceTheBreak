@@ -1378,6 +1378,7 @@ body.driving-active .driving-report-sheet{ display:flex; }
 .driving-nav-close-btn:active{ background:var(--border-color-strong); }
 
 body.driving-active .legend-row,
+body.driving-active .bottom-muni-bar,
 body.driving-active .filter-label-row,
 body.driving-active .filter-select-row,
 body.driving-active #reportFormPanel,
@@ -1702,7 +1703,6 @@ body.driving-active #appPanel{
 .global-offline-banner .offline-queue-dot{ background:#fff; border-color:#1a1a1a; box-shadow:0 0 0 3px rgba(255,255,255,.35); }
 .global-offline-banner-retry{ margin-left:4px; color:#1a1a1a; text-decoration:underline; flex-shrink:0; }
 body.driving-active .global-offline-banner{ display:none !important; }
-body.offline-banner-visible .municipality-label{ top:calc(var(--header-h, 64px) + 42px); }
 
 .locked-panel{
   display:flex;
@@ -2275,26 +2275,26 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   flex:1; border:none; border-radius:var(--radius-md); padding:9px 10px; font-size:var(--fs-13); font-weight:var(--fw-bold); cursor:pointer;
 }
 
-.municipality-label{
+.bottom-muni-bar{
   position:fixed;
-  top:calc(var(--header-h, 64px) + 8px);
-  left:50%; transform:translateX(-50%);
-  z-index:640;
+  left:0; right:0;
+  bottom:calc(var(--legend-bottom-gap, 0px) + var(--legend-row-h, 72px));
+  z-index:409;
+  display:flex;
+  align-items:center;
+  gap:8px;
   background:var(--floating-bg);
-  border:1px solid var(--floating-border);
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+  border-top:1px solid var(--floating-border);
+  padding:7px 14px;
+  font-size:var(--fs-12); font-weight:var(--fw-semibold);
   color:var(--text-primary);
-  font-size:var(--fs-11); font-weight:var(--fw-semibold);
-  padding:5px 12px;
-  border-radius:var(--radius-pill);
-  box-shadow:0 2px 8px var(--floating-shadow);
-  pointer-events:none;
-  display:none;
-  opacity:0;
-  transition:opacity .3s ease;
-  white-space:nowrap;
-  max-width:80vw; overflow:hidden; text-overflow:ellipsis;
 }
-.municipality-label.visible{ opacity:1; }
+.bottom-muni-bar-pin{ width:14px; height:14px; flex-shrink:0; filter:var(--icon-tint-filter); opacity:.75; }
+.bottom-muni-bar-name{ flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.bottom-muni-bar-contacts-btn{ width:30px; height:30px; flex-shrink:0; margin:-4px 0; }
+.bottom-muni-bar-contacts-btn .icon-img{ width:15px; height:15px; }
 
 .admin-section{
   border-top:1px solid var(--border-color);
@@ -2580,7 +2580,6 @@ span.flatpickr-weekday {
     <div class="left-controls">
       <button class="help-icon-btn" id="fullscreenBtn" title="Fullscreen / Preko celog ekrana" onclick="toggleFullscreen()"><img class="icon-img" id="fullscreenBtnIcon" src="icons/fullscreen-enter.png" alt="Fullscreen"></button>
       <button class="help-icon-btn" id="settingsBtn" title="Settings" onclick="showSettingsModal()"><img class="icon-img" src="icons/settings.png" alt="Settings"></button>
-      <button class="help-icon-btn" id="municipalityContactsBtn" title="Contacts" style="display:none" onclick="showMunicipalityContactsModal()"><img class="icon-img" src="icons/phone.png" alt="Contacts"></button>
     </div>
     <div class="center-controls">
       <button class="help-icon-btn" id="adminPanelBtn" title="Admin panel" style="display:none" onclick="showAdminPanelModal()"><img class="icon-img" id="adminPanelBtnIcon" src="icons/badges/badge-admin-admin-3.png" alt="Admin panel"></button>
@@ -2601,7 +2600,11 @@ span.flatpickr-weekday {
   </div>
   <div class="map-loading-text" id="mapLoadingText"></div>
 </div>
-<div id="municipalityLabel" class="municipality-label"></div>
+<div id="bottomMuniBar" class="bottom-muni-bar" style="display:none">
+  <img class="icon-img bottom-muni-bar-pin" src="icons/pin.png" alt="">
+  <span id="bottomMuniBarName" class="bottom-muni-bar-name"></span>
+  <button class="help-icon-btn bottom-muni-bar-contacts-btn" id="municipalityContactsBtn" title="Contacts" style="display:none" onclick="showMunicipalityContactsModal()"><img class="icon-img" src="icons/phone.png" alt="Contacts"></button>
+</div>
 
 <div class="legend-row">
 <div id="mapLegend" class="map-legend-pill">
@@ -5463,6 +5466,7 @@ const T = {
   companyPdfNoReports:     { en:'No reports found for this service yet.',              sr:'Za ovu službu još nema prijava.' },
   companyPdfFailed:        { en:'Could not create the PDF. Try again.',                sr:'PDF nije mogao biti napravljen. Pokušajte ponovo.' },
   companyPdfDownloaded:    { en:'PDF downloaded.',                                     sr:'PDF preuzet.' },
+  companyPdfShared:        { en:'PDF ready to send.',                                  sr:'PDF je spreman za slanje.' },
   companyPdfAttachReminder:{ en:'PDF downloaded — attach it to the email before sending.', sr:'PDF je preuzet — dodajte ga kao prilog pre slanja mejla.' },
   companyPdfTotalReports:  { en:'Total reports',                                       sr:'Ukupno prijava' },
   companyPdfDescription:   { en:'Description',                                         sr:'Opis' },
@@ -8669,7 +8673,7 @@ function startWatching() {
           zIndexOffset: 5000
         }).addTo(map);
         map.setView(getFollowCenter(userCoords.lat, userCoords.lon, 13), 13);
-        showMunicipalityBoundaryForPoint(userCoords.lat, userCoords.lon, userMarker);
+        showMunicipalityBoundaryForPoint(userCoords.lat, userCoords.lon, userMarker, 'gps');
         // First GPS fix of the session: start out following the user automatically.
         setFollowMode(true);
       } else if (drivingMode) {
@@ -8865,8 +8869,8 @@ function togglePinMode() {
     manualPinMunicipality = null;
     wizAwaitingPinDrop = false;
     loadPinsByWindow();
-    if (userCoords) showMunicipalityBoundaryForPoint(userCoords.lat, userCoords.lon, userMarker);
-    else renderMunicipalityBoundary(null);
+    if (userCoords) showMunicipalityBoundaryForPoint(userCoords.lat, userCoords.lon, userMarker, 'gps');
+    else renderMunicipalityBoundary(null, 'gps');
   }
   updateProximityUi();
   checkFormReady();
@@ -10602,36 +10606,48 @@ function resolveAndAttachMunicipality(reportId, lat, lon) {
   }).catch(err => console.error('resolveAndAttachMunicipality error:', err.message));
 }
 
-let municipalityLabelHideTimer = null;
-
+// Permanent replacement for the old auto-hiding pill: stays up as long as a municipality is
+// focused (GPS position, a dropped pin, or the report currently open), docked right above the
+// legend row instead of fading out after 5s.
 function showMunicipalityLabel(muni) {
-  const label = document.getElementById('municipalityLabel');
-  if (!label) return;
-  label.textContent = (lang === 'sr' ? muni.name : (muni.name_en || muni.name));
-  label.style.display = 'block';
-  requestAnimationFrame(() => label.classList.add('visible'));
-  if (municipalityLabelHideTimer) clearTimeout(municipalityLabelHideTimer);
-  municipalityLabelHideTimer = setTimeout(() => {
-    label.classList.remove('visible');
-    setTimeout(() => {
-      if (!label.classList.contains('visible')) label.style.display = 'none';
-    }, 300);
-  }, 5000);
+  const bar = document.getElementById('bottomMuniBar');
+  const nameEl = document.getElementById('bottomMuniBarName');
+  if (!bar || !nameEl) return;
+  nameEl.textContent = (lang === 'sr' ? muni.name : (muni.name_en || muni.name));
+  bar.style.display = 'flex';
 }
 
 function hideMunicipalityLabel() {
-  const label = document.getElementById('municipalityLabel');
-  if (!label) return;
-  if (municipalityLabelHideTimer) { clearTimeout(municipalityLabelHideTimer); municipalityLabelHideTimer = null; }
-  label.classList.remove('visible');
-  label.style.display = 'none';
+  const bar = document.getElementById('bottomMuniBar');
+  if (!bar) return;
+  bar.style.display = 'none';
 }
 
-let currentUserMunicipality = null;
-function renderMunicipalityBoundary(muni) {
-  currentUserMunicipality = muni || null;
+// Controls only the phone/contacts button embedded in the bottom bar — separate from
+// showMunicipalityLabel/hideMunicipalityLabel because the button must stay scoped to the user's
+// real GPS municipality (see renderMunicipalityBoundary's `source` param), while the bar's name
+// text can reflect whatever point is currently focused.
+function updateBottomMunicipalityBar(gpsMuni) {
   const contactsBtn = document.getElementById('municipalityContactsBtn');
-  if (contactsBtn) contactsBtn.style.display = currentUserMunicipality ? 'flex' : 'none';
+  if (contactsBtn) contactsBtn.style.display = gpsMuni ? 'flex' : 'none';
+}
+
+// `currentUserMunicipality` reflects whatever point last drew a boundary on the map — GPS
+// position, a manually-dropped report pin, or a report being viewed in the detail sheet. That's
+// fine as a source for the on-map label/shape, which is always about "whatever is focused right
+// now". But the header Contacts button means something more specific: "the municipality I am
+// physically standing in" — so it must NOT be driven by pin drops or report views, or it'll show
+// stale/wrong contacts (or none) depending on whatever the user last touched. Kept as separate
+// state, updated only from genuine GPS-sourced calls (see the `source` param below).
+let currentUserMunicipality = null;
+let currentGpsMunicipality = null;
+
+function renderMunicipalityBoundary(muni, source) {
+  currentUserMunicipality = muni || null;
+  if (source === 'gps') {
+    currentGpsMunicipality = muni || null;
+    updateBottomMunicipalityBar(currentGpsMunicipality);
+  }
   if (!muni) {
     hideMunicipalityLabel();
     return;
@@ -10825,11 +10841,11 @@ function hideMunicipalityContactsModal() {
 }
 
 async function showMunicipalityContactsModal() {
-  if (!currentUserMunicipality) {
+  if (!currentGpsMunicipality) {
     toast(t('municipalityContactsNoMuni'), 'error');
     return;
   }
-  const muni = currentUserMunicipality;
+  const muni = currentGpsMunicipality;
   const modal = document.getElementById('municipalityContactsModal');
   const titleEl = document.getElementById('municipalityContactsTitle');
   const bodyEl = document.getElementById('municipalityContactsBody');
@@ -10954,9 +10970,9 @@ function bindMunicipalityPopupToMarker(marker, muni, lat, lon) {
   if (marker.getPopup()) marker.setPopupContent(html);
   else marker.bindPopup(html, { autoPan: false, closeButton: false });
 }
-async function showMunicipalityBoundaryForPoint(lat, lon, marker) {
+async function showMunicipalityBoundaryForPoint(lat, lon, marker, source) {
   const muni = await resolveMunicipality(lat, lon);
-  renderMunicipalityBoundary(muni);
+  renderMunicipalityBoundary(muni, source);
   if (marker) bindMunicipalityPopupToMarker(marker, muni, lat, lon);
   return muni;
 }
@@ -13363,37 +13379,85 @@ async function buildCompanyReportsPdfBlob(company, reports) {
     resetInk();
     y += 14;
 
-    let photoDataUrl = null, mapDataUrl = null;
-    if (r.photo_path) {
+    // Gather up to 4 photos for this report: the primary photo, an "after" photo if it has one,
+    // and any gallery photos — deduped, capped so a big gallery doesn't blow up the PDF.
+    const photoPaths = [];
+    if (r.photo_path) photoPaths.push(r.photo_path);
+    if (r.after_photo_path) photoPaths.push(r.after_photo_path);
+    try {
+      const gallery = await loadReportGalleryPhotos(r.id);
+      (gallery || []).forEach(p => { if (p.photo_path) photoPaths.push(p.photo_path); });
+    } catch (err) { /* gallery is best-effort for the PDF */ }
+    const uniquePhotoPaths = [...new Set(photoPaths)].slice(0, 4);
+
+    const photoDataUrls = [];
+    for (const p of uniquePhotoPaths) {
       try {
-        const purl = await getReportPhotoSignedUrl(r.photo_path);
-        if (purl) photoDataUrl = await imageUrlToDataURL(purl);
-      } catch (err) { console.warn('Could not embed photo for report', r.id, ':', err.message || err); }
+        const purl = await getReportPhotoSignedUrl(p);
+        if (purl) {
+          const d = await imageUrlToDataURL(purl);
+          if (d) photoDataUrls.push(d);
+        }
+      } catch (err) { console.warn('Could not embed a photo for report', r.id, ':', err.message || err); }
     }
-    if (isValidLatLng(r.latitude, r.longitude)) {
-      mapDataUrl = await reportMapThumbDataUrl(r.latitude, r.longitude, 300, 200);
+
+    // Draws an image "contain"-fit (never stretched/cropped) inside a box, centered on both axes.
+    function drawContainFit(dataUrl, x, boxY, w, h) {
+      try {
+        const props = doc.getImageProperties(dataUrl);
+        let dw = w, dh = (props.height / props.width) * dw;
+        if (dh > h) { dh = h; dw = (props.width / props.height) * dh; }
+        doc.addImage(dataUrl, x + (w - dw) / 2, boxY + (h - dh) / 2, dw, dh, undefined, 'FAST');
+      } catch (err) { console.warn('Could not draw an image for report', r.id, ':', err.message || err); }
     }
-    if (photoDataUrl || mapDataUrl) {
-      const colGap = 10;
-      const colW = (photoDataUrl && mapDataUrl) ? (pageW - margin * 2 - colGap) / 2 : (pageW - margin * 2);
-      const imgH = 110;
-      ensureSpace(imgH + 12);
-      let cx = margin;
-      if (photoDataUrl) {
-        try {
-          const props = doc.getImageProperties(photoDataUrl);
-          let w = colW, h = (props.height / props.width) * w;
-          if (h > imgH) { h = imgH; w = (props.width / props.height) * h; }
-          doc.addImage(photoDataUrl, cx, y, w, h, undefined, 'FAST');
-        } catch (err) { console.warn('Could not draw photo for report', r.id, ':', err.message || err); }
-        cx += colW + colGap;
+
+    const fullW = pageW - margin * 2;
+    const rowH = 110;
+    const hasCoords = isValidLatLng(r.latitude, r.longitude);
+
+    if (photoDataUrls.length <= 1) {
+      // Zero or one photo: same compact side-by-side layout as before. The map used to be drawn
+      // from a fixed 300x200 render forced into a differently-shaped box — that mismatch is what
+      // caused the stretching (worst with no photo, where the box was the *full* page width).
+      // Rendering the map fresh at the exact target box size fixes it in every case.
+      const hasPhoto = photoDataUrls.length === 1;
+      if (hasPhoto || hasCoords) {
+        const colGap = 10;
+        const colW = (hasPhoto && hasCoords) ? (fullW - colGap) / 2 : fullW;
+        ensureSpace(rowH + 12);
+        let cx = margin;
+        if (hasPhoto) {
+          drawContainFit(photoDataUrls[0], cx, y, colW, rowH);
+          cx += colW + colGap;
+        }
+        if (hasCoords) {
+          const mapUrl = await reportMapThumbDataUrl(r.latitude, r.longitude, Math.round(colW), rowH);
+          if (mapUrl) doc.addImage(mapUrl, cx, y, colW, rowH, undefined, 'FAST');
+        }
+        y += rowH + 12;
       }
-      if (mapDataUrl) {
-        try {
-          doc.addImage(mapDataUrl, cx, y, colW, imgH, undefined, 'FAST');
-        } catch (err) { console.warn('Could not draw map thumb for report', r.id, ':', err.message || err); }
+    } else {
+      // Multiple photos: lay them out as an auto-wrapping 2-column grid (contain-fit, so nothing
+      // gets squashed), then give the map its own full-width row underneath.
+      const cols = 2;
+      const cellGap = 8;
+      const cellW = (fullW - cellGap * (cols - 1)) / cols;
+      const cellH = 95;
+      const rows = Math.ceil(photoDataUrls.length / cols);
+      ensureSpace(rows * cellH + (rows - 1) * cellGap);
+      photoDataUrls.forEach((dataUrl, idx) => {
+        const col = idx % cols, row = Math.floor(idx / cols);
+        drawContainFit(dataUrl, margin + col * (cellW + cellGap), y + row * (cellH + cellGap), cellW, cellH);
+      });
+      y += rows * cellH + (rows - 1) * cellGap + 12;
+
+      if (hasCoords) {
+        const mapH = 130;
+        ensureSpace(mapH + 12);
+        const mapUrl = await reportMapThumbDataUrl(r.latitude, r.longitude, Math.round(fullW), mapH);
+        if (mapUrl) doc.addImage(mapUrl, margin, y, fullW, mapH, undefined, 'FAST');
+        y += mapH + 12;
       }
-      y += imgH + 12;
     }
 
     if (i < reports.length - 1) addDivider();
@@ -13430,9 +13494,12 @@ function buildCompanyEmailBodyText(company, reports) {
 }
 
 // Builds a PDF of every report tied to this utility company/public service (same municipality +
-// matching category), downloads it, and then hands off to the native share sheet (so it can be
-// attached directly to an email/Mail app) or, as a fallback, opens a prefilled mailto reminding
-// the person to attach the file they just downloaded — mailto links cannot carry attachments.
+// matching category) and hands it off. Prefers the native share sheet — one motion where the
+// person picks Mail, Files, WhatsApp, whatever — since mailto links can't carry attachments at
+// all. Only falls back to a plain download + prefilled mailto (with a reminder to attach the
+// file manually) when the browser doesn't support sharing files, or the person's device rejects
+// the share for some reason. Previously this *always* downloaded first and only shared/emailed
+// after, which meant even successful shares forced an extra, confusing download step.
 async function exportCompanyReportsPdf(companyId) {
   const c = utilityCompanyRegistry.get(String(companyId));
   if (!c) return;
@@ -13455,24 +13522,26 @@ async function exportCompanyReportsPdf(companyId) {
     const blob = await buildCompanyReportsPdfBlob(c, reports);
     const fileName = `${slugifyForFilename(c.name)}-reports.pdf`;
     const file = new File([blob], fileName, { type: 'application/pdf' });
+    const emailBody = buildCompanyEmailBodyText(c, reports);
+
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: c.name, text: emailBody });
+        toast(t('companyPdfShared'), 'success');
+        return;
+      } catch (err) {
+        // User backed out of the share sheet on purpose — respect that, don't force a download
+        // on them as a consolation prize.
+        if (err && err.name === 'AbortError') return;
+        console.warn('navigator.share (company PDF) failed, falling back to download:', err.message);
+      }
+    }
 
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = fileName;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 10000);
-    toast(t('companyPdfDownloaded'), 'success');
-
-    const emailBody = buildCompanyEmailBodyText(c, reports);
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      try {
-        await navigator.share({ files: [file], title: c.name, text: emailBody });
-        return;
-      } catch (err) {
-        if (err && err.name === 'AbortError') return;
-        console.warn('navigator.share (company PDF) failed, falling back to mailto:', err.message);
-      }
-    }
 
     const subject = encodeURIComponent(t('companyPdfEmailSubject').replace('{name}', c.name || ''));
     const body = encodeURIComponent(emailBody);
