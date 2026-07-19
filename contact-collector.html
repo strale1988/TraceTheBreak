@@ -269,6 +269,7 @@ let currentSession = null;
 let currentProfile = null;
 let countriesByCode = {};      // code -> {code, name}
 let allCountries = [];         // every row as-is, for name-based lookup when the code doesn't match
+let countriesLoadError = null; // set if loadCountries() fails (e.g. RLS blocking reads) — shown persistently, not just a toast
 let municipalityCache = [];    // all rows from municipalities table
 let companiesCache = [];       // all rows from utility_companies table
 let selectedCountryCode = null;
@@ -426,7 +427,7 @@ function normalizeNameForMatch(name){
 // "Grad Subotica" (sr) and "City of Subotica" (en) are the SAME place as our on-file
 // "Subotica". Without stripping these, name-matching sees them as different municipalities
 // and the "new municipalities to import" check reports false positives.
-const MUNI_NAME_PREFIX_RE = /^(grad|opstina|opština|city of|municipality of|town of)\s+/i;
+const MUNI_NAME_PREFIX_RE = /^(gradska opstina|gradska opština|grad|opstina|opština|city of|municipality of|town of)\s+/i;
 // OSM's English name:en tags for Serbian admin boundaries also add a trailing suffix
 // instead of (or in addition to) a prefix — e.g. "Ada Municipality", "Barajevo Urban
 // Municipality" — while our on-file name is just "Ada"/"Barajevo". Strip the longer
@@ -471,7 +472,13 @@ function nameSimilarity(a, b){
    ========================================================================= */
 async function loadCountries(){
   const { data, error } = await sb.from(COUNTRIES_TABLE).select('*').order('name');
-  if(error){ toast('Failed to load countries: ' + error.message, 'error'); return; }
+  if(error){
+    console.error('Failed to load "countries" table — likely an RLS policy blocking SELECT:', error);
+    countriesLoadError = error.message || 'unknown error';
+    toast('Failed to load countries: ' + error.message, 'error');
+    return;
+  }
+  countriesLoadError = null;
   countriesByCode = {};
   allCountries = data || [];
   // Key by uppercase code — municipalities are already matched case-insensitively
@@ -641,7 +648,11 @@ function renderCountryPanel(){
   const munis = municipalitiesForCountry(selectedCountryCode).sort((a,b) => (a.name||'').localeCompare(b.name||''));
 
   let html = `<h2 class="paneTitle">${escapeHtml(country ? country.name : (selectedCountryName || selectedCountryCode))}</h2>`;
-  if(!country && nameMatch){
+  if(countriesLoadError){
+    html += `<div class="warnBox"><b>Can't check this against the database</b> — the "countries" table failed to load (${escapeHtml(countriesLoadError)}). This is almost always a Supabase Row-Level Security policy blocking read access, not a missing/mismatched country — fix the SELECT policy on "countries" first, then reload this page.
+      <div style="margin-top:6px;"><button class="btn small" onclick="loadCountries().then(renderCountryPanel)">Retry</button></div>
+    </div>`;
+  } else if(!country && nameMatch){
     html += `<div class="warnBox">Found "${escapeHtml(nameMatch.name)}" already in the database with code "${escapeHtml(nameMatch.code)}" — looks like a code mismatch rather than a missing country.
       <div style="margin-top:6px;"><button class="btn small primary" onclick="fixCountryCode(${nameMatch.id}, '${escapeHtml(selectedCountryCode)}')">Fix code to "${escapeHtml(selectedCountryCode)}"</button></div>
     </div>`;
