@@ -2307,6 +2307,7 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 .uc-item-muni{ font-size:var(--fs-11); color:var(--text-muted); }
 .uc-item-cats{ display:flex; flex-wrap:wrap; gap:var(--space-4); margin-top:2px; }
 .uc-flag-warning{ margin-top:6px; font-size:var(--fs-12); color:var(--danger-strong); display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.contact-public-flag-badge{ font-size:var(--fs-11); color:var(--danger-strong); margin:2px 0 4px; }
 .uc-cat-chip{
   font-size:var(--fs-9-5); font-weight:var(--fw-bold); text-transform:uppercase; letter-spacing:.2px;
   padding:2px 6px; border-radius:var(--radius-lg); color:white;
@@ -5553,6 +5554,7 @@ const T = {
   contactFlagOtherBtn:     { en:'Report a problem with this contact',        sr:'Prijavite problem sa ovim kontaktom' },
   contactFlagOtherPH:      { en:'What\'s wrong with this contact? (wrong municipality, duplicate, closed down…)', sr:'Šta nije u redu sa ovim kontaktom? (pogrešna opština, duplikat, ugašen…)' },
   contactFlagLoginRequired:{ en:'Sign in to flag this contact.',              sr:'Prijavite se da biste označili ovaj kontakt.' },
+  contactPublicFlagCount:  { en:'Flagged as possibly wrong by {n} reporter(s) — verify before relying on it.', sr:'Označeno kao moguće netačno od strane {n} korisnika — proverite pre nego što se oslonite na to.' },
   contactFlagSubmitted:    { en:'Thanks — flagged this contact for review.',  sr:'Hvala — kontakt je označen za proveru.' },
   contactFlagAlready:      { en:'Already flagged',                            sr:'Već označeno' },
   contactFlagError:        { en:'Could not submit. Try again.',               sr:'Slanje nije uspelo. Pokušajte ponovo.' },
@@ -10652,6 +10654,26 @@ const companyGeocodeCache = {};
 
 const utilityCompanyRegistry = new Map();
 
+// Aggregate, PII-free unresolved-flag counts per company, visible to every
+// visitor (not just admins) — backed by the get_public_contact_flag_counts()
+// RPC, which counts distinct flaggers rather than raw flag rows.
+let publicContactFlagCountsCache = new Map();
+let publicContactFlagCountsLoadedAt = 0;
+const PUBLIC_FLAG_COUNTS_TTL_MS = 60000;
+async function loadPublicContactFlagCounts(force) {
+  if (!force && publicContactFlagCountsCache.size && (Date.now() - publicContactFlagCountsLoadedAt) < PUBLIC_FLAG_COUNTS_TTL_MS) return;
+  try {
+    const { data, error } = await sb.rpc('get_public_contact_flag_counts');
+    if (error) throw error;
+    const next = new Map();
+    (data || []).forEach(row => next.set(String(row.company_id), row.flag_count));
+    publicContactFlagCountsCache = next;
+    publicContactFlagCountsLoadedAt = Date.now();
+  } catch (err) {
+    console.error('Failed to load public contact flag counts:', err.message);
+  }
+}
+
 function buildCompanyMarkerHtml() {
   return '<div class="map-pin-badge company-marker-icon-wrap pin-upright"><span class="map-pin-glyph company-marker-icon"></span></div>';
 }
@@ -10866,6 +10888,7 @@ async function showMunicipalityContactsModal() {
     if (error) throw error;
     const companies = data || [];
     const showingUnverified = companies.some(c => !c.verified);
+    await loadPublicContactFlagCounts();
 
     bodyEl.innerHTML = companies.length
       ? `<p class="detail-export-hint">${t('municipalityContactsHint')}</p>` +
@@ -11009,16 +11032,15 @@ async function loadUtilityCompaniesAdmin() {
     ucCompaniesCache = [];
   }
 
-  ucContactFlagCountsCache = new Map();
+  // Counts distinct flaggers per company (same metric the auto-demote trigger
+  // uses), so the number shown here matches how close a company is to being
+  // auto-unverified rather than just raw flag-row counts.
   try {
-    const { data, error } = await sb.from('utility_contact_flags').select('company_id').eq('resolved', false);
-    if (error) throw error;
-    (data || []).forEach(row => {
-      const key = String(row.company_id);
-      ucContactFlagCountsCache.set(key, (ucContactFlagCountsCache.get(key) || 0) + 1);
-    });
+    await loadPublicContactFlagCounts(true);
+    ucContactFlagCountsCache = publicContactFlagCountsCache;
   } catch (err) {
     console.error('Failed to load utility contact flag counts:', err.message);
+    ucContactFlagCountsCache = new Map();
   }
 
   renderUcList();
@@ -12157,6 +12179,7 @@ async function showReportDetailModal(reportId) {
   loadReportContactCounts(report.id);
 
   const contactsEl = document.getElementById('detailContactsContainer');
+  await loadPublicContactFlagCounts();
   if (!muni || muni.id == null) {
     const fallbackContacts = await getReportContactsByProximity(report);
     if (contactsEl) contactsEl.innerHTML = fallbackContacts.length
@@ -12325,12 +12348,19 @@ function renderContactRows(c, reportId) {
 
 function renderContactCards(companies, reportId) {
   if (!companies.length) return `<div class="detail-empty">${t('detailNoContacts')}</div>`;
-  return companies.map(c => `
+  return companies.map(c => {
+    const flagCount = c.id != null ? (publicContactFlagCountsCache.get(String(c.id)) || 0) : 0;
+    const publicFlagBadge = flagCount > 0
+      ? `<div class="contact-public-flag-badge">⚠ ${escapeHtml(t('contactPublicFlagCount').replace('{n}', flagCount))}</div>`
+      : '';
+    return `
     <div class="contact-card">
       <div class="contact-card-name">${escapeHtml(c.name)}</div>
+      ${publicFlagBadge}
       ${renderContactRows(c, reportId)}
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 
 function recordContactAttempt(reportId, type, companyId) {
@@ -12545,6 +12575,7 @@ async function showPostReportContactModal(reportId, report) {
   } catch (err) {
     console.error('Failed to load contacts for post-report follow-up:', err.message);
   }
+  await loadPublicContactFlagCounts();
 
   const inner = document.getElementById('postReportContactModalInner');
   if (!inner || modal.style.display === 'none') return;
