@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>TraceTheBreak — Contact Collector</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/libphonenumber-js@1/bundle/libphonenumber-js.min.js"></script>
 <style>
@@ -64,7 +66,8 @@ a{color:var(--nav-accent);}
 
 #layout{display:grid;grid-template-columns:minmax(320px,420px) 1fr;height:calc(100vh - 53px);}
 #leftPane{border-right:1px solid var(--border-color);display:flex;flex-direction:column;overflow:hidden;}
-#sidePanel{flex:1;overflow-y:auto;padding:14px 16px;background:var(--bg-surface);}
+#worldMap{flex:1 1 45%;min-height:220px;}
+#sidePanel{flex:1 1 55%;overflow-y:auto;padding:12px 14px;background:var(--bg-surface);}
 #rightPane{overflow-y:auto;padding:16px 20px;}
 
 h2.paneTitle{font-size:var(--fs-15);margin:0 0 10px;}
@@ -125,7 +128,7 @@ h3.subTitle{font-size:var(--fs-13);margin:16px 0 6px;color:var(--text-secondary)
 .modalBox h3{margin-top:0;}
 .hidden{display:none !important;}
 
-#countrySelect, #municipalitySelect{width:100%;padding:7px 9px;border:1px solid var(--border-color-strong);border-radius:var(--radius-sm);}
+.leaflet-interactive.countryPoly{transition:fill-opacity .15s;}
 </style>
 </head>
 <body>
@@ -141,23 +144,14 @@ h3.subTitle{font-size:var(--fs-13);margin:16px 0 6px;color:var(--text-secondary)
 
 <div id="layout">
   <div id="leftPane">
-    <div id="sidePanel" style="flex:1;">
-      <h2 class="paneTitle">Pick a location</h2>
-      <div class="field">
-        <label>Country</label>
-        <select id="countrySelect" onchange="onCountrySelectChange()"></select>
-      </div>
-      <div class="field">
-        <label>Municipality</label>
-        <select id="municipalitySelect" onchange="onMunicipalitySelectChange()" disabled></select>
-      </div>
-      <p style="font-size:11px;color:var(--text-muted);margin-top:4px;">Don't see a country or municipality listed? Add it first with the separate <b>Municipality Collector</b> tool, then come back here.</p>
-      <h3 class="subTitle" id="muniListTitle" style="display:none;"></h3>
-      <div id="muniListArea"></div>
+    <div id="worldMap"></div>
+    <div id="sidePanel">
+      <div id="countryEmpty" class="emptyState">Click a country on the map to see its municipalities and public-service contact coverage.</div>
+      <div id="countryPanel" class="hidden"></div>
     </div>
   </div>
   <div id="rightPane">
-    <div id="rightEmpty" class="emptyState">Pick a country and municipality on the left to see which categories still need a contact, and research new ones.</div>
+    <div id="rightEmpty" class="emptyState">Pick a municipality on the left to see which categories still need a contact, and research new ones.</div>
     <div id="muniPanel" class="hidden"></div>
   </div>
 </div>
@@ -180,35 +174,21 @@ h3.subTitle{font-size:var(--fs-13);margin:16px 0 6px;color:var(--text-secondary)
   <div class="modalBox">
     <h3>Settings</h3>
     <div class="field">
-      <label>Research backend</label>
-      <select id="backendSelect" onchange="onBackendChange()" style="width:100%;padding:7px 9px;border:1px solid var(--border-color-strong);border-radius:var(--radius-sm);">
-        <option value="anthropic">Anthropic (Claude) — console.anthropic.com</option>
-        <option value="gemini">Google (Gemini) — aistudio.google.com</option>
-      </select>
+      <label>Anthropic API key (used to research contacts)</label>
+      <input type="password" id="apiKeyInput" placeholder="sk-ant-...">
     </div>
-    <div class="field">
-      <label id="apiKeyLabel">API key (used to research contacts)</label>
-      <div style="display:flex;gap:6px;">
-        <input type="password" id="apiKeyInput" placeholder="sk-ant-api03-..." style="flex:1;">
-        <button class="btn small" type="button" onclick="toggleKeyVisibility()" id="toggleKeyBtn">Show</button>
-      </div>
-      <div id="apiKeyPreview" style="font-size:11px;color:var(--text-muted);margin-top:4px;"></div>
-    </div>
-    <p id="apiKeyHelp" style="font-size:11px;color:var(--text-muted)"></p>
-    <p style="font-size:11px;color:var(--text-muted)">Keys are stored only in this browser (localStorage) and sent directly from your browser to the provider's API — never to any server of ours.</p>
+    <p style="font-size:11px;color:var(--text-muted)">Stored only in this browser (localStorage) and sent directly from your browser to api.anthropic.com — it never touches any server of ours. Get a key at
+      <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>.</p>
     <p style="font-size:11px;color:var(--text-muted)">Connected Supabase project: <b>TraceTheStuff</b> (fnkqmwweljsupbmerbkh) — read-only view for everyone, writes require an admin sign-in.</p>
-    <div id="testKeyResult" style="font-size:12px;margin-top:6px;"></div>
     <div style="display:flex;justify-content:space-between;margin-top:14px;">
-      <button class="btn danger small" onclick="clearApiKey()">Clear this key</button>
+      <button class="btn danger small" onclick="clearApiKey()">Clear key</button>
       <div>
-        <button class="btn small" onclick="testApiKey()">Test key</button>
         <button class="btn ghost" onclick="closeModal('settingsModal')">Cancel</button>
         <button class="btn primary" onclick="saveApiKey()">Save</button>
       </div>
     </div>
   </div>
 </div>
-
 
 <script>
 /* =========================================================================
@@ -224,7 +204,19 @@ const COUNTRIES_TABLE = 'countries';
 const PROFILES_TABLE = 'profiles';
 
 const ANTHROPIC_MODEL = 'claude-sonnet-4-6';
-const GEMINI_MODEL = 'gemini-3.5-flash';
+const WORLD_GEOJSON_URLS = [
+  'https://cdn.jsdelivr.net/gh/datasets/geo-countries@master/data/countries.geojson',
+  'https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson'
+];
+
+// Which OSM admin_level(s) correspond to "municipality" in each country — this varies a lot
+// by country, and even within Serbia different sources use 7 or 8, so we query both and
+// dedupe. Add more country overrides here as we cover more countries.
+const OSM_ADMIN_LEVELS_BY_COUNTRY = {
+  RS: [7, 8]   // Serbian gradovi/opštine — tagged inconsistently at level 7 or 8
+};
+const DEFAULT_OSM_ADMIN_LEVELS = [8];
+const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
 
 // Real, responsible-authority categories vs. the two fallback-only tags.
 const REAL_CATEGORIES = ['Water','Electricity','Sewage','Gas','Heating','Road','Streetlight','Waste','Walkways','BikeLanes','GreenSpaces','Parking'];
@@ -275,6 +267,9 @@ let municipalityCache = [];    // all rows from municipalities table
 let companiesCache = [];       // all rows from utility_companies table
 let selectedCountryCode = null;
 let selectedMunicipalityId = null;
+let worldLayer = null;
+let map = null;
+let discoverState = {};       // country_code -> {loading?, error?, candidates?, checkedAt?}
 
 /* =========================================================================
    TOAST
@@ -358,106 +353,20 @@ function updateAuthUI(){
 /* =========================================================================
    API KEY (Anthropic) — stored client-side only
    ========================================================================= */
-function getBackend(){ return localStorage.getItem('ttb_collector_backend') || 'anthropic'; }
-function setBackend(b){ localStorage.setItem('ttb_collector_backend', b); }
-function keyStorageName(backend){ return backend === 'gemini' ? 'ttb_collector_gemini_key' : 'ttb_collector_anthropic_key'; }
-function getApiKey(backend){
-  backend = backend || getBackend();
-  return localStorage.getItem(keyStorageName(backend)) || '';
-}
-function maskKey(k){
-  if(!k) return '(no key saved)';
-  const clean = k.trim();
-  if(clean.length <= 14) return 'Saved key: ' + clean[0] + '••••• (' + clean.length + ' chars — looks too short for a real key)';
-  return 'Saved key: ' + clean.slice(0,12) + '…' + clean.slice(-4) + ' (' + clean.length + ' chars)';
-}
-function refreshKeyPreview(){
-  document.getElementById('apiKeyPreview').textContent = maskKey(getApiKey(getBackend()));
-}
-function toggleKeyVisibility(){
-  const input = document.getElementById('apiKeyInput');
-  const btn = document.getElementById('toggleKeyBtn');
-  if(input.type === 'password'){ input.type = 'text'; btn.textContent = 'Hide'; }
-  else { input.type = 'password'; btn.textContent = 'Show'; }
-}
-function onBackendChange(){
-  const backend = document.getElementById('backendSelect').value;
-  setBackend(backend);
-  document.getElementById('apiKeyInput').value = getApiKey(backend);
-  document.getElementById('testKeyResult').textContent = '';
-  refreshKeyPreview();
-  if(backend === 'gemini'){
-    document.getElementById('apiKeyLabel').textContent = 'Google AI (Gemini) API key';
-    document.getElementById('apiKeyInput').placeholder = 'AIza...';
-    document.getElementById('apiKeyHelp').innerHTML = 'Get a free key at <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">aistudio.google.com/app/apikey</a>.';
-  } else {
-    document.getElementById('apiKeyLabel').textContent = 'Anthropic API key';
-    document.getElementById('apiKeyInput').placeholder = 'sk-ant-api03-...';
-    document.getElementById('apiKeyHelp').innerHTML = 'Get a key at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>. Must be a Console API key (starts with <code>sk-ant-api03-</code>), not a claude.ai login.';
-  }
-}
+function getApiKey(){ return localStorage.getItem('ttb_collector_anthropic_key') || ''; }
 function saveApiKey(){
-  const backend = document.getElementById('backendSelect').value;
-  setBackend(backend);
   const val = document.getElementById('apiKeyInput').value.trim();
-  if(val) localStorage.setItem(keyStorageName(backend), val);
-  refreshKeyPreview();
+  if(val) localStorage.setItem('ttb_collector_anthropic_key', val);
   closeModal('settingsModal');
   toast('API key saved to this browser.', 'success');
 }
 function clearApiKey(){
-  const backend = getBackend();
-  localStorage.removeItem(keyStorageName(backend));
+  localStorage.removeItem('ttb_collector_anthropic_key');
   document.getElementById('apiKeyInput').value = '';
-  refreshKeyPreview();
   toast('API key cleared.');
 }
-async function testApiKey(){
-  const resultEl = document.getElementById('testKeyResult');
-  const backend = document.getElementById('backendSelect').value;
-  const val = document.getElementById('apiKeyInput').value.trim() || getApiKey(backend);
-  if(!val){ resultEl.innerHTML = '<span style="color:var(--danger-strong)">Enter a key first.</span>'; return; }
-  resultEl.textContent = 'Testing…';
-  try{
-    if(backend === 'gemini'){
-      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
-        method:'POST',
-        headers:{ 'Content-Type':'application/json', 'x-goog-api-key': val },
-        body: JSON.stringify({ contents:[{ parts:[{ text:'hi' }] }] })
-      });
-      const data = await resp.json();
-      if(resp.ok && !data.error){
-        resultEl.innerHTML = '<span style="color:var(--success)">✓ Key works (HTTP ' + resp.status + ').</span>';
-      } else {
-        resultEl.innerHTML = '<span style="color:var(--danger-strong)">✗ HTTP ' + resp.status + ' — ' + escapeHtml((data.error && data.error.message) || 'unknown error') + '</span>';
-      }
-    } else {
-      const resp = await fetch('https://api.anthropic.com/v1/messages', {
-        method:'POST',
-        headers:{
-          'Content-Type':'application/json',
-          'x-api-key': val,
-          'anthropic-version':'2023-06-01',
-          'anthropic-dangerous-direct-browser-access':'true'
-        },
-        body: JSON.stringify({ model: ANTHROPIC_MODEL, max_tokens: 8, messages:[{role:'user', content:'hi'}] })
-      });
-      const data = await resp.json();
-      if(resp.ok && !data.error){
-        resultEl.innerHTML = '<span style="color:var(--success)">✓ Key works (HTTP ' + resp.status + ').</span>';
-      } else {
-        resultEl.innerHTML = '<span style="color:var(--danger-strong)">✗ HTTP ' + resp.status + ' — ' + escapeHtml((data.error && data.error.message) || 'unknown error') + '</span>';
-      }
-    }
-  }catch(err){
-    resultEl.innerHTML = '<span style="color:var(--danger-strong)">✗ Request failed: ' + escapeHtml(err.message) + ' (likely a network/CORS issue, not the key itself)</span>';
-  }
-}
 document.getElementById('settingsBtn').addEventListener('click', () => {
-  document.getElementById('backendSelect').value = getBackend();
-  document.getElementById('apiKeyInput').value = getApiKey(getBackend());
-  document.getElementById('testKeyResult').textContent = '';
-  onBackendChange();
+  document.getElementById('apiKeyInput').value = getApiKey();
   openModal('settingsModal');
 });
 
@@ -492,6 +401,25 @@ function normalizeNameForMatch(name){
   s = s.replace(/\b(jp|jkp|jkkp|doo|d\.o\.o\.|ad|a\.d\.|joint\s*stock|company|co\.|inc\.?|ltd\.?|llc)\b/g, ' ');
   s = s.replace(/[^a-z0-9]+/g, ' ').trim();
   return s;
+}
+// Prefixes OSM/Nominatim attaches to municipality/city names depending on language —
+// "Grad Subotica" (sr) and "City of Subotica" (en) are the SAME place as our on-file
+// "Subotica". Without stripping these, name-matching sees them as different municipalities
+// and the "new municipalities to import" check reports false positives.
+const MUNI_NAME_PREFIX_RE = /^(grad|opstina|opština|city of|municipality of|town of)\s+/i;
+function stripMuniNamePrefix(s){
+  return String(s).replace(MUNI_NAME_PREFIX_RE, '').trim();
+}
+function cleanMuniDisplayName(raw){
+  if(!raw) return '';
+  return stripMuniNamePrefix(cyrillicToLatin(String(raw)).replace(/\s+/g, ' ').trim());
+}
+function normalizeMuniNameForMatch(s){
+  if(!s) return '';
+  return stripMuniNamePrefix(
+    cyrillicToLatin(String(s)).normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase().trim().replace(/\s+/g, ' ')
+  ).replace(/[^a-z0-9 ]/g, '').trim();
 }
 function levenshtein(a, b){
   const m = a.length, n = b.length;
@@ -544,69 +472,309 @@ function coverageForMunicipality(id){
   companies.forEach(c => (c.categories || []).forEach(cat => covered.add(cat)));
   return { covered, companies };
 }
-/* =========================================================================
-   COUNTRY / MUNICIPALITY PICKER (dropdowns, populated from Supabase — the
-   actual map-based collection now lives in the separate Municipality Collector tool)
-   ========================================================================= */
-function populateCountrySelect(){
-  const sel = document.getElementById('countrySelect');
-  const codesWithMunis = new Set(municipalityCache.map(m => (m.country_code||'').toUpperCase()));
-  const countries = Object.values(countriesByCode)
-    .filter(c => codesWithMunis.has(c.code))
-    .sort((a,b) => a.name.localeCompare(b.name));
-  sel.innerHTML = '<option value="">Select a country…</option>' +
-    countries.map(c => `<option value="${c.code}">${escapeHtml(c.name)} (${municipalitiesForCountry(c.code).length})</option>`).join('');
-  if(!countries.length){
-    sel.innerHTML = '<option value="">No municipalities on file yet</option>';
-  }
-}
-function onCountrySelectChange(){
-  const code = document.getElementById('countrySelect').value;
-  selectedCountryCode = code || null;
-  selectedMunicipalityId = null;
-  document.getElementById('rightEmpty').classList.remove('hidden');
-  document.getElementById('muniPanel').classList.add('hidden');
-  populateMunicipalitySelect(code);
-  renderMuniListForCountry(code);
-}
-function populateMunicipalitySelect(code){
-  const sel = document.getElementById('municipalitySelect');
-  if(!code){
-    sel.innerHTML = '<option value="">Pick a country first</option>';
-    sel.disabled = true;
-    return;
-  }
-  const munis = municipalitiesForCountry(code).sort((a,b) => (a.name_en||a.name||'').localeCompare(b.name_en||b.name||''));
-  sel.innerHTML = '<option value="">Select a municipality…</option>' +
-    munis.map(m => `<option value="${m.id}">${escapeHtml(m.name_en || m.name)}</option>`).join('');
-  sel.disabled = false;
-}
-function onMunicipalitySelectChange(){
-  const id = document.getElementById('municipalitySelect').value;
-  if(!id) return;
-  selectMunicipality(parseInt(id, 10));
-}
-function renderMuniListForCountry(code){
-  const titleEl = document.getElementById('muniListTitle');
-  const listEl = document.getElementById('muniListArea');
-  if(!code){ titleEl.style.display = 'none'; listEl.innerHTML = ''; return; }
-  const munis = municipalitiesForCountry(code).sort((a,b) => (a.name_en||a.name||'').localeCompare(b.name_en||b.name||''));
-  titleEl.style.display = '';
-  titleEl.textContent = `Municipalities in this country (${munis.length})`;
-  listEl.innerHTML = munis.map(m => {
+function countryCoverageStats(code){
+  const munis = municipalitiesForCountry(code);
+  if(!munis.length) return { munis: 0, covered: 0, total: 0 };
+  let coveredCount = 0;
+  munis.forEach(m => {
     const { covered } = coverageForMunicipality(m.id);
     const realCovered = REAL_CATEGORIES.filter(c => covered.has(c)).length;
-    const pct = Math.round(100 * realCovered / REAL_CATEGORIES.length);
-    return `<div class="muniRow ${m.id === selectedMunicipalityId ? 'active' : ''}" onclick="selectMunicipalityFromList(${m.id})" style="cursor:pointer;">
-        <span class="name">${escapeHtml(m.name_en || m.name)}</span>
-        <span class="cov">${realCovered}/${REAL_CATEGORIES.length}<span class="covBar"><i style="width:${pct}%"></i></span></span>
-      </div>`;
-  }).join('');
+    if(realCovered === REAL_CATEGORIES.length) coveredCount++;
+  });
+  return { munis: munis.length, covered: coveredCount, total: REAL_CATEGORIES.length };
 }
-function selectMunicipalityFromList(id){
-  document.getElementById('municipalitySelect').value = String(id);
-  selectMunicipality(id);
-  renderMuniListForCountry(selectedCountryCode);
+
+/* =========================================================================
+   WORLD MAP
+   ========================================================================= */
+async function initMap(){
+  map = L.map('worldMap', { worldCopyJump:true, minZoom:1 }).setView([30, 15], 2);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors', maxZoom: 8
+  }).addTo(map);
+
+  let geojson = null;
+  for(const url of WORLD_GEOJSON_URLS){
+    try{
+      const res = await fetch(url);
+      if(res.ok){ geojson = await res.json(); break; }
+    }catch(e){ /* try next mirror */ }
+  }
+  if(!geojson){ toast('Could not load world boundaries — check your connection.', 'error'); return; }
+
+  worldLayer = L.geoJSON(geojson, {
+    style: feature => styleForCountry(feature),
+    onEachFeature: (feature, layer) => {
+      layer.on('click', () => selectCountry(feature.properties.ISO_A2));
+      layer.on('mouseover', () => layer.setStyle({ fillOpacity: 0.75 }));
+      layer.on('mouseout', () => worldLayer.resetStyle(layer));
+      layer.bindTooltip(feature.properties.ADMIN || feature.properties.name || '', { sticky:true });
+    }
+  }).addTo(map);
+}
+function styleForCountry(feature){
+  const code = (feature.properties.ISO_A2 || '').toUpperCase();
+  const stats = countryCoverageStats(code);
+  let fill = '#cfcfcc';       // no municipalities on file yet
+  if(stats.munis > 0){
+    fill = stats.covered === stats.munis ? '#2ecc71' : '#e16e11';
+  }
+  return {
+    className:'countryPoly',
+    color:'#888', weight:0.6,
+    fillColor: fill, fillOpacity: code === selectedCountryCode ? 0.85 : 0.55
+  };
+}
+function refreshMapStyles(){ if(worldLayer) worldLayer.eachLayer(l => worldLayer.resetStyle(l)); }
+
+/* =========================================================================
+   COUNTRY PANEL
+   ========================================================================= */
+function selectCountry(code){
+  if(!code) return;
+  selectedCountryCode = code.toUpperCase();
+  selectedMunicipalityId = null;
+  refreshMapStyles();
+  renderCountryPanel();
+  document.getElementById('rightEmpty').classList.remove('hidden');
+  document.getElementById('muniPanel').classList.add('hidden');
+  if(!discoverState[selectedCountryCode]) checkForNewMunicipalities(selectedCountryCode);
+}
+function renderCountryPanel(){
+  document.getElementById('countryEmpty').classList.add('hidden');
+  const panel = document.getElementById('countryPanel');
+  panel.classList.remove('hidden');
+  const country = countriesByCode[selectedCountryCode];
+  const munis = municipalitiesForCountry(selectedCountryCode).sort((a,b) => (a.name||'').localeCompare(b.name||''));
+
+  let html = `<h2 class="paneTitle">${escapeHtml(country ? country.name : selectedCountryCode)}</h2>`;
+  html += `<div id="muniDiscoverBox" style="margin-bottom:14px;"></div>`;
+  html += `<div class="searchRow">
+      <input id="muniSearchInput" placeholder="Search a city/municipality (OpenStreetMap)...">
+      <button class="btn small" onclick="searchMunicipality()">Search</button>
+    </div>
+    <div id="muniSearchResults"></div>`;
+
+  html += `<h3 class="subTitle">On file (${munis.length})</h3>`;
+  if(!munis.length){
+    html += `<div class="emptyState">No municipalities cached for this country yet. Search above to add one.</div>`;
+  } else {
+    munis.forEach(m => {
+      const { covered } = coverageForMunicipality(m.id);
+      const realCovered = REAL_CATEGORIES.filter(c => covered.has(c)).length;
+      const pct = Math.round(100 * realCovered / REAL_CATEGORIES.length);
+      html += `<div class="muniRow ${m.id === selectedMunicipalityId ? 'active' : ''}" onclick="selectMunicipality(${m.id})">
+          <span class="name">${escapeHtml(m.name_en || m.name)}</span>
+          <span class="cov">${realCovered}/${REAL_CATEGORIES.length}<span class="covBar"><i style="width:${pct}%"></i></span></span>
+        </div>`;
+    });
+  }
+  panel.innerHTML = html;
+  renderDiscoverBox();
+}
+
+/* =========================================================================
+   OSM MUNICIPALITY DISCOVERY — finds administrative-boundary relations on
+   OpenStreetMap for the selected country and diffs them against what we
+   already have on file, so admins can bulk-import the gap in one click.
+
+   IMPORTANT: names coming back from OSM/Nominatim carry a localized prefix —
+   "Grad Subotica" in Serbian, "City of Subotica" in the English name:en tag —
+   which is NOT part of the municipality's actual name. Every comparison here
+   goes through normalizeMuniNameForMatch() (which strips that prefix) and
+   every name we display or store goes through cleanMuniDisplayName() (same
+   stripping, but keeps the readable casing). Skipping either step is what
+   caused "City of Subotica" to show up as a false "new municipality" even
+   though "Subotica" was already on file.
+   ========================================================================= */
+async function fetchOsmMunicipalityCandidates(countryCode){
+  const levels = OSM_ADMIN_LEVELS_BY_COUNTRY[countryCode] || DEFAULT_OSM_ADMIN_LEVELS;
+  const levelFilters = levels
+    .map(l => `relation(area.cc)["boundary"="administrative"]["admin_level"="${l}"];`)
+    .join('\n  ');
+  const query = `[out:json][timeout:60];
+area["ISO3166-1"="${countryCode}"][admin_level=2]->.cc;
+(
+  ${levelFilters}
+);
+out tags center;`;
+
+  const res = await fetch(OVERPASS_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body: query
+  });
+  if(!res.ok) throw new Error('Overpass request failed (HTTP ' + res.status + ')');
+  const json = await res.json();
+
+  const seen = new Set();
+  const out = [];
+  (json.elements || []).forEach(el => {
+    const tags = el.tags || {};
+    if(!tags.name) return;
+    const key = 'relation/' + el.id;
+    if(seen.has(key)) return;
+    seen.add(key);
+    out.push({
+      osmType: 'relation',
+      osmId: el.id,
+      adminLevel: tags.admin_level ? parseInt(tags.admin_level, 10) : null,
+      name: cleanMuniDisplayName(tags.name),
+      nameEn: cleanMuniDisplayName(tags['name:en'] || tags.name),
+      lat: el.center ? el.center.lat : null,
+      lon: el.center ? el.center.lon : null
+    });
+  });
+  return out;
+}
+async function checkForNewMunicipalities(code){
+  discoverState[code] = { loading: true };
+  if(selectedCountryCode === code) renderDiscoverBox();
+  try{
+    const raw = await fetchOsmMunicipalityCandidates(code);
+    const existingKeys = new Set(
+      municipalitiesForCountry(code)
+        .flatMap(m => [normalizeMuniNameForMatch(m.name), normalizeMuniNameForMatch(m.name_en)])
+        .filter(Boolean)
+    );
+    const seenNew = new Set();
+    const missing = [];
+    raw.forEach(cand => {
+      const key = normalizeMuniNameForMatch(cand.nameEn || cand.name);
+      if(!key || existingKeys.has(key) || seenNew.has(key)) return;
+      seenNew.add(key);
+      missing.push(cand);
+    });
+    missing.sort((a, b) => (a.nameEn || a.name).localeCompare(b.nameEn || b.name));
+    discoverState[code] = { loading: false, candidates: missing, checkedAt: Date.now() };
+  }catch(err){
+    discoverState[code] = { loading: false, error: err.message };
+  }
+  if(selectedCountryCode === code) renderDiscoverBox();
+}
+function renderDiscoverBox(){
+  const box = document.getElementById('muniDiscoverBox');
+  if(!box) return;
+  const code = selectedCountryCode;
+  const state = discoverState[code];
+
+  if(!state){
+    box.innerHTML = `<button class="btn small" onclick="checkForNewMunicipalities('${code}')">Check OpenStreetMap for new municipalities</button>`;
+    return;
+  }
+  if(state.loading){
+    box.innerHTML = `<div class="emptyState">Checking OpenStreetMap for municipalities…</div>`;
+    return;
+  }
+  if(state.error){
+    box.innerHTML = `<div class="warnBox">Could not check OpenStreetMap: ${escapeHtml(state.error)}</div>
+      <button class="btn small" onclick="checkForNewMunicipalities('${code}')">Retry</button>`;
+    return;
+  }
+  if(!state.candidates.length){
+    box.innerHTML = `<div class="emptyState">No new municipalities found on OpenStreetMap.
+      <button class="btn ghost small" onclick="checkForNewMunicipalities('${code}')">Re-check</button></div>`;
+    return;
+  }
+
+  const names = state.candidates.map(c => c.nameEn || c.name);
+  const shown = names.slice(0, 15);
+  const rest = names.length - shown.length;
+  box.innerHTML = `<div style="font-size:var(--fs-13);color:var(--text-secondary);margin-bottom:8px;">
+      ${shown.map(escapeHtml).join(', ')}${rest > 0 ? ` … and <b>${rest} more</b>` : ''}
+    </div>
+    <button class="btn primary small" onclick="importDiscoveredMunicipalities('${code}')">Import ${names.length} new municipalit${names.length === 1 ? 'y' : 'ies'}</button>`;
+}
+async function importDiscoveredMunicipalities(code){
+  const state = discoverState[code];
+  if(!state || !state.candidates || !state.candidates.length) return;
+
+  const rows = state.candidates.map(c => ({
+    osm_type: c.osmType,
+    osm_id: c.osmId,
+    admin_level: c.adminLevel,
+    name: c.name,
+    name_en: c.nameEn,
+    country_code: code,
+    centroid_lat: c.lat,
+    centroid_lon: c.lon,
+    boundary: { type: 'Polygon', coordinates: [] },
+    bbox: null,
+    slug: Math.random().toString(36).slice(2, 10)
+  }));
+
+  try{
+    const { data, error } = await sb.from(MUNICIPALITIES_TABLE)
+      .upsert(rows, { onConflict: 'osm_type,osm_id', ignoreDuplicates: false })
+      .select();
+    if(error) throw error;
+    (data || []).forEach(row => {
+      const idx = municipalityCache.findIndex(m => m.osm_type === row.osm_type && String(m.osm_id) === String(row.osm_id));
+      if(idx >= 0) municipalityCache[idx] = row; else municipalityCache.push(row);
+    });
+    const n = data ? data.length : rows.length;
+    toast(`Imported ${n} new municipalit${n === 1 ? 'y' : 'ies'}.`, 'success');
+    delete discoverState[code];
+    renderCountryPanel();
+    refreshMapStyles();
+  }catch(err){
+    toast('Import failed: ' + err.message, 'error');
+  }
+}
+async function searchMunicipality(){
+  const q = document.getElementById('muniSearchInput').value.trim();
+  if(!q) return;
+  const resultsEl = document.getElementById('muniSearchResults');
+  resultsEl.innerHTML = '<div class="emptyState">Searching…</div>';
+  try{
+    const params = new URLSearchParams({ format:'jsonv2', q, limit:'5', addressdetails:'1' });
+    if(selectedCountryCode) params.set('countrycodes', selectedCountryCode.toLowerCase());
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, { headers:{ 'Accept':'application/json' } });
+    const json = await res.json();
+    if(!Array.isArray(json) || !json.length){
+      resultsEl.innerHTML = '<div class="emptyState">No results.</div>';
+      return;
+    }
+    resultsEl.innerHTML = json.map((hit, i) => `
+      <div class="muniRow" onclick="addMunicipalityFromSearch(${i})">
+        <span class="name">${escapeHtml(hit.display_name)}</span>
+        <button class="btn small">Add</button>
+      </div>`).join('');
+    window._muniSearchCache = json;
+  }catch(err){
+    resultsEl.innerHTML = '<div class="emptyState">Search failed: ' + escapeHtml(err.message) + '</div>';
+  }
+}
+async function addMunicipalityFromSearch(i){
+  const hit = (window._muniSearchCache || [])[i];
+  if(!hit) return;
+  const cc = (hit.address && hit.address.country_code ? hit.address.country_code : selectedCountryCode || '').toUpperCase();
+  const cleanName = cleanMuniDisplayName(hit.name || hit.display_name.split(',')[0]);
+  const row = {
+    osm_type: hit.osm_type || 'unknown',
+    osm_id: hit.osm_id != null ? hit.osm_id : -Math.floor(Math.random() * 1e9),
+    admin_level: null,
+    name: cleanName,
+    name_en: cleanName,
+    country_code: cc || null,
+    centroid_lat: parseFloat(hit.lat),
+    centroid_lon: parseFloat(hit.lon),
+    boundary: { type:'Polygon', coordinates:[] },
+    bbox: null,
+    slug: Math.random().toString(36).slice(2, 10)
+  };
+  try{
+    const { data, error } = await sb.from(MUNICIPALITIES_TABLE).insert(row).select().single();
+    if(error) throw error;
+    municipalityCache.push(data);
+    toast('Added ' + data.name_en, 'success');
+    document.getElementById('muniSearchResults').innerHTML = '';
+    document.getElementById('muniSearchInput').value = '';
+    renderCountryPanel();
+    refreshMapStyles();
+  }catch(err){
+    toast('Could not add municipality: ' + err.message, 'error');
+  }
 }
 
 /* =========================================================================
@@ -614,7 +782,7 @@ function selectMunicipalityFromList(id){
    ========================================================================= */
 function selectMunicipality(id){
   selectedMunicipalityId = id;
-  renderMuniListForCountry(selectedCountryCode);
+  renderCountryPanel();
   renderMunicipalityPanel();
 }
 function renderMunicipalityPanel(){
@@ -677,10 +845,9 @@ function renderCompanyCard(c){
    RESEARCH (Anthropic API, user's own key, with web_search tool)
    ========================================================================= */
 async function startResearch(category){
-  const backend = getBackend();
-  const apiKey = getApiKey(backend);
+  const apiKey = getApiKey();
   if(!apiKey){
-    toast(`Add your ${backend === 'gemini' ? 'Gemini' : 'Anthropic'} API key in Settings first.`, 'error');
+    toast('Add your Anthropic API key in Settings first.', 'error');
     openModal('settingsModal');
     return;
   }
@@ -690,16 +857,16 @@ async function startResearch(category){
   const { companies } = coverageForMunicipality(muni.id);
 
   const area = document.getElementById('researchArea');
-  area.innerHTML = `<div class="reviewCard">Researching ${CATEGORY_META[category].label} for ${escapeHtml(muni.name_en||muni.name)}… this calls ${backend === 'gemini' ? 'Gemini' : 'Claude'} with web search and can take up to a minute.</div>`;
+  area.innerHTML = `<div class="reviewCard">Researching ${CATEGORY_META[category].label} for ${escapeHtml(muni.name_en||muni.name)}… this calls Claude with web search and can take up to a minute.</div>`;
 
   try{
-    const result = await researchContact({ backend, apiKey, muni, countryName, category, existingCompanies: companies });
+    const result = await researchContact({ apiKey, muni, countryName, category, existingCompanies: companies });
     renderReviewCard(category, result, muni);
   }catch(err){
     area.innerHTML = `<div class="reviewCard" style="border-color:var(--danger)">Research failed: ${escapeHtml(err.message)}</div>`;
   }
 }
-function buildResearchPrompt({ muni, countryName, category, existingCompanies }){
+async function researchContact({ apiKey, muni, countryName, category, existingCompanies }){
   const label = CATEGORY_META[category].label;
   const isFallback = FALLBACK_CATEGORIES.includes(category);
   const existingList = existingCompanies.length
@@ -737,22 +904,6 @@ Respond with ONLY a single JSON object, no markdown code fences, no other text, 
 }
 If you cannot find a specific responsible entity, set "found" to false, still try to fill "company_name" with the general municipal switchboard as a fallback, and set "confidence" to "low".`;
 
-  const userMessage = `Research the contact now for: ${muniName}, ${countryName} — category: ${label}.`;
-  return { systemPrompt, userMessage };
-}
-function extractJsonObject(text){
-  const clean = String(text||'').replace(/```json|```/g, '').trim();
-  const start = clean.indexOf('{');
-  const end = clean.lastIndexOf('}');
-  if(start === -1 || end === -1) throw new Error('Could not parse a JSON result from the model.');
-  return JSON.parse(clean.slice(start, end + 1));
-}
-async function researchContact({ backend, apiKey, muni, countryName, category, existingCompanies }){
-  const { systemPrompt, userMessage } = buildResearchPrompt({ muni, countryName, category, existingCompanies });
-  if(backend === 'gemini') return await researchWithGemini({ apiKey, systemPrompt, userMessage });
-  return await researchWithAnthropic({ apiKey, systemPrompt, userMessage });
-}
-async function researchWithAnthropic({ apiKey, systemPrompt, userMessage }){
   const resp = await fetch('https://api.anthropic.com/v1/messages', {
     method:'POST',
     headers:{
@@ -765,31 +916,19 @@ async function researchWithAnthropic({ apiKey, systemPrompt, userMessage }){
       model: ANTHROPIC_MODEL,
       max_tokens: 1500,
       system: systemPrompt,
-      messages: [{ role:'user', content: userMessage }],
+      messages: [{ role:'user', content: `Research the contact now for: ${muniName}, ${countryName} — category: ${label}.` }],
       tools: [{ type:'web_search_20250305', name:'web_search' }]
     })
   });
   const data = await resp.json();
   if(data.error) throw new Error(data.error.message || 'Anthropic API error');
   const textBlocks = (data.content || []).filter(b => b.type === 'text').map(b => b.text);
-  return extractJsonObject(textBlocks.join('\n'));
-}
-async function researchWithGemini({ apiKey, systemPrompt, userMessage }){
-  const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
-    method:'POST',
-    headers:{ 'Content-Type':'application/json', 'x-goog-api-key': apiKey },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: systemPrompt }] },
-      contents: [{ role:'user', parts: [{ text: userMessage }] }],
-      tools: [{ google_search: {} }]
-    })
-  });
-  const data = await resp.json();
-  if(data.error) throw new Error(data.error.message || 'Gemini API error');
-  const cand = data.candidates && data.candidates[0];
-  const parts = cand && cand.content && cand.content.parts ? cand.content.parts : [];
-  const text = parts.map(p => p.text || '').join('\n');
-  return extractJsonObject(text);
+  const joined = textBlocks.join('\n').trim();
+  const clean = joined.replace(/```json|```/g, '').trim();
+  const start = clean.indexOf('{');
+  const end = clean.lastIndexOf('}');
+  if(start === -1 || end === -1) throw new Error('Could not parse a JSON result from the model.');
+  return JSON.parse(clean.slice(start, end + 1));
 }
 
 /* =========================================================================
@@ -913,6 +1052,7 @@ async function saveResearch(category, municipalityId, mergeIntoId){
     }
     document.getElementById('researchArea').innerHTML = '';
     renderMunicipalityPanel();
+    refreshMapStyles();
   }catch(err){
     toast('Save failed: ' + err.message, 'error');
   }
@@ -932,8 +1072,7 @@ async function init(){
   });
 
   await Promise.all([loadCountries(), loadMunicipalities(), loadCompanies()]);
-  populateCountrySelect();
-  populateMunicipalitySelect(null);
+  await initMap();
 }
 document.getElementById('signInBtn').addEventListener('click', () => openModal('signInModal'));
 init();
