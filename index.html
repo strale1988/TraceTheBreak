@@ -1040,6 +1040,43 @@ body.nav-panel-open .driving-nav-card{
   opacity:.75;
 }
 
+#gpsIssuePill{
+  position:fixed;
+  top:calc(70px + env(safe-area-inset-top, 0px));
+  left:50%;
+  transform:translateX(-50%) translateY(-8px);
+  z-index:9999;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  background:var(--floating-bg);
+  backdrop-filter:blur(16px);
+  -webkit-backdrop-filter:blur(16px);
+  border:1px solid var(--floating-border);
+  color:var(--text-primary);
+  padding:8px 14px;
+  border-radius:999px;
+  font-size:var(--fs-12);
+  font-weight:var(--fw-semibold);
+  box-shadow:0 6px 20px var(--floating-shadow);
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .25s ease, transform .25s ease;
+  max-width:80%;
+  text-align:center;
+}
+#gpsIssuePill.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+.gps-issue-dot{
+  width:8px; height:8px; border-radius:50%;
+  background:#ffb020;
+  flex:0 0 auto;
+  animation:gpsIssuePulse 1.6s ease-in-out infinite;
+}
+@keyframes gpsIssuePulse{
+  0%,100%{ box-shadow:0 0 0 0 rgba(255,176,32,.55); }
+  50%{ box-shadow:0 0 0 6px rgba(255,176,32,0); }
+}
+
 #toastContainer{
   position:fixed;
   top:calc(10px + env(safe-area-inset-top, 0px));
@@ -2881,6 +2918,7 @@ span.flatpickr-weekday {
 </div>
 
 <div id="toastContainer"></div>
+<div id="gpsIssuePill"><span class="gps-issue-dot"></span><span id="gpsIssuePillText"></span></div>
 
 
 <div id="gpsModal" class="generic-modal-overlay" style="display:none">
@@ -5333,6 +5371,8 @@ const T = {
   suggestionCommentRequired: { en:'Please describe your suggestion in the notes field.', sr:'Opišite svoj predlog u polju za napomenu.' },
   waitGps:      { en:'Waiting for GPS...',               sr:'Čekanje GPS-a...' },
   gpsTooWeak:   { en:"Your location signal is too weak or inaccurate to submit a report from here. Move to an open area and try again.", sr:'Signal lokacije je preslab ili netačan da bi se prijava poslala odavde. Pomerite se na otvoren prostor i pokušajte ponovo.' },
+  gpsIssuePillWeak: { en:'Weak GPS signal (±{acc}m)',      sr:'Slab GPS signal (±{acc}m)' },
+  gpsIssuePillJump: { en:'GPS signal unstable — waiting for a steadier fix', sr:'GPS signal nestabilan — čekam stabilniji signal' },
   tapMapToPlacePin: { en:'Tap the map to place the pin.', sr:'Dodirnite mapu da postavite pin.' },
   wizStepLabel:       { en:'Step',                       sr:'Korak' },
   wizCategoryTitle:   { en:"What's the issue?",          sr:'O kakvom kvaru se radi?' },
@@ -8794,6 +8834,22 @@ const GPS_SIGNAL_LOST_MS = 8000;
 // only on userCoords existing (not on how good it is) will happily let someone "report" from
 // wherever their ISP is. This checks the accuracy of the most recent raw fix and how fresh it
 // is, regardless of whether that fix was deemed good enough to move the map.
+let _gpsIssuePillHideTimer = null;
+function showGpsIssuePill(msg) {
+  const el = document.getElementById('gpsIssuePill');
+  const textEl = document.getElementById('gpsIssuePillText');
+  if (!el || !textEl) return;
+  textEl.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(_gpsIssuePillHideTimer);
+  _gpsIssuePillHideTimer = setTimeout(hideGpsIssuePill, 4000);
+}
+function hideGpsIssuePill() {
+  clearTimeout(_gpsIssuePillHideTimer);
+  const el = document.getElementById('gpsIssuePill');
+  if (el) el.classList.remove('show');
+}
+
 function hasReliableGps() {
   if (!userCoords) return false;
   if (lastFixAccuracy == null) return false;
@@ -8911,6 +8967,7 @@ function startWatching() {
         lastAcceptedFix && (pos.timestamp - lastAcceptedFix.t) < GPS_STALE_FIX_MS
       ) {
         console.warn(`Ignored low-accuracy GPS fix: ±${Math.round(accuracy)}m`);
+        showGpsIssuePill(t('gpsIssuePillWeak').replace('{acc}', String(Math.round(accuracy))));
         return;
       }
 
@@ -8919,10 +8976,12 @@ function startWatching() {
         const jumpMeters = distMeters(lastAcceptedFix, candidate);
         if (dtSeconds > 0 && (jumpMeters / dtSeconds) > GPS_MAX_PLAUSIBLE_SPEED_MPS) {
           console.warn(`Ignored implausible GPS jump: ${jumpMeters.toFixed(0)}m in ${dtSeconds.toFixed(1)}s`);
+          showGpsIssuePill(t('gpsIssuePillJump'));
           return;
         }
       }
       lastAcceptedFix = { lat: candidate.lat, lon: candidate.lon, t: pos.timestamp };
+      hideGpsIssuePill();
 
       userCoords = smoothPositionFix(candidate);
       hideGpsModal();
