@@ -5676,6 +5676,7 @@ const T = {
   shareImageFailed:      { en:'Could not create the image. Try again.',   sr:'Slika nije mogla biti napravljena. Pokušajte ponovo.' },
   shareImageSaved:       { en:'Image saved.',                             sr:'Slika sačuvana.' },
   companyPdfBtnTitle:      { en:'Export all reports as PDF',                          sr:'Izvezi sve prijave u PDF' },
+  companyPdfExportConfirm: { en:'This will export all reports from {municipality} for {name} (the public utility service) as a PDF. Continue?', sr:'Ovo će izvesti sve prijave iz opštine {municipality} za {name} (javnu službu) u PDF. Nastaviti?' },
   companyPdfBtnLabel:      { en:'Export reports as PDF',                              sr:'Izvezi prijave u PDF' },
   companyPdfGenerating:    { en:'Preparing PDF…',                                      sr:'Priprema PDF-a…' },
   companyPdfNoReports:     { en:'No reports found for this service yet.',              sr:'Za ovu službu još nema prijava.' },
@@ -14056,6 +14057,17 @@ function buildCompanyEmailBodyText(company, reports) {
 async function exportCompanyReportsPdf(companyId) {
   const c = utilityCompanyRegistry.get(String(companyId));
   if (!c) return;
+
+  // Tell the user up front, in plain language, exactly what this is about to export —
+  // which municipality's reports, and which public service they're going to — before any
+  // work starts, rather than only showing a generic "Preparing PDF…" toast.
+  const muni = c.municipality_id != null ? getMunicipalityById(c.municipality_id) : null;
+  const muniName = muni ? municipalityDisplayName(muni) : (lang === 'sr' ? 'nepoznatu opštinu' : 'an unknown municipality');
+  const confirmed = await themedConfirm(
+    t('companyPdfExportConfirm').replace('{municipality}', muniName).replace('{name}', c.name || '')
+  );
+  if (!confirmed) return;
+
   const btn = document.getElementById('companyPdfBtn-' + companyId);
   if (btn) btn.disabled = true;
   toast(t('companyPdfGenerating'), 'success');
@@ -14079,6 +14091,8 @@ async function exportCompanyReportsPdf(companyId) {
 
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       try {
+        // The share sheet lets the user hand the PDF straight to Mail (or whatever they
+        // pick) with the file already attached — no separate download/attach step needed.
         await navigator.share({ files: [file], title: c.name, text: emailBody });
         toast(t('companyPdfShared'), 'success');
         return;
@@ -14094,11 +14108,22 @@ async function exportCompanyReportsPdf(companyId) {
     const a = document.createElement('a');
     a.href = url; a.download = fileName;
     document.body.appendChild(a); a.click(); a.remove();
+
+    // Give the browser a moment to actually kick off the download before we navigate away
+    // to open the mail app — firing the mailto: link in the same tick as the download click
+    // can interrupt the download on some browsers.
+    await new Promise(resolve => setTimeout(resolve, 1200));
     setTimeout(() => URL.revokeObjectURL(url), 10000);
+    toast(t('companyPdfDownloaded'), 'success');
+
+    // mailto: links can never carry an attachment, so this can't be uploaded automatically —
+    // make sure the user actually sees and acknowledges that reminder now, while they're still
+    // on this screen, instead of a toast that may well have faded before they even switch to
+    // their mail app.
+    await themedConfirm(t('companyPdfAttachReminder'), { cancelLabel: null });
 
     const subject = encodeURIComponent(t('companyPdfEmailSubject').replace('{name}', c.name || ''));
     const body = encodeURIComponent(emailBody);
-    toast(t('companyPdfAttachReminder'), 'success');
     window.location.href = `mailto:${c.email || ''}?subject=${subject}&body=${body}`;
   } catch (err) {
     console.error('exportCompanyReportsPdf error:', err.message || err);
