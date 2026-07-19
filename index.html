@@ -5463,6 +5463,8 @@ const T = {
   companyPdfEmailSubject:  { en:'Reports overview – {name}',                           sr:'Pregled prijava – {name}' },
   companyPdfEmailIntro:    { en:'Attached is an overview of {count} reported issue(s) relevant to your service ({name}).', sr:'U prilogu se nalazi pregled od {count} prijavljenih problema koji se odnose na vašu službu ({name}).' },
   companyPdfEmailAsk:      { en:'Please review the reports below and take the appropriate action.', sr:'Molimo vas da razmotrite navedene prijave i preduzmete odgovarajuće mere.' },
+  emailWrongRecipientNote: { en:"Did this email land in the wrong inbox? Please let us know by replying.", sr:'Da li je ovaj mejl slučajno stigao do vas? Molimo obavestite nas odgovorom na ovu poruku.' },
+  municipalityContactsUnverifiedNote: { en:"These contacts haven't been verified yet — please double-check before relying on them.", sr:'Ovi kontakti još nisu provereni — molimo proverite ih pre nego što ih iskoristite.' },
 
   ucSectionTitle:    { en:'Utility company contacts',            sr:'Kontakti javnih preduzeća' },
   ucSearchPH:        { en:'Search contacts (name, municipality, category)…', sr:'Pretraga kontakata (naziv, opština, kategorija)…' },
@@ -10887,15 +10889,33 @@ async function showMunicipalityContactsModal() {
   openOverlay('municipalityContactsModal', hideMunicipalityContactsModal);
 
   try {
-    const { data, error } = await sb.from(UTILITY_COMPANIES_TABLE)
+    let companies = [];
+    let showingUnverified = false;
+
+    const primary = await sb.from(UTILITY_COMPANIES_TABLE)
       .select('*')
       .eq('municipality_id', muni.id)
       .eq('verified', true)
       .order('name');
-    if (error) throw error;
-    const companies = data || [];
+    if (!primary.error && primary.data && primary.data.length) {
+      companies = primary.data;
+    } else {
+      if (primary.error) console.error('Verified-contacts query failed, trying unfiltered fallback:', primary.error.message);
+      const fallback = await sb.from(UTILITY_COMPANIES_TABLE)
+        .select('*')
+        .eq('municipality_id', muni.id)
+        .order('name');
+      if (fallback.error) throw fallback.error;
+      if (fallback.data && fallback.data.length) {
+        companies = fallback.data;
+        showingUnverified = true;
+      }
+    }
+
     bodyEl.innerHTML = companies.length
-      ? `<p class="detail-export-hint">${t('municipalityContactsHint')}</p>` + renderContactCards(companies, null)
+      ? `<p class="detail-export-hint">${t('municipalityContactsHint')}</p>` +
+        (showingUnverified ? `<p class="detail-export-hint" style="opacity:.75;">${t('municipalityContactsUnverifiedNote')}</p>` : '') +
+        renderContactCards(companies, null)
       : `<div class="detail-empty">${t('detailNoContacts')}</div>`;
   } catch (err) {
     console.error('Failed to load municipality contacts:', err.message);
@@ -12273,7 +12293,15 @@ async function getReportContacts(report, muni) {
       .eq('verified', true)
       .contains('categories', [report.category]);
     if (error) throw error;
-    report.contacts = data || [];
+    let contacts = data || [];
+    if (!contacts.length) {
+      const fallback = await sb.from(UTILITY_COMPANIES_TABLE)
+        .select('*')
+        .eq('municipality_id', muni.id)
+        .contains('categories', [report.category]);
+      if (!fallback.error && fallback.data && fallback.data.length) contacts = fallback.data;
+    }
+    report.contacts = contacts;
   } catch (err) {
     console.error('Failed to load utility contacts:', err.message);
     report.contacts = [];
@@ -13128,6 +13156,8 @@ async function emailReport(reportId) {
       '',
       lang === 'sr' ? 'Hvala unapred,' : 'Thank you,',
       lang === 'sr' ? 'Korisnici vaših usluga' : 'Users of your services',
+      '',
+      t('emailWrongRecipientNote'),
     ];
     const body = encodeURIComponent(bodyLines.join('\n'));
     if (toEmails) recordContactAttempt(reportId, 'email', null);
@@ -13384,6 +13414,8 @@ function buildCompanyEmailBodyText(company, reports) {
     '',
     lang === 'sr' ? 'Hvala unapred,' : 'Thank you,',
     lang === 'sr' ? 'Korisnici vaših usluga' : 'Users of your services',
+    '',
+    t('emailWrongRecipientNote'),
   ];
   return lines.join('\n');
 }
