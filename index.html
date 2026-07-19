@@ -482,11 +482,10 @@ button{
   -webkit-mask-image:-webkit-radial-gradient(white,black);
   mask-image:radial-gradient(white,black);
   display:flex;
-  justify-content:space-around;
-  align-items:center;
-  padding:8px 10px calc(8px + env(safe-area-inset-bottom, 0px)) 10px;
+  flex-direction:column;
+  padding:0 10px calc(8px + env(safe-area-inset-bottom, 0px)) 10px;
 }
-#mapLegend{ display:flex; align-items:center; width:100%; }
+#mapLegend{ display:flex; justify-content:space-around; align-items:center; width:100%; padding-top:8px; }
 .legend-item{
   display:flex; align-items:center; justify-content:center; gap:var(--space-6);
   flex:1 1 0;
@@ -2276,18 +2275,11 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 }
 
 .bottom-muni-bar{
-  position:fixed;
-  left:0; right:0;
-  bottom:calc(var(--legend-bottom-gap, 0px) + var(--legend-row-h, 72px));
-  z-index:409;
   display:flex;
   align-items:center;
   gap:8px;
-  background:var(--floating-bg);
-  backdrop-filter:blur(8px);
-  -webkit-backdrop-filter:blur(8px);
-  border-top:1px solid var(--floating-border);
-  padding:7px 14px;
+  padding:9px 4px;
+  border-bottom:1px solid var(--floating-border);
   font-size:var(--fs-12); font-weight:var(--fw-semibold);
   color:var(--text-primary);
 }
@@ -2600,13 +2592,12 @@ span.flatpickr-weekday {
   </div>
   <div class="map-loading-text" id="mapLoadingText"></div>
 </div>
+<div class="legend-row">
 <div id="bottomMuniBar" class="bottom-muni-bar" style="display:none">
   <img class="icon-img bottom-muni-bar-pin" src="icons/pin.png" alt="">
   <span id="bottomMuniBarName" class="bottom-muni-bar-name"></span>
   <button class="help-icon-btn bottom-muni-bar-contacts-btn" id="municipalityContactsBtn" title="Contacts" style="display:none" onclick="showMunicipalityContactsModal()"><img class="icon-img" src="icons/phone.png" alt="Contacts"></button>
 </div>
-
-<div class="legend-row">
 <div id="mapLegend" class="map-legend-pill">
 </div>
 </div>
