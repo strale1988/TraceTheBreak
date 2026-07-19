@@ -1020,6 +1020,8 @@ body.nav-panel-open .driving-nav-card{
   width:86px; height:86px;
   border-radius:50%;
   background:var(--accent);
+  transform:translate(-50%,-50%) scale(.7);
+  opacity:.45;
   animation:map-loading-halo-pulse 1.8s ease-out infinite;
   pointer-events:none;
 }
@@ -5422,6 +5424,11 @@ const T = {
   postReportContactCloseBtn: { en:'Close',                                    sr:'Zatvori' },
   postReportContactYesBtn: { en:'Show contacts',                              sr:'Prikaži kontakte' },
   postReportContactNoBtn:  { en:'Not now',                                    sr:'Ne sada' },
+
+  contactReminderModalTitle: { en:'Contact reminder',                         sr:'Podsetnik za kontakt' },
+  contactReminderIntroText:  { en:"You've reported {n} issue(s) but haven't contacted the utility company yet.", sr:'Prijavili ste {n} problem(a), ali još niste kontaktirali nadležnu službu.' },
+  contactReminderSnoozeBtn:  { en:'Remind me later',                          sr:'Podseti me kasnije' },
+  contactReminderSettingsBtn:{ en:'Change frequency',                         sr:'Promeni učestalost' },
 
   nearbyCheckinSectionTitle: { en:'Nearby issue check-ins',                   sr:'Provera obližnjih prijava' },
   nearbyCheckinSectionHint:  { en:'When you pass close to an open report, we can ask if it\'s still there.', sr:'Kada prođete blizu otvorene prijave, možemo vas pitati da li je problem i dalje prisutan.' },
