@@ -2580,6 +2580,50 @@ span.flatpickr-weekday {
   border-color: transparent !important;
   border-radius: 0 !important;
 }
+
+.onboarding-overlay{
+  position:fixed; inset:0;
+  z-index:960;
+}
+.onboarding-spotlight{
+  position:fixed;
+  border-radius:16px;
+  box-shadow:0 0 0 9999px rgba(0,0,0,.62);
+  transition:top .25s ease, left .25s ease, width .25s ease, height .25s ease;
+  pointer-events:none;
+}
+.onboarding-tooltip{
+  position:fixed;
+  width:260px;
+  max-width:calc(100vw - 24px);
+  background:var(--bg-surface);
+  color:var(--text-primary);
+  border-radius:var(--radius-xl);
+  box-shadow:0 8px 28px rgba(0,0,0,.35);
+  padding:14px 16px;
+  display:none;
+}
+.onboarding-tooltip-step{
+  font-size:var(--fs-11); font-weight:var(--fw-semibold);
+  color:var(--accent);
+  text-transform:uppercase; letter-spacing:.03em;
+  margin-bottom:4px;
+}
+.onboarding-tooltip-title{ font-size:var(--fs-15); font-weight:var(--fw-bold); margin-bottom:4px; }
+.onboarding-tooltip-text{ font-size:var(--fs-13); color:var(--text-secondary); line-height:1.4; margin-bottom:12px; }
+.onboarding-tooltip-actions{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.onboarding-skip-btn{
+  background:none; border:none; padding:6px 2px;
+  font-size:var(--fs-12); font-weight:var(--fw-semibold);
+  color:var(--text-secondary); cursor:pointer;
+}
+.onboarding-next-btn{
+  background:var(--accent); color:var(--accent-contrast); border:none;
+  border-radius:var(--radius-pill);
+  padding:8px 18px;
+  font-size:var(--fs-13); font-weight:var(--fw-bold);
+  cursor:pointer;
+}
 </style>
 </head>
 <body>
@@ -2902,6 +2946,9 @@ span.flatpickr-weekday {
       <div class="detail-section-title" id="helpSectionTitle">Help</div>
       <button type="button" class="settings-btn" style="width:100%;" onclick="showHelpModal()" id="settingsHelpBtn">
         <img class="icon-img icon-img-inline icon-tint-dark" src="icons/help.png" alt=""> How to use TraceTheBreak
+      </button>
+      <button type="button" class="settings-btn" style="width:100%; margin-top:8px;" onclick="hideSettingsModal(); startOnboardingTour(true);" id="settingsReplayTourBtn">
+        <img class="icon-img icon-img-inline icon-tint-dark" src="icons/pin.png" alt=""> <span id="settingsReplayTourBtnLabel">Show quick tour again</span>
       </button>
     </div>
 
@@ -3648,6 +3695,7 @@ function updateAuthUI() {
 
     lockedFormPanel.style.display = 'none';
     chooseUsernamePanel.style.display = 'none';
+    if (canReportHere) maybeStartOnboardingTour();
   } else if (currentSession && currentProfile && !currentProfile.username) {
     reportFormPanel.style.display = 'none';
     desktopBlockedPanel.style.display = 'none';
@@ -3670,6 +3718,121 @@ function updateAuthUI() {
     renderDashboardTab();
   }
   refreshUnreadNotificationCount();
+}
+
+// ---------- First-run onboarding tour ----------
+// A short, dismissible coach-mark walkthrough shown once, right after a user's map controls
+// become visible (i.e. they're logged in and have a username set). Steps whose target element
+// doesn't exist or isn't currently visible (e.g. driving mode hidden via a settings toggle) are
+// skipped automatically rather than pointing at nothing. Replayable any time from Settings.
+const ONBOARDING_SEEN_KEY = 'ttb_onboarding_seen_v1';
+let onboardingActiveSteps = [];
+let onboardingStepIndex = 0;
+let onboardingResizeHandlerBound = null;
+
+function hasSeenOnboarding() {
+  try { return localStorage.getItem(ONBOARDING_SEEN_KEY) === '1'; } catch (e) { return true; }
+}
+function markOnboardingSeen() {
+  try { localStorage.setItem(ONBOARDING_SEEN_KEY, '1'); } catch (e) {}
+}
+
+function getOnboardingSteps() {
+  return [
+    { id: 'reportFabBtn',   titleKey: 'onboardingStepReportTitle',      textKey: 'onboardingStepReportText' },
+    { id: 'pinMapBtn',      titleKey: 'onboardingStepPinTitle',         textKey: 'onboardingStepPinText' },
+    { id: 'drivingModeBtn', titleKey: 'onboardingStepDrivingTitle',     textKey: 'onboardingStepDrivingText' },
+    { id: 'leaderboardBtn', titleKey: 'onboardingStepLeaderboardTitle', textKey: 'onboardingStepLeaderboardText' },
+    { id: 'mapLegend',      titleKey: 'onboardingStepLegendTitle',      textKey: 'onboardingStepLegendText' }
+  ];
+}
+
+function isOnboardingTargetVisible(el) {
+  if (!el) return false;
+  const style = window.getComputedStyle(el);
+  if (style.display === 'none' || style.visibility === 'hidden') return false;
+  const rect = el.getBoundingClientRect();
+  return rect.width > 0 && rect.height > 0;
+}
+
+function maybeStartOnboardingTour() {
+  if (hasSeenOnboarding()) return;
+  // small delay so the layout the buttons just appeared in (updateAuthUI just ran) has settled
+  setTimeout(() => startOnboardingTour(false), 500);
+}
+
+function startOnboardingTour(isReplay) {
+  const overlay = document.getElementById('onboardingOverlay');
+  if (!overlay) return;
+  const candidates = getOnboardingSteps()
+    .map(step => ({ ...step, el: document.getElementById(step.id) }))
+    .filter(step => isOnboardingTargetVisible(step.el));
+  if (!candidates.length) {
+    if (!isReplay) markOnboardingSeen();
+    return;
+  }
+  onboardingActiveSteps = candidates;
+  onboardingStepIndex = 0;
+  document.getElementById('onboardingSkipBtn').textContent = t('onboardingSkipBtn');
+  overlay.style.display = 'block';
+  renderOnboardingStep();
+  if (!onboardingResizeHandlerBound) {
+    onboardingResizeHandlerBound = () => {
+      if (overlay.style.display !== 'none') positionOnboardingStep();
+    };
+    window.addEventListener('resize', onboardingResizeHandlerBound);
+  }
+}
+
+function renderOnboardingStep() {
+  const step = onboardingActiveSteps[onboardingStepIndex];
+  if (!step) { endOnboardingTour(); return; }
+  document.getElementById('onboardingStepCounter').textContent =
+    `${onboardingStepIndex + 1} / ${onboardingActiveSteps.length}`;
+  document.getElementById('onboardingStepTitle').textContent = t(step.titleKey);
+  document.getElementById('onboardingStepText').textContent = t(step.textKey);
+  document.getElementById('onboardingNextBtn').textContent =
+    (onboardingStepIndex === onboardingActiveSteps.length - 1) ? t('onboardingDoneBtn') : t('onboardingNextBtn');
+  positionOnboardingStep();
+}
+
+function positionOnboardingStep() {
+  const step = onboardingActiveSteps[onboardingStepIndex];
+  if (!step || !isOnboardingTargetVisible(step.el)) { advanceOnboardingTour(); return; }
+  const rect = step.el.getBoundingClientRect();
+  const pad = 8;
+  const spot = document.getElementById('onboardingSpotlight');
+  spot.style.top = (rect.top - pad) + 'px';
+  spot.style.left = (rect.left - pad) + 'px';
+  spot.style.width = (rect.width + pad * 2) + 'px';
+  spot.style.height = (rect.height + pad * 2) + 'px';
+
+  const tooltip = document.getElementById('onboardingTooltip');
+  tooltip.style.visibility = 'hidden';
+  tooltip.style.display = 'block';
+  const tw = tooltip.offsetWidth, th = tooltip.offsetHeight;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const left = Math.min(Math.max(rect.left + rect.width / 2 - tw / 2, 12), vw - tw - 12);
+  const spaceAbove = rect.top, spaceBelow = vh - rect.bottom;
+  let top = (spaceBelow > th + 24 || spaceBelow > spaceAbove) ? (rect.bottom + pad + 12) : (rect.top - pad - 12 - th);
+  top = Math.min(Math.max(top, 12), vh - th - 12);
+  tooltip.style.top = top + 'px';
+  tooltip.style.left = left + 'px';
+  tooltip.style.visibility = 'visible';
+}
+
+function advanceOnboardingTour() {
+  onboardingStepIndex++;
+  if (onboardingStepIndex >= onboardingActiveSteps.length) { endOnboardingTour(); return; }
+  renderOnboardingStep();
+}
+
+function skipOnboardingTour() { endOnboardingTour(); }
+
+function endOnboardingTour() {
+  const overlay = document.getElementById('onboardingOverlay');
+  if (overlay) overlay.style.display = 'none';
+  markOnboardingSeen();
 }
 
 const USER_LEVELS = [
@@ -5624,6 +5787,21 @@ const T = {
   soundToggleLabel:       { en:'Navigation & alert sounds',           sr:'Zvukovi za navigaciju i upozorenja' },
 
   leaderboardBtnTitle:     { en:'Rankings',                           sr:'Rang lista' },
+
+  onboardingStepReportTitle:      { en:'Report a problem',                                   sr:'Prijavi problem' },
+  onboardingStepReportText:       { en:'Tap here to report something you see — a pothole, a leak, anything.', sr:'Dodirni ovde da prijaviš nešto što vidiš — rupu na putu, curenje, bilo šta.' },
+  onboardingStepPinTitle:         { en:'Reporting from elsewhere?',                          sr:'Prijavljuješ sa druge lokacije?' },
+  onboardingStepPinText:          { en:'Drop a pin to set the location manually instead of using your current position.', sr:'Postavi pribadaču da ručno odabereš lokaciju umesto trenutne pozicije.' },
+  onboardingStepDrivingTitle:     { en:'Driving mode',                                       sr:'Režim vožnje' },
+  onboardingStepDrivingText:      { en:'Turn this on for quick, hands-free reporting while you drive.', sr:'Uključi ovo za brzo prijavljivanje bez korišćenja ruku dok voziš.' },
+  onboardingStepLeaderboardTitle: { en:'Rankings',                                           sr:'Rang lista' },
+  onboardingStepLeaderboardText:  { en:'See how your reports stack up against other reporters.', sr:'Pogledaj kako se tvoje prijave porede sa drugima.' },
+  onboardingStepLegendTitle:      { en:'Filter the map',                                     sr:'Filtriraj mapu' },
+  onboardingStepLegendText:       { en:'Tap a category to show or hide it on the map.',       sr:'Dodirni kategoriju da je prikažeš ili sakriješ na mapi.' },
+  onboardingNextBtn:              { en:'Next',                                               sr:'Dalje' },
+  onboardingDoneBtn:              { en:'Got it',                                             sr:'Razumem' },
+  onboardingSkipBtn:              { en:'Skip',                                               sr:'Preskoči' },
+  settingsReplayTourBtn:          { en:'Show quick tour again',                              sr:'Prikaži brzi vodič ponovo' },
   leaderboardTitle:        { en:'Rankings',                           sr:'Rang lista' },
   signOutBtn:               { en:'Sign out',                          sr:'Odjavi se' },
   dashboardSignedOutHint:   { en:'Sign in to see your dashboard.',    sr:'Prijavite se da biste videli svoju tablu.' },
@@ -5803,6 +5981,8 @@ function applyLang(){
   if (langAutoHintEl) langAutoHintEl.textContent = t('langAutoHint');
   document.getElementById('helpSectionTitle').textContent = t('helpSectionTitle');
   document.getElementById('settingsHelpBtn').lastChild.textContent = ' ' + t('settingsHelpBtn');
+  const replayTourLabelEl = document.getElementById('settingsReplayTourBtnLabel');
+  if (replayTourLabelEl) replayTourLabelEl.textContent = t('settingsReplayTourBtn');
   document.getElementById('mapFilterSectionTitle').textContent = t('mapFilterSectionTitle');
   document.getElementById('mapFilterSettingsBtnLabel').textContent = t('categoryFilterBtnTitle');
   document.getElementById('pulseToggleLabel').textContent = t('pulseToggleLabel');
@@ -14753,6 +14933,19 @@ authReady.then(() => {
 </div>
 
 <div id="mobilePopupOverlay"></div>
+
+<div id="onboardingOverlay" class="onboarding-overlay" style="display:none">
+  <div id="onboardingSpotlight" class="onboarding-spotlight"></div>
+  <div id="onboardingTooltip" class="onboarding-tooltip">
+    <div class="onboarding-tooltip-step" id="onboardingStepCounter"></div>
+    <div class="onboarding-tooltip-title" id="onboardingStepTitle"></div>
+    <div class="onboarding-tooltip-text" id="onboardingStepText"></div>
+    <div class="onboarding-tooltip-actions">
+      <button type="button" class="onboarding-skip-btn" id="onboardingSkipBtn" onclick="skipOnboardingTour()"></button>
+      <button type="button" class="onboarding-next-btn" id="onboardingNextBtn" onclick="advanceOnboardingTour()"></button>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>
