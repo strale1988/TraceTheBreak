@@ -5728,7 +5728,6 @@ const T = {
   flagReportSubmitted:    { en:'Flagged — an admin will review it.',          sr:'Označeno — administrator će pregledati.' },
   flagReportAlreadyFlaggedNote: { en:'You flagged this on {date}:',           sr:'Označili ste ovo {date}:' },
   flagReportError:        { en:'Could not submit. Try again.',                sr:'Slanje nije uspelo. Pokušajte ponovo.' },
-  contactFlagBtn:          { en:'Didn\'t work?',                              sr:'Nije uspelo?' },
   contactFlagOtherBtn:     { en:'Report a problem with this contact',        sr:'Prijavite problem sa ovim kontaktom' },
   contactFlagOtherPH:      { en:'What\'s wrong with this contact? (wrong municipality, duplicate, closed down…)', sr:'Šta nije u redu sa ovim kontaktom? (pogrešna opština, duplikat, ugašen…)' },
   contactFlagLoginRequired:{ en:'Sign in to flag this contact.',              sr:'Prijavite se da biste označili ovaj kontakt.' },
@@ -5792,7 +5791,7 @@ const T = {
   onboardingStepPinTitle:         { en:'GPS looking off?',                                   sr:'GPS lokacija nije tačna?' },
   onboardingStepPinText:          { en:'Drop a pin to fine-tune the exact spot on the map if your GPS location isn\'t precise enough.', sr:'Postavi pribadaču da precizno odabereš tačno mesto na mapi ako GPS lokacija nije dovoljno tačna.' },
   onboardingStepDrivingTitle:     { en:'Driving mode',                                       sr:'Režim vožnje' },
-  onboardingStepDrivingText:      { en:'Turn this on to quickly report road issues — potholes, damaged pavement, signage — hands-free while you drive.', sr:'Uključi ovo da brzo prijaviš probleme na putu — rupe, oštećen kolovoz, signalizaciju — bez korišćenja ruku dok voziš.' },
+  onboardingStepDrivingText:      { en:'Turn this on to quickly report road issues — potholes, damaged pavement, signage — with one big tap while you drive.', sr:'Uključi ovo da brzo prijaviš probleme na putu — rupe, oštećen kolovoz, signalizaciju — jednim dodirom velikog dugmeta dok voziš.' },
   onboardingStepLeaderboardTitle: { en:'Your dashboard',                                     sr:'Tvoja kontrolna tabla' },
   onboardingStepLeaderboardText:  { en:'Track your own reports and stats here.',              sr:'Prati svoje prijave i statistiku ovde.' },
   onboardingNextBtn:              { en:'Next',                                               sr:'Dalje' },
@@ -6432,21 +6431,88 @@ function buildHelpModalContent() {
   document.getElementById('helpModalTitle').textContent = t('helpTitle');
   document.getElementById('helpModalBtn').textContent = t('helpClose');
   const contentEl = document.getElementById('helpModalContent');
+
+  // Collapsible "Learn more" entry for the detailed guide below the quick-start steps.
+  // iconSrc may be null for entries that don't have a matching icon asset.
+  const acc = (iconSrc, titleEn, titleSr, bodyEn, bodySr, openByDefault) => `
+    <details${openByDefault ? ' open' : ''} style="border:1px solid var(--border-color); border-radius:var(--radius-xl); background:var(--bg-surface-alt); overflow:hidden;">
+      <summary style="list-style:none; cursor:pointer; padding:10px 12px; font-size:13px; font-weight:var(--fw-semibold); display:flex; align-items:center; gap:8px; -webkit-tap-highlight-color:transparent;">
+        ${iconSrc ? `<img class="icon-img icon-img-inline" src="${iconSrc}" alt="">` : ''}
+        <span style="flex:1;">${lang === 'sr' ? titleSr : titleEn}</span>
+        <span class="help-accordion-caret" style="font-size:10px; color:var(--text-muted); transition:transform .15s ease;">&#9662;</span>
+      </summary>
+      <div style="padding:0 12px 12px 12px; font-size:12.5px; line-height:1.6; color:var(--text-secondary);">
+        ${lang === 'sr' ? bodySr : bodyEn}
+      </div>
+    </details>`;
+
   contentEl.innerHTML = `
+    <style>
+      #helpModalContent details > summary::-webkit-details-marker{ display:none; }
+      #helpModalContent details[open] .help-accordion-caret{ transform:rotate(180deg); }
+    </style>
     <div style="text-align: left; font-size: 13px; line-height: 1.6; display: flex; flex-direction: column; gap: 12px; margin-top: 10px;">
       <p><strong>${t('helpStep1')}</strong> ${t('helpStep1Body')}</p>
       <p><strong>${t('helpStep2')}</strong> ${t('helpStep2Body')}</p>
       <p><strong>${t('helpStep3')}</strong> ${t('helpStep3Body')}</p>
       <p><strong><img class="icon-img icon-img-inline" src="icons/target.png" alt="compass"></strong> ${lang === 'sr' ? 'Uključite praćenje da mapa uvek prati vašu lokaciju, kao navigacija.' : 'Turn on follow mode to keep the map centered on you, like a navigation app.'}</p>
-      <p><strong><img class="icon-img icon-img-inline" src="icons/car.png" alt="car"></strong> ${lang === 'sr'
-        ? 'Režim vožnje prikazuje dugmad za prijavu problema na putu na dnu ekrana. Dodirnite jedno da odmah prijavite problem na trenutnoj lokaciji. Da obeležite ceo loš deo puta, pritisnite "Počni prijavu deonice", provozite se preko problematičnog dela, pa pritisnite dugme opet da zaustavite snimanje — zatim dodirnite jedno od istih dugmadi da izaberete vrstu problema i sačuvate deonicu.'
-        : 'Driving mode shows road-report buttons along the bottom of the screen. Tap one to instantly log a problem at your current location. To mark a whole stretch of bad road, tap "Start Section Report", drive over it, then tap the button again to stop recording — tapping one of the same buttons then picks a type and saves the section.'}</p>
-      <p><strong>${lang === 'sr' ? 'Nivoi' : 'Levels'}</strong> ${lang === 'sr'
-        ? 'Svaka prijava i svaki glas vam donose poene i podižu vas kroz pet nivoa, od Građanina do Heroja zajednice — viši nivo znači da vaš glas za status prijave vredi više. Usput otključavate i značke. Pogledajte svoj napredak u Podešavanja → Moja tabla.'
-        : 'Every report and every vote earns points and climbs you through five levels, from Citizen up to Community Hero — a higher level means your status vote counts for more, and you unlock badges along the way. Check your progress in Settings → My Dashboard.'}</p>
       <p><strong>${lang === 'sr' ? 'Prijavljivanje na licu mesta' : 'On-site reporting'}</strong> ${lang === 'sr'
         ? 'Prijavljivanje je dostupno samo na mobilnom uređaju, a ako ručno postavite pin na mapu, morate biti u krugu od 50 metara od njega da biste ga prijavili — mala isprekidana kružnica na mapi pokazuje koliko ste blizu.'
         : 'Reporting is available on mobile only, and if you drop a pin manually, you need to be within 50 meters of it to submit — a small dashed ring on the map shows how close you are.'}</p>
+
+      <div style="font-size:10px; font-weight:var(--fw-bold); letter-spacing:.4px; text-transform:uppercase; color:var(--text-muted); margin-top:4px;">
+        ${lang === 'sr' ? 'Detaljni vodič' : 'Detailed guide'}
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        ${(() => {
+          const drivingBtn = document.getElementById('drivingModeBtn');
+          const drivingModeVisible = !!drivingBtn && drivingBtn.style.display !== 'none';
+          return acc('icons/car.png',
+            'Driving mode',
+            'Režim vožnje',
+            'Driving mode adds a row of big tap-to-report buttons along the bottom of the screen — it does not report anything on its own, you still tap a button each time. Tap one to instantly log a problem at your current location. To mark a whole stretch of bad road instead of a single point, tap "Start Section Report", drive over the bad stretch, then tap the button again to stop recording — tapping one of the same buttons then lets you pick a type and save the section. Because it is built for a single quick tap rather than filling in a form, it is faster to use while moving than the regular report screen, but you should still only tap it at a stop or let a passenger handle it.',
+            'Režim vožnje dodaje red velikih dugmadi za prijavu na dnu ekrana — on ne prijavljuje ništa sam od sebe, i dalje morate dodirnuti dugme svaki put. Dodirnite jedno da odmah prijavite problem na trenutnoj lokaciji. Da obeležite ceo loš deo puta umesto jedne tačke, pritisnite "Počni prijavu deonice", provozite se preko problematičnog dela, pa pritisnite dugme opet da zaustavite snimanje — zatim dodirnite jedno od istih dugmadi da izaberete vrstu problema i sačuvate deonicu. Pošto je napravljen za jedan brz dodir umesto popunjavanja obrasca, brži je za korišćenje u vožnji od običnog ekrana za prijavu, ali ga je najbolje koristiti samo dok stojite ili prepustiti saputniku.',
+            drivingModeVisible
+          );
+        })()}
+        ${acc('icons/user.png',
+          'Levels, points & badges',
+          'Nivoi, poeni i značke',
+          'Every report you submit and every vote you cast earns points and climbs you through five levels, from Citizen up to Community Hero. A higher level means your status vote counts for more when the community decides whether a report is fixed. You also unlock badges for milestones like your first report, night-owl reports, or upvoting new users. Check your progress anytime in Settings → My Dashboard.',
+          'Svaka prijava koju pošaljete i svaki glas koji date donose poene i podižu vas kroz pet nivoa, od Građanina do Heroja zajednice. Viši nivo znači da vaš glas za status prijave vredi više kada zajednica odlučuje da li je kvar otklonjen. Usput otključavate i značke za prekretnice poput prve prijave, noćnih prijava ili podržavanja novih korisnika. Pogledajte svoj napredak bilo kad u Podešavanja → Moja tabla.'
+        )}
+        ${acc(null,
+          'Voting on report status',
+          'Glasanje o statusu prijave',
+          'Anyone can browse reports, but changing a report\'s status (for example marking it as fixed) works by community vote. As a regular user you need to be on-site — within 50 meters of the pin — to cast that vote, and your vote carries more weight the higher your level is; once enough weighted votes agree on the same status, it updates automatically. Admins are the exception: an admin voting within their own municipality or country can resolve the status instantly with a single vote, without needing to be on-site.',
+          'Svako može da pregleda prijave, ali promena statusa prijave (na primer označavanje da je otklonjena) ide glasanjem zajednice. Kao običan korisnik morate biti na licu mesta — u krugu od 50 metara od pina — da biste glasali, a vaš glas ima veću težinu što je vaš nivo viši; kada se sakupi dovoljno ponderisanih glasova koji se slažu oko istog statusa, on se automatski menja. Admini su izuzetak: admin koji glasa unutar svoje opštine ili zemlje može odmah rešiti status jednim glasom, bez potrebe da bude na licu mesta.'
+        )}
+        ${acc('icons/phone.png',
+          'Municipality contacts',
+          'Kontakti opštine',
+          'The phone icon in the top bar shows verified contacts — phone numbers, emails, and utility companies — for whichever municipality you are currently in. Use it to report an issue directly to the responsible office, and log the call or email as a "contact event" so other users can see it has already been reported and when.',
+          'Ikonica telefona u gornjoj traci prikazuje proverene kontakte — telefone, email adrese i komunalna preduzeća — za opštinu u kojoj se trenutno nalazite. Koristite je da prijavite problem direktno nadležnoj službi i zabeležite poziv ili email kao "kontakt događaj" kako bi drugi korisnici videli da je već prijavljeno i kada.'
+        )}
+        ${acc(null,
+          'Photos & before/after',
+          'Fotografije i pre/posle',
+          'You can attach a photo when submitting a report, and add more photos to it later from the report detail view — they show up in that report\'s community gallery. Once a report is marked fixed, you can add an "after" photo, which pairs with the original to create a before/after comparison anyone can view.',
+          'Možete da priložite fotografiju prilikom slanja prijave, a kasnije dodate još fotografija iz detalja prijave — one se prikazuju u galeriji te prijave. Kada je prijava označena kao otklonjena, možete dodati fotografiju "posle", koja se uparuje sa originalnom i pravi pre/posle poređenje koje svi mogu da vide.'
+        )}
+        ${acc('icons/notification.png',
+          'Notifications & leaderboard',
+          'Obaveštenja i rang lista',
+          'The bell icon shows notifications about your reports — status changes, replies, and admin broadcasts for your area. The rankings icon shows the leaderboard of top contributors, so you can see how you compare and get a bit of friendly competition going.',
+          'Ikonica zvona prikazuje obaveštenja o vašim prijavama — promene statusa, odgovore i objave admina za vašu oblast. Ikonica rangiranja prikazuje rang listu najaktivnijih korisnika, tako da možete da vidite kako se upoređujete i uživate u prijateljskom nadmetanju.'
+        )}
+        ${acc('icons/settings.png',
+          'Settings, theme & language',
+          'Podešavanja, tema i jezik',
+          'From Settings you can switch between Light, Dark, or Smart (follows your device) theme, switch the app between English and Serbian, and open My Dashboard to track your level, badges, and stats.',
+          'U Podešavanjima možete da prebacite između Svetle, Tamne ili Pametne (prati uređaj) teme, promenite jezik aplikacije između engleskog i srpskog, i otvorite Moju tablu da pratite svoj nivo, značke i statistiku.'
+        )}
+      </div>
     </div>
   `;
 }
@@ -8615,8 +8681,12 @@ let closingViaOverlayStack = false;
 
 function openOverlay(key, closeFn) {
   if (overlayStack.some(o => o.key === key)) return;
+  const wasEmpty = overlayStack.length === 0;
   overlayStack.push({ key, closeFn });
   history.pushState({ overlayKey: key }, '');
+  // The map is now hidden behind this overlay — pause the GPS re-zoom countdown so it
+  // doesn't fire (and yank the map back to the user's location) while they're not looking at it.
+  if (wasEmpty) cancelAutoRefollowTimer();
 }
 function closeOverlay(key) {
   const idx = overlayStack.findIndex(o => o.key === key);
@@ -8626,6 +8696,9 @@ function closeOverlay(key) {
     closingViaOverlayStack = true;
     history.back();
   }
+  // Back to the map with nothing covering it — resume the countdown (only actually
+  // restarts it if a re-follow was pending before the overlay opened).
+  if (overlayStack.length === 0) scheduleAutoRefollow();
 }
 window.addEventListener('popstate', () => {
   if (closingViaOverlayStack) {
@@ -12520,24 +12593,17 @@ function renderContactRows(c, reportId) {
   const companyIdAttr = c.id != null ? escapeHtml(String(c.id)) : '';
   const phoneClickAttr = reportId ? ` onclick="recordContactAttempt('${escapeHtml(reportId)}','phone','${companyIdAttr}')"` : '';
   const emailClickAttr = reportId ? ` onclick="recordContactAttempt('${escapeHtml(reportId)}','email','${companyIdAttr}')"` : '';
-  const flagBtn = (type, hasValue) => (hasValue && c.id != null)
-    ? `<button type="button" class="contact-flag-btn" id="contact-flag-${companyIdAttr}-${type}" onclick="flagUtilityContact('${companyIdAttr}','${type}')">${t('contactFlagBtn')}</button>` : '';
-  const phoneFlagBtn = flagBtn('phone', c.phone);
-  const emailFlagBtn = flagBtn('email', c.email);
-  const websiteFlagBtn = flagBtn('website', c.website);
-  const addressFlagBtn = flagBtn('address', c.address);
-  const notesFlagBtn = flagBtn('notes', c.notes);
   const otherFlagBtn = c.id != null
     ? `<button type="button" class="contact-flag-btn contact-flag-other-btn" onclick="toggleContactOtherFlagForm('${companyIdAttr}')">${t('contactFlagOtherBtn')}</button>` : '';
   const pdfExportRowBtn = c.id != null
     ? `<button type="button" class="settings-btn contact-pdf-export-row-btn" id="companyPdfBtn-${companyIdAttr}" title="${t('companyPdfBtnTitle')}" onclick="exportCompanyReportsPdf('${companyIdAttr}')"><img class="icon-img icon-img-inline" src="icons/pdf.png" alt="pdf"> ${t('companyPdfBtnLabel')}</button>` : '';
   return `
       ${pdfExportRowBtn}
-      ${c.phone ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/phone.png" alt="phone"><a href="tel:${escapeHtml(c.phone)}"${phoneClickAttr}>${escapeHtml(c.phone)}</a>${phoneFlagBtn}</div>` : ''}
-      ${c.email ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/email.png" alt="email"><a href="mailto:${escapeHtml(c.email)}"${emailClickAttr}>${escapeHtml(c.email)}</a>${emailFlagBtn}</div>` : ''}
-      ${c.website ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/link.png" alt="link"><a href="${escapeHtml(c.website)}" target="_blank" rel="noopener">${escapeHtml(c.website)}</a>${websiteFlagBtn}</div>` : ''}
-      ${c.address && c.id != null ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/pin.png" alt="pin"><a href="javascript:void(0)" onclick="focusUtilityCompanyAddress('${escapeHtml(String(c.id))}')">${escapeHtml(c.address)}</a>${addressFlagBtn}</div>` : c.address ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/pin.png" alt="pin"><span>${escapeHtml(c.address)}</span></div>` : ''}
-      ${c.notes ? `<div class="contact-card-row contact-card-notes"><span>${escapeHtml(c.notes)}</span>${notesFlagBtn}</div>` : ''}
+      ${c.phone ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/phone.png" alt="phone"><a href="tel:${escapeHtml(c.phone)}"${phoneClickAttr}>${escapeHtml(c.phone)}</a></div>` : ''}
+      ${c.email ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/email.png" alt="email"><a href="mailto:${escapeHtml(c.email)}"${emailClickAttr}>${escapeHtml(c.email)}</a></div>` : ''}
+      ${c.website ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/link.png" alt="link"><a href="${escapeHtml(c.website)}" target="_blank" rel="noopener">${escapeHtml(c.website)}</a></div>` : ''}
+      ${c.address && c.id != null ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/pin.png" alt="pin"><a href="javascript:void(0)" onclick="focusUtilityCompanyAddress('${escapeHtml(String(c.id))}')">${escapeHtml(c.address)}</a></div>` : c.address ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/pin.png" alt="pin"><span>${escapeHtml(c.address)}</span></div>` : ''}
+      ${c.notes ? `<div class="contact-card-row contact-card-notes"><span>${escapeHtml(c.notes)}</span></div>` : ''}
       ${otherFlagBtn ? `<div class="contact-card-row contact-card-other-flag-row">${otherFlagBtn}</div>` : ''}
       ${c.id != null ? `<div class="flag-report-form" id="contact-other-flag-form-${companyIdAttr}" style="display:none">
         <textarea id="contact-other-flag-reason-${companyIdAttr}" placeholder="${t('contactFlagOtherPH')}"></textarea>
