@@ -413,8 +413,13 @@ function normalizeNameForMatch(name){
 // "Subotica". Without stripping these, name-matching sees them as different municipalities
 // and the "new municipalities to import" check reports false positives.
 const MUNI_NAME_PREFIX_RE = /^(grad|opstina|opština|city of|municipality of|town of)\s+/i;
+// OSM's English name:en tags for Serbian admin boundaries also add a trailing suffix
+// instead of (or in addition to) a prefix — e.g. "Ada Municipality", "Barajevo Urban
+// Municipality" — while our on-file name is just "Ada"/"Barajevo". Strip the longer
+// phrase first so "Urban Municipality" is removed as one unit, not leaving "Urban" behind.
+const MUNI_NAME_SUFFIX_RE = /\s+(urban municipality|municipality|city)$/i;
 function stripMuniNamePrefix(s){
-  return String(s).replace(MUNI_NAME_PREFIX_RE, '').trim();
+  return String(s).replace(MUNI_NAME_PREFIX_RE, '').replace(MUNI_NAME_SUFFIX_RE, '').trim();
 }
 function cleanMuniDisplayName(raw){
   if(!raw) return '';
@@ -868,6 +873,29 @@ async function applyMuniUpdate(code, index, opts){
       refreshMapStyles();
     }
   }catch(err){
+    // A duplicate-key error here means another row already owns this exact OSM relation —
+    // almost always because an earlier import created a second row for a place that was
+    // already on file (the suffix/prefix name-matching bug let it slip through). Rather than
+    // just failing, still apply the safe parts of the patch (name/name_en/coords) and tell
+    // the admin plainly that there are two rows for the same place needing a manual merge.
+    const isDupe = err.code === '23505' || /duplicate key value violates unique constraint/i.test(err.message || '');
+    if(isDupe && patch.osm_id != null){
+      const { osm_id, osm_type, admin_level, ...safePatch } = patch;
+      try{
+        const { data, error: err2 } = await sb.from(MUNICIPALITIES_TABLE).update(safePatch).eq('id', muni.id).select().single();
+        if(err2) throw err2;
+        const idx = municipalityCache.findIndex(m => m.id === muni.id);
+        if(idx >= 0) municipalityCache[idx] = data;
+        state.updates.splice(index, 1);
+        const dupe = municipalityCache.find(m => m.osm_type === osm_type && String(m.osm_id) === String(osm_id));
+        const msg = `Updated the name for "${data.name_en || data.name}", but couldn't link its OSM ID — ${dupe ? `another row ("${dupe.name_en || dupe.name}", id ${dupe.id})` : 'another row'} already uses ${osm_type}/${osm_id}. These look like two rows for the same place — worth merging manually (move any contacts to one, delete the other).`;
+        if(!opts || !opts.skipRender){ toast(msg, 'error'); renderCountryPanel(); refreshMapStyles(); }
+        return;
+      }catch(err2){
+        if(!opts || !opts.skipRender) toast('Update failed: ' + err2.message, 'error');
+        throw err2;
+      }
+    }
     if(!opts || !opts.skipRender) toast('Update failed: ' + err.message, 'error');
     throw err;
   }
