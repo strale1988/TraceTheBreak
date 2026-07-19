@@ -454,7 +454,10 @@ async function loadCountries(){
   const { data, error } = await sb.from(COUNTRIES_TABLE).select('*').order('name');
   if(error){ toast('Failed to load countries: ' + error.message, 'error'); return; }
   countriesByCode = {};
-  (data || []).forEach(c => countriesByCode[c.code] = c);
+  // Key by uppercase code — municipalities are already matched case-insensitively
+  // (see municipalitiesForCountry), so a countries row stored as e.g. "rs" instead of
+  // "RS" shouldn't make us think the country is missing when it isn't.
+  (data || []).forEach(c => countriesByCode[(c.code || '').toUpperCase()] = c);
 }
 async function loadMunicipalities(){
   const { data, error } = await sb.from(MUNICIPALITIES_TABLE).select('*').order('name');
@@ -794,6 +797,9 @@ function renderDiscoverBox(){
 
   if(state.updates.length){
     html += `<h3 class="subTitle">Suggested updates (${state.updates.length})</h3>`;
+    if(state.updates.length > 1){
+      html += `<button class="btn small" style="margin-bottom:8px;" onclick="applyAllMuniUpdates('${code}')">Apply all ${state.updates.length}</button>`;
+    }
     state.updates.forEach((u, i) => {
       html += `<div class="muniRow" style="flex-direction:column;align-items:stretch;">
           <div class="name">${escapeHtml(u.muni.name_en || u.muni.name)}</div>
@@ -819,7 +825,26 @@ function renderDiscoverBox(){
 
   box.innerHTML = html;
 }
-async function applyMuniUpdate(code, index){
+async function applyAllMuniUpdates(code){
+  const state = discoverState[code];
+  if(!state || !state.updates || !state.updates.length) return;
+  const total = state.updates.length;
+  let ok = 0;
+  // Apply oldest-index-first, always re-reading state.updates[0] since applyMuniUpdate
+  // splices the array on success — this keeps indices valid without re-rendering per item.
+  while(state.updates.length){
+    try{
+      await applyMuniUpdate(code, 0, { skipRender: true });
+      ok++;
+    }catch(err){
+      break; // stop on first failure, applyMuniUpdate already toasted the reason
+    }
+  }
+  toast(`Applied ${ok} of ${total} updates.`, ok === total ? 'success' : 'error');
+  renderCountryPanel();
+  refreshMapStyles();
+}
+async function applyMuniUpdate(code, index, opts){
   const state = discoverState[code];
   if(!state || !state.updates || !state.updates[index]) return;
   const { muni, match } = state.updates[index];
@@ -836,12 +861,15 @@ async function applyMuniUpdate(code, index){
     if(error) throw error;
     const idx = municipalityCache.findIndex(m => m.id === muni.id);
     if(idx >= 0) municipalityCache[idx] = data;
-    toast('Updated ' + (data.name_en || data.name), 'success');
     state.updates.splice(index, 1);
-    renderCountryPanel();
-    refreshMapStyles();
+    if(!opts || !opts.skipRender){
+      toast('Updated ' + (data.name_en || data.name), 'success');
+      renderCountryPanel();
+      refreshMapStyles();
+    }
   }catch(err){
-    toast('Update failed: ' + err.message, 'error');
+    if(!opts || !opts.skipRender) toast('Update failed: ' + err.message, 'error');
+    throw err;
   }
 }
 async function importDiscoveredMunicipalities(code){
