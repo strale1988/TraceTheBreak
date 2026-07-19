@@ -8988,7 +8988,7 @@ function scheduleViewportReloadIfNeeded() {
     if (typeof lastLoadedBBox === 'undefined' || typeof currentViewportBBox !== 'function') return;
     const b = map.getBounds();
     const visible = { minLat: b.getSouthWest().lat, maxLat: b.getNorthEast().lat, minLon: b.getSouthWest().lng, maxLon: b.getNorthEast().lng };
-    if (!bboxContains(lastLoadedBBox, visible)) loadPinsByWindow();
+    if (!viewportBBoxContains(lastLoadedBBox, visible)) loadPinsByWindow();
   }, VIEWPORT_RELOAD_DEBOUNCE_MS);
 }
 map.on('moveend', scheduleViewportReloadIfNeeded);
@@ -14027,7 +14027,7 @@ function currentViewportBBox() {
   };
 }
 
-function bboxContains(outer, inner) {
+function viewportBBoxContains(outer, inner) {
   return !!outer && !!inner &&
     inner.minLat >= outer.minLat && inner.maxLat <= outer.maxLat &&
     inner.minLon >= outer.minLon && inner.maxLon <= outer.maxLon;
