@@ -993,8 +993,6 @@ body.nav-panel-open .driving-nav-card{
   display:flex;
   flex-direction:column;
   align-items:center;
-  justify-content:center;
-  gap:18px;
   background:var(--bg-surface);
   opacity:1;
   transition:opacity .25s ease;
@@ -1005,31 +1003,40 @@ body.nav-panel-open .driving-nav-card{
 }
 .map-loading-spinner-wrap{
   position:relative;
-  width:96px; height:96px;
+  flex:1;
+  width:100%;
   display:flex; align-items:center; justify-content:center;
 }
 .map-loading-logo{
+  position:relative;
+  z-index:1;
   width:86px; height:86px;
   object-fit:contain;
   border-radius:24px;
-  animation:map-loading-logo-pulse 1.8s ease-in-out infinite;
 }
-@keyframes map-loading-logo-pulse{ 0%,100%{ opacity:1; } 50%{ opacity:.45; } }
-.map-loading-spinner{
+.map-loading-halo{
   position:absolute;
-  inset:0;
+  top:50%; left:50%;
+  width:86px; height:86px;
   border-radius:50%;
-  border:4px solid var(--border-color-strong);
-  border-top-color:var(--accent);
-  animation:map-loading-spin .8s linear infinite;
+  background:var(--accent);
+  animation:map-loading-halo-pulse 1.8s ease-out infinite;
+  pointer-events:none;
+}
+.map-loading-halo-2{ animation-delay:.9s; }
+@keyframes map-loading-halo-pulse{
+  0%{ transform:translate(-50%,-50%) scale(.7); opacity:.45; }
+  70%{ transform:translate(-50%,-50%) scale(1.55); opacity:0; }
+  100%{ opacity:0; }
 }
 .map-loading-text{
+  flex:0 0 auto;
+  padding-bottom:calc(env(safe-area-inset-bottom, 0px) + 36px);
   color:var(--text-primary);
   font-size:var(--fs-13);
   font-weight:var(--fw-semibold);
   opacity:.75;
 }
-@keyframes map-loading-spin{ to{ transform:rotate(360deg); } }
 
 #toastContainer{
   position:fixed;
@@ -2586,8 +2593,9 @@ span.flatpickr-weekday {
 <div id="map"></div>
 <div id="mapLoadingOverlay">
   <div class="map-loading-spinner-wrap">
+    <span class="map-loading-halo"></span>
+    <span class="map-loading-halo map-loading-halo-2"></span>
     <img src="./icons/TraceTheBreak.png" alt="TraceTheBreak" class="map-loading-logo">
-    <div class="map-loading-spinner"></div>
   </div>
   <div class="map-loading-text" id="mapLoadingText"></div>
 </div>
@@ -2856,6 +2864,10 @@ span.flatpickr-weekday {
   <div class="generic-modal" id="contactConfirmModalInner"></div>
 </div>
 
+<div id="postReportContactModal" class="generic-modal-overlay" style="display:none">
+  <div class="generic-modal" id="postReportContactModalInner"></div>
+</div>
+
 <div id="nearbyCheckinModal" class="generic-modal-overlay" style="display:none">
   <div class="generic-modal" id="nearbyCheckinModalInner"></div>
 </div>
@@ -2874,9 +2886,19 @@ span.flatpickr-weekday {
 
     <div class="detail-section" id="helpSettingsSection">
       <div class="detail-section-title" id="helpSectionTitle">Help</div>
-      <button type="button" class="settings-btn" onclick="showHelpModal()" id="settingsHelpBtn">
+      <button type="button" class="settings-btn" style="width:100%;" onclick="showHelpModal()" id="settingsHelpBtn">
         <img class="icon-img icon-img-inline icon-tint-dark" src="icons/help.png" alt=""> How to use TraceTheBreak
       </button>
+    </div>
+
+    <div class="detail-section" id="languageSettingsSection">
+      <div class="detail-section-title" id="languageSectionTitle">Language</div>
+      <div class="theme-segment" id="langSegment">
+        <button type="button" class="theme-segment-btn lang-btn" onclick="setLang('en')" id="langBtnEn">🇬🇧 EN</button>
+        <button type="button" class="theme-segment-btn lang-btn active" onclick="setLang('sr')" id="langBtnSr">🇷🇸 SR</button>
+        <button type="button" class="theme-segment-btn lang-btn" onclick="setLang('auto')" id="langBtnAuto"><img class="icon-img icon-img-inline" src="icons/pin.png" alt=""> <span id="langBtnAutoLabel">Auto</span></button>
+      </div>
+      <p class="detail-export-hint" id="langAutoHint">We'll set the language based on your location.</p>
     </div>
 
     <div class="detail-section" id="themeSettingsSection">
@@ -2894,16 +2916,6 @@ span.flatpickr-weekday {
       <div class="detail-section-title" id="iconPackSectionTitle">Icon pack</div>
       <div class="theme-segment" id="iconPackSegment"></div>
       <p class="detail-export-hint" id="iconPackHint">Changes how map pins and icons look. The app will reload after switching.</p>
-    </div>
-
-    <div class="detail-section" id="languageSettingsSection">
-      <div class="detail-section-title" id="languageSectionTitle">Language</div>
-      <div class="theme-segment" id="langSegment">
-        <button type="button" class="theme-segment-btn lang-btn" onclick="setLang('en')" id="langBtnEn">🇬🇧 EN</button>
-        <button type="button" class="theme-segment-btn lang-btn active" onclick="setLang('sr')" id="langBtnSr">🇷🇸 SR</button>
-        <button type="button" class="theme-segment-btn lang-btn" onclick="setLang('auto')" id="langBtnAuto"><img class="icon-img icon-img-inline" src="icons/pin.png" alt=""> <span id="langBtnAutoLabel">Auto</span></button>
-      </div>
-      <p class="detail-export-hint" id="langAutoHint">We'll set the language based on your location.</p>
     </div>
 
     <div class="detail-section" id="mapFilterSettingsSection">
@@ -3312,7 +3324,6 @@ span.flatpickr-weekday {
         <button type="button" class="uc-verify-btn" onclick="verifyUtilityCompany()" id="ucVerifyBtn">Admin has checked the data</button>
       </div>
 
-      <input type="text" id="adminSearchInput" oninput="onAdminSearchInput()" placeholder="Search reports…" style="width:100%;box-sizing:border-box;margin-bottom:10px;margin-top:18px;">
     </div>
   </div>
 </div>
@@ -5406,6 +5417,11 @@ const T = {
   contactConfirmYesBtn:   { en:'Yes, I did',                                   sr:'Da, jesam' },
   contactConfirmNoBtn:    { en:'No',                                          sr:'Ne' },
   contactConfirmThanks:   { en:'Thanks — recorded.',                          sr:'Hvala — zabeleženo.' },
+  postReportContactPrompt: { en:'Report submitted. Would you like to notify the responsible service now?', sr:'Prijava je poslata. Da li želite odmah da obavestite nadležnu službu?' },
+  postReportContactTitle:  { en:'Notify the responsible service',             sr:'Obavestite nadležnu službu' },
+  postReportContactCloseBtn: { en:'Close',                                    sr:'Zatvori' },
+  postReportContactYesBtn: { en:'Show contacts',                              sr:'Prikaži kontakte' },
+  postReportContactNoBtn:  { en:'Not now',                                    sr:'Ne sada' },
 
   nearbyCheckinSectionTitle: { en:'Nearby issue check-ins',                   sr:'Provera obližnjih prijava' },
   nearbyCheckinSectionHint:  { en:'When you pass close to an open report, we can ask if it\'s still there.', sr:'Kada prođete blizu otvorene prijave, možemo vas pitati da li je problem i dalje prisutan.' },
@@ -5876,8 +5892,6 @@ function applyLang(){
     populateUcCatChecks();
     applyUcFormTranslations();
     renderUcList();
-    const adminSearchEl = document.getElementById('adminSearchInput');
-    if (adminSearchEl) adminSearchEl.placeholder = t('adminSearchPH');
     renderWaitingList();
   }
 
@@ -6024,8 +6038,6 @@ function showAdminPanelModal() {
   cancelUcForm();
   loadUtilityCompaniesAdmin();
   resetAdminSearch();
-  const adminSearchEl = document.getElementById('adminSearchInput');
-  if (adminSearchEl) adminSearchEl.placeholder = t('adminSearchPH');
   openOverlay('adminPanelModal', hideAdminPanelModal);
 }
 function hideAdminPanelModal() {
@@ -9690,10 +9702,12 @@ function reportFabTap() {
   if (!isAdmin && !isMobileDevice()) { toast(t('mobileOnlyReport'), 'error'); return; }
   if (vpnCheckResult && vpnCheckResult.isVpn) { toast(t('vpnBlockedReport'), 'error'); return; }
 
-  if (isAdmin && (!userCoords || !isValidCoordObj(userCoords))) {
-    // Admins don't need to be anywhere near a working GPS fix to add a pin for their
-    // municipality/country (or anywhere, for global admins) — they just need to tap the map.
-    // Enter pin-drop mode and wait for that tap instead of requiring userCoords up front.
+  if (isAdmin) {
+    // Admins always choose the report location by tapping the map, rather than it
+    // silently defaulting to their live GPS position — previously that default was set
+    // the instant the wizard opened, and since the wizard is a fullscreen overlay that
+    // covers the map, there was no way left to tap the map and override it afterwards.
+    // Requiring the tap up front means the manually-placed pin always wins.
     if (!pinMode) {
       pinMode = true;
       document.getElementById('pinMapBtn').classList.add('active');
@@ -9704,7 +9718,7 @@ function reportFabTap() {
     return;
   }
   if (!userCoords || !isValidCoordObj(userCoords)) { toast(t('waitGps'), 'error'); return; }
-  if (!isAdmin && !hasReliableGps()) { toast(t('gpsTooWeak'), 'error'); return; }
+  if (!hasReliableGps()) { toast(t('gpsTooWeak'), 'error'); return; }
 
   if (!pinMode) {
     pinMode = true;
@@ -10209,6 +10223,10 @@ async function reportBreak(){
     toast('✓ ' + t('submitted'), 'success');
     resetReportingForm();
     await loadPinsByWindow();
+
+    if (data && data.id) {
+      offerContactFollowUp(data.id, { id: data.id, latitude: lat, longitude: lon, category, municipality_id: null });
+    }
   } catch (err) {
     console.error('Report submit error (full):', err);
     toast(describeAuthError(err), 'error');
@@ -10816,28 +10834,22 @@ async function showMunicipalityContactsModal() {
   openOverlay('municipalityContactsModal', hideMunicipalityContactsModal);
 
   try {
-    let companies = [];
-    let showingUnverified = false;
-
-    const primary = await sb.from(UTILITY_COMPANIES_TABLE)
+    // Fetch every contact registered for this municipality in one pass, verified or
+    // not — verified first. Previously this checked "does this municipality have *any*
+    // verified contacts at all" and only fell back to unverified ones when that came up
+    // completely empty. That meant an unverified contact for one category (e.g. Sewage)
+    // could get silently hidden here just because a *different* category (e.g. Water)
+    // already had a verified contact — even though the map pin popup, which filters
+    // per-category, would correctly fall back and show it. Fetching everything up front
+    // avoids that mismatch.
+    const { data, error } = await sb.from(UTILITY_COMPANIES_TABLE)
       .select('*')
       .eq('municipality_id', muni.id)
-      .eq('verified', true)
+      .order('verified', { ascending: false })
       .order('name');
-    if (!primary.error && primary.data && primary.data.length) {
-      companies = primary.data;
-    } else {
-      if (primary.error) console.error('Verified-contacts query failed, trying unfiltered fallback:', primary.error.message);
-      const fallback = await sb.from(UTILITY_COMPANIES_TABLE)
-        .select('*')
-        .eq('municipality_id', muni.id)
-        .order('name');
-      if (fallback.error) throw fallback.error;
-      if (fallback.data && fallback.data.length) {
-        companies = fallback.data;
-        showingUnverified = true;
-      }
-    }
+    if (error) throw error;
+    const companies = data || [];
+    const showingUnverified = companies.some(c => !c.verified);
 
     bodyEl.innerHTML = companies.length
       ? `<p class="detail-export-hint">${t('municipalityContactsHint')}</p>` +
@@ -12468,6 +12480,69 @@ async function confirmContactAttempt(confirmed) {
   } catch (err) {
     console.error('Failed to log contact attempt:', err.message);
   }
+}
+
+// ---- Post-submit "contact the authorities?" follow-up ----------------------------
+// Fired right after a report is successfully created (normal reporting form only —
+// not the driving-mode quick-tap/section reports, where a modal would be a distraction).
+// Asks a lightweight yes/no question, then — if yes — resolves the municipality/utility
+// contacts for that report the same way the report detail view does, and shows them so
+// the person can call or email right away while they're still on-site.
+async function offerContactFollowUp(reportId, report) {
+  if (!reportId || !report) return;
+  let wantsToContact;
+  try {
+    wantsToContact = await themedConfirm(t('postReportContactPrompt'), {
+      okLabel: t('postReportContactYesBtn'),
+      cancelLabel: t('postReportContactNoBtn')
+    });
+  } catch (err) {
+    return;
+  }
+  if (!wantsToContact) return;
+  showPostReportContactModal(reportId, report);
+}
+
+function renderPostReportContactLoading() {
+  const inner = document.getElementById('postReportContactModalInner');
+  if (!inner) return;
+  inner.innerHTML = `
+    <h2>${t('postReportContactTitle')}</h2>
+    <div class="detail-loading">${t('detailLoading')}</div>
+  `;
+}
+
+async function showPostReportContactModal(reportId, report) {
+  const modal = document.getElementById('postReportContactModal');
+  if (!modal) return;
+  renderPostReportContactLoading();
+  bringModalToFront(modal);
+  modal.style.display = 'flex';
+  openOverlay('postReportContactModal', hidePostReportContactModal);
+
+  let contacts = [];
+  try {
+    const muni = await resolveReportMunicipality(report);
+    contacts = (muni && muni.id != null)
+      ? await getReportContacts(report, muni)
+      : await getReportContactsByProximity(report);
+  } catch (err) {
+    console.error('Failed to load contacts for post-report follow-up:', err.message);
+  }
+
+  const inner = document.getElementById('postReportContactModalInner');
+  if (!inner || modal.style.display === 'none') return;
+  inner.innerHTML = `
+    <h2>${t('postReportContactTitle')}</h2>
+    ${contacts.length ? renderContactCards(contacts, reportId) : `<div class="detail-empty">${t('detailNoContacts')}</div>`}
+    <button type="button" class="generic-modal-close" onclick="hidePostReportContactModal()">${t('postReportContactCloseBtn')}</button>
+  `;
+}
+
+function hidePostReportContactModal() {
+  const modal = document.getElementById('postReportContactModal');
+  if (modal) modal.style.display = 'none';
+  closeOverlay('postReportContactModal');
 }
 
 async function getReportContactCounts(reportId) {
