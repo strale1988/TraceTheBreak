@@ -144,9 +144,14 @@ h3.subTitle{font-size:var(--fs-13);margin:16px 0 6px;color:var(--text-secondary)
 
 <div id="layout">
   <div id="leftPane">
+    <div id="countryPickerRow" style="padding:8px 10px;border-bottom:1px solid var(--border-color);background:var(--bg-surface);">
+      <select id="countryPicker" style="width:100%;padding:6px 8px;border:1px solid var(--border-color-strong);border-radius:6px;background:var(--bg-surface);color:var(--text-primary);">
+        <option value="">Select a country… (works even if the map doesn't)</option>
+      </select>
+    </div>
     <div id="worldMap"></div>
     <div id="sidePanel">
-      <div id="countryEmpty" class="emptyState">Click a country on the map to see its municipalities and public-service contact coverage.</div>
+      <div id="countryEmpty" class="emptyState">Click a country on the map (or use the dropdown above) to see its municipalities and public-service contact coverage.</div>
       <div id="countryPanel" class="hidden"></div>
     </div>
   </div>
@@ -503,29 +508,60 @@ async function initMap(){
       lastErr = new Error('HTTP ' + res.status + ' from ' + url);
     }catch(e){ lastErr = e; /* try next mirror */ }
   }
-  if(!geojson){
-    console.error('World boundaries failed to load — country clicks will do nothing until this is fixed.', lastErr);
-    toast('Could not load world boundaries — country clicks won\'t work. Check your connection or console.', 'error');
+
+  if(!geojson || !Array.isArray(geojson.features)){
+    console.error('World boundaries failed to load — falling back to the country dropdown only.', lastErr);
+    toast('Could not load the world map — use the country dropdown instead.', 'error');
+    populateCountryPicker(Object.values(countriesByCode).map(c => ({ code: c.code, name: c.name })));
     return;
   }
 
-  worldLayer = L.geoJSON(geojson, {
-    style: feature => styleForCountry(feature),
-    onEachFeature: (feature, layer) => {
-      layer.on('click', () => {
-        try{
-          selectCountry(feature.properties.ISO_A2, feature.properties.ADMIN || feature.properties.name);
-        }catch(err){
-          console.error('Failed to open country panel:', err);
-          toast('Could not open that country: ' + err.message, 'error');
-        }
-      });
-      layer.on('mouseover', () => layer.setStyle({ fillOpacity: 0.75 }));
-      layer.on('mouseout', () => worldLayer.resetStyle(layer));
-      layer.bindTooltip(feature.properties.ADMIN || feature.properties.name || '', { sticky:true });
-    }
-  }).addTo(map);
+  // Populate the dropdown from the same data the map uses, regardless of whether the
+  // Leaflet layer itself renders/clicks correctly — this is the guaranteed-to-work path.
+  const countryList = geojson.features
+    .map(f => ({ code: (f.properties.ISO_A2 || '').toUpperCase(), name: f.properties.ADMIN || f.properties.name || f.properties.ISO_A2 }))
+    .filter(c => c.code && c.code !== '-99');
+  populateCountryPicker(countryList);
+
+  try{
+    worldLayer = L.geoJSON(geojson, {
+      style: feature => styleForCountry(feature),
+      onEachFeature: (feature, layer) => {
+        layer.on('click', () => {
+          try{
+            selectCountry(feature.properties.ISO_A2, feature.properties.ADMIN || feature.properties.name);
+          }catch(err){
+            console.error('Failed to open country panel:', err);
+            toast('Could not open that country: ' + err.message, 'error');
+          }
+        });
+        layer.on('mouseover', () => layer.setStyle({ fillOpacity: 0.75 }));
+        layer.on('mouseout', () => worldLayer.resetStyle(layer));
+        layer.bindTooltip(feature.properties.ADMIN || feature.properties.name || '', { sticky:true });
+      }
+    }).addTo(map);
+  }catch(err){
+    console.error('Failed to render the world boundaries layer — the dropdown above still works.', err);
+    toast('Map boundaries failed to render — use the country dropdown instead.', 'error');
+  }
 }
+function populateCountryPicker(list){
+  const sel = document.getElementById('countryPicker');
+  if(!sel) return;
+  const sorted = [...list].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  sel.innerHTML = '<option value="">Select a country…</option>' +
+    sorted.map(c => `<option value="${escapeHtml(c.code)}" data-name="${escapeHtml(c.name)}">${escapeHtml(c.name)} (${escapeHtml(c.code)})</option>`).join('');
+}
+document.getElementById('countryPicker').addEventListener('change', (e) => {
+  const opt = e.target.selectedOptions[0];
+  if(!opt || !opt.value) return;
+  try{
+    selectCountry(opt.value, opt.dataset.name || opt.textContent);
+  }catch(err){
+    console.error('Failed to open country panel from dropdown:', err);
+    toast('Could not open that country: ' + err.message, 'error');
+  }
+});
 function styleForCountry(feature){
   const code = (feature.properties.ISO_A2 || '').toUpperCase();
   const stats = countryCoverageStats(code);
