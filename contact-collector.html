@@ -402,6 +402,19 @@ function normalizeAddress(raw){
   s = s.replace(/\s*,\s*/g, ', ').replace(/,\s*$/, '');
   return s;
 }
+// Country names commonly appear in "long form" (map/geojson) vs "short form" (how an
+// admin typed it into the DB) — e.g. "Republic of Serbia" vs "Serbia", "Kingdom of
+// Spain" vs "Spain". Strip the common political-form prefixes before comparing so we
+// don't miss an existing row just because of this, and don't confuse it with the
+// municipality-specific normalizer above (different vocabulary, different risk of
+// false positives).
+const COUNTRY_NAME_PREFIX_RE = /^(the\s+)?(federal\s+|democratic\s+|islamic\s+|people'?s\s+|united\s+)*(republic|kingdom|state|principality|sultanate|commonwealth|grand duchy|federation|emirate)s?\s+of\s+/i;
+function normalizeCountryNameForMatch(s){
+  if(!s) return '';
+  let n = cyrillicToLatin(String(s)).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  n = n.replace(COUNTRY_NAME_PREFIX_RE, '').replace(/^the\s+/, '');
+  return n.replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+}
 function normalizeNameForMatch(name){
   if(!name) return '';
   let s = cyrillicToLatin(String(name)).toLowerCase();
@@ -623,7 +636,7 @@ function renderCountryPanel(){
   // that means the country IS in the database, just under a different/mistyped code, and we
   // should offer to fix that one row rather than insert a duplicate (which RLS also blocks).
   const nameMatch = !country
-    ? allCountries.find(c => normalizeMuniNameForMatch(c.name) === normalizeMuniNameForMatch(selectedCountryName || ''))
+    ? allCountries.find(c => normalizeCountryNameForMatch(c.name) === normalizeCountryNameForMatch(selectedCountryName || ''))
     : null;
   const munis = municipalitiesForCountry(selectedCountryCode).sort((a,b) => (a.name||'').localeCompare(b.name||''));
 
