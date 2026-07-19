@@ -2939,21 +2939,8 @@ span.flatpickr-weekday {
 
     <div class="detail-section" id="offlineMapSettingsSection">
       <div class="detail-section-title" id="offlineMapSectionTitle">Offline maps</div>
-      <p class="detail-export-hint" id="offlineMapHint">Download map tiles around a spot so they still load without signal.</p>
-      <div class="theme-segment" id="offlineMapRadiusSegment">
-        <button type="button" class="theme-segment-btn" onclick="setOfflineMapRadius(5)" id="offlineMapRadiusBtn5">5 km</button>
-        <button type="button" class="theme-segment-btn" onclick="setOfflineMapRadius(15)" id="offlineMapRadiusBtn15">15 km</button>
-        <button type="button" class="theme-segment-btn" onclick="setOfflineMapRadius(30)" id="offlineMapRadiusBtn30">30 km</button>
-      </div>
-      <button type="button" class="settings-btn" onclick="startOfflineMapDownload()" id="offlineMapDownloadBtn">
-        <img class="icon-img icon-img-inline icon-tint-dark" src="icons/pin.png" alt=""> <span id="offlineMapDownloadBtnLabel">Download map around here</span>
-      </button>
-      <div id="offlineMapProgressWrap" style="display:none;margin-top:10px;">
-        <div class="profile-progress-track"><div class="profile-progress-fill" id="offlineMapProgressFill" style="width:0%;"></div></div>
-        <div class="dashboard-progress-text" id="offlineMapProgressText"></div>
-        <button type="button" class="settings-btn" onclick="cancelOfflineMapDownload()" id="offlineMapCancelBtn" style="margin-top:8px;background:transparent;"></button>
-      </div>
-      <label class="settings-toggle-row" id="offlineAutoCacheToggleRow" style="margin-top:14px;">
+      <p class="detail-export-hint" id="offlineMapHint">Your map is cached automatically as you browse, so it still loads without signal.</p>
+      <label class="settings-toggle-row" id="offlineAutoCacheToggleRow">
         <span id="offlineAutoCacheToggleLabel">Auto-cache map around areas you view</span>
         <span class="toggle-switch">
           <input type="checkbox" id="offlineAutoCacheToggleInput" checked onchange="setOfflineAutoCacheEnabled(this.checked)">
@@ -5211,12 +5198,8 @@ const T = {
   navBtnToggleLabel:      { en:'Show driving / navigation button on map', sr:'Prikaži dugme za vožnju / navigaciju na mapi' },
   heatmapBtnToggleLabel:  { en:'Show heatmap button on map',              sr:'Prikaži dugme za toplotnu mapu' },
   offlineMapSectionTitle: { en:'Offline maps',                     sr:'Mape van mreže' },
-  offlineMapHint:         { en:"Download map tiles around a spot so they still load without signal.", sr:'Preuzmite delove mape oko lokacije da bi radila i bez signala.' },
-  offlineMapDownloadBtnLabel: { en:'Download map around here',     sr:'Preuzmi mapu za ovo područje' },
-  offlineMapCancelBtn:    { en:'Cancel download',                  sr:'Otkaži preuzimanje' },
-  offlineMapCancelled:    { en:'Download cancelled',                sr:'Preuzimanje otkazano' },
-  offlineMapDone:         { en:'Offline map ready for this area',   sr:'Mapa za ovo područje je spremna van mreže' },
-  offlineMapTooLarge:     { en:'That area is too large — try a smaller radius or zoom in first.', sr:'To područje je preveliko — probajte manji radijus ili prvo uvećajte mapu.' },
+  offlineMapHint:         { en:"Your map is cached automatically as you browse, so it still loads without signal.", sr:'Vaša mapa se automatski kešira dok je pregledate, tako da radi i bez signala.' },
+  offlineMapStorageUsed:  { en:'Offline data stored: {mb} MB',      sr:'Sačuvano podataka van mreže: {mb} MB' },
   offlineAutoCacheToggleLabel: { en:'Auto-cache map around areas you view', sr:'Automatski keširaj mapu oko oblasti koje pregledate' },
   offlineAutoCacheHint:   { en:"Quietly extends your offline map outward, in the background, up to roughly a country's worth of coverage.", sr:'U pozadini tiho proširuje vašu mapu van mreže, otprilike do pokrivenosti cele zemlje.' },
   offlineMapStorageUsed:  { en:'Offline data stored: {mb} MB',      sr:'Sačuvano podataka van mreže: {mb} MB' },
@@ -5795,8 +5778,6 @@ function applyLang(){
   if (offlineMapSectionTitleEl) offlineMapSectionTitleEl.textContent = t('offlineMapSectionTitle');
   const offlineMapHintEl = document.getElementById('offlineMapHint');
   if (offlineMapHintEl) offlineMapHintEl.textContent = t('offlineMapHint');
-  const offlineMapDownloadBtnLabelEl = document.getElementById('offlineMapDownloadBtnLabel');
-  if (offlineMapDownloadBtnLabelEl) offlineMapDownloadBtnLabelEl.textContent = t('offlineMapDownloadBtnLabel');
   const offlineAutoCacheToggleLabelEl = document.getElementById('offlineAutoCacheToggleLabel');
   if (offlineAutoCacheToggleLabelEl) offlineAutoCacheToggleLabelEl.textContent = t('offlineAutoCacheToggleLabel');
   const offlineAutoCacheHintEl = document.getElementById('offlineAutoCacheHint');
@@ -6332,13 +6313,21 @@ map.on('zoomstart', () => mapContainerEl.classList.add('map-zooming'));
 map.on('zoomend',   () => mapContainerEl.classList.remove('map-zooming'));
 
 const TILE_CACHE_NAME = 'ttb-osm-tiles-v1';
+// Opened once and reused for every tile lookup — re-opening a Cache Storage bucket on
+// every single tile request (as a naive caches.open() call per tile would) adds a
+// redundant async hop even for cache hits, which is exactly the kind of delay that
+// shows up as a visible blank/background flash when many tiles are needed at once,
+// e.g. zooming out across several levels at once.
+const tileCacheReady = ('caches' in window) ? caches.open(TILE_CACHE_NAME) : Promise.resolve(null);
 
 async function fetchTileCached(url) {
-  const cache = await caches.open(TILE_CACHE_NAME);
-  const cached = await cache.match(url);
-  if (cached) return cached;
+  const cache = await tileCacheReady;
+  if (cache) {
+    const cached = await cache.match(url);
+    if (cached) return cached;
+  }
   const response = await fetch(url);
-  if (response && response.ok) {
+  if (cache && response && response.ok) {
     cache.put(url, response.clone()).catch(() => {});
   }
   return response;
@@ -6372,15 +6361,15 @@ new CachedTileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
   attribution:'© OpenStreetMap',
   maxZoom: 22,
   maxNativeZoom: 19,
-  keepBuffer: 6
+  keepBuffer: 8,
+  updateWhenZooming: false
 }).addTo(map);
 
 // ---- Offline tile pre-caching ----------------------------------------------------
 // Everyday panning already caches whatever tiles pass through the view (see
-// CachedTileLayer above), but that only covers ground you've actually looked at.
-// This adds two ways to get ahead of that: a manual "download this area" action, and
-// a quiet automatic background job that keeps nudging the cached area outward from
-// wherever you already browse, capped at a country-ish radius so it can't run away.
+// CachedTileLayer above), but that only covers ground you've actually looked at. This
+// adds a quiet automatic background job that keeps nudging the cached area outward
+// from wherever you already browse, capped at a country-ish radius so it can't run away.
 const OSM_TILE_SUBDOMAINS = ['a', 'b', 'c'];
 const OFFLINE_PRECACHE_CONCURRENCY = 2; // deliberately gentle — this hits the public OSM tile servers
 const AUTO_CACHE_MAX_RADIUS_KM = 120;   // practical stand-in for "the whole country" without real border lookups
@@ -6418,8 +6407,8 @@ function tileUrl(tile, i) {
 }
 
 async function precacheTiles(tiles, { onProgress, shouldAbort } = {}) {
-  if (!('caches' in window)) return { done: 0, fetched: 0, failed: 0, aborted: false };
-  const cache = await caches.open(TILE_CACHE_NAME);
+  const cache = await tileCacheReady;
+  if (!cache) return { done: 0, fetched: 0, failed: 0, aborted: false };
   let done = 0, fetched = 0, failed = 0, aborted = false;
   let idx = 0;
   async function worker() {
@@ -6441,67 +6430,6 @@ async function precacheTiles(tiles, { onProgress, shouldAbort } = {}) {
   }
   await Promise.all(Array.from({ length: OFFLINE_PRECACHE_CONCURRENCY }, worker));
   return { done, fetched, failed, aborted };
-}
-
-// -- Manual "download this area" ---------------------------------------------------
-let offlineMapRadiusKm = 15;
-let offlineDownloadAbort = false;
-let offlineDownloadInFlight = false;
-
-function setOfflineMapRadius(km) {
-  offlineMapRadiusKm = km;
-  ['5', '15', '30'].forEach(k => {
-    const btn = document.getElementById('offlineMapRadiusBtn' + k);
-    if (btn) btn.classList.toggle('active', Number(k) === km);
-  });
-}
-
-async function startOfflineMapDownload() {
-  if (offlineDownloadInFlight) return;
-  const center = userCoords || { lat: map.getCenter().lat, lon: map.getCenter().lng };
-  const bbox = bboxAroundKm(center.lat, center.lon, offlineMapRadiusKm);
-  const z = Math.round(map.getZoom());
-  const minZ = Math.max(5, z - 2);
-  const maxZ = Math.min(17, z + 2);
-  const tiles = tilesForBBoxZoomRange(bbox, minZ, maxZ);
-
-  if (tiles.length > 15000) {
-    toast(t('offlineMapTooLarge') || 'That area is too large — try a smaller radius or zoom in first.', 'error');
-    return;
-  }
-
-  offlineDownloadInFlight = true;
-  offlineDownloadAbort = false;
-  const wrap = document.getElementById('offlineMapProgressWrap');
-  const fill = document.getElementById('offlineMapProgressFill');
-  const text = document.getElementById('offlineMapProgressText');
-  const dlBtn = document.getElementById('offlineMapDownloadBtn');
-  const cancelBtn = document.getElementById('offlineMapCancelBtn');
-  if (wrap) wrap.style.display = 'block';
-  if (dlBtn) dlBtn.disabled = true;
-  if (cancelBtn) cancelBtn.textContent = t('offlineMapCancelBtn') || 'Cancel download';
-
-  const result = await precacheTiles(tiles, {
-    onProgress: (done, total) => {
-      if (fill) fill.style.width = Math.round((done / total) * 100) + '%';
-      if (text) text.textContent = `${done} / ${total}`;
-    },
-    shouldAbort: () => offlineDownloadAbort
-  });
-
-  offlineDownloadInFlight = false;
-  if (dlBtn) dlBtn.disabled = false;
-  if (wrap) wrap.style.display = 'none';
-  updateOfflineMapStorageText();
-
-  if (result.aborted) {
-    toast(t('offlineMapCancelled') || 'Download cancelled', 'error');
-  } else {
-    toast('✓ ' + (t('offlineMapDone') || 'Offline map ready for this area'), 'success');
-  }
-}
-function cancelOfflineMapDownload() {
-  offlineDownloadAbort = true;
 }
 
 // -- Automatic background expansion ------------------------------------------------
@@ -6593,7 +6521,6 @@ async function updateOfflineMapStorageText() {
 }
 
 function initOfflineMapSettingsUi() {
-  setOfflineMapRadius(offlineMapRadiusKm);
   const input = document.getElementById('offlineAutoCacheToggleInput');
   if (input) input.checked = isAutoCacheEnabled();
   updateOfflineMapStorageText();
