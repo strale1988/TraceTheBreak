@@ -1191,18 +1191,6 @@ body.driving-active .driving-speed-widget{ display:flex; }
 .driving-speed-limit.no-data{ opacity:.3; }
 .driving-speed-value{ font-size:var(--fs-32); font-weight:var(--fw-heavy); color:var(--text-primary); line-height:1; }
 .driving-speed-unit{ font-size:var(--fs-12); font-weight:var(--fw-bold); color:var(--text-secondary); letter-spacing:.3px; margin-top:-4px; }
-.driving-status-dot{
-  position:absolute;
-  top:8px;
-  right:8px;
-  width:8px; height:8px; border-radius:50%;
-  background:#5ec98a;
-  border:1px solid rgba(0,0,0,.4);
-  box-shadow:0 0 4px rgba(0,0,0,.6);
-  flex-shrink:0;
-  transition:background .2s;
-}
-.driving-status-dot.gps-lost{ background:#ff4b4b; }
 
 /* Turn-by-turn info now lives inside the bottom sheet (drivingNavCard) and expands the
    sheet itself when a turn is coming up, instead of floating a separate card above the
@@ -2905,7 +2893,6 @@ span.flatpickr-weekday {
 <div class="driving-left-stack">
   <div class="driving-speed-widget">
     <div class="driving-speed-capsule" id="drivingSpeedCapsule">
-      <span class="driving-status-dot" id="drivingStatusLabel" title="GPS status"></span>
       <div class="driving-speed-limit no-data" id="drivingSpeedLimit">--</div>
       <span class="driving-speed-value" id="drivingSpeedValue">--</span>
       <span class="driving-speed-unit">km/h</span>
@@ -7772,6 +7759,23 @@ function pickReportPhotoSource() {
 }
 
 
+// Direct picker: skips the "camera vs gallery" modal when the caller (e.g. two separate
+// inline buttons) already knows which source it wants.
+function pickReportPhotoDirect(source) {
+  return new Promise(resolve => {
+    const inputEl = document.getElementById(source === 'camera' ? 'reportPhotoPickerCamera' : 'reportPhotoPickerLibrary');
+    if (!inputEl) { resolve(null); return; }
+    const onPicked = () => {
+      const file = inputEl.files && inputEl.files[0];
+      inputEl.value = '';
+      inputEl.onchange = null;
+      resolve(file || null);
+    };
+    inputEl.onchange = onPicked;
+    inputEl.click();
+  });
+}
+
 const NavState = Object.freeze({
   IDLE:          'idle',
   SEARCHING:     'searching',
@@ -9177,13 +9181,11 @@ function hasReliableGps() {
 }
 
 function updateDrivingGpsStatus() {
-  const dsl = document.getElementById('drivingStatusLabel');
-  if (!dsl || !drivingMode) return;
-  const stale = !lastAcceptedFix || (Date.now() - lastAcceptedFix.t) > GPS_SIGNAL_LOST_MS;
-  dsl.title = stale ? t('drivingNoGps') : t('drivingGpsLabel');
-  dsl.classList.toggle('gps-lost', stale);
   const capsule = document.getElementById('drivingSpeedCapsule');
-  if (capsule) capsule.classList.toggle('gps-lost', stale);
+  if (!capsule || !drivingMode) return;
+  const stale = !lastAcceptedFix || (Date.now() - lastAcceptedFix.t) > GPS_SIGNAL_LOST_MS;
+  capsule.title = stale ? t('drivingNoGps') : t('drivingGpsLabel');
+  capsule.classList.toggle('gps-lost', stale);
 }
 setInterval(updateDrivingGpsStatus, 2000);
 
@@ -10223,9 +10225,9 @@ async function renderReportGallery(reportId) {
   });
 }
 
-async function addGalleryPhotoToReport(reportId) {
+async function addGalleryPhotoToReport(reportId, source) {
   if (!currentSession) { toast(t('signInFirst') || 'Sign in first', 'error'); return; }
-  const file = await pickReportPhotoSource();
+  const file = source ? await pickReportPhotoDirect(source) : await pickReportPhotoSource();
   if (!file) return;
   let blob;
   try {
@@ -13173,7 +13175,10 @@ async function showReportDetailModal(reportId) {
     <div class="detail-section">
       <div class="detail-section-title">${t('detailGalleryTitle')}</div>
       <div class="detail-gallery-strip" id="detailGalleryStrip"><div class="detail-loading">${t('detailLoading')}</div></div>
-      ${currentSession ? `<button type="button" class="settings-btn" style="margin-top:10px;" onclick="addGalleryPhotoToReport('${report.id}')"><img class="icon-img icon-img-inline" src="icons/camera.png" alt=""> ${t('addGalleryPhotoBtn')}</button>` : ''}
+      ${currentSession ? `<div style="display:flex; gap:10px; margin-top:10px;">
+        <button type="button" class="settings-btn" style="flex:1;" onclick="addGalleryPhotoToReport('${report.id}','camera')"><img class="icon-img icon-img-inline" src="icons/camera.png" alt="">${t('reportPhotoAddBtn')}</button>
+        <button type="button" class="settings-btn" style="flex:1;" onclick="addGalleryPhotoToReport('${report.id}','library')"><img class="icon-img icon-img-inline" src="icons/gallery.png" alt="">${t('reportPhotoGalleryBtn')}</button>
+      </div>` : ''}
     </div>`;
 
   body.innerHTML = `
