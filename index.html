@@ -2721,6 +2721,7 @@ span.flatpickr-weekday {
   </div>
 </header>
 
+<!-- ========== MAP & ON-MAP CONTROLS (follow/pin/driving/heatmap buttons, compass, legend) ========== -->
 <div id="map"></div>
 <div id="mapLoadingOverlay">
   <div class="map-loading-spinner-wrap">
@@ -2874,6 +2875,7 @@ span.flatpickr-weekday {
 </button>
 <div id="drivingTopFade"></div>
 
+<!-- ========== NAVIGATION / DRIVING-MODE UI (route panel, turn-by-turn card, nav action row) ========== -->
 <div id="navigatePanel" class="navigate-panel">
   <div class="navigate-row">
     <input type="text" id="navigateSearchInput" placeholder="Search destination..."
@@ -2960,6 +2962,7 @@ span.flatpickr-weekday {
 <div id="gpsIssuePill"><span class="gps-issue-dot"></span><span id="gpsIssuePillText"></span></div>
 
 
+<!-- ========== MODALS (GPS, help, badges, settings, report detail, admin, analytics, notifications...) ========== -->
 <div id="gpsModal" class="generic-modal-overlay" style="display:none">
   <div class="generic-modal">
     <div class="generic-modal-icon"><img class="icon-img icon-img-modal" src="icons/pin.png" alt="Pin"></div>
@@ -3582,6 +3585,9 @@ if ('serviceWorker' in navigator) {
 </script>
 <script>
 
+// ========================================================================================
+// BOOTSTRAP & CONFIG — header sizing, Supabase client, coordinate/path validation helpers
+// ========================================================================================
 function updateHeaderHeightVar() {
   const header = document.querySelector('header');
   if (header) document.documentElement.style.setProperty('--header-h', header.offsetHeight + 'px');
@@ -3659,6 +3665,9 @@ let currentProfile = null;
 
 let voteProgressByReport = new Map();
 
+// ========================================================================================
+// AUTH — sign in/out (OAuth + OSM), session/profile load, auth UI state
+// ========================================================================================
 function describeAuthError(err) {
   if (!err) return 'Unknown error';
   if (typeof err === 'string') return err;
@@ -3837,6 +3846,9 @@ let onboardingActiveSteps = [];
 let onboardingStepIndex = 0;
 let onboardingResizeHandlerBound = null;
 
+// ========================================================================================
+// ONBOARDING TOUR — first-run walkthrough
+// ========================================================================================
 function hasSeenOnboarding() {
   try { return localStorage.getItem(ONBOARDING_SEEN_KEY) === '1'; } catch (e) { return true; }
 }
@@ -3950,6 +3962,9 @@ const USER_LEVELS = [
   { level:5, threshold:25, weight:3,   nameEn:'Community Hero',        nameSr:'Heroj zajednice' },
 ];
 
+// ========================================================================================
+// GAMIFICATION — user levels & badges (earning, progress, icons)
+// ========================================================================================
 function levelName(lvl) { return lang === 'sr' ? lvl.nameSr : lvl.nameEn; }
 function levelForPoints(points) {
   let current = USER_LEVELS[0];
@@ -4304,6 +4319,9 @@ const ADMIN_LEVELS = [
 ];
 const ADMIN_DEFAULT_LEVEL = 3;
 
+// ========================================================================================
+// GAMIFICATION — admin levels & moderation stats
+// ========================================================================================
 function adminLevelInfo(lvl) { return ADMIN_LEVELS.find(a => a.level === lvl) || null; }
 function adminLevelName(lvl) {
   const info = adminLevelInfo(lvl);
@@ -4699,6 +4717,9 @@ async function toggleBanReportOwner(reportId, ownerId) {
 
 let leaderboardCityMuni = null;
 
+// ========================================================================================
+// LEADERBOARD & NOTIFICATIONS
+// ========================================================================================
 function showLeaderboardModal() {
   document.getElementById('leaderboardModalTitle').innerHTML = '<img class="icon-img icon-img-inline" src="icons/trophy.png" alt=""> ' + t('leaderboardTitle');
   const lbModal = document.getElementById('leaderboardModal');
@@ -4953,6 +4974,9 @@ function stopNotificationInboxAutoRefresh() {
   }
 }
 
+// ========================================================================================
+// USER DASHBOARD — personal stats, weekly chart, my reports, admin dashboard
+// ========================================================================================
 async function resolveLeaderboardCity() {
   if (leaderboardCityMuni) return leaderboardCityMuni;
   if (userCoords) {
@@ -5404,6 +5428,9 @@ async function initAuth() {
   });
 }
 
+// ========================================================================================
+// TRANSLATIONS & STATIC CONFIG DATA — the T{} dictionary and related constant tables
+// ========================================================================================
 function stripAuthHashFromUrl() {
   if (!window.location.hash) return;
   if (!/access_token=|refresh_token=/.test(window.location.hash)) return;
@@ -5938,6 +5965,9 @@ const T = {
   adminDashboardLadderTitle:{ en:'Admin Authority',                   sr:'Administratorska ovlašćenja' },
 };
 
+// ========================================================================================
+// I18N — t()/setLang(), language auto-detection by location
+// ========================================================================================
 function t(k){ return T[k]?.[lang] ?? k; }
 
 const LANG_STORAGE_KEY = 'ttb_lang';
@@ -6060,6 +6090,9 @@ function initLang(){
   if (langPref === 'auto') detectLanguageByLocation();
 }
 
+// ========================================================================================
+// MODALS — help, settings, admin panel, analytics
+// ========================================================================================
 function applyLang(){
   const mapLoadingTextEl = document.getElementById('mapLoadingText');
   if (mapLoadingTextEl) mapLoadingTextEl.textContent = t('loadingMap');
@@ -6566,6 +6599,9 @@ function renderAnalyticsBarList(elId, items, labelFn, colorFn) {
     </div>`;
   }).join('');
 }
+// ========================================================================================
+// HELP CONTENT, CALENDAR FILTER & SAVED MAP VIEW
+// ========================================================================================
 function buildHelpModalContent() {
   document.getElementById('helpModalTitle').textContent = t('helpTitle');
   document.getElementById('helpModalBtn').textContent = t('helpClose');
@@ -6735,6 +6771,9 @@ const TILE_CACHE_NAME = 'ttb-osm-tiles-v1';
 // e.g. zooming out across several levels at once.
 const tileCacheReady = ('caches' in window) ? caches.open(TILE_CACHE_NAME) : Promise.resolve(null);
 
+// ========================================================================================
+// OFFLINE CACHING — map tiles & icon assets
+// ========================================================================================
 async function fetchTileCached(url) {
   const cache = await tileCacheReady;
   if (cache) {
@@ -7060,6 +7099,9 @@ setTimeout(initIconCaching, 0);
 const CLUSTER_STATUS_RANK = { reported: 2, in_progress: 1, fixed: 0 };
 const CLUSTER_PRIORITY_RANK = { high: 2, normal: 1, low: 0 };
 
+// ========================================================================================
+// MAP RENDERING — clustering & heading/compass rotation
+// ========================================================================================
 function clusterWorstReport(cluster) {
   let worstStatus = null, worstPriority = null;
   cluster.getAllChildMarkers().forEach(m => {
@@ -7525,6 +7567,9 @@ function distMeters(a, b) {
   return 2 * R * Math.asin(Math.sqrt(s));
 }
 
+// ========================================================================================
+// GEO HELPERS, VPN CHECK, TOAST & THEMED DIALOGS
+// ========================================================================================
 function isMobileDevice() {
   if (navigator.userAgent.includes('TraceTheStuffApp')) return true;
   if (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)) return true;
@@ -7688,6 +7733,9 @@ const NAV_TRANSITIONS = {
 
 let navState = NavState.IDLE;
 
+// ========================================================================================
+// NAVIGATION — driving-mode state machine, routing & destination search
+// ========================================================================================
 function setNavState(next) {
   if (next === navState) return;
   const allowed = NAV_TRANSITIONS[navState] || [];
@@ -8072,6 +8120,9 @@ function updateNavInfoText(meters, seconds, approximate) {
 /* ---------- Map button visibility prefs (hidden by default) ---------- */
 const NAV_BTN_PREF_KEY = 'ttb_show_nav_btn';
 const HEATMAP_BTN_PREF_KEY = 'ttb_show_heatmap_btn';
+// ========================================================================================
+// SOUND ALERTS & DRIVING SAFETY REMINDER
+// ========================================================================================
 function getBoolPref(key, defaultVal) {
   try {
     const v = localStorage.getItem(key);
@@ -8240,6 +8291,9 @@ const TBT_MIN_POPIN_M  = 60;
 const TBT_MAX_POPIN_M  = 500;
 const TBT_FADE_MS      = 350;
 
+// ========================================================================================
+// TURN-BY-TURN UI & NAVIGATION PROGRESS TRACKING
+// ========================================================================================
 function showTurnByTurnCard() {
   const card = document.getElementById('turnByTurnCard');
   if (!card) return;
@@ -8472,6 +8526,9 @@ map.on('zoomend', scheduleAutoRefollow);
 let customDragActive = false;
 let customDragLast   = null;
 
+// ========================================================================================
+// MAP GESTURES — touch drag & two-finger rotation
+// ========================================================================================
 function rotationActive() {
   return isHeadingUpActive() && Math.abs(((mapBearing % 360) + 360) % 360) > 0.5;
 }
@@ -8668,6 +8725,9 @@ const REPORT_RATE_LIMIT_STORAGE_KEY = 'ttb_recent_report_times';
 // Higher-level users have earned faster reporting: the allowed count per window goes up and
 // the window itself shrinks as level rises. Admins bypass this limit entirely (see
 // shouldBlockReportSubmission below) rather than going through this scaling.
+// ========================================================================================
+// REPORT SUBMISSION — client-side rate limiting & quick/section report flow
+// ========================================================================================
 function reportRateLimitParamsForLevel(level) {
   const max = REPORT_RATE_LIMIT_BASE_MAX + level * REPORT_RATE_LIMIT_EXTRA_PER_LEVEL;
   const windowMs = Math.max(
@@ -8893,6 +8953,9 @@ function updateGpsModalText(){
   if (el('gpsModalAlt'))   el('gpsModalAlt').innerHTML     = t('gpsAlt');
   if (el('gpsModalBtn'))   el('gpsModalBtn').textContent   = t('gpsBtn');
 }
+// ========================================================================================
+// OVERLAY STACK & GPS MODAL — shared modal open/close + back-button/Escape wiring
+// ========================================================================================
 function bringModalToFront(el){
   if (el && el.parentNode) document.body.appendChild(el);
 }
@@ -9130,6 +9193,9 @@ function gpsWatchdogTick() {
 }
 setInterval(gpsWatchdogTick, 1000);
 
+// ========================================================================================
+// GPS — position watching, smoothing, speed limit & proximity
+// ========================================================================================
 function startWatching() {
   if (gpsWatchId !== null) return;
   gpsWatchId = navigator.geolocation.watchPosition(
@@ -9454,6 +9520,9 @@ map.on('zoomend', function(){ if (!pinMode) syncMarkers(false); });
 // an already-loaded area don't trigger a new network call.
 let viewportReloadTimer = null;
 const VIEWPORT_RELOAD_DEBOUNCE_MS = 400;
+// ========================================================================================
+// VIEWPORT RELOAD, CATEGORY/STATUS FILTERS & HEATMAP
+// ========================================================================================
 function scheduleViewportReloadIfNeeded() {
   if (pinMode) return;
   if (viewportReloadTimer) clearTimeout(viewportReloadTimer);
@@ -9784,6 +9853,9 @@ function toggleHeatmap() {
     btn.classList.remove('active');
   }
 }
+// ========================================================================================
+// REPORT FORM — category/subcategory selection, photo capture & compression
+// ========================================================================================
 function subcategoryLabel(cat, subKey) {
   if (!subKey) return '';
   const list = SUBCATEGORIES[cat] || [];
@@ -10174,6 +10246,9 @@ async function getReportPhotoSignedUrl(path, ttlSeconds) {
   }
 }
 
+// ========================================================================================
+// REPORT WIZARD — multi-step report creation UI
+// ========================================================================================
 function resetReportingForm() {
   document.getElementById('category').selectedIndex = 0;
   document.getElementById('subcategory').innerHTML = '';
@@ -10485,6 +10560,9 @@ const OFFLINE_DB_VERSION = 1;
 const OFFLINE_STORE = 'pending_reports';
 const OFFLINE_SYNC_POLL_MS = 30 * 1000;
 
+// ========================================================================================
+// OFFLINE QUEUE — IndexedDB-backed report queue & sync
+// ========================================================================================
 function openOfflineDb() {
   return new Promise((resolve, reject) => {
     if (!('indexedDB' in window)) { reject(new Error('no-indexeddb')); return; }
@@ -10656,6 +10734,9 @@ async function ensureFreshSession() {
   }
 }
 
+// ========================================================================================
+// REPORT SUBMISSION — main reportBreak() insert flow
+// ========================================================================================
 async function reportBreak(){
   if (!currentSession || !currentProfile) { updateAuthUI(); return; }
 
@@ -10777,6 +10858,9 @@ let municipalityCacheLoaded = false;
 
 const MUNICIPALITY_CACHE_STORAGE_KEY = 'ttb_municipality_cache_v2';
 
+// ========================================================================================
+// MUNICIPALITY RESOLUTION — boundary cache, geocoding, auto-registration
+// ========================================================================================
 function readMunicipalityCacheFromStorage() {
   try {
     const raw = localStorage.getItem(MUNICIPALITY_CACHE_STORAGE_KEY);
@@ -11251,6 +11335,9 @@ const companyGeocodeCache = {};
 
 const utilityCompanyRegistry = new Map();
 
+// ========================================================================================
+// UTILITY COMPANY MARKERS & GEOCODING
+// ========================================================================================
 function buildCompanyMarkerHtml() {
   return '<div class="map-pin-badge company-marker-icon-wrap pin-upright"><span class="map-pin-glyph company-marker-icon"></span></div>';
 }
@@ -11411,6 +11498,9 @@ function boundaryHasRings(boundary) {
 
 function isSessionOnlyMuniId(id) {
   return typeof id === 'string' && id.startsWith('session:');
+// ========================================================================================
+// ADMIN DATA MAINTENANCE — municipality de-duplication & boundary repair
+// ========================================================================================
 }
 
 function municipalityMergeKey(m) {
@@ -11571,6 +11661,9 @@ async function fixAllMunicipalityBoundaries() {
     .replace('{total}', String(total)), 'success');
 }
 
+// ========================================================================================
+// COMPANY & MUNICIPALITY POPUPS/MODALS
+// ========================================================================================
 function buildCompanyPopupHtml(c, lat, lon) {
 
   const navigateBtnHtml = (drivingMode && isValidLatLng(lat, lon) && c.id != null)
@@ -11766,6 +11859,9 @@ function canManageContactsForMunicipality(municipalityId) {
   return isMunicipalityInAdminDomain(muni);
 }
 
+// ========================================================================================
+// ADMIN MODERATION — utility companies & waiting-list review queue
+// ========================================================================================
 async function loadUtilityCompaniesAdmin() {
   const titleEl = document.getElementById('ucSectionTitle');
   if (titleEl) titleEl.textContent = t('ucSectionTitle');
@@ -12153,6 +12249,9 @@ async function clearReportFlag(reportId) {
   }
 }
 
+// ========================================================================================
+// ADMIN — utility company form (create/edit/verify)
+// ========================================================================================
 function applyUcFormTranslations() {
   const fieldMap = {
     ucName: 'ucNamePH', ucPhone: 'ucPhonePH', ucEmail: 'ucEmailPH',
@@ -12619,6 +12718,9 @@ async function addMunicipalityFromMapCenter() {
   }
 }
 
+// ========================================================================================
+// MARKERS & REPORT DETAIL MODAL
+// ========================================================================================
 function clearMarkers(){
   markerById.forEach(m => removeReportLayer(m));
   markerById.clear();
@@ -12993,6 +13095,9 @@ async function loadReportFlagSection(reportId) {
   }
 }
 
+// ========================================================================================
+// REPORT FLAGGING
+// ========================================================================================
 function renderReportFlagSection(reportId, existingFlag) {
   const contentEl = document.getElementById('reportFlagContent');
   if (!contentEl) return;
@@ -13049,6 +13154,9 @@ async function submitReportFlag(reportId) {
   }
 }
 
+// ========================================================================================
+// REPORT CONTACTS — calling/emailing utility companies, contact flagging
+// ========================================================================================
 async function getReportContacts(report, muni) {
   if (report.contacts && report.contacts.length) return report.contacts;
   if (!muni || muni.id == null) { report.contacts = []; return report.contacts; }
@@ -13461,6 +13569,9 @@ const NEARBY_CHECKIN_COOLDOWNS = {
   high:   { global: 10 * 60 * 1000,      perReport: 1  * 24 * 60 * 60 * 1000 }
 };
 
+// ========================================================================================
+// NEARBY CHECK-IN & CONTACT REMINDERS
+// ========================================================================================
 function getNearbyCheckinFreqPref() {
   try {
     const v = localStorage.getItem(NEARBY_CHECKIN_STORAGE_KEY);
@@ -13708,6 +13819,9 @@ function nearbyCheckinOpenContacts(reportId) {
   showReportDetailModal(reportId);
 }
 
+// ========================================================================================
+// REPORT SHARING — share URL & generated image card
+// ========================================================================================
 function hideReportDetailModal() {
   const modal = document.getElementById('reportDetailModal');
   modal.style.display = 'none';
@@ -13976,6 +14090,9 @@ async function openSharedReportFromUrl() {
   }
 }
 
+// ========================================================================================
+// EMAIL REPORT & PDF EXPORT (company report bundles)
+// ========================================================================================
 async function emailReport(reportId) {
   const report = globalActiveData.find(r => r.id === reportId);
   if (!report) return;
@@ -14419,6 +14536,9 @@ async function exportCompanyReportsPdf(companyId) {
 }
 
 
+// ========================================================================================
+// REPORT DETAIL — inline edit mode
+// ========================================================================================
 function buildDetailStatusReadonlyHtml(report, reporterName) {
   const isAdmin = !!(currentProfile && currentProfile.is_admin);
   const isOwner = !!(currentSession && report.owner_id === currentSession.user.id);
@@ -14626,6 +14746,9 @@ function buildStatusPatch(newStatus) {
   return { status: newStatus };
 }
 
+// ========================================================================================
+// REPORT STATUS & COMMUNITY VOTING
+// ========================================================================================
 async function deleteReport(reportId) {
   if (!(await themedConfirm(t('deleteConfirm')))) return;
   try {
@@ -14730,6 +14853,9 @@ async function castStatusVote(reportIdOrIds, suggestedStatus) {
   }
 }
 
+// ========================================================================================
+// TEXT UTILITIES — HTML escaping, profanity filter, pin icon HTML
+// ========================================================================================
 function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
@@ -14867,6 +14993,9 @@ function buildPinIconHtml(category, status, priority, confirmCount) {
     `</div>`;
 }
 
+// ========================================================================================
+// MARKER SYNC & REALTIME SUBSCRIPTION
+// ========================================================================================
 function upsertMarker(report) {
   if (isSectionReport(report)) return upsertSectionLine(report);
 
@@ -15166,6 +15295,9 @@ async function loadVoteProgress(reportIds) {
   }
 }
 
+// ========================================================================================
+// CSV EXPORT, WAKE LOCK, FULLSCREEN & ORIENTATION LOCK
+// ========================================================================================
 function downloadCSV() {
   const bounds = map.getBounds();
   const visible = dateRangeOnlyData.filter(r =>
@@ -15301,6 +15433,9 @@ const AMBIENT_DARK_LUX_THRESHOLD = 12;
 const NIGHT_START_HOUR = 20; // 8pm
 const NIGHT_END_HOUR   = 7;  // 7am
 
+// ========================================================================================
+// THEME — day/night resolution & smart/ambient mode
+// ========================================================================================
 function isNightByLocalClock() {
   const h = new Date().getHours();
   return h >= NIGHT_START_HOUR || h < NIGHT_END_HOUR;
@@ -15383,6 +15518,9 @@ function initTheme() {
 // ["icons-8bit","icons-modern-styled"]) is what makes a new folder "discoverable" — it's not
 // a name registry (no display names hardcoded there), just the list of folders to look at.
 const ICON_PACK_DEFAULT = 'icons';
+// ========================================================================================
+// ICON PACKS — discovery, fallback rewriting
+// ========================================================================================
 function iconPackNameFromId(id) {
   if (id === ICON_PACK_DEFAULT) return { en:'Modern', sr:'Moderni' };
   const words = id.replace(/^icons-/, '').split(/[-_]+/).filter(Boolean)
@@ -15511,6 +15649,9 @@ function setIconPack(packId) {
 
 
 const MAP_LOADING_OVERLAY_MIN_TOTAL_MS = 2000;
+// ========================================================================================
+// APP BOOT SEQUENCE — loading overlay, initial GPS fix, startup order
+// ========================================================================================
 function hideMapLoadingOverlay() {
   const shownAt = window.__ttbSplashShownAt || Date.now();
   const elapsed = Date.now() - shownAt;
