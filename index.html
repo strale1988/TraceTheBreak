@@ -5642,6 +5642,11 @@ const T = {
   postReportContactCloseBtn: { en:'Close',                                    sr:'Zatvori' },
   postReportContactYesBtn: { en:'Show contacts',                              sr:'Prikaži kontakte' },
   postReportContactNoBtn:  { en:'Not now',                                    sr:'Ne sada' },
+  followUpEmailPrompt:     { en:'Would you also like to send a follow-up email to {name} about this report?', sr:'Da li želite da pošaljete i email {name} povodom ove prijave?' },
+  followUpEmailYesBtn:     { en:'Send email',                                 sr:'Pošalji email' },
+  followUpEmailNoBtn:      { en:'No thanks',                                  sr:'Ne, hvala' },
+  followUpEmailSubject:    { en:'Follow-up: {category} report',               sr:'Dopuna: prijava — {category}' },
+  followUpEmailBodyIntro:  { en:'Following up by phone regarding this report ({category}). Details and location:', sr:'Dopuna nakon telefonskog poziva povodom ove prijave ({category}). Detalji i lokacija:' },
 
   contactReminderModalTitle: { en:'Contact reminder',                         sr:'Podsetnik za kontakt' },
   contactReminderIntroText:  { en:"You've reported {n} issue(s) but haven't contacted the utility company yet.", sr:'Prijavili ste {n} problem(a), ali još niste kontaktirali nadležnu službu.' },
@@ -8508,15 +8513,30 @@ function toggleDrivingMode() {
 
 let reportSubmissionInFlight = false;
 
-const REPORT_RATE_LIMIT_MAX = 5;
-const REPORT_RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000;
+const REPORT_RATE_LIMIT_BASE_MAX = 5;
+const REPORT_RATE_LIMIT_BASE_WINDOW_MS = 5 * 60 * 1000;
+const REPORT_RATE_LIMIT_MIN_WINDOW_MS = 90 * 1000; // never squeeze the window below 90s, even at max level
+const REPORT_RATE_LIMIT_EXTRA_PER_LEVEL = 1;        // +1 allowed report per level above Observer
+const REPORT_RATE_LIMIT_SHRINK_PER_LEVEL_MS = 45 * 1000; // window shrinks 45s per level
 const REPORT_RATE_LIMIT_STORAGE_KEY = 'ttb_recent_report_times';
 
-function getRecentReportTimestamps() {
+// Higher-level users have earned faster reporting: the allowed count per window goes up and
+// the window itself shrinks as level rises. Admins bypass this limit entirely (see
+// shouldBlockReportSubmission below) rather than going through this scaling.
+function reportRateLimitParamsForLevel(level) {
+  const max = REPORT_RATE_LIMIT_BASE_MAX + level * REPORT_RATE_LIMIT_EXTRA_PER_LEVEL;
+  const windowMs = Math.max(
+    REPORT_RATE_LIMIT_MIN_WINDOW_MS,
+    REPORT_RATE_LIMIT_BASE_WINDOW_MS - level * REPORT_RATE_LIMIT_SHRINK_PER_LEVEL_MS
+  );
+  return { max, windowMs };
+}
+
+function getRecentReportTimestamps(windowMs) {
   try {
     const raw = localStorage.getItem(REPORT_RATE_LIMIT_STORAGE_KEY);
     const arr = raw ? JSON.parse(raw) : [];
-    const cutoff = Date.now() - REPORT_RATE_LIMIT_WINDOW_MS;
+    const cutoff = Date.now() - (windowMs != null ? windowMs : REPORT_RATE_LIMIT_BASE_WINDOW_MS);
     return Array.isArray(arr) ? arr.filter(ts => typeof ts === 'number' && ts > cutoff) : [];
   } catch (e) {
     return [];
@@ -8524,15 +8544,19 @@ function getRecentReportTimestamps() {
 }
 
 function reportRateLimitWaitSeconds() {
-  const recent = getRecentReportTimestamps();
-  if (recent.length < REPORT_RATE_LIMIT_MAX) return null;
+  const { max, windowMs } = reportRateLimitParamsForLevel(currentUserLevel().level);
+  const recent = getRecentReportTimestamps(windowMs);
+  if (recent.length < max) return null;
   const oldest = Math.min(...recent);
-  const waitMs = (oldest + REPORT_RATE_LIMIT_WINDOW_MS) - Date.now();
+  const waitMs = (oldest + windowMs) - Date.now();
   return Math.max(1, Math.ceil(waitMs / 1000));
 }
 
 function recordReportSubmission() {
-  const recent = getRecentReportTimestamps();
+  // Store against the widest possible window so timestamps aren't pruned away too early for
+  // whatever level the user is currently at — reportRateLimitWaitSeconds() re-filters per call
+  // using the window that actually applies to their level.
+  const recent = getRecentReportTimestamps(REPORT_RATE_LIMIT_BASE_WINDOW_MS);
   recent.push(Date.now());
   try { localStorage.setItem(REPORT_RATE_LIMIT_STORAGE_KEY, JSON.stringify(recent)); } catch (e) {}
   myReportsCache = null; // a fresh report was filed — reload "My Reports" next time it's shown
@@ -8540,6 +8564,7 @@ function recordReportSubmission() {
 
 function shouldBlockReportSubmission() {
   if (reportSubmissionInFlight) return true;
+  if (currentProfile && currentProfile.is_admin) return false; // admins are never rate-limited
   const waitSeconds = reportRateLimitWaitSeconds();
   if (waitSeconds !== null) {
     toast(t('reportRateLimitedPrefix') + waitSeconds + t('reportRateLimitedSuffix'), 'error');
@@ -8793,6 +8818,8 @@ function enableManualPinMode() {
 }
 
 let lastAcceptedFix   = null;
+let lastMuniRetryAt = 0;
+const MUNI_RETRY_INTERVAL_MS = 8000;
 let lastFixAccuracy   = null;   // accuracy (meters) of the most recent raw GPS fix, good or bad
 let lastFixAccuracyAt = 0;      // when that reading arrived (device clock via Date.now())
 let smoothedHeading   = null;
@@ -9011,6 +9038,14 @@ function startWatching() {
       } else {
         userMarker.setLatLng([userCoords.lat, userCoords.lon]);
         if (followMode) followMapTo(userCoords.lat, userCoords.lon);
+        // The bottom municipality bar is only ever populated from a successful resolution —
+        // if the very first attempt (when the marker was created) came up empty, e.g. a
+        // transient lookup miss, it would otherwise stay hidden for the rest of the session.
+        // Retry occasionally until it resolves.
+        if (!currentContactsMunicipality && Date.now() - lastMuniRetryAt > MUNI_RETRY_INTERVAL_MS) {
+          lastMuniRetryAt = Date.now();
+          showMunicipalityBoundaryForPoint(userCoords.lat, userCoords.lon, userMarker, 'gps');
+        }
       }
 
       const GPS_HEADING_MIN_SPEED_MPS = 1.0;
@@ -13054,9 +13089,41 @@ async function confirmContactAttempt(confirmed) {
     if (error) throw error;
     toast(t('contactConfirmThanks'), 'success');
     refreshReportContactCounts(reportId);
+    if (type === 'phone') await offerFollowUpEmailAfterCall(reportId, companyId);
   } catch (err) {
     console.error('Failed to log contact attempt:', err.message);
   }
+}
+
+// After confirming a phone call went out, offer to also send a follow-up email to the same
+// service for the same report — only makes sense if we actually have an email on file for them.
+async function offerFollowUpEmailAfterCall(reportId, companyId) {
+  const company = companyId ? utilityCompanyRegistry.get(String(companyId)) : null;
+  if (!company || !company.email) return;
+
+  let wantsEmail;
+  try {
+    wantsEmail = await themedConfirm(
+      t('followUpEmailPrompt').replace('{name}', company.name || ''),
+      { okLabel: t('followUpEmailYesBtn'), cancelLabel: t('followUpEmailNoBtn') }
+    );
+  } catch (err) {
+    return;
+  }
+  if (!wantsEmail) return;
+
+  const report = globalActiveData.find(r => r.id === reportId);
+  const headerTitle = report
+    ? (report.subcategory ? `${translateCategory(report.category)} / ${subcategoryLabel(report.category, report.subcategory)}` : translateCategory(report.category))
+    : '';
+  const url = reportShareUrl(reportId);
+  const subject = encodeURIComponent(t('followUpEmailSubject').replace('{category}', headerTitle));
+  const body = encodeURIComponent(`${t('followUpEmailBodyIntro').replace('{category}', headerTitle)}\n\n${url}`);
+  window.location.href = `mailto:${company.email}?subject=${subject}&body=${body}`;
+
+  // Same "did this actually go out?" loop as the phone/email taps in the contact card get —
+  // keeps the contact-event log consistent regardless of how the email got triggered.
+  recordContactAttempt(reportId, 'email', companyId);
 }
 
 // ---- Post-submit "contact the authorities?" follow-up ----------------------------
@@ -14136,8 +14203,12 @@ async function exportCompanyReportsPdf(companyId) {
 
 function buildDetailStatusReadonlyHtml(report, reporterName) {
   const isAdmin = !!(currentProfile && currentProfile.is_admin);
-  const hasFullPower = hasFullPowerOverReport(report);
   const isOwner = !!(currentSession && report.owner_id === currentSession.user.id);
+  // hasFullPowerOverReport() is domain/on-site scoped, which is right for moderating other
+  // people's reports — but an admin should always be able to edit/delete their own report,
+  // even after they've left the location or if it falls outside their admin domain (e.g. a
+  // municipality that resolved incorrectly). Ownership alone is enough for that.
+  const hasFullPower = hasFullPowerOverReport(report) || (isAdmin && isOwner);
   const canAddPhotoInline = !!currentSession && (
     (isOwner && (!report.photo_path || report.photo_status === 'rejected')) ||
     isAdmin
