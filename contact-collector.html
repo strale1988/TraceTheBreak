@@ -144,14 +144,9 @@ h3.subTitle{font-size:var(--fs-13);margin:16px 0 6px;color:var(--text-secondary)
 
 <div id="layout">
   <div id="leftPane">
-    <div id="countryPickerRow" style="padding:8px 10px;border-bottom:1px solid var(--border-color);background:var(--bg-surface);">
-      <select id="countryPicker" style="width:100%;padding:6px 8px;border:1px solid var(--border-color-strong);border-radius:6px;background:var(--bg-surface);color:var(--text-primary);">
-        <option value="">Select a country… (works even if the map doesn't)</option>
-      </select>
-    </div>
     <div id="worldMap"></div>
     <div id="sidePanel">
-      <div id="countryEmpty" class="emptyState">Click a country on the map (or use the dropdown above) to see its municipalities and public-service contact coverage.</div>
+      <div id="countryEmpty" class="emptyState">Click a country on the map to see its municipalities and public-service contact coverage.</div>
       <div id="countryPanel" class="hidden"></div>
     </div>
   </div>
@@ -221,6 +216,30 @@ const OSM_ADMIN_LEVELS_BY_COUNTRY = {
   RS: [7, 8]   // Serbian gradovi/opštine — tagged inconsistently at level 7 or 8
 };
 const DEFAULT_OSM_ADMIN_LEVELS = [8];
+// Selectable range shown in the UI so an admin can override the layer for a given
+// country (e.g. if a country's real "responsible for local services" tier sits at a
+// different admin_level than our default guess). 4=region/county, 6=district,
+// 7-8=typical municipality/commune tier, 9-10=sub-municipal/village tier.
+const OSM_ADMIN_LEVEL_OPTIONS = [4, 5, 6, 7, 8, 9, 10];
+// Per-country override chosen by the user in this session (falls back to
+// OSM_ADMIN_LEVELS_BY_COUNTRY / DEFAULT_OSM_ADMIN_LEVELS when unset).
+let osmAdminLevelOverride = {};
+function getOsmAdminLevels(countryCode){
+  return (osmAdminLevelOverride[countryCode] || OSM_ADMIN_LEVELS_BY_COUNTRY[countryCode] || DEFAULT_OSM_ADMIN_LEVELS).slice();
+}
+function toggleOsmAdminLevel(code, level){
+  const current = getOsmAdminLevels(code);
+  const idx = current.indexOf(level);
+  if(idx >= 0){
+    if(current.length === 1) return; // keep at least one level selected
+    current.splice(idx, 1);
+  } else {
+    current.push(level);
+  }
+  current.sort((a,b) => a - b);
+  osmAdminLevelOverride[code] = current;
+  renderDiscoverBox();
+}
 const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
 
 // Real, responsible-authority categories vs. the two fallback-only tags.
@@ -268,8 +287,6 @@ function cyrillicToLatin(str){
 let currentSession = null;
 let currentProfile = null;
 let countriesByCode = {};      // code -> {code, name}
-let allCountries = [];         // every row as-is, for name-based lookup when the code doesn't match
-let countriesLoadError = null; // set if loadCountries() fails (e.g. RLS blocking reads) — shown persistently, not just a toast
 let municipalityCache = [];    // all rows from municipalities table
 let companiesCache = [];       // all rows from utility_companies table
 let selectedCountryCode = null;
@@ -403,19 +420,6 @@ function normalizeAddress(raw){
   s = s.replace(/\s*,\s*/g, ', ').replace(/,\s*$/, '');
   return s;
 }
-// Country names commonly appear in "long form" (map/geojson) vs "short form" (how an
-// admin typed it into the DB) — e.g. "Republic of Serbia" vs "Serbia", "Kingdom of
-// Spain" vs "Spain". Strip the common political-form prefixes before comparing so we
-// don't miss an existing row just because of this, and don't confuse it with the
-// municipality-specific normalizer above (different vocabulary, different risk of
-// false positives).
-const COUNTRY_NAME_PREFIX_RE = /^(the\s+)?(federal\s+|democratic\s+|islamic\s+|people'?s\s+|united\s+)*(republic|kingdom|state|principality|sultanate|commonwealth|grand duchy|federation|emirate)s?\s+of\s+/i;
-function normalizeCountryNameForMatch(s){
-  if(!s) return '';
-  let n = cyrillicToLatin(String(s)).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-  n = n.replace(COUNTRY_NAME_PREFIX_RE, '').replace(/^the\s+/, '');
-  return n.replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
-}
 function normalizeNameForMatch(name){
   if(!name) return '';
   let s = cyrillicToLatin(String(name)).toLowerCase();
@@ -427,14 +431,9 @@ function normalizeNameForMatch(name){
 // "Grad Subotica" (sr) and "City of Subotica" (en) are the SAME place as our on-file
 // "Subotica". Without stripping these, name-matching sees them as different municipalities
 // and the "new municipalities to import" check reports false positives.
-const MUNI_NAME_PREFIX_RE = /^(gradska opstina|gradska opština|grad|opstina|opština|city of|municipality of|town of)\s+/i;
-// OSM's English name:en tags for Serbian admin boundaries also add a trailing suffix
-// instead of (or in addition to) a prefix — e.g. "Ada Municipality", "Barajevo Urban
-// Municipality" — while our on-file name is just "Ada"/"Barajevo". Strip the longer
-// phrase first so "Urban Municipality" is removed as one unit, not leaving "Urban" behind.
-const MUNI_NAME_SUFFIX_RE = /\s+(urban municipality|municipality|city)$/i;
+const MUNI_NAME_PREFIX_RE = /^(grad|opstina|opština|city of|municipality of|town of)\s+/i;
 function stripMuniNamePrefix(s){
-  return String(s).replace(MUNI_NAME_PREFIX_RE, '').replace(MUNI_NAME_SUFFIX_RE, '').trim();
+  return String(s).replace(MUNI_NAME_PREFIX_RE, '').trim();
 }
 function cleanMuniDisplayName(raw){
   if(!raw) return '';
@@ -472,19 +471,9 @@ function nameSimilarity(a, b){
    ========================================================================= */
 async function loadCountries(){
   const { data, error } = await sb.from(COUNTRIES_TABLE).select('*').order('name');
-  if(error){
-    console.error('Failed to load "countries" table — likely an RLS policy blocking SELECT:', error);
-    countriesLoadError = error.message || 'unknown error';
-    toast('Failed to load countries: ' + error.message, 'error');
-    return;
-  }
-  countriesLoadError = null;
+  if(error){ toast('Failed to load countries: ' + error.message, 'error'); return; }
   countriesByCode = {};
-  allCountries = data || [];
-  // Key by uppercase code — municipalities are already matched case-insensitively
-  // (see municipalitiesForCountry), so a countries row stored as e.g. "rs" instead of
-  // "RS" shouldn't make us think the country is missing when it isn't.
-  (data || []).forEach(c => countriesByCode[(c.code || '').toUpperCase()] = c);
+  (data || []).forEach(c => countriesByCode[c.code] = c);
 }
 async function loadMunicipalities(){
   const { data, error } = await sb.from(MUNICIPALITIES_TABLE).select('*').order('name');
@@ -538,62 +527,31 @@ async function initMap(){
       lastErr = new Error('HTTP ' + res.status + ' from ' + url);
     }catch(e){ lastErr = e; /* try next mirror */ }
   }
-
-  if(!geojson || !Array.isArray(geojson.features)){
-    console.error('World boundaries failed to load — falling back to the country dropdown only.', lastErr);
-    toast('Could not load the world map — use the country dropdown instead.', 'error');
-    populateCountryPicker(Object.values(countriesByCode).map(c => ({ code: c.code, name: c.name })));
+  if(!geojson){
+    console.error('World boundaries failed to load — country clicks will do nothing until this is fixed.', lastErr);
+    toast('Could not load world boundaries — country clicks won\'t work. Check your connection or console.', 'error');
     return;
   }
 
-  // Populate the dropdown from the same data the map uses, regardless of whether the
-  // Leaflet layer itself renders/clicks correctly — this is the guaranteed-to-work path.
-  const countryList = geojson.features
-    .map(f => ({ code: featureCountryCode(f.properties), name: featureCountryName(f.properties) || featureCountryCode(f.properties) }))
-    .filter(c => c.code && c.code !== '-99');
-  populateCountryPicker(countryList);
-
-  try{
-    worldLayer = L.geoJSON(geojson, {
-      style: feature => styleForCountry(feature),
-      onEachFeature: (feature, layer) => {
-        layer.on('click', () => {
-          try{
-            selectCountry(featureCountryCode(feature.properties), featureCountryName(feature.properties));
-          }catch(err){
-            console.error('Failed to open country panel:', err);
-            toast('Could not open that country: ' + err.message, 'error');
-          }
-        });
-        layer.on('mouseover', () => layer.setStyle({ fillOpacity: 0.75 }));
-        layer.on('mouseout', () => worldLayer.resetStyle(layer));
-        layer.bindTooltip(featureCountryName(feature.properties) || '', { sticky:true });
-      }
-    }).addTo(map);
-  }catch(err){
-    console.error('Failed to render the world boundaries layer — the dropdown above still works.', err);
-    toast('Map boundaries failed to render — use the country dropdown instead.', 'error');
-  }
+  worldLayer = L.geoJSON(geojson, {
+    style: feature => styleForCountry(feature),
+    onEachFeature: (feature, layer) => {
+      layer.on('click', () => {
+        try{
+          selectCountry(feature.properties.ISO_A2, feature.properties.ADMIN || feature.properties.name);
+        }catch(err){
+          console.error('Failed to open country panel:', err);
+          toast('Could not open that country: ' + err.message, 'error');
+        }
+      });
+      layer.on('mouseover', () => layer.setStyle({ fillOpacity: 0.75 }));
+      layer.on('mouseout', () => worldLayer.resetStyle(layer));
+      layer.bindTooltip(feature.properties.ADMIN || feature.properties.name || '', { sticky:true });
+    }
+  }).addTo(map);
 }
-function populateCountryPicker(list){
-  const sel = document.getElementById('countryPicker');
-  if(!sel) return;
-  const sorted = [...list].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-  sel.innerHTML = '<option value="">Select a country…</option>' +
-    sorted.map(c => `<option value="${escapeHtml(c.code)}" data-name="${escapeHtml(c.name)}">${escapeHtml(c.name)} (${escapeHtml(c.code)})</option>`).join('');
-}
-document.getElementById('countryPicker').addEventListener('change', (e) => {
-  const opt = e.target.selectedOptions[0];
-  if(!opt || !opt.value) return;
-  try{
-    selectCountry(opt.value, opt.dataset.name || opt.textContent);
-  }catch(err){
-    console.error('Failed to open country panel from dropdown:', err);
-    toast('Could not open that country: ' + err.message, 'error');
-  }
-});
 function styleForCountry(feature){
-  const code = featureCountryCode(feature.properties);
+  const code = (feature.properties.ISO_A2 || '').toUpperCase();
   const stats = countryCoverageStats(code);
   let fill = '#cfcfcc';       // no municipalities on file yet
   if(stats.munis > 0){
@@ -606,19 +564,6 @@ function styleForCountry(feature){
   };
 }
 function refreshMapStyles(){ if(worldLayer) worldLayer.eachLayer(l => worldLayer.resetStyle(l)); }
-// The datasets/geo-countries world-boundaries file (our primary + mirror source) uses
-// "ISO3166-1-Alpha-2" and "name" as property keys — NOT "ISO_A2"/"ADMIN" (those are
-// Natural Earth's naming, from a different, unrelated dataset). Reading the wrong keys
-// silently returned undefined for every country, so every click's country code was
-// falsy and selectCountry() bailed out immediately with no error — this was the root
-// cause of "clicking a country does nothing". These helpers read the real keys, with
-// the Natural Earth names kept as a fallback in case a mirror ever serves that schema.
-function featureCountryCode(props){
-  return String(props['ISO3166-1-Alpha-2'] || props.ISO_A2 || props.iso_a2 || '').toUpperCase();
-}
-function featureCountryName(props){
-  return props.name || props.ADMIN || props.admin || '';
-}
 
 /* =========================================================================
    COUNTRY PANEL
@@ -639,24 +584,10 @@ function renderCountryPanel(){
   const panel = document.getElementById('countryPanel');
   panel.classList.remove('hidden');
   const country = countriesByCode[selectedCountryCode];
-  // If the code lookup missed, check whether a row with a matching *name* already exists —
-  // that means the country IS in the database, just under a different/mistyped code, and we
-  // should offer to fix that one row rather than insert a duplicate (which RLS also blocks).
-  const nameMatch = !country
-    ? allCountries.find(c => normalizeCountryNameForMatch(c.name) === normalizeCountryNameForMatch(selectedCountryName || ''))
-    : null;
   const munis = municipalitiesForCountry(selectedCountryCode).sort((a,b) => (a.name||'').localeCompare(b.name||''));
 
   let html = `<h2 class="paneTitle">${escapeHtml(country ? country.name : (selectedCountryName || selectedCountryCode))}</h2>`;
-  if(countriesLoadError){
-    html += `<div class="warnBox"><b>Can't check this against the database</b> — the "countries" table failed to load (${escapeHtml(countriesLoadError)}). This is almost always a Supabase Row-Level Security policy blocking read access, not a missing/mismatched country — fix the SELECT policy on "countries" first, then reload this page.
-      <div style="margin-top:6px;"><button class="btn small" onclick="loadCountries().then(renderCountryPanel)">Retry</button></div>
-    </div>`;
-  } else if(!country && nameMatch){
-    html += `<div class="warnBox">Found "${escapeHtml(nameMatch.name)}" already in the database with code "${escapeHtml(nameMatch.code)}" — looks like a code mismatch rather than a missing country.
-      <div style="margin-top:6px;"><button class="btn small primary" onclick="fixCountryCode(${nameMatch.id}, '${escapeHtml(selectedCountryCode)}')">Fix code to "${escapeHtml(selectedCountryCode)}"</button></div>
-    </div>`;
-  } else if(!country){
+  if(!country){
     html += `<div class="warnBox">This country isn't in our database yet — municipalities can't be saved against it until it's added.
       <div style="margin-top:6px;"><button class="btn small primary" onclick="addCurrentCountry()">Add ${escapeHtml(selectedCountryName || selectedCountryCode)} (${escapeHtml(selectedCountryCode)}) to database</button></div>
     </div>`;
@@ -686,27 +617,13 @@ function renderCountryPanel(){
   renderDiscoverBox();
 }
 
-async function fixCountryCode(id, newCode){
-  try{
-    const { data, error } = await sb.from(COUNTRIES_TABLE).update({ code: newCode }).eq('id', id).select().single();
-    if(error) throw error;
-    const idx = allCountries.findIndex(c => c.id === id);
-    if(idx >= 0) allCountries[idx] = data;
-    countriesByCode[(data.code || '').toUpperCase()] = data;
-    toast('Fixed — ' + data.name + ' is now code "' + data.code + '".', 'success');
-    renderCountryPanel();
-  }catch(err){
-    toast('Could not fix country code: ' + err.message, 'error');
-  }
-}
 async function addCurrentCountry(){
   const code = selectedCountryCode;
   const name = selectedCountryName || code;
   try{
     const { data, error } = await sb.from(COUNTRIES_TABLE).insert({ code, name }).select().single();
     if(error) throw error;
-    allCountries.push(data);
-    countriesByCode[(data.code || '').toUpperCase()] = data;
+    countriesByCode[code] = data;
     toast('Added ' + data.name + ' to the database.', 'success');
     renderCountryPanel();
   }catch(err){
@@ -736,8 +653,8 @@ function haversineKm(lat1, lon1, lat2, lon2){
    caused "City of Subotica" to show up as a false "new municipality" even
    though "Subotica" was already on file.
    ========================================================================= */
-async function fetchOsmMunicipalityCandidates(countryCode){
-  const levels = OSM_ADMIN_LEVELS_BY_COUNTRY[countryCode] || DEFAULT_OSM_ADMIN_LEVELS;
+async function fetchOsmMunicipalityCandidates(countryCode, levels){
+  levels = levels || getOsmAdminLevels(countryCode);
   const levelFilters = levels
     .map(l => `relation(area.cc)["boundary"="administrative"]["admin_level"="${l}"];`)
     .join('\n  ');
@@ -777,10 +694,11 @@ out tags center;`;
   return out;
 }
 async function checkForNewMunicipalities(code){
+  const levels = getOsmAdminLevels(code);
   discoverState[code] = { loading: true };
   if(selectedCountryCode === code) renderDiscoverBox();
   try{
-    const raw = await fetchOsmMunicipalityCandidates(code);
+    const raw = await fetchOsmMunicipalityCandidates(code, levels);
 
     // Index OSM candidates by normalized name for lookup.
     const rawByKey = new Map();
@@ -822,39 +740,52 @@ async function checkForNewMunicipalities(code){
     });
     missing.sort((a, b) => (a.nameEn || a.name).localeCompare(b.nameEn || b.name));
 
-    discoverState[code] = { loading: false, candidates: missing, updates, checkedAt: Date.now() };
+    discoverState[code] = { loading: false, candidates: missing, updates, checkedAt: Date.now(), levels };
   }catch(err){
-    discoverState[code] = { loading: false, error: err.message };
+    discoverState[code] = { loading: false, error: err.message, levels };
   }
   if(selectedCountryCode === code) renderDiscoverBox();
+}
+function renderOsmLevelPicker(code){
+  const isDefault = !osmAdminLevelOverride[code];
+  const current = getOsmAdminLevels(code);
+  const chips = OSM_ADMIN_LEVEL_OPTIONS.map(l => {
+    const on = current.includes(l);
+    return `<button type="button" class="btn small ${on ? 'primary' : 'ghost'}" style="padding:2px 9px;margin:2px 4px 2px 0;"
+        onclick="toggleOsmAdminLevel('${code}', ${l})" title="OSM admin_level=${l}">${l}</button>`;
+  }).join('');
+  return `<div style="margin-bottom:8px;">
+      <div style="font-size:var(--fs-11);color:var(--text-secondary);margin-bottom:4px;">
+        OSM admin_level to import as "municipality"${isDefault ? ' (default for this country)' : ' (custom)'}:
+      </div>
+      <div>${chips}</div>
+    </div>`;
 }
 function renderDiscoverBox(){
   const box = document.getElementById('muniDiscoverBox');
   if(!box) return;
   const code = selectedCountryCode;
   const state = discoverState[code];
+  const picker = renderOsmLevelPicker(code);
 
   if(!state){
-    box.innerHTML = `<button class="btn small" onclick="checkForNewMunicipalities('${code}')">Check OpenStreetMap for new municipalities</button>`;
+    box.innerHTML = picker + `<button class="btn small" onclick="checkForNewMunicipalities('${code}')">Check OpenStreetMap for new municipalities</button>`;
     return;
   }
   if(state.loading){
-    box.innerHTML = `<div class="emptyState">Checking OpenStreetMap for municipalities…</div>`;
+    box.innerHTML = picker + `<div class="emptyState">Checking OpenStreetMap for municipalities…</div>`;
     return;
   }
   if(state.error){
-    box.innerHTML = `<div class="warnBox">Could not check OpenStreetMap: ${escapeHtml(state.error)}</div>
+    box.innerHTML = picker + `<div class="warnBox">Could not check OpenStreetMap: ${escapeHtml(state.error)}</div>
       <button class="btn small" onclick="checkForNewMunicipalities('${code}')">Retry</button>`;
     return;
   }
 
-  let html = '';
+  let html = picker;
 
   if(state.updates.length){
     html += `<h3 class="subTitle">Suggested updates (${state.updates.length})</h3>`;
-    if(state.updates.length > 1){
-      html += `<button class="btn small" style="margin-bottom:8px;" onclick="applyAllMuniUpdates('${code}')">Apply all ${state.updates.length}</button>`;
-    }
     state.updates.forEach((u, i) => {
       html += `<div class="muniRow" style="flex-direction:column;align-items:stretch;">
           <div class="name">${escapeHtml(u.muni.name_en || u.muni.name)}</div>
@@ -862,6 +793,12 @@ function renderDiscoverBox(){
           <div style="margin-top:6px;"><button class="btn small" onclick="applyMuniUpdate('${code}', ${i})">Apply update</button></div>
         </div>`;
     });
+  }
+
+  const levelsChanged = JSON.stringify(state.levels || []) !== JSON.stringify(getOsmAdminLevels(code));
+  if(levelsChanged){
+    html += `<div class="warnBox">Level selection changed since this check ran (last checked at level ${escapeHtml((state.levels||[]).join(', '))}).
+      <button class="btn small" onclick="checkForNewMunicipalities('${code}')">Re-check with new levels</button></div>`;
   }
 
   if(!state.candidates.length){
@@ -880,26 +817,7 @@ function renderDiscoverBox(){
 
   box.innerHTML = html;
 }
-async function applyAllMuniUpdates(code){
-  const state = discoverState[code];
-  if(!state || !state.updates || !state.updates.length) return;
-  const total = state.updates.length;
-  let ok = 0;
-  // Apply oldest-index-first, always re-reading state.updates[0] since applyMuniUpdate
-  // splices the array on success — this keeps indices valid without re-rendering per item.
-  while(state.updates.length){
-    try{
-      await applyMuniUpdate(code, 0, { skipRender: true });
-      ok++;
-    }catch(err){
-      break; // stop on first failure, applyMuniUpdate already toasted the reason
-    }
-  }
-  toast(`Applied ${ok} of ${total} updates.`, ok === total ? 'success' : 'error');
-  renderCountryPanel();
-  refreshMapStyles();
-}
-async function applyMuniUpdate(code, index, opts){
+async function applyMuniUpdate(code, index){
   const state = discoverState[code];
   if(!state || !state.updates || !state.updates[index]) return;
   const { muni, match } = state.updates[index];
@@ -916,38 +834,12 @@ async function applyMuniUpdate(code, index, opts){
     if(error) throw error;
     const idx = municipalityCache.findIndex(m => m.id === muni.id);
     if(idx >= 0) municipalityCache[idx] = data;
+    toast('Updated ' + (data.name_en || data.name), 'success');
     state.updates.splice(index, 1);
-    if(!opts || !opts.skipRender){
-      toast('Updated ' + (data.name_en || data.name), 'success');
-      renderCountryPanel();
-      refreshMapStyles();
-    }
+    renderCountryPanel();
+    refreshMapStyles();
   }catch(err){
-    // A duplicate-key error here means another row already owns this exact OSM relation —
-    // almost always because an earlier import created a second row for a place that was
-    // already on file (the suffix/prefix name-matching bug let it slip through). Rather than
-    // just failing, still apply the safe parts of the patch (name/name_en/coords) and tell
-    // the admin plainly that there are two rows for the same place needing a manual merge.
-    const isDupe = err.code === '23505' || /duplicate key value violates unique constraint/i.test(err.message || '');
-    if(isDupe && patch.osm_id != null){
-      const { osm_id, osm_type, admin_level, ...safePatch } = patch;
-      try{
-        const { data, error: err2 } = await sb.from(MUNICIPALITIES_TABLE).update(safePatch).eq('id', muni.id).select().single();
-        if(err2) throw err2;
-        const idx = municipalityCache.findIndex(m => m.id === muni.id);
-        if(idx >= 0) municipalityCache[idx] = data;
-        state.updates.splice(index, 1);
-        const dupe = municipalityCache.find(m => m.osm_type === osm_type && String(m.osm_id) === String(osm_id));
-        const msg = `Updated the name for "${data.name_en || data.name}", but couldn't link its OSM ID — ${dupe ? `another row ("${dupe.name_en || dupe.name}", id ${dupe.id})` : 'another row'} already uses ${osm_type}/${osm_id}. These look like two rows for the same place — worth merging manually (move any contacts to one, delete the other).`;
-        if(!opts || !opts.skipRender){ toast(msg, 'error'); renderCountryPanel(); refreshMapStyles(); }
-        return;
-      }catch(err2){
-        if(!opts || !opts.skipRender) toast('Update failed: ' + err2.message, 'error');
-        throw err2;
-      }
-    }
-    if(!opts || !opts.skipRender) toast('Update failed: ' + err.message, 'error');
-    throw err;
+    toast('Update failed: ' + err.message, 'error');
   }
 }
 async function importDiscoveredMunicipalities(code){
