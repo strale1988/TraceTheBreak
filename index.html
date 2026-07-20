@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="google" content="notranslate">
-  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
   <title>TraceTheBreak</title>
 
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -2504,6 +2504,8 @@ details[open] > summary .uc-group-chevron{ transform:rotate(180deg);  }
 .detail-gallery-strip{ display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; -webkit-overflow-scrolling:touch; }
 .detail-gallery-item{ position:relative; flex:0 0 auto; width:88px; }
 .detail-gallery-thumb{ width:88px; height:88px; object-fit:cover; border-radius:var(--radius-md); display:block; cursor:pointer; background:var(--bg-surface-alt); }
+.detail-gallery-thumb:focus-visible,
+.detail-photo-img:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
 .detail-gallery-caption{ font-size:var(--fs-9-5); color:var(--text-muted); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .detail-gallery-delete{
   position:absolute; top:3px; right:3px;
@@ -5810,6 +5812,9 @@ const T = {
   photoRejectedBadge:     { en:'Rejected',                                    sr:'Odbijeno' },
   photoRejectedOwnerNote: { en:'Your photo didn\'t pass review, so it isn\'t shown publicly. The report itself is unaffected.', sr:'Vaša fotografija nije prošla proveru, pa nije javno prikazana. Sama prijava time nije pogođena.' },
   photoLoadFailed:        { en:'Could not load photo.',                       sr:'Fotografija nije mogla biti učitana.' },
+  photoViewFullSize:       { en:'View photo full size',                        sr:'Prikaži fotografiju u punoj veličini' },
+  photoViewFullSizeBefore: { en:'View before photo full size',                 sr:'Prikaži fotografiju "pre" u punoj veličini' },
+  photoViewFullSizeAfter:  { en:'View after photo full size',                  sr:'Prikaži fotografiju "posle" u punoj veličini' },
   photoLoginPrompt:       { en:'Log in to see the photo.',                    sr:'Prijavite se da biste videli fotografiju.' },
   addPhotoTooltip:        { en:'Add photo',                                   sr:'Dodaj fotografiju' },
   photoAddedPending:      { en:'Photo added — waiting for admin review.',     sr:'Fotografija dodata — čeka proveru administratora.' },
@@ -8933,6 +8938,20 @@ window.addEventListener('popstate', () => {
 });
 history.pushState({ overlayGuard: true }, '');
 
+// Escape closes whichever overlay is currently on top of the stack, the same way its
+// own close button would (goes through the normal closeFn -> closeOverlay -> history.back()
+// path, so history stays in sync with what's actually open). Ignored while a text input,
+// textarea, or contenteditable field is focused so it doesn't fight with "cancel editing"
+// expectations inside forms — those already have their own escape/cancel affordances.
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || !overlayStack.length) return;
+  const active = document.activeElement;
+  const isEditable = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable);
+  if (isEditable) return;
+  const top = overlayStack[overlayStack.length - 1];
+  if (top && typeof top.closeFn === 'function') top.closeFn();
+});
+
 let gpsModalShownOnce = false;
 function showGpsModal(){
   if (gpsModalShownOnce) return;
@@ -10061,7 +10080,7 @@ async function renderReportGallery(reportId) {
       const canDelete = !!currentSession && (currentSession.user.id === p.uploader_id || (currentProfile && currentProfile.is_admin));
       const deleteBtn = canDelete ? `<button type="button" class="detail-gallery-delete" onclick="deleteGalleryPhoto('${p.id}','${escapeHtml(p.photo_path)}','${reportId}')" aria-label="${t('deleteBtn')}" title="${t('deleteBtn')}">✕</button>` : '';
       const thumbHtml = url
-        ? `<img src="${url}" alt="" class="detail-gallery-thumb" onclick="window.open('${url}','_blank')">${deleteBtn}`
+        ? `<img src="${url}" alt="${t('photoViewFullSize')}" class="detail-gallery-thumb" role="button" tabindex="0" onclick="window.open('${url}','_blank')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.open('${url}','_blank');}">${deleteBtn}`
         : `<div class="detail-empty">${t('photoLoadFailed')}</div>`;
       const caption = item.querySelector('.detail-gallery-caption');
       item.innerHTML = thumbHtml + (caption ? caption.outerHTML : '');
@@ -11983,7 +12002,7 @@ function renderWaitingListInto(containerId) {
         const thumb = document.getElementById('photo-review-thumb-' + containerId + '-' + item.report.id);
         if (!thumb) return;
         thumb.innerHTML = url
-          ? `<img src="${url}" alt="" onclick="window.open('${url}','_blank')">`
+          ? `<img src="${url}" alt="${t('photoViewFullSize')}" role="button" tabindex="0" onclick="window.open('${url}','_blank')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.open('${url}','_blank');}">`
           : `<div class="detail-empty">${t('photoLoadFailed')}</div>`;
       });
     }
@@ -11992,7 +12011,7 @@ function renderWaitingListInto(containerId) {
         const thumb = document.getElementById('after-photo-review-thumb-' + containerId + '-' + item.report.id);
         if (!thumb) return;
         thumb.innerHTML = url
-          ? `<img src="${url}" alt="" onclick="window.open('${url}','_blank')">`
+          ? `<img src="${url}" alt="${t('photoViewFullSize')}" role="button" tabindex="0" onclick="window.open('${url}','_blank')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.open('${url}','_blank');}">`
           : `<div class="detail-empty">${t('photoLoadFailed')}</div>`;
       });
     }
@@ -12905,7 +12924,7 @@ async function showReportDetailModal(reportId) {
       const wrap = document.getElementById('detailPhotoWrap');
       if (!wrap) return;
       wrap.innerHTML = url
-        ? `<img src="${url}" alt="" class="detail-photo-img" onclick="window.open('${url}','_blank')">`
+        ? `<img src="${url}" alt="${t('photoViewFullSizeBefore')}" class="detail-photo-img" role="button" tabindex="0" onclick="window.open('${url}','_blank')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.open('${url}','_blank');}">`
         : `<div class="detail-empty">${t('photoLoadFailed')}</div>`;
     });
   }
@@ -12915,7 +12934,7 @@ async function showReportDetailModal(reportId) {
       const wrap = document.getElementById('detailAfterPhotoWrap');
       if (!wrap) return;
       wrap.innerHTML = url
-        ? `<img src="${url}" alt="" class="detail-photo-img" onclick="window.open('${url}','_blank')">`
+        ? `<img src="${url}" alt="${t('photoViewFullSizeAfter')}" class="detail-photo-img" role="button" tabindex="0" onclick="window.open('${url}','_blank')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.open('${url}','_blank');}">`
         : `<div class="detail-empty">${t('photoLoadFailed')}</div>`;
     });
   }
