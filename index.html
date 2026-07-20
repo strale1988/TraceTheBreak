@@ -854,6 +854,8 @@ body.nav-panel-open .driving-nav-card{
   color:var(--text-secondary);
   font-size:var(--fs-13);
 }
+.navigate-search-btn .icon-img{ filter:var(--icon-tint-filter); }
+#navigatePinBtn.active .icon-img{ filter:none; }
 #navigatePinBtn.active{ background:#f5a623; color:#111; }
 .navigate-pin-hint{
   font-size:var(--fs-11);
@@ -1143,7 +1145,8 @@ body.nav-panel-open .driving-nav-card{
 }
 body.driving-active .driving-left-stack{ display:flex; }
 body.nav-panel-open .driving-left-stack,
-body.nav-panel-open .driving-nav-card{
+body.nav-panel-open .driving-nav-card,
+body.nav-panel-open #mapCompass{
   display:none !important;
 }
 
@@ -1154,42 +1157,44 @@ body.nav-panel-open .driving-nav-card{
   gap:0;
 }
 body.driving-active .driving-speed-widget{ display:flex; }
-.driving-speed-limit{
-  width:44px; height:44px;
-  border-radius:50%;
-  background:#fff;
-  border:3.5px solid #d61f1f;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  font-size:var(--fs-17);
-  font-weight:var(--fw-heavy);
-  color:#111;
-  box-shadow:0 1px 4px rgba(0,0,0,.5);
-  transition:opacity .2s;
-  position:relative;
-  z-index:2;
-  margin-bottom:-18px;
-}
-.driving-speed-limit.no-data{ opacity:.3; }
 .driving-speed-capsule{
   position:relative;
   display:flex;
   flex-direction:column;
   align-items:center;
+  justify-content:flex-start;
+  gap:6px;
   background:var(--bg-surface);
-  border:1px solid var(--border-color);
-  border-radius:30px 30px 22px 22px;
-  padding:26px 14px 8px;
-  min-width:52px;
+  border:3px solid #5ec98a;
+  border-radius:999px;
+  padding:14px 12px 16px;
+  min-width:66px;
+  min-height:106px;
   box-shadow:0 2px 8px rgba(0,0,0,.3);
+  transition:border-color .25s;
 }
+.driving-speed-capsule.gps-lost{ border-color:#ff4b4b; }
+.driving-speed-limit{
+  width:38px; height:38px;
+  border-radius:50%;
+  background:#fff;
+  border:3px solid #d61f1f;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:var(--fs-15);
+  font-weight:var(--fw-heavy);
+  color:#111;
+  transition:opacity .2s;
+  flex-shrink:0;
+}
+.driving-speed-limit.no-data{ opacity:.3; }
 .driving-speed-value{ font-size:var(--fs-32); font-weight:var(--fw-heavy); color:var(--text-primary); line-height:1; }
-.driving-speed-unit{ font-size:var(--fs-12); font-weight:var(--fw-bold); color:var(--text-secondary); letter-spacing:.3px; margin-top:2px; }
+.driving-speed-unit{ font-size:var(--fs-12); font-weight:var(--fw-bold); color:var(--text-secondary); letter-spacing:.3px; margin-top:-4px; }
 .driving-status-dot{
   position:absolute;
-  top:6px;
-  right:6px;
+  top:8px;
+  right:8px;
   width:8px; height:8px; border-radius:50%;
   background:#5ec98a;
   border:1px solid rgba(0,0,0,.4);
@@ -2899,9 +2904,9 @@ span.flatpickr-weekday {
 </div>
 <div class="driving-left-stack">
   <div class="driving-speed-widget">
-    <div class="driving-speed-limit no-data" id="drivingSpeedLimit">--</div>
-    <div class="driving-speed-capsule">
+    <div class="driving-speed-capsule" id="drivingSpeedCapsule">
       <span class="driving-status-dot" id="drivingStatusLabel" title="GPS status"></span>
+      <div class="driving-speed-limit no-data" id="drivingSpeedLimit">--</div>
       <span class="driving-speed-value" id="drivingSpeedValue">--</span>
       <span class="driving-speed-unit">km/h</span>
     </div>
@@ -9177,6 +9182,8 @@ function updateDrivingGpsStatus() {
   const stale = !lastAcceptedFix || (Date.now() - lastAcceptedFix.t) > GPS_SIGNAL_LOST_MS;
   dsl.title = stale ? t('drivingNoGps') : t('drivingGpsLabel');
   dsl.classList.toggle('gps-lost', stale);
+  const capsule = document.getElementById('drivingSpeedCapsule');
+  if (capsule) capsule.classList.toggle('gps-lost', stale);
 }
 setInterval(updateDrivingGpsStatus, 2000);
 
