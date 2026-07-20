@@ -1,7 +1,8 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" translate="no">
 <head>
   <meta charset="UTF-8">
+  <meta name="google" content="notranslate">
   <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
   <title>TraceTheBreak</title>
 
@@ -949,14 +950,14 @@ body.nav-panel-open .driving-nav-card{
 }
 .user-nav-marker{
   position:relative;
-  width:40px; height:40px;
+  width:46px; height:46px;
   display:flex;
   align-items:center;
   justify-content:center;
 }
 .user-nav-pulse{
   position:absolute;
-  width:40px; height:40px;
+  width:46px; height:46px;
   border-radius:50%;
   background:rgba(var(--accent-rgb),.28);
   animation:navPulse 2s ease-out infinite;
@@ -967,14 +968,14 @@ body.nav-panel-open .driving-nav-card{
 }
 .user-nav-halo{
   position:absolute;
-  width:34px; height:34px;
+  width:38px; height:38px;
   border-radius:50%;
   background:rgba(255,255,255,.92);
-  box-shadow:0 2px 8px rgba(0,0,0,.35), 0 0 0 1px rgba(0,0,0,.06);
+  box-shadow:0 2px 8px rgba(0,0,0,.35), 0 0 0 3px #ff8a1e;
 }
 .user-nav-arrow{
   position:relative;
-  width:20px; height:20px;
+  width:32px; height:32px;
   transition:transform .25s linear;
 }
 
@@ -1214,6 +1215,32 @@ body.driving-active .driving-speed-widget{ display:flex; }
   overflow:hidden;
   text-overflow:ellipsis;
   white-space:nowrap;
+}
+
+/* The card itself carries class "turn-by-turn-card" (not "turn-by-turn-bar" above) —
+   this is the actual positioning/visual styling for it. Floats near the top of the
+   driving screen, fades/slides in when a turn is coming up. */
+.turn-by-turn-card{
+  position:fixed;
+  top:calc(var(--header-h, 64px) + 10px + env(safe-area-inset-top, 0px));
+  left:50%;
+  z-index:2650;
+  flex-direction:row;
+  align-items:center;
+  gap:var(--space-10);
+  background:var(--accent);
+  border-radius:16px;
+  padding:10px 16px;
+  max-width:calc(100% - 24px);
+  box-shadow:0 4px 16px rgba(0,0,0,.4);
+  opacity:0;
+  transform:translateX(-50%) translateY(-10px);
+  transition:opacity .3s ease, transform .3s ease;
+  pointer-events:none;
+}
+.turn-by-turn-card.tbt-visible{
+  opacity:1;
+  transform:translateX(-50%) translateY(0);
 }
 
 .driving-float-action-row{
@@ -2666,7 +2693,7 @@ span.flatpickr-weekday {
 }
 </style>
 </head>
-<body>
+<body class="notranslate" translate="no">
 
 <header>
   <div class="header-top">
@@ -2971,6 +2998,10 @@ span.flatpickr-weekday {
   <div class="generic-modal" id="nearbyCheckinModalInner"></div>
 </div>
 
+<div id="drivingSafetyModal" class="generic-modal-overlay" style="display:none">
+  <div class="generic-modal" id="drivingSafetyModalInner"></div>
+</div>
+
 <div id="themedDialogModal" class="generic-modal-overlay" style="display:none">
   <div class="generic-modal" id="themedDialogModalInner"></div>
 </div>
@@ -3071,6 +3102,17 @@ span.flatpickr-weekday {
         <span id="soundToggleLabel">Navigation & alert sounds</span>
         <span class="toggle-switch">
           <input type="checkbox" id="soundToggleInput" checked onchange="setSoundEnabled(this.checked)">
+          <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+        </span>
+      </label>
+    </div>
+
+    <div class="detail-section" id="drivingSafetySettingsSection">
+      <div class="detail-section-title" id="drivingSafetySectionTitle">Driving mode</div>
+      <label class="settings-toggle-row" id="drivingSafetyToggleRow">
+        <span id="drivingSafetyToggleLabel">Show safe-driving reminder when starting driving mode</span>
+        <span class="toggle-switch">
+          <input type="checkbox" id="drivingSafetyToggleInput" checked onchange="setDrivingSafetyReminderEnabled(this.checked)">
           <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
         </span>
       </label>
@@ -5708,6 +5750,8 @@ const T = {
   ucGeocodeBackfillDone:     { en:'Done — {found}/{total} addresses geocoded.', sr:'Gotovo — {found}/{total} adresa geokodirano.' },
   ucGeocodeBackfillNone:     { en:'Every contact with an address already has coordinates.', sr:'Svi kontakti sa adresom već imaju koordinate.' },
   ucNoContacts:      { en:'No utility companies added yet.',     sr:'Još uvek nema unetih javnih preduzeća.' },
+  ucLoadingList:     { en:'Loading contacts…',                   sr:'Učitavanje kontakata…' },
+  ucMuniNoContacts:  { en:'No contacts added yet.',               sr:'Još uvek nema unetih kontakata.' },
   ucSelectMunicipality: { en:'— Select municipality —',          sr:'— Izaberi opštinu —' },
   ucNoMunicipalitiesHint: { en:'No municipalities cached yet. Move the map to the desired area and tap "Add municipality from map center".', sr:'Još nema keširanih opština. Pomerite mapu na željeno mesto i pritisnite "Dodaj opštinu sa centra mape".' },
   ucAddMuniBtn:      { en:'Add municipality from map center',  sr:'Dodaj opštinu sa centra mape' },
@@ -5841,6 +5885,12 @@ const T = {
   queueTypeStale:         { en:'Aging, no activity',                  sr:'Zastarelo, bez aktivnosti' },
   soundSectionTitle:      { en:'Sound',                               sr:'Zvuk' },
   soundToggleLabel:       { en:'Navigation & alert sounds',           sr:'Zvukovi za navigaciju i upozorenja' },
+  drivingSafetySectionTitle: { en:'Driving mode',                                            sr:'Režim vožnje' },
+  drivingSafetyToggleLabel:  { en:'Show safe-driving reminder when starting driving mode',    sr:'Prikaži podsetnik o bezbednoj vožnji pri pokretanju režima vožnje' },
+  drivingSafetyTitle:        { en:'Drive safe',                                               sr:'Vozite bezbedno' },
+  drivingSafetyBody:         { en:'You are more important than a pothole. Keep your eyes on the road — glance at reports and directions only when it is safe to do so, and let a passenger handle the phone if possible. Reporting can always wait until you have stopped.', sr:'Vi ste važniji od rupe na putu. Držite pogled na putu — na prijave i uputstva pogledajte samo kada je bezbedno, a ako je moguće, neka telefon koristi suvozač. Prijavu uvek možete uneti kasnije, kada se zaustavite.' },
+  drivingSafetyAckBtn:       { en:'Got it, drive safe',                                       sr:'Razumem, vozimo bezbedno' },
+  drivingSafetyDontShowAgain:{ en:'Do not show this again',                                    sr:'Ne prikazuj ponovo' },
 
   leaderboardBtnTitle:     { en:'Rankings',                           sr:'Rang lista' },
 
@@ -6057,6 +6107,10 @@ function applyLang(){
   if (soundSectionTitleEl) soundSectionTitleEl.textContent = t('soundSectionTitle');
   const soundToggleLabelEl = document.getElementById('soundToggleLabel');
   if (soundToggleLabelEl) soundToggleLabelEl.textContent = t('soundToggleLabel');
+  const drivingSafetySectionTitleEl = document.getElementById('drivingSafetySectionTitle');
+  if (drivingSafetySectionTitleEl) drivingSafetySectionTitleEl.textContent = t('drivingSafetySectionTitle');
+  const drivingSafetyToggleLabelEl = document.getElementById('drivingSafetyToggleLabel');
+  if (drivingSafetyToggleLabelEl) drivingSafetyToggleLabelEl.textContent = t('drivingSafetyToggleLabel');
   const nearbyCheckinTitleEl = document.getElementById('nearbyCheckinSectionTitle');
   if (nearbyCheckinTitleEl) nearbyCheckinTitleEl.textContent = t('nearbyCheckinSectionTitle');
   const nearbyCheckinHintEl = document.getElementById('nearbyCheckinSectionHint');
@@ -6273,6 +6327,7 @@ function showSettingsModal() {
   if (pulseToggleEl) pulseToggleEl.checked = statusPulseEnabled;
   renderStatusFilterSettings();
   initSoundSettingsUi();
+  initDrivingSafetySettingsUi();
   initMapButtonToggleUi();
   updateNearbyCheckinSegmentUI();
   updateContactReminderSegmentUI();
@@ -7087,7 +7142,14 @@ let dateRangeOnlyData = [];
 // report in each group ("primary") gets its own marker; its popup/detail view shows a
 // "Confirmed by N people" line, and status changes/votes applied to it are applied to
 // every report in the group so the whole physical issue moves together.
-const DUPLICATE_MERGE_RADIUS_M = 30;
+//
+// Kept tight on purpose: a wider radius was pulling in reports from the opposite
+// carriageway of dual-carriageway roads (which are usually 15-30m+ apart including
+// the median) as if they were the same issue. Reports don't currently record which
+// direction the reporter was travelling in, so we can't do true "same side of the
+// road" matching — this radius is the safest practical stand-in for that until a
+// direction/heading field is added to the report schema.
+const DUPLICATE_MERGE_RADIUS_M = 15;
 let duplicateGroupByReportId = new Map(); // reportId -> { ids, primaryId, count }
 
 function recomputeDuplicateGroups() {
@@ -7279,7 +7341,7 @@ function buildUserMarkerHtml(navStyle) {
              '<div class="user-nav-pulse"></div>' +
              '<div class="user-nav-halo"></div>' +
              '<div class="user-nav-arrow">' +
-               '<svg viewBox="0 0 24 24" width="20" height="20">' +
+               '<svg viewBox="0 0 24 24" width="32" height="32">' +
                  '<path d="M12 2.2 L19.3 20 L12 15.6 L4.7 20 Z" fill="var(--accent)" stroke="rgba(0,0,0,.35)" stroke-width="1" stroke-linejoin="round"/>' +
                '</svg>' +
              '</div>' +
@@ -7294,7 +7356,7 @@ function buildUserMarkerHtml(navStyle) {
 function setUserMarkerStyle(navStyle) {
   userMarkerNavStyle = navStyle;
   if (!userMarker) return;
-  const size = navStyle ? 40 : 34;
+  const size = navStyle ? 46 : 34;
   userMarker.setIcon(L.divIcon({
     className: '',
     html: buildUserMarkerHtml(navStyle),
@@ -8079,6 +8141,55 @@ function initSoundSettingsUi() {
   if (input) input.checked = soundEnabled;
 }
 
+/* ---------- Driving safety reminder ---------- */
+// A one-tap-to-dismiss reminder shown each time driving mode starts, nudging people to
+// keep their eyes on the road and not fiddle with reports/navigation while moving. On
+// by default (safety-relevant), with a settings toggle to turn it off for people who
+// find it repetitive.
+const DRIVING_SAFETY_REMINDER_KEY = 'ttb_driving_safety_reminder';
+function getDrivingSafetyReminderPref() {
+  try {
+    const v = localStorage.getItem(DRIVING_SAFETY_REMINDER_KEY);
+    return v === null ? true : v === '1';
+  } catch (err) { return true; }
+}
+let drivingSafetyReminderEnabled = getDrivingSafetyReminderPref();
+function setDrivingSafetyReminderEnabled(enabled) {
+  drivingSafetyReminderEnabled = !!enabled;
+  try { localStorage.setItem(DRIVING_SAFETY_REMINDER_KEY, drivingSafetyReminderEnabled ? '1' : '0'); } catch (err) {}
+}
+function initDrivingSafetySettingsUi() {
+  const input = document.getElementById('drivingSafetyToggleInput');
+  if (input) input.checked = drivingSafetyReminderEnabled;
+}
+
+function showDrivingSafetyModal() {
+  const modal = document.getElementById('drivingSafetyModal');
+  const inner = document.getElementById('drivingSafetyModalInner');
+  if (!modal || !inner) return;
+  inner.innerHTML = `
+    <div class="generic-modal-icon"><img class="icon-img icon-img-modal" src="icons/car.png" alt=""></div>
+    <h2>${t('drivingSafetyTitle')}</h2>
+    <p>${escapeHtml(t('drivingSafetyBody'))}</p>
+    <div style="display:flex;flex-direction:column;gap:var(--space-8);">
+      <button type="button" style="background:var(--accent);color:white;border:none;border-radius:14px;padding:12px 20px;font-size:var(--fs-14);font-weight:var(--fw-semibold);cursor:pointer;min-height:44px;" onclick="hideDrivingSafetyModal()">${t('drivingSafetyAckBtn')}</button>
+      <button type="button" class="settings-btn" style="background:transparent;box-shadow:none;" onclick="dismissDrivingSafetyModalPermanently()">${t('drivingSafetyDontShowAgain')}</button>
+    </div>`;
+  bringModalToFront(modal);
+  modal.style.display = 'flex';
+  openOverlay('drivingSafetyModal', hideDrivingSafetyModal);
+}
+function hideDrivingSafetyModal() {
+  const modal = document.getElementById('drivingSafetyModal');
+  if (modal) modal.style.display = 'none';
+  closeOverlay('drivingSafetyModal');
+}
+function dismissDrivingSafetyModalPermanently() {
+  setDrivingSafetyReminderEnabled(false);
+  initDrivingSafetySettingsUi();
+  hideDrivingSafetyModal();
+}
+
 const DRIVING_AUDIO_ALERT_COOLDOWN_MS = 10 * 60 * 1000;
 const drivingAudioAlertedAt = new Map();
 function maybeDrivingAudioAlert() {
@@ -8354,7 +8465,10 @@ function customDragPointerDown(e) {
   if (!rotationActive()) return;
   customDragActive = true;
   customDragLast = { x: e.clientX, y: e.clientY };
-  if (followMode) setFollowMode(false);
+  // Use the shared interaction-start handler (not a bare setFollowMode(false)) so this
+  // also arms pendingAutoRefollow — otherwise dragging while the map is rotated (the
+  // normal case in driving mode) permanently killed follow mode with no way back.
+  onUserMapInteractionStart();
 }
 
 function customDragPointerMove(e) {
@@ -8372,6 +8486,7 @@ function customDragPointerMove(e) {
 function customDragPointerUp() {
   customDragActive = false;
   customDragLast = null;
+  scheduleAutoRefollow();
 }
 
 (function initRotationAwareDragging(){
@@ -8491,8 +8606,10 @@ function toggleDrivingMode() {
     if (headingUpMode && currentHeading !== null) applyMapBearing(-currentHeading);
     if (destinationCoords && userCoords) updateTurnByTurnDisplay(userCoords);
     openOverlay('drivingMode', () => { if (drivingMode) toggleDrivingMode(); });
+    if (drivingSafetyReminderEnabled) showDrivingSafetyModal();
   } else {
     closeOverlay('drivingMode');
+    if (document.getElementById('drivingSafetyModal')?.style.display === 'flex') hideDrivingSafetyModal();
     if (sectionRecording) {
       toggleSectionRecording();
     }
@@ -9026,8 +9143,8 @@ function startWatching() {
           icon: L.divIcon({
             className: '',
             html: buildUserMarkerHtml(userMarkerNavStyle),
-            iconSize: userMarkerNavStyle ? [40, 40] : [34, 34],
-            iconAnchor: userMarkerNavStyle ? [20, 20] : [17, 17]
+            iconSize: userMarkerNavStyle ? [46, 46] : [34, 34],
+            iconAnchor: userMarkerNavStyle ? [23, 23] : [17, 17]
           }),
           zIndexOffset: 5000
         }).addTo(map);
@@ -10297,7 +10414,7 @@ function wizRenderDetails(body) {
   renderWizDuplicateNotice();
 }
 
-const DUPLICATE_REPORT_RADIUS_M = 100;
+const DUPLICATE_REPORT_RADIUS_M = 40;
 const DUPLICATE_REPORT_MAX_SHOWN = 3;
 function findNearbyDuplicateReports(lat, lon, category) {
   if (!isValidLatLng(lat, lon) || !category) return [];
@@ -11616,6 +11733,8 @@ async function loadUtilityCompaniesAdmin() {
   if (ucSearchEl) ucSearchEl.placeholder = t('ucSearchPH');
   const backfillBtn = document.getElementById('ucGeocodeBackfillBtn');
   if (backfillBtn && !backfillBtn.disabled) backfillBtn.textContent = t('ucGeocodeBackfillBtn');
+  const listEl = document.getElementById('ucList');
+  if (listEl) listEl.innerHTML = '<div class="detail-loading">' + t('ucLoadingList') + '</div>';
 
   await loadMunicipalityCache(true);
   populateUcMunicipalitySelect();
@@ -12088,45 +12207,76 @@ function renderUcList() {
   const listEl = document.getElementById('ucList');
   if (!listEl) return;
   const openIds = getOpenUcGroupIds();
-  if (!ucCompaniesCache.length) {
-    listEl.innerHTML = '<div class="detail-empty">' + t('ucNoContacts') + '</div>';
-    return;
-  }
 
   const searchEl = document.getElementById('ucSearchInput');
   const rawQuery = searchEl ? searchEl.value.trim() : '';
   const query = rawQuery ? normalizeMuniNameForMatch(rawQuery) : '';
-  const visibleCompanies = !query ? ucCompaniesCache : ucCompaniesCache.filter(c => {
-    const muni = municipalityCache.find(m => String(m.id) === String(c.municipality_id));
-    const haystack = normalizeMuniNameForMatch([
-      c.name,
-      muni ? muni.name : '',
-      muni ? muni.name_en : '',
-      ...(c.categories || []).map(categorySearchText)
-    ].filter(Boolean).join(' '));
-    return haystack.includes(query);
+
+  // Full domain-scoped municipality tree — level 3 (global) sees every municipality, level 2
+  // (country) sees their own country's municipalities, level 1 (municipality) sees just their
+  // one municipality. Built from municipalityCache itself, not from ucCompaniesCache, so a
+  // country or municipality with zero contacts saved yet still shows up as a browsable, empty
+  // entry rather than disappearing until someone adds its first contact.
+  const inDomainMunis = currentAdminLevel() >= 3
+    ? municipalityCache
+    : municipalityCache.filter(m => isMunicipalityInAdminDomain(m));
+
+  if (!inDomainMunis.length) {
+    listEl.innerHTML = '<div class="detail-empty">' + t('ucNoContacts') + '</div>';
+    return;
+  }
+
+  const companiesByMuni = new Map();
+  ucCompaniesCache.forEach(c => {
+    const key = c.municipality_id != null ? String(c.municipality_id) : '';
+    if (!companiesByMuni.has(key)) companiesByMuni.set(key, []);
+    companiesByMuni.get(key).push(c);
   });
-  if (!visibleCompanies.length) {
+
+  const countryGroups = new Map(); // countryCode -> Map(muniId -> { muni, companies })
+  inDomainMunis.forEach(muni => {
+    const countryCode = muni.country_code || '';
+    if (!countryGroups.has(countryCode)) countryGroups.set(countryCode, new Map());
+    const muniKey = String(muni.id);
+    countryGroups.get(countryCode).set(muniKey, { muni, companies: companiesByMuni.get(muniKey) || [] });
+  });
+
+  // With no search query, show the full tree as-is (including empty municipalities/countries).
+  // With a query, keep a municipality/country whose name matches (contacts and all, even if
+  // zero), or a municipality whose *contacts* match by name/category — but drop anything with
+  // no match at all so search still narrows things down.
+  let visibleCountryGroups = countryGroups;
+  if (query) {
+    visibleCountryGroups = new Map();
+    countryGroups.forEach((muniGroups, countryCode) => {
+      const countryNameMatches = normalizeMuniNameForMatch(countryDisplayName(countryCode)).includes(query);
+      const keptMuniGroups = new Map();
+      muniGroups.forEach((group, muniKey) => {
+        const muniNameMatches = group.muni ? normalizeMuniNameForMatch(municipalityDisplayName(group.muni)).includes(query) : false;
+        if (countryNameMatches || muniNameMatches) {
+          keptMuniGroups.set(muniKey, group);
+          return;
+        }
+        const matchingCompanies = group.companies.filter(c => {
+          const haystack = normalizeMuniNameForMatch([c.name, ...(c.categories || []).map(categorySearchText)].filter(Boolean).join(' '));
+          return haystack.includes(query);
+        });
+        if (matchingCompanies.length) keptMuniGroups.set(muniKey, { muni: group.muni, companies: matchingCompanies });
+      });
+      if (keptMuniGroups.size) visibleCountryGroups.set(countryCode, keptMuniGroups);
+    });
+  }
+
+  if (!visibleCountryGroups.size) {
     listEl.innerHTML = '<div class="detail-empty">' + t('ucNoSearchResults') + '</div>';
     return;
   }
 
-  const countryGroups = new Map();
-  visibleCompanies.forEach(c => {
-    const muni = municipalityCache.find(m => String(m.id) === String(c.municipality_id)) || null;
-    const countryCode = (muni && muni.country_code) || '';
-    if (!countryGroups.has(countryCode)) countryGroups.set(countryCode, new Map());
-    const muniGroups = countryGroups.get(countryCode);
-    const muniKey = muni ? String(muni.id) : '';
-    if (!muniGroups.has(muniKey)) muniGroups.set(muniKey, { muni, companies: [] });
-    muniGroups.get(muniKey).companies.push(c);
-  });
-
-  const sortedCountryCodes = Array.from(countryGroups.keys()).sort((a, b) =>
+  const sortedCountryCodes = Array.from(visibleCountryGroups.keys()).sort((a, b) =>
     countryDisplayName(a).localeCompare(countryDisplayName(b)));
 
   listEl.innerHTML = '<div class="uc-group-list">' + sortedCountryCodes.map(countryCode => {
-    const muniGroups = countryGroups.get(countryCode);
+    const muniGroups = visibleCountryGroups.get(countryCode);
     const countryTotal = Array.from(muniGroups.values()).reduce((n, g) => n + g.companies.length, 0);
     const sortedMuniKeys = Array.from(muniGroups.keys()).sort((a, b) =>
       municipalityDisplayName(muniGroups.get(a).muni).localeCompare(municipalityDisplayName(muniGroups.get(b).muni)));
@@ -12136,7 +12286,7 @@ function renderUcList() {
       const muniLabel = muni
         ? escapeHtml(municipalityDisplayName(muni)) + (muni.country_code ? ' (' + escapeHtml(muni.country_code) + ')' : '')
         : t('detailUnknown');
-      const itemsHtml = companies.map(c => {
+      const itemsHtml = companies.length ? companies.map(c => {
         const catsHtml = (c.categories || []).map(cat =>
           '<span class="uc-cat-chip" style="background:' + categoryColor(cat) + ';">' + translateCategory(cat) + '</span>'
         ).join('');
@@ -12160,11 +12310,10 @@ function renderUcList() {
           '<div class="uc-item-cats">' + verifiedChip + catsHtml + '</div>' +
           flagWarningHtml +
         '</div>';
-      }).join('');
-      const addBtnHtml = '';
+      }).join('') : '<div class="detail-empty uc-muni-empty">' + t('ucMuniNoContacts') + '</div>';
       return '<details class="uc-muni-group" id="uc-muni-group-' + (muni ? muni.id : 'unknown') + '">' +
         '<summary><span class="uc-group-chevron"><img src="icons/arrow.png" alt=""></span> ' + muniLabel +
-          ' <span class="uc-country-count">(' + companies.length + ')</span>' + addBtnHtml + '</summary>' +
+          ' <span class="uc-country-count">(' + companies.length + ')</span></summary>' +
         '<div class="uc-muni-items">' + itemsHtml + '</div>' +
       '</details>';
     }).join('');
@@ -13257,6 +13406,10 @@ function refreshReportContactCounts(reportId) {
 
 const NEARBY_CHECKIN_RADIUS_M = 30;
 const NEARBY_CHECKIN_SCAN_THROTTLE_MS = 15000;
+// While driving, only ask about categories a driver can actually notice at a glance
+// from a moving car — potholes/pavement damage/flooding. Everything else (streetlights,
+// waste, sewage, etc.) still gets asked about normally when walking/browsing.
+const DRIVING_CHECKIN_CATEGORIES = new Set(['Road']);
 const NEARBY_CHECKIN_STORAGE_KEY = 'ttb_nearby_checkin_freq';
 const NEARBY_CHECKIN_GLOBAL_KEY = 'ttb_nearby_checkin_last_global';
 const NEARBY_CHECKIN_HISTORY_KEY = 'ttb_nearby_checkin_history';
@@ -13412,7 +13565,12 @@ function readNearbyCheckinHistory() {
 }
 
 function maybeShowNearbyCheckin() {
-  if (nearbyCheckinModalOpen || drivingMode || overlayStack.length) return;
+  if (nearbyCheckinModalOpen) return;
+  // Driving mode itself is always on the overlay stack (it covers the map like any
+  // other overlay), so it can't be used as a signal that something else is blocking
+  // the prompt — only bail out if some *other* overlay (a modal, settings, etc.) is
+  // open on top of it.
+  if (overlayStack.some(o => o.key !== 'drivingMode')) return;
   if (!currentSession || !userCoords) return;
   const cooldown = NEARBY_CHECKIN_COOLDOWNS[nearbyCheckinFreq];
   if (!cooldown) return;
@@ -13428,6 +13586,7 @@ function maybeShowNearbyCheckin() {
   const history = readNearbyCheckinHistory();
   const candidate = globalActiveData
     .filter(r => r.status === 'reported' && isValidLatLng(r.latitude, r.longitude) && (!currentSession || r.owner_id !== currentSession.user.id))
+    .filter(r => !drivingMode || DRIVING_CHECKIN_CATEGORIES.has(r.category))
     .map(r => ({ r, d: distMeters(userCoords, { lat: r.latitude, lon: r.longitude }) }))
     .filter(x => x.d <= NEARBY_CHECKIN_RADIUS_M && (now - (history[x.r.id] || 0)) >= cooldown.perReport)
     .sort((a, b) => a.d - b.d)[0];
@@ -14609,21 +14768,39 @@ function upsertSectionLine(report) {
   const opacity = report.status === 'fixed' ? 0.4 : 0.85;
   const path = sanitizePath(report.path);
 
-  let line = markerById.get(report.id);
-  if (line) {
-    line.setStyle({ color: sCol, opacity });
-    line.setLatLngs(path);
-    line.setPopupContent(buildPopupHtml(report));
-    if (report.status === 'fixed') line.bringToBack(); else line.bringToFront();
-    return line;
+  let group = markerById.get(report.id);
+  if (group) {
+    group._visibleLine.setStyle({ color: sCol, opacity });
+    group._visibleLine.setLatLngs(path);
+    group._hitLine.setLatLngs(path);
+    group.setPopupContent(buildPopupHtml(report));
+    if (report.status === 'fixed') group.bringToBack(); else group.bringToFront();
+    return group;
   }
 
-  line = L.polyline(path, { color: sCol, weight: 6, opacity, lineCap: 'round', renderer: sectionLineRenderer }).addTo(map);
-  line._reportId = report.id;
-  line.bindPopup(buildPopupHtml(report), { autoPan: false, closeButton: false });
-  markerById.set(report.id, line);
-  if (report.status === 'fixed') line.bringToBack();
-  return line;
+  // The drawn road line is thin (weight 6), which made it very hard to tap accurately,
+  // especially on mobile. A wide, fully transparent "hit" line sits underneath it just
+  // to catch clicks/taps — the visible line stays thin and non-interactive so it never
+  // steals the click first. Both are wrapped in a featureGroup with a popup bound on
+  // the group itself, so existing code (setPopupContent/bringToFront/bringToBack/
+  // removeLayer via markerById) keeps working exactly as before.
+  const hitLine = L.polyline(path, {
+    color: '#000', opacity: 0, weight: 26, lineCap: 'round',
+    renderer: sectionLineRenderer, interactive: true
+  });
+  const visibleLine = L.polyline(path, {
+    color: sCol, weight: 6, opacity, lineCap: 'round',
+    renderer: sectionLineRenderer, interactive: false
+  });
+
+  group = L.featureGroup([hitLine, visibleLine]).addTo(map);
+  group._hitLine = hitLine;
+  group._visibleLine = visibleLine;
+  group._reportId = report.id;
+  group.bindPopup(buildPopupHtml(report), { autoPan: false, closeButton: false });
+  markerById.set(report.id, group);
+  if (report.status === 'fixed') group.bringToBack();
+  return group;
 }
 
 function buildPinIconHtml(category, status, priority, confirmCount) {
