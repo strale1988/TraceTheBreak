@@ -1149,16 +1149,13 @@ body.nav-panel-open .driving-nav-card{
 
 .driving-speed-widget{
   display:none;
-  flex-direction:row;
+  flex-direction:column;
   align-items:center;
-  gap:7px;
+  gap:0;
 }
 body.driving-active .driving-speed-widget{ display:flex; }
-.driving-speed-main{ display:flex; flex-direction:column; align-items:center; line-height:1; }
-.driving-speed-value{ font-size:var(--fs-32); font-weight:var(--fw-heavy); color:var(--accent); line-height:1; text-shadow:0 1px 3px rgba(0,0,0,.85), 0 0 6px rgba(0,0,0,.6); }
-.driving-speed-unit{ font-size:var(--fs-12); font-weight:var(--fw-bold); color:#e2e2e2; letter-spacing:.3px; margin-top:2px; text-shadow:0 1px 3px rgba(0,0,0,.9); }
 .driving-speed-limit{
-  width:40px; height:40px;
+  width:44px; height:44px;
   border-radius:50%;
   background:#fff;
   border:3.5px solid #d61f1f;
@@ -1170,10 +1167,30 @@ body.driving-active .driving-speed-widget{ display:flex; }
   color:#111;
   box-shadow:0 1px 4px rgba(0,0,0,.5);
   transition:opacity .2s;
+  position:relative;
+  z-index:2;
+  margin-bottom:-12px;
 }
 .driving-speed-limit.no-data{ opacity:.3; }
+.driving-speed-capsule{
+  position:relative;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  background:var(--bg-surface);
+  border:1px solid var(--border-color);
+  border-radius:22px;
+  padding:16px 14px 8px;
+  min-width:52px;
+  box-shadow:0 2px 8px rgba(0,0,0,.3);
+}
+.driving-speed-value{ font-size:var(--fs-32); font-weight:var(--fw-heavy); color:var(--text-primary); line-height:1; }
+.driving-speed-unit{ font-size:var(--fs-12); font-weight:var(--fw-bold); color:var(--text-secondary); letter-spacing:.3px; margin-top:2px; }
 .driving-status-dot{
-  width:9px; height:9px; border-radius:50%;
+  position:absolute;
+  top:6px;
+  right:6px;
+  width:8px; height:8px; border-radius:50%;
   background:#5ec98a;
   border:1px solid rgba(0,0,0,.4);
   box-shadow:0 0 4px rgba(0,0,0,.6);
@@ -2882,12 +2899,12 @@ span.flatpickr-weekday {
 </div>
 <div class="driving-left-stack">
   <div class="driving-speed-widget">
-    <span class="driving-status-dot" id="drivingStatusLabel" title="GPS status"></span>
-    <div class="driving-speed-main">
+    <div class="driving-speed-limit no-data" id="drivingSpeedLimit">--</div>
+    <div class="driving-speed-capsule">
+      <span class="driving-status-dot" id="drivingStatusLabel" title="GPS status"></span>
       <span class="driving-speed-value" id="drivingSpeedValue">--</span>
       <span class="driving-speed-unit">km/h</span>
     </div>
-    <div class="driving-speed-limit no-data" id="drivingSpeedLimit">--</div>
   </div>
 </div>
 
@@ -3011,6 +3028,12 @@ span.flatpickr-weekday {
 <div id="themedDialogModal" class="generic-modal-overlay" style="display:none">
   <div class="generic-modal" id="themedDialogModalInner"></div>
 </div>
+
+<div id="photoSourceModal" class="generic-modal-overlay" style="display:none">
+  <div class="generic-modal" id="photoSourceModalInner"></div>
+</div>
+<input type="file" accept="image/*" capture="environment" id="reportPhotoPickerCamera" style="display:none">
+<input type="file" accept="image/*" id="reportPhotoPickerLibrary" style="display:none">
 
 
 <div id="settingsModal" class="fullscreen-modal-overlay" style="display:none">
@@ -5827,6 +5850,7 @@ const T = {
 
   reportPhotoAddBtn:      { en:'Take photo',                                  sr:'Uslikaj' },
   reportPhotoGalleryBtn:  { en:'Choose from gallery',                         sr:'Izaberi iz galerije' },
+  photoSourceTitle:       { en:'Add a photo',                                 sr:'Dodajte fotografiju' },
   reportPhotoInvalid:     { en:'Could not use that photo. Try a different image.', sr:'Fotografija nije mogla biti korišćena. Probajte drugu sliku.' },
   reportPhotoUploadFailed:{ en:'Report submitted, but the photo failed to upload.', sr:'Prijava je poslata, ali fotografija nije uspela da se otpremi.' },
   detailPhotoTitle:       { en:'Photo',                                       sr:'Fotografija' },
@@ -7698,6 +7722,47 @@ function themedPrompt(message, defaultValue, opts) {
   return new Promise(resolve => {
     themedDialogResolver = resolve;
     renderThemedDialog(message, { ...opts, showInput: true, inputValue: defaultValue });
+  });
+}
+
+// Shared "take photo / choose from gallery" picker for all report-detail photo actions
+// (owner photo, after photo, community gallery photo) — same choice offered in the new
+// report form's photo-choice-dropdown, just presented as a small themed action sheet here
+// since these call sites are single buttons rather than an inline row.
+let photoSourceResolver = null;
+function closePhotoSourceModal(file) {
+  const overlay = document.getElementById('photoSourceModal');
+  if (overlay) overlay.style.display = 'none';
+  closeOverlay('photoSourceModal');
+  const resolve = photoSourceResolver;
+  photoSourceResolver = null;
+  if (resolve) resolve(file || null);
+}
+function pickReportPhotoSource() {
+  return new Promise(resolve => {
+    photoSourceResolver = resolve;
+    const overlay = document.getElementById('photoSourceModal');
+    const inner = document.getElementById('photoSourceModalInner');
+    bringModalToFront(overlay);
+    inner.innerHTML = `
+      <h2>${escapeHtml(t('photoSourceTitle') || 'Add a photo')}</h2>
+      <div style="display:flex; gap:10px;">
+        <button type="button" class="settings-btn" style="flex:1;" id="photoSourceCameraBtn"><img class="icon-img icon-img-inline" src="icons/camera.png" alt="">${escapeHtml(t('reportPhotoAddBtn'))}</button>
+        <button type="button" class="settings-btn" style="flex:1;" id="photoSourceGalleryBtn"><img class="icon-img icon-img-inline" src="icons/gallery.png" alt="">${escapeHtml(t('reportPhotoGalleryBtn'))}</button>
+      </div>`;
+    overlay.style.display = 'flex';
+    openOverlay('photoSourceModal', () => closePhotoSourceModal(null));
+    const cameraInput = document.getElementById('reportPhotoPickerCamera');
+    const libraryInput = document.getElementById('reportPhotoPickerLibrary');
+    const onPicked = (inputEl) => {
+      const file = inputEl.files && inputEl.files[0];
+      inputEl.value = '';
+      closePhotoSourceModal(file);
+    };
+    cameraInput.onchange = () => onPicked(cameraInput);
+    libraryInput.onchange = () => onPicked(libraryInput);
+    document.getElementById('photoSourceCameraBtn').onclick = () => cameraInput.click();
+    document.getElementById('photoSourceGalleryBtn').onclick = () => libraryInput.click();
   });
 }
 
@@ -10012,24 +10077,18 @@ async function uploadReportPhoto(reportId, blob) {
 }
 
 async function addPhotoToReport(reportId) {
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = 'image/*';
-  input.onchange = async () => {
-    const file = input.files && input.files[0];
-    if (!file) return;
-    let blob;
-    try {
-      blob = await compressReportPhoto(file);
-    } catch (err) {
-      console.error('Photo processing failed:', err.message || err);
-      toast(t('reportPhotoInvalid'), 'error');
-      return;
-    }
-    const ok = await uploadOrReplaceReportPhoto(reportId, blob);
-    if (ok) refreshReportViews(reportId);
-  };
-  input.click();
+  const file = await pickReportPhotoSource();
+  if (!file) return;
+  let blob;
+  try {
+    blob = await compressReportPhoto(file);
+  } catch (err) {
+    console.error('Photo processing failed:', err.message || err);
+    toast(t('reportPhotoInvalid'), 'error');
+    return;
+  }
+  const ok = await uploadOrReplaceReportPhoto(reportId, blob);
+  if (ok) refreshReportViews(reportId);
 }
 
 async function uploadOrReplaceReportPhoto(reportId, blob) {
@@ -10062,24 +10121,18 @@ async function uploadOrReplaceReportPhoto(reportId, blob) {
 }
 
 async function addAfterPhotoToReport(reportId) {
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = 'image/*';
-  input.onchange = async () => {
-    const file = input.files && input.files[0];
-    if (!file) return;
-    let blob;
-    try {
-      blob = await compressReportPhoto(file);
-    } catch (err) {
-      console.error('After-photo processing failed:', err.message || err);
-      toast(t('reportPhotoInvalid'), 'error');
-      return;
-    }
-    const ok = await uploadAfterReportPhoto(reportId, blob);
-    if (ok) refreshReportViews(reportId);
-  };
-  input.click();
+  const file = await pickReportPhotoSource();
+  if (!file) return;
+  let blob;
+  try {
+    blob = await compressReportPhoto(file);
+  } catch (err) {
+    console.error('After-photo processing failed:', err.message || err);
+    toast(t('reportPhotoInvalid'), 'error');
+    return;
+  }
+  const ok = await uploadAfterReportPhoto(reportId, blob);
+  if (ok) refreshReportViews(reportId);
 }
 
 async function uploadAfterReportPhoto(reportId, blob) {
@@ -10157,40 +10210,34 @@ async function renderReportGallery(reportId) {
 
 async function addGalleryPhotoToReport(reportId) {
   if (!currentSession) { toast(t('signInFirst') || 'Sign in first', 'error'); return; }
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = 'image/*';
-  input.onchange = async () => {
-    const file = input.files && input.files[0];
-    if (!file) return;
-    let blob;
-    try {
-      blob = await compressReportPhoto(file);
-    } catch (err) {
-      console.error('Gallery photo processing failed:', err.message || err);
-      toast(t('reportPhotoInvalid'), 'error');
-      return;
-    }
-    try {
-      const path = `gallery/${currentSession.user.id}/${reportId}_${Date.now()}.jpg`;
-      const { error: uploadError } = await sb.storage.from(REPORT_PHOTO_BUCKET)
-        .upload(path, blob, { contentType: 'image/jpeg', upsert: false });
-      if (uploadError) throw uploadError;
-      const { error: insertError } = await sb.from(REPORT_GALLERY_TABLE).insert({
-        report_id: reportId,
-        uploader_id: currentSession.user.id,
-        uploader_username: (currentProfile && currentProfile.username) || null,
-        photo_path: path
-      });
-      if (insertError) throw insertError;
-      toast(t('galleryPhotoAdded'), 'success');
-      renderReportGallery(reportId);
-    } catch (err) {
-      console.error('Gallery photo upload failed:', err.message || err);
-      toast(t('reportPhotoUploadFailed'), 'error');
-    }
-  };
-  input.click();
+  const file = await pickReportPhotoSource();
+  if (!file) return;
+  let blob;
+  try {
+    blob = await compressReportPhoto(file);
+  } catch (err) {
+    console.error('Gallery photo processing failed:', err.message || err);
+    toast(t('reportPhotoInvalid'), 'error');
+    return;
+  }
+  try {
+    const path = `gallery/${currentSession.user.id}/${reportId}_${Date.now()}.jpg`;
+    const { error: uploadError } = await sb.storage.from(REPORT_PHOTO_BUCKET)
+      .upload(path, blob, { contentType: 'image/jpeg', upsert: false });
+    if (uploadError) throw uploadError;
+    const { error: insertError } = await sb.from(REPORT_GALLERY_TABLE).insert({
+      report_id: reportId,
+      uploader_id: currentSession.user.id,
+      uploader_username: (currentProfile && currentProfile.username) || null,
+      photo_path: path
+    });
+    if (insertError) throw insertError;
+    toast(t('galleryPhotoAdded'), 'success');
+    renderReportGallery(reportId);
+  } catch (err) {
+    console.error('Gallery photo upload failed:', err.message || err);
+    toast(t('reportPhotoUploadFailed'), 'error');
+  }
 }
 
 async function deleteGalleryPhoto(id, photoPath, reportId) {
