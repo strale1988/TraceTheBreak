@@ -10865,8 +10865,14 @@ async function reportBreak(){
 
 let municipalityCache = [];
 let municipalityCacheLoaded = false;
+// Every id already merged into municipalityCache, so repeated/overlapping near-point and
+// per-country fetches (see the progressive loader below) can merge without duplicating rows.
+const loadedMuniIds = new Set();
+// Country codes we've fetched *in full* — once a country is in here we never re-query it.
+const loadedMuniCountries = new Set();
 
 const MUNICIPALITY_CACHE_STORAGE_KEY = 'ttb_municipality_cache_v2';
+const MUNI_SELECT_COLS = 'id,slug,osm_type,osm_id,admin_level,name,name_en,country_code,centroid_lat,centroid_lon,boundary,bbox';
 
 // ========================================================================================
 // MUNICIPALITY RESOLUTION — boundary cache, geocoding, auto-registration
@@ -10887,13 +10893,22 @@ function writeMunicipalityCacheToStorage(rows) {
   }
 }
 let municipalityCacheLoadPromise = null;
+// Full-table load — every municipality, every boundary polygon, in one request. This is
+// deliberately NOT what regular map browsing uses any more (see the progressive loader
+// below, ensureMunicipalitiesNear/ensureCountryMunicipalitiesLoaded): fetching the entire
+// world's boundary data on every page view doesn't scale as more countries get added, and
+// almost nobody needs to see municipalities outside the one country they're standing in or
+// looking at. This full loader is kept for the admin-only tooling that genuinely does need
+// global visibility regardless of where the admin currently is — managing/merging
+// municipalities, repairing boundaries, and the utility-contacts admin panel.
+//
 // `forceRefresh` bypasses the memoized promise below and always re-queries the DB. Without it,
 // this function only ever hits the network on the very first call of the page session — every
 // later call (e.g. reopening the admin panel) just returns that same first result. That's fine
-// for high-frequency callers like resolveMunicipality() on every GPS tick, but it means a
-// municipality or company added from a *different* tool/tab (e.g. the contact-collector) would
-// never show up in this session's admin panel without a full page reload. Admin-facing call
-// sites that need to see newly-added data pass forceRefresh = true.
+// for callers that just want "whatever's cached", but it means a municipality or company added
+// from a *different* tool/tab (e.g. the contact-collector) would never show up in this session's
+// admin panel without a full page reload. Admin-facing call sites that need to see newly-added
+// data pass forceRefresh = true.
 async function loadMunicipalityCache(forceRefresh) {
   if (municipalityCacheLoadPromise && !forceRefresh) return municipalityCacheLoadPromise;
   municipalityCacheLoadPromise = (async () => {
@@ -10901,14 +10916,19 @@ async function loadMunicipalityCache(forceRefresh) {
       const cached = readMunicipalityCacheFromStorage();
       if (cached && cached.length) {
         municipalityCache = cached;
+        municipalityCache.forEach(m => loadedMuniIds.add(m.id));
         municipalityCacheLoaded = true;
       }
     }
     try {
-      const { data, error } = await sb.from(MUNICIPALITIES_TABLE)
-        .select('id,slug,osm_type,osm_id,admin_level,name,name_en,country_code,centroid_lat,centroid_lon,boundary,bbox');
+      const { data, error } = await sb.from(MUNICIPALITIES_TABLE).select(MUNI_SELECT_COLS);
       if (error) throw error;
       municipalityCache = data || [];
+      loadedMuniIds.clear();
+      municipalityCache.forEach(m => {
+        loadedMuniIds.add(m.id);
+        if (m.country_code) loadedMuniCountries.add(String(m.country_code).toUpperCase());
+      });
       municipalityCacheLoaded = true;
       writeMunicipalityCacheToStorage(municipalityCache);
     } catch (err) {
@@ -10916,6 +10936,108 @@ async function loadMunicipalityCache(forceRefresh) {
     }
   })();
   return municipalityCacheLoadPromise;
+}
+
+// ---- Progressive municipality loading -------------------------------------------------
+// Used by ordinary map browsing (GPS fix, dropped pin, report lookups) instead of the full
+// loader above. Strategy:
+//   1. Fetch just a small area (MUNI_NEAR_PAD_DEG around the point) immediately — this is
+//      what actually resolves "which municipality is the GPS/pin in", so it has to come
+//      back fast.
+//   2. Once that tells us which country the point is in, quietly widen the cache to the
+//      rest of that country in the background after a short delay ("spread slowly"),
+//      instead of blocking on it or fetching it up front.
+//   3. Never fetch more than one country at a time from a single point resolution — if the
+//      map is zoomed all the way out, we still only load the country under the current
+//      GPS/pin/map-center point, not the whole world.
+//   4. Previously-loaded areas/countries are kept (merged, not replaced), so panning back
+//      to a place already visited this session doesn't re-hit the network. A new point
+//      elsewhere (a pin dropped somewhere else) just adds its own area/country on top.
+const MUNI_NEAR_PAD_DEG = 1.5;            // ~150km — the municipality itself plus its neighbors
+const MUNI_COUNTRY_LOAD_DELAY_MS = 2500;  // let the near-fetch render before widening further
+const muniCountryLoadInFlight = new Map(); // countryCode -> in-flight/queued Promise
+
+function mergeMunicipalitiesIntoCache(rows) {
+  if (!rows || !rows.length) return;
+  for (const row of rows) {
+    if (row.id != null && loadedMuniIds.has(row.id)) continue;
+    if (row.id != null) loadedMuniIds.add(row.id);
+    municipalityCache.push(row);
+  }
+  municipalityCacheLoaded = true;
+  writeMunicipalityCacheToStorage(municipalityCache);
+}
+
+async function fetchMunicipalitiesNearPoint(lat, lon) {
+  try {
+    const { data, error } = await sb.from(MUNICIPALITIES_TABLE).select(MUNI_SELECT_COLS)
+      .gte('centroid_lat', lat - MUNI_NEAR_PAD_DEG).lte('centroid_lat', lat + MUNI_NEAR_PAD_DEG)
+      .gte('centroid_lon', lon - MUNI_NEAR_PAD_DEG).lte('centroid_lon', lon + MUNI_NEAR_PAD_DEG);
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    console.error('Failed to load nearby municipalities:', err.message);
+    return [];
+  }
+}
+
+// Loads every municipality for one country, immediately (no artificial delay) — used when
+// we need the full country list *right now* for accurate name-matching (see
+// resolveMunicipalityViaGeocode below), as opposed to the passive background widening in
+// scheduleCountryMunicipalityLoad(). Safe to call repeatedly; only ever hits the network
+// once per country per session.
+async function ensureCountryMunicipalitiesLoaded(countryCode) {
+  if (!countryCode) return;
+  countryCode = String(countryCode).toUpperCase();
+  if (loadedMuniCountries.has(countryCode)) return;
+  if (muniCountryLoadInFlight.has(countryCode)) return muniCountryLoadInFlight.get(countryCode);
+  const promise = (async () => {
+    try {
+      const { data, error } = await sb.from(MUNICIPALITIES_TABLE).select(MUNI_SELECT_COLS)
+        .eq('country_code', countryCode);
+      if (error) throw error;
+      mergeMunicipalitiesIntoCache(data || []);
+      loadedMuniCountries.add(countryCode);
+    } catch (err) {
+      console.error(`Failed to load municipalities for country ${countryCode}:`, err.message);
+    } finally {
+      muniCountryLoadInFlight.delete(countryCode);
+    }
+  })();
+  muniCountryLoadInFlight.set(countryCode, promise);
+  return promise;
+}
+
+// The "spread slowly" half: schedules (rather than immediately runs) the full-country
+// widening once we already have a quick nearby hit, so it doesn't compete with rendering
+// the point the person actually cares about right now.
+function scheduleCountryMunicipalityLoad(countryCode) {
+  if (!countryCode) return;
+  countryCode = String(countryCode).toUpperCase();
+  if (loadedMuniCountries.has(countryCode) || muniCountryLoadInFlight.has(countryCode)) return;
+  const promise = new Promise(resolve => {
+    setTimeout(() => { ensureCountryMunicipalitiesLoaded(countryCode).then(resolve); }, MUNI_COUNTRY_LOAD_DELAY_MS);
+  });
+  muniCountryLoadInFlight.set(countryCode, promise);
+}
+
+// Main entry point for ordinary map browsing: makes sure the cache has (at least) the
+// municipality at (lat, lon) loaded, then quietly widens to the rest of that country.
+// This is what GPS updates, dropped pins, and report lookups should call — never the full
+// loader above.
+async function ensureMunicipalitiesNear(lat, lon) {
+  if (!isValidLatLng(lat, lon)) return;
+
+  const already = findMunicipalityInCache(lat, lon);
+  if (already && already.country_code && loadedMuniCountries.has(String(already.country_code).toUpperCase())) {
+    return; // this point's whole country is already loaded — nothing to do
+  }
+
+  const rows = await fetchMunicipalitiesNearPoint(lat, lon);
+  mergeMunicipalitiesIntoCache(rows);
+
+  const hit = findMunicipalityInCache(lat, lon);
+  if (hit && hit.country_code) scheduleCountryMunicipalityLoad(hit.country_code);
 }
 
 function pointInRing(lat, lon, ring) {
@@ -11098,7 +11220,7 @@ async function fetchMunicipalityFromNominatim(lat, lon) {
 
 async function resolveMunicipality(lat, lon) {
   if (!isValidLatLng(lat, lon)) return null;
-  await loadMunicipalityCache();
+  await ensureMunicipalitiesNear(lat, lon);
   let muni = findMunicipalityInCache(lat, lon);
   if (!muni) muni = await resolveMunicipalityViaGeocode(lat, lon);
   return muni;
@@ -11220,16 +11342,22 @@ async function autoRegisterMunicipality(name, countryCode, lat, lon, osmType, os
 
 async function resolveMunicipalityViaGeocode(lat, lon) {
   if (!isValidLatLng(lat, lon)) return null;
-  await loadMunicipalityCache();
+  await ensureMunicipalitiesNear(lat, lon);
   const { candidates, countryCode, bestName, osmType, osmId } = await reverseGeocodeMunicipalityCandidates(lat, lon);
   if (!candidates.length) return null;
+  // The near-point fetch above may not have found anything (e.g. a brand-new area with no
+  // cached municipalities nearby yet), so findMunicipalityByNameMatch's country-scoped pool
+  // could still be missing existing municipalities elsewhere in the same country. Now that
+  // geocoding has told us which country we're in, make sure that country is fully loaded
+  // before matching against it — this is scoped to one country, not a global fetch.
+  if (countryCode) await ensureCountryMunicipalitiesLoaded(countryCode);
   const hit = findMunicipalityByNameMatch(candidates, countryCode);
   if (hit) return hit;
   return autoRegisterMunicipality(bestName, countryCode, lat, lon, osmType, osmId);
 }
 
 async function resolveReportMunicipality(report) {
-  await loadMunicipalityCache();
+  await ensureMunicipalitiesNear(report.latitude, report.longitude);
   if (report.municipality_id != null) {
     const stored = getMunicipalityById(report.municipality_id);
     if (stored) return stored;
@@ -15710,10 +15838,24 @@ function getQuickInitialFix(timeoutMs) {
   });
 }
 async function runInitialLoadSequence() {
+  let initialLat = savedMapView ? savedMapView.lat : null;
+  let initialLon = savedMapView ? savedMapView.lng : null;
   if (!savedMapView) {
     const quickFix = await getQuickInitialFix(INITIAL_LOCATION_FIX_TIMEOUT_MS);
-    if (quickFix) map.setView([quickFix.lat, quickFix.lon], INITIAL_LOCATION_ZOOM, { animate: false });
+    if (quickFix) {
+      map.setView([quickFix.lat, quickFix.lon], INITIAL_LOCATION_ZOOM, { animate: false });
+      initialLat = quickFix.lat;
+      initialLon = quickFix.lon;
+    }
   }
+  if (initialLat == null) {
+    const c = map.getCenter();
+    initialLat = c.lat;
+    initialLon = c.lng;
+  }
+  // Don't block pin loading on this — it fetches a small area around the point first, then
+  // widens to that point's country in the background (see ensureMunicipalitiesNear above).
+  ensureMunicipalitiesNear(initialLat, initialLon);
   await loadPinsByWindow();
 }
 runInitialLoadSequence().finally(hideMapLoadingOverlay);
@@ -15722,15 +15864,13 @@ setupReportsRealtimeSync();
 openSharedReportFromUrl();
 loadAllCompanyMarkers();
 loadMunicipalityStatsCache();
-// NOTE: currentProfile/currentSession are only populated once initAuth() resolves. The old
-// code rendered the admin dashboard/header button as soon as loadMunicipalityCache() resolved,
-// racing independently against initAuth() — on a page load/refresh where the municipality
-// cache happened to finish first, currentProfile was still null, so admin-only UI (the admin
-// panel button, "My Admin Role" dashboard section) silently stayed hidden until the user
-// manually opened their dashboard. Waiting on both promises removes that race.
-const municipalityCacheReady = loadMunicipalityCache();
+// NOTE: currentProfile/currentSession are only populated once initAuth() resolves. Admin-only
+// UI (the admin panel button, "My Admin Role" dashboard section) is gated on that alone now —
+// it used to also wait on a full municipality-table load finishing first, but that table load
+// no longer happens eagerly on every page view (see the progressive loader above); admins who
+// actually need the full set get it inside renderAdminDashboard() itself (line ~5301).
 const authReady = initAuth();
-Promise.all([municipalityCacheReady, authReady]).then(() => {
+authReady.then(() => {
   if (currentProfile && currentProfile.is_admin) {
     updateAuthUI();
     renderAdminDashboard();
