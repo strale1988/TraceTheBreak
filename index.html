@@ -5484,8 +5484,10 @@ const T = {
   offlineQueueRetry:  { en:'Retry',                       sr:'Pokušaj ponovo' },
   offlineSynced:      { en:'\u2713 {n} queued report(s) submitted.', sr:'\u2713 {n} sačuvanih prijava poslato.' },
   offlineStillOffline:{ en:'Still no signal — will keep trying automatically.', sr:'I dalje nema signala — pokušaćemo ponovo automatski.' },
+  offlineSyncRateLimited: { en:'Sending too many queued reports at once — the rest will send automatically in a bit.', sr:'Šalje se previše sačuvanih prijava odjednom — ostale će biti poslate automatski uskoro.' },
   reportRateLimitedPrefix: { en:'You\'re submitting reports quickly — try again in ', sr:'Prebrzo šaljete prijave — pokušajte ponovo za ' },
   reportRateLimitedSuffix: { en:'s.',                    sr:'s.' },
+  reportRateLimitedServerFallbackSuffix: { en:'a moment.', sr:'trenutak.' },
   timeFilter:   { en:'Time Window Filter',               sr:'Filter vremenskog prozora' },
   settingsBtnTitle: { en:'Settings',                     sr:'Podešavanja' },
   settingsModalTitle: { en:'Settings',                   sr:'Podešavanja' },
@@ -10678,6 +10680,7 @@ async function syncOfflineQueue(manual) {
 
   offlineSyncInFlight = true;
   let syncedCount = 0;
+  let rateLimitedStop = false;
   try {
     rows.sort((a, b) => a.createdAt - b.createdAt);
     for (const row of rows) {
@@ -10692,6 +10695,10 @@ async function syncOfflineQueue(manual) {
         syncedCount++;
       } catch (err) {
         if (isNetworkFailure(err)) break;
+        // The DB's tiered rate limit (trg_enforce_report_rate_limit) can reject a burst of
+        // queued reports on reconnect — that's not bad/invalid data, just too-fast submission,
+        // so keep this (and any remaining) queued for a later sync instead of dropping them.
+        if (err && err.message === 'rate_limit_exceeded') { rateLimitedStop = true; break; }
         console.error('Dropping unsendable offline report:', row.localId, err);
         await deleteQueuedReport(row.localId);
       }
@@ -10702,6 +10709,9 @@ async function syncOfflineQueue(manual) {
     if (syncedCount > 0) {
       toast(t('offlineSynced').replace('{n}', syncedCount), 'success');
       await loadPinsByWindow();
+    }
+    if (rateLimitedStop) {
+      toast(t('offlineSyncRateLimited'), 'error');
     }
   }
 }
@@ -10845,7 +10855,14 @@ async function reportBreak(){
     }
   } catch (err) {
     console.error('Report submit error (full):', err);
-    toast(describeAuthError(err), 'error');
+    // The DB also enforces the same tiered rate limit as a safety net (trg_enforce_report_rate_limit)
+    // in case the client-side check in shouldBlockReportSubmission() was bypassed. Surface it with the
+    // same friendly copy instead of the raw Postgres error message in that case.
+    if (err && err.message === 'rate_limit_exceeded') {
+      toast(t('reportRateLimitedPrefix') + t('reportRateLimitedServerFallbackSuffix'), 'error');
+    } else {
+      toast(describeAuthError(err), 'error');
+    }
   } finally {
     reportSubmissionInFlight = false;
 
