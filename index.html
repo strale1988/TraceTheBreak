@@ -13,6 +13,14 @@
   <link rel="icon" type="image/png" href="./icons/TraceTheBreak.png">
   <meta property="og:image" content="https://github.io"/>
 
+  <link rel="manifest" href="./manifest.json">
+  <meta name="theme-color" content="#e16e11">
+  <link rel="apple-touch-icon" href="./icons/TraceTheBreak.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="TraceTheBreak">
+  <meta name="mobile-web-app-capable" content="yes">
+
   <link rel="preload" as="image" href="icons/settings.png">
   <link rel="preload" as="image" href="icons/fullscreen-enter.png">
   <link rel="preload" as="image" href="icons/user.png">
@@ -3557,6 +3565,19 @@ span.flatpickr-weekday {
 <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/sr.js"></script>
 <script src="https://unpkg.com/libphonenumber-js@1.10.51/bundle/libphonenumber-js.min.js"></script>
 <script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script>
+// Registers the app-shell service worker (see sw.js) so the page itself — not just
+// map tiles and offline report data, which already had their own caching — can load
+// with zero connectivity. Safe no-op in browsers/contexts without SW support (e.g.
+// plain http:// during local dev).
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(err => {
+      console.warn('Service worker registration failed:', err.message);
+    });
+  });
+}
+</script>
 <script>
 
 function updateHeaderHeightVar() {
