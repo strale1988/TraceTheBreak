@@ -1169,7 +1169,7 @@ body.driving-active .driving-speed-widget{ display:flex; }
   transition:opacity .2s;
   position:relative;
   z-index:2;
-  margin-bottom:-12px;
+  margin-bottom:-18px;
 }
 .driving-speed-limit.no-data{ opacity:.3; }
 .driving-speed-capsule{
@@ -1179,8 +1179,8 @@ body.driving-active .driving-speed-widget{ display:flex; }
   align-items:center;
   background:var(--bg-surface);
   border:1px solid var(--border-color);
-  border-radius:22px;
-  padding:16px 14px 8px;
+  border-radius:30px 30px 22px 22px;
+  padding:26px 14px 8px;
   min-width:52px;
   box-shadow:0 2px 8px rgba(0,0,0,.3);
 }
@@ -8855,6 +8855,9 @@ async function quickReportRoad(subcategoryKey) {
   if ((await ensureVpnStatus()).isVpn) { toast(t('vpnBlockedReport'), 'error'); return; }
   if (shouldBlockReportSubmission()) return;
 
+  const freshSession = await ensureFreshSession();
+  if (!freshSession) return;
+
   reportSubmissionInFlight = true;
   const tileRow = document.querySelector('.driving-tile-row');
   if (tileRow) tileRow.classList.add('submitting');
@@ -9182,7 +9185,7 @@ let lastSpeedLimitFetchAt  = 0;
 let lastSpeedLimitFetchLoc = null;
 const SPEED_LIMIT_REFRESH_MS      = 15000;
 const SPEED_LIMIT_REFRESH_DRIFT_M = 150;
-const SPEED_LIMIT_SEARCH_RADIUS_M = 25;
+const SPEED_LIMIT_SEARCH_RADIUS_M = 45;
 
 function maybeFetchSpeedLimit(lat, lon) {
   if (!drivingMode || speedLimitFetching) return;
@@ -9195,12 +9198,17 @@ function maybeFetchSpeedLimit(lat, lon) {
   lastSpeedLimitFetchAt = now;
   lastSpeedLimitFetchLoc = { lat, lon };
 
-  const query = `[out:json][timeout:5];way(around:${SPEED_LIMIT_SEARCH_RADIUS_M},${lat},${lon})[highway][maxspeed];out tags 3;`;
+  const query = `[out:json][timeout:5];way(around:${SPEED_LIMIT_SEARCH_RADIUS_M},${lat},${lon})[highway][maxspeed];out tags center 8;`;
   const url = 'https://overpass-api.de/api/interpreter?data=' + encodeURIComponent(query);
 
   fetch(url).then(res => res.json()).then(data => {
-    const way = (data.elements || []).find(el => el.tags && el.tags.maxspeed);
-    updateSpeedLimitDisplay(way ? parseSpeedLimitTag(way.tags.maxspeed) : null);
+    const candidates = (data.elements || []).filter(el => el.tags && el.tags.maxspeed && el.center);
+    let nearest = null, nearestDist = Infinity;
+    for (const el of candidates) {
+      const d = distMeters({ lat, lon }, { lat: el.center.lat, lon: el.center.lon });
+      if (d < nearestDist) { nearestDist = d; nearest = el; }
+    }
+    updateSpeedLimitDisplay(nearest ? parseSpeedLimitTag(nearest.tags.maxspeed) : null);
   }).catch(() => {
   }).finally(() => {
     speedLimitFetching = false;
