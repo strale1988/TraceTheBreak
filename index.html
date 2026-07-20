@@ -10636,13 +10636,22 @@ function writeMunicipalityCacheToStorage(rows) {
   }
 }
 let municipalityCacheLoadPromise = null;
-async function loadMunicipalityCache() {
-  if (municipalityCacheLoadPromise) return municipalityCacheLoadPromise;
+// `forceRefresh` bypasses the memoized promise below and always re-queries the DB. Without it,
+// this function only ever hits the network on the very first call of the page session — every
+// later call (e.g. reopening the admin panel) just returns that same first result. That's fine
+// for high-frequency callers like resolveMunicipality() on every GPS tick, but it means a
+// municipality or company added from a *different* tool/tab (e.g. the contact-collector) would
+// never show up in this session's admin panel without a full page reload. Admin-facing call
+// sites that need to see newly-added data pass forceRefresh = true.
+async function loadMunicipalityCache(forceRefresh) {
+  if (municipalityCacheLoadPromise && !forceRefresh) return municipalityCacheLoadPromise;
   municipalityCacheLoadPromise = (async () => {
-    const cached = readMunicipalityCacheFromStorage();
-    if (cached && cached.length) {
-      municipalityCache = cached;
-      municipalityCacheLoaded = true;
+    if (!forceRefresh) {
+      const cached = readMunicipalityCacheFromStorage();
+      if (cached && cached.length) {
+        municipalityCache = cached;
+        municipalityCacheLoaded = true;
+      }
     }
     try {
       const { data, error } = await sb.from(MUNICIPALITIES_TABLE)
@@ -11362,7 +11371,7 @@ async function repairEmptyMunicipalityBoundaries(onProgress) {
 async function fixAllMunicipalityBoundaries() {
   if (!currentProfile || !currentProfile.is_admin) return;
   const btn = document.getElementById('ucFixBoundariesBtn');
-  await loadMunicipalityCache();
+  await loadMunicipalityCache(true);
 
   const dupeCount = [...new Map(municipalityCache
     .filter(m => municipalityMergeKey(m))
@@ -11608,7 +11617,7 @@ async function loadUtilityCompaniesAdmin() {
   const backfillBtn = document.getElementById('ucGeocodeBackfillBtn');
   if (backfillBtn && !backfillBtn.disabled) backfillBtn.textContent = t('ucGeocodeBackfillBtn');
 
-  await loadMunicipalityCache();
+  await loadMunicipalityCache(true);
   populateUcMunicipalitySelect();
   populateUcCatChecks();
   applyUcFormTranslations();
@@ -12403,7 +12412,7 @@ async function addMunicipalityFromMapCenter() {
   if (btn) { btn.disabled = true; btn.innerHTML = t('ucAddMuniLoading'); }
   try {
     const center = map.getCenter();
-    await loadMunicipalityCache();
+    await loadMunicipalityCache(true);
     let muni = findMunicipalityInCache(center.lat, center.lng);
     if (!muni) muni = await fetchMunicipalityFromNominatim(center.lat, center.lng);
     if (!muni) {
