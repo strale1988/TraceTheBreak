@@ -316,6 +316,8 @@ header p{ font-size:var(--fs-11); opacity:.7; margin-top:2px; }
   transition:transform .12s ease, background .15s ease, box-shadow .15s ease;
 }
 .help-icon-btn:active{ background:var(--border-color-strong); transform:scale(.9); box-shadow:0 1px 2px var(--floating-shadow); }
+.help-icon-btn.is-disabled,
+.help-icon-btn:disabled{ opacity:.35; cursor:default; pointer-events:none; box-shadow:none; }
 
 .notification-btn{ position:relative; overflow:visible; }
 .notification-badge{
@@ -2692,12 +2694,12 @@ span.flatpickr-weekday {
   <div class="map-loading-text" id="mapLoadingText"></div>
 </div>
 <div class="legend-row">
-<div id="bottomMuniBar" class="bottom-muni-bar" style="display:none">
+<div id="bottomMuniBar" class="bottom-muni-bar" style="display:flex">
   <img class="icon-img bottom-muni-bar-pin" src="icons/pin.png" alt="">
-  <span id="bottomMuniBarName" class="bottom-muni-bar-name"></span>
-  <button class="help-icon-btn" id="municipalityContactsBtn" title="Contacts" style="display:none" onclick="showMunicipalityContactsModal()"><img class="icon-img" src="icons/phone.png" alt="Contacts"></button>
+  <span id="bottomMuniBarName" class="bottom-muni-bar-name">-</span>
+  <button class="help-icon-btn is-disabled" id="municipalityContactsBtn" title="Contacts" disabled onclick="showMunicipalityContactsModal()"><img class="icon-img" src="icons/phone.png" alt="Contacts"></button>
 </div>
-<div id="bottomMuniStatsRow" class="bottom-muni-stats-row" style="display:none"></div>
+<div id="bottomMuniStatsRow" class="bottom-muni-stats-row" style="display:flex"></div>
 <div id="mapLegend" class="map-legend-pill">
 </div>
 </div>
@@ -10989,32 +10991,30 @@ function resolveAndAttachMunicipality(reportId, lat, lon) {
   }).catch(err => console.error('resolveAndAttachMunicipality error:', err.message));
 }
 
-// Permanent replacement for the old auto-hiding pill: stays up as long as a municipality is
-// focused (GPS position, a dropped pin, or the report currently open), docked right above the
-// legend row instead of fading out after 5s.
+// Always visible now — shows a "-" placeholder for name/stats and disables (rather than
+// hides) the contacts button when no municipality has resolved yet, instead of disappearing
+// entirely. Docked right above the legend row.
 function showMunicipalityLabel(muni) {
   const bar = document.getElementById('bottomMuniBar');
   const nameEl = document.getElementById('bottomMuniBarName');
   if (!bar || !nameEl) return;
-  nameEl.textContent = (lang === 'sr' ? muni.name : (muni.name_en || muni.name));
+  nameEl.textContent = muni ? (lang === 'sr' ? muni.name : (muni.name_en || muni.name)) : '-';
   bar.style.display = 'flex';
-}
-
-function hideMunicipalityLabel() {
-  const bar = document.getElementById('bottomMuniBar');
-  if (!bar) return;
-  bar.style.display = 'none';
 }
 
 // Controls the phone/contacts button plus the reported/in-progress/fixed stats row underneath —
 // both scoped to currentContactsMunicipality (GPS or an active pin drop; see
-// renderMunicipalityBoundary's `source` param), separate from showMunicipalityLabel/
-// hideMunicipalityLabel which just reflect whatever point is currently focused on the map.
+// renderMunicipalityBoundary's `source` param), separate from showMunicipalityLabel which just
+// reflects whatever point is currently focused on the map.
 let bottomMuniStatsRequestId = 0;
 
 function updateBottomMunicipalityBar(muni) {
   const contactsBtn = document.getElementById('municipalityContactsBtn');
-  if (contactsBtn) contactsBtn.style.display = muni ? 'flex' : 'none';
+  if (contactsBtn) {
+    contactsBtn.style.display = 'flex';
+    contactsBtn.disabled = !muni;
+    contactsBtn.classList.toggle('is-disabled', !muni);
+  }
   loadBottomMuniStats(muni);
 }
 
@@ -11022,12 +11022,18 @@ async function loadBottomMuniStats(muni) {
   const row = document.getElementById('bottomMuniStatsRow');
   if (!row) return;
   const requestId = ++bottomMuniStatsRequestId;
+  const statuses = ['reported', 'in_progress', 'fixed'];
   if (!muni || muni.id == null) {
-    row.style.display = 'none';
+    row.innerHTML = statuses.map(status => `
+      <div class="bottom-muni-stat">
+        <span class="bottom-muni-stat-dot" style="background:${statusColor(status)}"></span>
+        <span class="bottom-muni-stat-val">-</span>
+        <span>${statusLabel(status)}</span>
+      </div>`).join('');
+    row.style.display = 'flex';
     return;
   }
   try {
-    const statuses = ['reported', 'in_progress', 'fixed'];
     const counts = await Promise.all(statuses.map(status =>
       sb.from(TABLE).select('id', { count: 'exact', head: true })
         .eq('municipality_id', muni.id).eq('status', status)
@@ -11043,7 +11049,15 @@ async function loadBottomMuniStats(muni) {
     row.style.display = 'flex';
   } catch (err) {
     console.warn('loadBottomMuniStats error:', err.message || err);
-    if (requestId === bottomMuniStatsRequestId) row.style.display = 'none';
+    if (requestId === bottomMuniStatsRequestId) {
+      row.innerHTML = statuses.map(status => `
+        <div class="bottom-muni-stat">
+          <span class="bottom-muni-stat-dot" style="background:${statusColor(status)}"></span>
+          <span class="bottom-muni-stat-val">-</span>
+          <span>${statusLabel(status)}</span>
+        </div>`).join('');
+      row.style.display = 'flex';
+    }
   }
 }
 
@@ -11063,10 +11077,6 @@ function renderMunicipalityBoundary(muni, source) {
   if (source === 'gps' || source === 'pin') {
     currentContactsMunicipality = muni || null;
     updateBottomMunicipalityBar(currentContactsMunicipality);
-  }
-  if (!muni) {
-    hideMunicipalityLabel();
-    return;
   }
   showMunicipalityLabel(muni);
 }
@@ -15330,6 +15340,7 @@ async function runInitialLoadSequence() {
   await loadPinsByWindow();
 }
 runInitialLoadSequence().finally(hideMapLoadingOverlay);
+updateBottomMunicipalityBar(null);
 setupReportsRealtimeSync();
 openSharedReportFromUrl();
 loadAllCompanyMarkers();
