@@ -175,6 +175,16 @@ html[data-theme="dark"]{
   opacity:0 !important;
   pointer-events:none !important;
 }
+/* While rotated, animated zoom is disabled (see updateZoomAnimationForRotation) because the
+   CSS zoom transform composes incorrectly with the rotation wrapper. That means the overlay
+   pane (navigation route / recorder road splines) gets redrawn in un-animated snaps at each
+   intermediate zoom step instead of gliding smoothly, which looks like it's jumping around
+   mid-gesture. Hiding it for the duration of a rotated zoom (like markers/popups already are)
+   avoids the visible jump — it simply reappears, correctly placed, once the zoom settles. */
+#map.map-zooming-rotated .leaflet-overlay-pane{
+  opacity:0 !important;
+  pointer-events:none !important;
+}
 
 body{
   font-family:-apple-system,BlinkMacSystemFont,sans-serif;
@@ -6779,8 +6789,16 @@ requestAnimationFrame(() => map.invalidateSize());
 window.addEventListener('load', () => map.invalidateSize());
 
 const mapContainerEl = map.getContainer();
-map.on('zoomstart', () => mapContainerEl.classList.add('map-zooming'));
-map.on('zoomend',   () => mapContainerEl.classList.remove('map-zooming'));
+map.on('zoomstart', () => {
+  mapContainerEl.classList.add('map-zooming');
+  if (Math.abs(((mapBearing % 360) + 360) % 360) > ROTATION_EPSILON_DEG) {
+    mapContainerEl.classList.add('map-zooming-rotated');
+  }
+});
+map.on('zoomend',   () => {
+  mapContainerEl.classList.remove('map-zooming');
+  mapContainerEl.classList.remove('map-zooming-rotated');
+});
 
 const TILE_CACHE_NAME = 'ttb-osm-tiles-v1';
 // Opened once and reused for every tile lookup — re-opening a Cache Storage bucket on
@@ -8646,7 +8664,13 @@ let customDragLast   = null;
 // MAP GESTURES — touch drag & two-finger rotation
 // ========================================================================================
 function rotationActive() {
-  return isHeadingUpActive() && Math.abs(((mapBearing % 360) + 360) % 360) > 0.5;
+  // Must reflect whether the map is *visually* rotated right now, not whether
+  // heading-up mode happens to be on. Manual two-finger rotation deliberately
+  // turns heading-up mode off (disableAutoHeadingForManualRotation) while still
+  // leaving mapBearing non-zero — gating on isHeadingUpActive() here caused native
+  // (rotation-unaware) dragging to re-enable itself as soon as the user rotated
+  // manually, which is why drags went in the wrong direction after any rotation.
+  return Math.abs(((mapBearing % 360) + 360) % 360) > ROTATION_EPSILON_DEG;
 }
 
 function setNativeDraggingEnabled(enabled) {
