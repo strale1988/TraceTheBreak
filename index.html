@@ -1185,8 +1185,8 @@ body.driving-active .driving-speed-widget{ display:flex; }
   background:var(--bg-surface);
   border:3px solid #5ec98a;
   border-radius:999px;
-  padding:9px 8px 11px;
-  min-width:92px;
+  padding:9px 4px 11px;
+  min-width:80px;
   min-height:138px;
   box-shadow:0 2px 8px rgba(0,0,0,.3);
   transition:border-color .25s, background-color .2s;
@@ -9032,8 +9032,12 @@ function handleDeviceMotion(event) {
   if (smoothedSpeedKmh === null || smoothedSpeedKmh < BUMP_MIN_SPEED_KMH) return;
 
   lastBumpAt = Date.now();
+  // How many times over baseline this particular spike was — this is the only signal we
+  // have for "how rough was it", so it becomes the bump's severity. Not folded into the
+  // baseline (see above), so it's the raw spike-vs-normal-road ratio at the moment of impact.
+  const severity = mag / bumpBaselineMag;
   const pos = estimateCurrentPosition();
-  if (pos) recordBump(pos.lat, pos.lon);
+  if (pos) recordBump(pos.lat, pos.lon, severity);
 }
 
 // Dead-reckons a small correction forward from the last accepted GPS fix using current heading
@@ -9075,23 +9079,55 @@ function findNearbyBump(lat, lon) {
   return loadedBumps.find(b => distMeters({ lat: b.lat, lon: b.lon }, { lat, lon }) <= BUMP_DEDUPE_RADIUS_M) || null;
 }
 
-function drawBumpDot(lat, lon) {
+// ----------------------------------------------------------------------------------------
+// Severity → visual mapping. severity is the raw "spike ÷ baseline" ratio from the moment
+// of impact (see handleDeviceMotion), so it's unbounded and noisy by nature. We clamp it into
+// a small, deliberately narrow band so the map stays calm and glanceable: even the roughest
+// bump is still a small filled dot, not a blob — the point is to notice a cluster of dots on
+// a bad stretch of road, not to have any single marker shout for attention.
+const BUMP_SEVERITY_MIN   = BUMP_RATIO_THRESHOLD; // at-threshold spike → smallest, lightest dot
+const BUMP_SEVERITY_MAX   = 6;                    // anything at/above this reads as "severe"
+const BUMP_RADIUS_MIN     = 2.5;
+const BUMP_RADIUS_MAX     = 4.5;
+const BUMP_OPACITY_MIN    = 0.45;
+const BUMP_OPACITY_MAX    = 0.85;
+const BUMP_COLOR_MILD     = { r: 0xff, g: 0x90, b: 0x34 }; // #ff9034 — light/normal bump
+const BUMP_COLOR_SEVERE   = { r: 0xd6, g: 0x1f, b: 0x1f }; // #d61f1f — matches the speed-limit red
+
+function bumpSeverityFactor(severity) {
+  const s = typeof severity === 'number' && !isNaN(severity) ? severity : BUMP_SEVERITY_MIN;
+  return Math.max(0, Math.min(1, (s - BUMP_SEVERITY_MIN) / (BUMP_SEVERITY_MAX - BUMP_SEVERITY_MIN)));
+}
+
+function bumpColorForFactor(t) {
+  const lerp = (a, b) => Math.round(a + (b - a) * t);
+  return `rgb(${lerp(BUMP_COLOR_MILD.r, BUMP_COLOR_SEVERE.r)},${lerp(BUMP_COLOR_MILD.g, BUMP_COLOR_SEVERE.g)},${lerp(BUMP_COLOR_MILD.b, BUMP_COLOR_SEVERE.b)})`;
+}
+
+function drawBumpDot(lat, lon, severity) {
+  const t = bumpSeverityFactor(severity);
   L.circleMarker([lat, lon], {
-    radius: 3.5, weight: 0, fillOpacity: 0.85, fillColor: '#ff9034'
+    radius: BUMP_RADIUS_MIN + t * (BUMP_RADIUS_MAX - BUMP_RADIUS_MIN),
+    weight: 0,
+    fillOpacity: BUMP_OPACITY_MIN + t * (BUMP_OPACITY_MAX - BUMP_OPACITY_MIN),
+    fillColor: bumpColorForFactor(t)
   }).addTo(ensureBumpLayer());
 }
 
-async function recordBump(lat, lon) {
+async function recordBump(lat, lon, severity) {
   if (findNearbyBump(lat, lon)) return; // someone already logged this one — nothing to do
 
   // Optimistic local placeholder: the dot appears immediately (no waiting on the network) and
   // de-dupes correctly against any further bumps detected before the insert round-trip returns.
-  const placeholder = { id: `local-${Date.now()}`, lat, lon };
+  const placeholder = { id: `local-${Date.now()}`, lat, lon, severity };
   loadedBumps.push(placeholder);
-  drawBumpDot(lat, lon);
+  drawBumpDot(lat, lon, severity);
 
   try {
-    const { data, error } = await sb.from(BUMPS_TABLE).insert([{ latitude: lat, longitude: lon }]).select('id').single();
+    // severity is stored as a plain ratio (~2.5–6+), not remapped — remapping to the 0–1
+    // display range happens at render time so the stored value stays meaningful even if the
+    // visual scale is retuned later.
+    const { data, error } = await sb.from(BUMPS_TABLE).insert([{ latitude: lat, longitude: lon, severity }]).select('id').single();
     if (error) throw error;
     if (data && data.id) placeholder.id = data.id;
   } catch (err) {
@@ -9107,15 +9143,15 @@ async function loadBumpsNear(lat, lon) {
   const lonDelta = BUMP_LOAD_RADIUS_KM / (111 * Math.cos(lat * Math.PI / 180) || 1);
   try {
     const { data, error } = await sb.from(BUMPS_TABLE)
-      .select('id,latitude,longitude')
+      .select('id,latitude,longitude,severity')
       .gte('latitude', lat - latDelta).lte('latitude', lat + latDelta)
       .gte('longitude', lon - lonDelta).lte('longitude', lon + lonDelta)
       .limit(1000);
     if (error) throw error;
     (data || []).forEach(row => {
       if (loadedBumps.some(b => b.id === row.id)) return;
-      loadedBumps.push({ id: row.id, lat: row.latitude, lon: row.longitude });
-      drawBumpDot(row.latitude, row.longitude);
+      loadedBumps.push({ id: row.id, lat: row.latitude, lon: row.longitude, severity: row.severity });
+      drawBumpDot(row.latitude, row.longitude, row.severity);
     });
   } catch (err) {
     console.warn('Bump load failed:', err);
