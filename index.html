@@ -3195,8 +3195,8 @@ span.flatpickr-weekday {
       <div class="dashboard-progress-text" id="offlineMapStorageText"></div>
     </div>
 
-    <div class="detail-section" id="soundSettingsSection">
-      <div class="detail-section-title" id="soundSectionTitle">Sound</div>
+    <div class="detail-section" id="drivingSafetySettingsSection">
+      <div class="detail-section-title" id="drivingSafetySectionTitle">Driving mode</div>
       <label class="settings-toggle-row" id="soundToggleRow">
         <span id="soundToggleLabel">Navigation & alert sounds</span>
         <span class="toggle-switch">
@@ -3204,10 +3204,6 @@ span.flatpickr-weekday {
           <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
         </span>
       </label>
-    </div>
-
-    <div class="detail-section" id="drivingSafetySettingsSection">
-      <div class="detail-section-title" id="drivingSafetySectionTitle">Driving mode</div>
       <label class="settings-toggle-row" id="drivingSafetyToggleRow">
         <span id="drivingSafetyToggleLabel">Show safe-driving reminder when starting driving mode</span>
         <span class="toggle-switch">
@@ -6759,6 +6755,12 @@ function buildHelpModalContent() {
             drivingModeVisible
           );
         })()}
+        ${acc('icons/close.png',
+          'Editing & deleting your reports',
+          'Izmena i brisanje vaših prijava',
+          'Open a report you filed — either by tapping its pin on the map or from Settings → My Dashboard → My Reports — and you\'ll find a Delete button on it, so you can remove a report you made by mistake. Admins with authority over the area additionally get an Edit button there to correct a report\'s details.',
+          'Otvorite prijavu koju ste vi podneli — bilo dodirom na njen pin na mapi ili preko Podešavanja → Moja tabla → Moje prijave — i naći ćete dugme Obriši, kako biste mogli da uklonite prijavu koju ste podneli greškom. Admini sa ovlašćenjem nad tom oblašću tu dodatno imaju i dugme Izmeni za ispravku podataka prijave.'
+        )}
         ${acc('icons/user.png',
           'Levels, points & badges',
           'Nivoi, poeni i značke',
@@ -10075,7 +10077,8 @@ function startWatching() {
             iconSize: userMarkerNavStyle ? [46, 46] : [34, 34],
             iconAnchor: userMarkerNavStyle ? [23, 23] : [17, 17]
           }),
-          zIndexOffset: 5000
+          zIndexOffset: 5000,
+          interactive: false // no popup for the gps dot/arrow — tapping it does nothing
         }).addTo(map);
         map.setView(getFollowCenter(userCoords.lat, userCoords.lon, 13), 13);
         showMunicipalityBoundaryForPoint(userCoords.lat, userCoords.lon, userMarker, 'gps');
@@ -10357,7 +10360,8 @@ map.on('click', function(e) {
         html: buildDroppedPinHtml(),
         iconSize: [30, 36],
         iconAnchor: [15, 34]
-      })
+      }),
+      interactive: false // no popup for the dropped pin — tapping it does nothing
     }).addTo(map);
   }
   manualPinMunicipality = null;
@@ -12377,11 +12381,11 @@ async function loadAllCompanyMarkers() {
       zIndexOffset: 200
     });
     marker._utilityCompany = { c, lat: c.lat, lon: c.lon };
-    marker.bindPopup(buildCompanyPopupHtml(c, c.lat, c.lon), { autoPan: false, closeButton: false });
+    if (c.id != null) utilityCompanyRegistry.set(String(c.id), c);
     marker.off('click');
     marker.on('click', () => {
       if (drivingMode) navigateToUtilityCompany(String(c.id), c.lat, c.lon);
-      else marker.openPopup();
+      else showCompanyDetailModal(String(c.id));
     });
     marker.addTo(companyMarkersLayer);
   }
@@ -15557,6 +15561,9 @@ function buildDetailStatusReadonlyHtml(report, reporterName) {
   // even after they've left the location or if it falls outside their admin domain (e.g. a
   // municipality that resolved incorrectly). Ownership alone is enough for that.
   const hasFullPower = hasFullPowerOverReport(report) || (isAdmin && isOwner);
+  // A plain (non-admin) owner can't edit their report's status/category, but they should
+  // still be able to remove it entirely if they filed it by mistake.
+  const canDelete = hasFullPower || isOwner;
   const canAddPhotoInline = !!currentSession && (
     (isOwner && (!report.photo_path || report.photo_status === 'rejected')) ||
     isAdmin
@@ -15573,7 +15580,9 @@ function buildDetailStatusReadonlyHtml(report, reporterName) {
       ${hasFullPower ? `<div class="detail-edit-actions">
         <button type="button" class="detail-edit-btn" onclick="enterReportDetailEditMode('${report.id}')">${t('editBtn')}</button>
         <button type="button" class="detail-delete-btn" onclick="deleteReport('${report.id}')">${t('deleteBtn')}</button>
-      </div>` : ''}
+      </div>` : (canDelete ? `<div class="detail-edit-actions">
+        <button type="button" class="detail-delete-btn" onclick="deleteReport('${report.id}')">${t('deleteBtn')}</button>
+      </div>` : '')}
     </div>
     <div class="detail-row"><span class="detail-row-label">${t('popupStatus')}</span><span class="status-pill" style="background:${statusColor(report.status)};">${statusLabel(report.status)}</span></div>
     <div class="detail-row"><span class="detail-row-label">${t('priorityLabel')}</span><span class="status-pill" style="background:${priorityColor(report.priority)};">${priorityLabelText(report.priority)}</span></div>
