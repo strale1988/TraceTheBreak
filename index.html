@@ -1182,11 +1182,13 @@ body.driving-active .driving-speed-widget{ display:flex; }
   align-items:center;
   justify-content:flex-start;
   gap:4px;
-  background:var(--bg-surface);
+  background:var(--floating-bg);
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
   border:3px solid #5ec98a;
   border-radius:999px;
-  padding:9px 4px 11px;
-  min-width:80px;
+  padding:8px 8px 11px;
+  min-width:88px;
   min-height:138px;
   box-shadow:0 2px 8px rgba(0,0,0,.3);
   transition:border-color .25s, background-color .2s;
@@ -1211,10 +1213,17 @@ body.driving-active .driving-speed-widget{ display:flex; }
 .driving-speed-value{ font-size:26px; font-weight:var(--fw-heavy); color:var(--text-primary); line-height:1; margin-top:2px; }
 .driving-speed-unit{ font-size:var(--fs-11); font-weight:var(--fw-bold); color:var(--text-secondary); letter-spacing:.3px; margin-top:-2px; }
 
+/* Bike mode: no posted vehicle speed limit to show, so the circular sign is dropped and the
+   capsule shrinks down to just wrap the current-speed readout instead of leaving a big empty
+   gap where the sign used to be. */
+body.bike-mode-active .driving-speed-limit{ display:none; }
+body.bike-mode-active .driving-speed-capsule{ min-height:0; padding:14px 8px; gap:2px; }
+body.bike-mode-active .driving-speed-value{ margin-top:0; }
+
 @keyframes overspeedFlash {
-  0%   { background: var(--bg-surface); }
+  0%   { background: var(--floating-bg); }
   50%  { background: #d61f1f; }
-  100% { background: var(--bg-surface); }
+  100% { background: var(--floating-bg); }
 }
 .driving-speed-capsule.overspeed-flash{
   animation: overspeedFlash .6s ease-in-out 3;
@@ -1492,6 +1501,7 @@ body.driving-active #lockedFormPanel,
 body.driving-active #followLocationBtn,
 body.driving-active #pinMapBtn,
 body.driving-active #drivingModeBtn,
+body.driving-active #bikeModeBtn,
 body.driving-active #heatmapBtn,
 body.driving-active #mainMapCompass{
   display:none !important;
@@ -2888,7 +2898,8 @@ span.flatpickr-weekday {
 <div id="bottomRightStack" class="bottomright-stack">
   <div id="followLocationBtn" class="pin-map-btn" style="display:none" title="Follow my location" onclick="toggleFollowMode()"><img class="icon-img" src="icons/target.png" alt="Recenter"></div>
   <div id="pinMapBtn" class="pin-map-btn" style="display:none" title="Set location manually" onclick="togglePinMode()"><img class="icon-img" src="icons/pin.png" alt="Pin"></div>
-  <div id="drivingModeBtn" class="pin-map-btn" style="display:none" title="Driving mode" onclick="toggleDrivingMode()"><img class="icon-img" src="icons/car.png" alt="Driving mode"></div>
+  <div id="drivingModeBtn" class="pin-map-btn" style="display:none" title="Driving mode" onclick="toggleDrivingMode('car')"><img class="icon-img" src="icons/car.png" alt="Driving mode"></div>
+  <div id="bikeModeBtn" class="pin-map-btn" style="display:none" title="Bike mode" onclick="toggleDrivingMode('bike')"><img class="icon-img" src="icons/bike_lanes.png" alt="Bike mode"></div>
   <div id="heatmapBtn" class="pin-map-btn heatmap-btn" style="display:none" title="Heatmap" onclick="toggleHeatmap()">
     <img class="icon-img" src="icons/heatmap.png" alt="Heatmap">
   </div>
@@ -3841,7 +3852,7 @@ function updateAuthUI() {
   const reportFabBtn = document.getElementById('reportFabBtn');
 
   const hasAccount = !!currentSession;
-  [document.getElementById('leaderboardBtn'), document.getElementById('drivingModeBtn'), document.getElementById('heatmapBtn'), document.getElementById('notificationBtn')]
+  [document.getElementById('leaderboardBtn'), document.getElementById('drivingModeBtn'), document.getElementById('bikeModeBtn'), document.getElementById('heatmapBtn'), document.getElementById('notificationBtn')]
     .forEach(btn => { if (btn) btn.classList.toggle('map-btn-locked', !hasAccount); });
 
   if (currentSession && currentProfile && currentProfile.username) {
@@ -5500,6 +5511,7 @@ const T = {
   sessionExpiredReauth: { en:'Your session expired. Please sign in again and retry.', sr:'Sesija je istekla. Prijavite se ponovo i pokušajte opet.' },
   followTitle:       { en:'Follow my location',          sr:'Prati moju lokaciju' },
   drivingBtnTitle:   { en:'Driving mode',                sr:'Režim vožnje' },
+  bikeBtnTitle:      { en:'Bike mode',                   sr:'Režim bicikla' },
   reportCount1: { en:'Report',                           sr:'Prijava' },
   reportBtn:    { en:'REPORT BREAK',                     sr:'PRIJAVI KVAR' },
   csvLabel:     { en:'CSV',                              sr:'CSV' },
@@ -6323,6 +6335,7 @@ function applyLang(){
   updateSectionButtonUI();
   document.getElementById('drivingCenterBtn').title = t('followTitle');
   document.getElementById('drivingModeBtn').title = t('drivingBtnTitle');
+  document.getElementById('bikeModeBtn').title = t('bikeBtnTitle');
 
   document.getElementById('navigateSearchInput').placeholder = t('navigateSearchPH');
   document.getElementById('navigateClearBtn').title = t('navigateCloseTitle');
@@ -7312,6 +7325,12 @@ let navPinMode    = false;
 
 let followMode        = false;
 let drivingMode        = false;
+// 'car' or 'bike' — picked when driving mode is entered (see toggleDrivingMode), and drives
+// which routing profile, thresholds, and widgets are used underneath the shared driving/nav
+// UI. Locked in for the duration of a session; to switch, exit and re-enter with the other
+// button, same as the existing single-button behavior.
+let travelMode         = 'car';
+function isBikeMode() { return drivingMode && travelMode === 'bike'; }
 let sectionRecording   = false;
 let sectionAwaitingCategory = false;
 let sectionPoints      = [];
@@ -7892,6 +7911,7 @@ function onNavStateChange(prev, next) {
     if (prev !== NavState.OFF_ROUTE && prev !== NavState.RECALCULATING) {
       if (drivenPathLine) { map.removeLayer(drivenPathLine); drivenPathLine = null; }
       drivenPathCoords = from ? [[from.lat, from.lon]] : [];
+      drivenPathLastAt = from ? Date.now() : null;
       if (drivenPathCoords.length) {
         drivenPathLine = L.polyline(drivenPathCoords, { color: 'var(--accent)', weight: 5, opacity: .5 }).addTo(map);
       }
@@ -7927,15 +7947,26 @@ function updateNavStatusText() {
   el.style.display = text ? 'block' : 'none';
 }
 
-const ARRIVAL_RADIUS_M    = 25;
-const OFF_ROUTE_THRESHOLD_M = 40;
-const ON_ROUTE_RECOVER_THRESHOLD_M = 25;
+// Car values below are unchanged from before bike mode existed — bike gets its own, tighter
+// tolerances (narrower paths/lanes, slower speeds) via these small lookups instead of new
+// globals scattered through the nav logic.
+function navArrivalRadiusM()          { return travelMode === 'bike' ? 20    : 25; }
+function navOffRouteThresholdM()      { return travelMode === 'bike' ? 25    : 40; }
+function navOnRouteRecoverThresholdM(){ return travelMode === 'bike' ? 15    : 25; }
 let destinationCoords  = null;
 let destinationMarker  = null;
 let navigationLine     = null;
 let drivenPathLine     = null;
 let drivenPathCoords   = [];
 const NAV_DRIVEN_PATH_MIN_DISTANCE_M = 8;
+// If we go this long without adding a driven-path point (app backgrounded/killed, phone
+// asleep, tunnel, etc.), the next fix that comes in is treated as a signal gap rather than
+// a normal step — see fillDrivenPathGap() below — instead of just drawing a straight line
+// from wherever we were to wherever we ended up, which cuts across blocks/buildings instead
+// of following the road actually driven.
+const NAV_DRIVEN_PATH_GAP_MS = 20000;
+let drivenPathLastAt    = null;
+let drivenPathGapFilling = false;
 let navRouteSteps      = [];
 let navStepIndex       = 0;
 let navPanelOpen       = false;
@@ -7943,16 +7974,26 @@ let navRouteFetching   = false;
 let navLastRouteAt     = 0;
 let navLastRouteFrom   = null;
 
-const NAV_REROUTE_INTERVAL_MS = 15000;
-const NAV_REROUTE_DRIFT_M     = 40;
+function navRerouteIntervalMs() { return travelMode === 'bike' ? 20000 : 15000; }
+function navRerouteDriftM()     { return travelMode === 'bike' ? 25    : 40; }
 
-const OSRM_CAR_ENDPOINT = 'https://routing.openstreetmap.de/routed-car/route/v1/driving/';
+// OSRM exposes separate routing profiles per host — same API shape, so fetchRoute/
+// snapToNearestRoad/snapUserToRoadThenShow just need to ask for the right one.
+const OSRM_ROUTE_ENDPOINTS = {
+  car:  'https://routing.openstreetmap.de/routed-car/route/v1/driving/',
+  bike: 'https://routing.openstreetmap.de/routed-bike/route/v1/bike/'
+};
+const OSRM_NEAREST_ENDPOINTS = {
+  car:  'https://routing.openstreetmap.de/routed-car/nearest/v1/driving/',
+  bike: 'https://routing.openstreetmap.de/routed-bike/nearest/v1/bike/'
+};
+function currentRouteEndpoint()  { return OSRM_ROUTE_ENDPOINTS[travelMode] || OSRM_ROUTE_ENDPOINTS.car; }
+function currentSnapEndpoint()   { return OSRM_NEAREST_ENDPOINTS[travelMode] || OSRM_NEAREST_ENDPOINTS.car; }
 
-const ROAD_SNAP_URL_BASE        = 'https://routing.openstreetmap.de/routed-car/nearest/v1/driving/';
+function roadSnapMaxAcceptM() { return travelMode === 'bike' ? 20  : 30; }
+function roadSideOffsetM()    { return travelMode === 'bike' ? 1.5 : 3; }
 const ROAD_SNAP_MIN_INTERVAL_MS = 1200;
-const ROAD_SNAP_MAX_ACCEPT_M    = 30;
 const ROAD_SNAP_FALLBACK_MS     = 1800;
-const ROAD_SIDE_OFFSET_M        = 3;
 let roadSnapFetching        = false;
 let lastRoadSnapAt          = 0;
 let snappedUserCoords       = null;
@@ -7961,7 +8002,7 @@ let roadSnapFallbackTimer   = null;
 const DEST_SNAP_MAX_ACCEPT_M = 60;
 async function snapToNearestRoad(lat, lon, maxAcceptM) {
   try {
-    const res = await fetch(`${ROAD_SNAP_URL_BASE}${lon},${lat}?number=1`);
+    const res = await fetch(`${currentSnapEndpoint()}${lon},${lat}?number=1`);
     const data = await res.json();
     const wp = data && data.code === 'Ok' && data.waypoints && data.waypoints[0];
     if (!wp) return null;
@@ -7995,16 +8036,16 @@ function snapUserToRoadThenShow(lat, lon) {
   roadSnapFetching = true;
   lastRoadSnapAt = now;
 
-  fetch(`${ROAD_SNAP_URL_BASE}${lon},${lat}?number=1`)
+  fetch(`${currentSnapEndpoint()}${lon},${lat}?number=1`)
     .then(res => res.json())
     .then(data => {
       const wp = data && data.code === 'Ok' && data.waypoints && data.waypoints[0];
       let snapped = wp ? { lat: wp.location[1], lon: wp.location[0] } : null;
-      const useSnap = snapped && distMeters(snapped, { lat, lon }) <= ROAD_SNAP_MAX_ACCEPT_M;
+      const useSnap = snapped && distMeters(snapped, { lat, lon }) <= roadSnapMaxAcceptM();
       if (useSnap) {
         if (typeof currentHeading === 'number' && !isNaN(currentHeading)) {
           const sideBearing = (currentHeading + 90) % 360;
-          snapped = offsetLatLng(snapped.lat, snapped.lon, sideBearing, ROAD_SIDE_OFFSET_M);
+          snapped = offsetLatLng(snapped.lat, snapped.lon, sideBearing, roadSideOffsetM());
         }
         snappedUserCoords = snapped;
       }
@@ -8164,11 +8205,37 @@ async function selectDestination(lat, lon, label) {
   });
 }
 
+// Bridges a gap in the driven-path trail (app backgrounded/killed, phone asleep, tunnel,
+// etc. meant we missed a stretch of fixes) by routing between the last recorded point and
+// the new one, so the trail still follows the road that was actually driven instead of
+// cutting a straight line across blocks/buildings. Uses the same car routing endpoint as
+// live navigation. Falls back to a straight segment if routing fails, so the trail always
+// connects — it just won't hug the road for that one gap.
+async function fillDrivenPathGap(from, to) {
+  if (drivenPathGapFilling || !drivenPathLine) return;
+  drivenPathGapFilling = true;
+  try {
+    const route = await fetchRoute(from, to);
+    // route.coords includes the 'from' point itself — skip it, it's already the trail's last point.
+    route.coords.slice(1).forEach(coord => {
+      drivenPathCoords.push(coord);
+      drivenPathLine.addLatLng(coord);
+    });
+  } catch (err) {
+    console.warn('Driven-path gap fill failed, drawing straight segment instead:', err.message);
+    drivenPathCoords.push([to.lat, to.lon]);
+    drivenPathLine.addLatLng([to.lat, to.lon]);
+  } finally {
+    drivenPathLastAt = Date.now();
+    drivenPathGapFilling = false;
+  }
+}
+
 async function fetchRoute(from, to) {
   if (!isValidCoordObj(from) || !isValidCoordObj(to)) {
     throw new Error('invalid coordinates for routing');
   }
-  const url = `${OSRM_CAR_ENDPOINT}${from.lon},${from.lat};${to.lon},${to.lat}` +
+  const url = `${currentRouteEndpoint()}${from.lon},${from.lat};${to.lon},${to.lat}` +
               `?overview=full&geometries=geojson&steps=true`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`routing request failed (HTTP ${res.status})`);
@@ -8204,8 +8271,8 @@ async function drawNavigationLine(force) {
   const from = userCoords || manualCoords;
   if (!from) return;
 
-  const driftedFar = navLastRouteFrom && distMeters(from, navLastRouteFrom) >= NAV_REROUTE_DRIFT_M;
-  const stale = Date.now() - navLastRouteAt >= NAV_REROUTE_INTERVAL_MS;
+  const driftedFar = navLastRouteFrom && distMeters(from, navLastRouteFrom) >= navRerouteDriftM();
+  const stale = Date.now() - navLastRouteAt >= navRerouteIntervalMs();
   const needsRoute = !navigationLine || driftedFar || stale || force;
 
   if (needsRoute && !navRouteFetching) {
@@ -8291,6 +8358,8 @@ function setNavBtnVisible(enabled) {
   setBoolPref(NAV_BTN_PREF_KEY, showNavBtnPref);
   const btn = document.getElementById('drivingModeBtn');
   if (btn) btn.style.display = showNavBtnPref ? 'flex' : 'none';
+  const bikeBtn = document.getElementById('bikeModeBtn');
+  if (bikeBtn) bikeBtn.style.display = showNavBtnPref ? 'flex' : 'none';
   if (!showNavBtnPref && typeof drivingMode !== 'undefined' && drivingMode) toggleDrivingMode();
 }
 function setHeatmapBtnVisible(enabled) {
@@ -8423,7 +8492,7 @@ let overspeedArmed        = true;
 let lastOverspeedAlertAt  = 0;
 
 function checkOverspeed() {
-  if (!drivingMode || !overspeedAlertEnabled) return;
+  if (!drivingMode || !overspeedAlertEnabled || isBikeMode()) return;
   if (currentSpeedLimitKmh === null || smoothedSpeedKmh === null) return;
 
   const over = smoothedSpeedKmh - currentSpeedLimitKmh;
@@ -8630,7 +8699,7 @@ function evaluateNavigationProgress() {
   if (!from) return;
 
   const distToDest = distMeters(from, destinationCoords);
-  if (distToDest <= ARRIVAL_RADIUS_M) {
+  if (distToDest <= navArrivalRadiusM()) {
     setNavState(NavState.ARRIVED);
     return;
   }
@@ -8639,7 +8708,7 @@ function evaluateNavigationProgress() {
 
   const offRouteDist = distanceToPolylineMeters(from, navigationLine.getLatLngs());
   const currentlyOffRoute = navState === NavState.OFF_ROUTE || navState === NavState.RECALCULATING;
-  const threshold = currentlyOffRoute ? ON_ROUTE_RECOVER_THRESHOLD_M : OFF_ROUTE_THRESHOLD_M;
+  const threshold = currentlyOffRoute ? navOnRouteRecoverThresholdM() : navOffRouteThresholdM();
   const isOffRoute = offRouteDist > threshold;
 
   if (isOffRoute && navState === NavState.NAVIGATING) {
@@ -8889,19 +8958,32 @@ function onMapTouchEnd(e) {
 })();
 
 
-function toggleDrivingMode() {
+function toggleDrivingMode(mode) {
+  const requestedMode = mode === 'bike' ? 'bike' : 'car';
   drivingMode = !drivingMode;
   const btn = document.getElementById('drivingModeBtn');
+  const bikeBtn = document.getElementById('bikeModeBtn');
   const compassBtn = document.getElementById('mapCompass');
 
   document.body.classList.toggle('driving-active', drivingMode);
 
-  if (btn) btn.classList.toggle('active', drivingMode);
+  if (drivingMode) travelMode = requestedMode;
+  document.body.classList.toggle('bike-mode-active', drivingMode && travelMode === 'bike');
+
+  if (btn) btn.classList.toggle('active', drivingMode && travelMode === 'car');
+  if (bikeBtn) bikeBtn.classList.toggle('active', drivingMode && travelMode === 'bike');
 
   if (map.invalidateSize) map.invalidateSize({ animate: false, pan: false });
   updateRotationOrigin();
 
   if (drivingMode) {
+    // Fresh mode session: clear anything tied to the *other* profile so it can't leak in —
+    // a snapped position or cached route computed against the car road network, or a
+    // vibration baseline calibrated on car-suspension noise, isn't valid once we switch.
+    snappedUserCoords = null;
+    navLastRouteAt = 0;
+    navLastRouteFrom = null;
+    bumpBaselineMag = null;
     updateDrivingGpsStatus();
     if (!followMode) toggleFollowMode();
     setUserMarkerStyle(true);
@@ -8966,11 +9048,16 @@ let lastBumpAt       = 0;
 
 const GRAVITY_LOWPASS_ALPHA  = 0.12;
 const BUMP_BASELINE_ALPHA    = 0.05;
-const BUMP_RATIO_THRESHOLD   = 2.5;  // spike must be this many times the current baseline...
-const BUMP_ABS_FLOOR_MS2     = 3.5;  // ...and clear this absolute floor (m/s²), so a near-zero
-                                      // baseline on a billiard-smooth road can't self-trigger
-const BUMP_MIN_SPEED_KMH     = 8;    // below this, ignore everything — kills false positives
-                                      // from parking, door slams, curbs, picking up the phone
+// Car values unchanged from before bike mode existed. Bike gets its own starting-point
+// numbers — a bike-mounted phone picks up more constant ambient road buzz (less suspension
+// damping than a car), and cycling speeds are lower overall, so a straight reuse of the car
+// numbers would either miss real potholes or spam false positives. Treat these as a starting
+// point to field-tune once there's real ride data, same as the car ones originally were.
+function bumpRatioThreshold() { return travelMode === 'bike' ? 2.2 : 2.5; }  // spike must be this many times the current baseline...
+function bumpAbsFloorMs2()    { return travelMode === 'bike' ? 3.0 : 3.5; }  // ...and clear this absolute floor (m/s²), so a near-zero
+                                                                              // baseline on a billiard-smooth road can't self-trigger
+function bumpMinSpeedKmh()    { return travelMode === 'bike' ? 5   : 8; }    // below this, ignore everything — kills false positives
+                                                                              // from parking, door slams, curbs, picking up the phone
 const BUMP_REFRACTORY_MS     = 550;  // one dot per bump, not one per suspension oscillation
 const BUMP_DEDUPE_RADIUS_M   = 12;   // an existing dot this close means "already logged"
 const BUMP_LOAD_RADIUS_KM    = 3;    // how far around the car we keep known bumps loaded
@@ -9019,7 +9106,7 @@ function handleDeviceMotion(event) {
 
   if (bumpBaselineMag === null) { bumpBaselineMag = mag; return; }
 
-  const isSpike = mag > bumpBaselineMag * BUMP_RATIO_THRESHOLD && mag > BUMP_ABS_FLOOR_MS2;
+  const isSpike = mag > bumpBaselineMag * bumpRatioThreshold() && mag > bumpAbsFloorMs2();
 
   // Only fold non-spike samples into the baseline, so a genuine bump can't drag its own
   // reference level up mid-event and end up masking the very next bump.
@@ -9029,7 +9116,7 @@ function handleDeviceMotion(event) {
   }
 
   if (Date.now() - lastBumpAt < BUMP_REFRACTORY_MS) return;
-  if (smoothedSpeedKmh === null || smoothedSpeedKmh < BUMP_MIN_SPEED_KMH) return;
+  if (smoothedSpeedKmh === null || smoothedSpeedKmh < bumpMinSpeedKmh()) return;
 
   lastBumpAt = Date.now();
   // How many times over baseline this particular spike was — this is the only signal we
@@ -9085,7 +9172,10 @@ function findNearbyBump(lat, lon) {
 // a small, deliberately narrow band so the map stays calm and glanceable: even the roughest
 // bump is still a small filled dot, not a blob — the point is to notice a cluster of dots on
 // a bad stretch of road, not to have any single marker shout for attention.
-const BUMP_SEVERITY_MIN   = BUMP_RATIO_THRESHOLD; // at-threshold spike → smallest, lightest dot
+// This scale is independent of whichever mode's threshold actually triggered a given bump
+// (car and bike thresholds both hover in this range) — it's just a fixed display gradient,
+// not a detection parameter, so it doesn't need to track bumpRatioThreshold().
+const BUMP_SEVERITY_MIN   = 2.5;                  // at-threshold spike → smallest, lightest dot
 const BUMP_SEVERITY_MAX   = 6;                    // anything at/above this reads as "severe"
 const BUMP_RADIUS_MIN     = 2.5;
 const BUMP_RADIUS_MAX     = 4.5;
@@ -9596,7 +9686,7 @@ const SPEED_LIMIT_REFRESH_DRIFT_M = 150;
 const SPEED_LIMIT_SEARCH_RADIUS_M = 45;
 
 function maybeFetchSpeedLimit(lat, lon) {
-  if (!drivingMode || speedLimitFetching) return;
+  if (!drivingMode || speedLimitFetching || isBikeMode()) return;
   const now = Date.now();
   const driftedFar = !lastSpeedLimitFetchLoc || distMeters(lastSpeedLimitFetchLoc, { lat, lon }) >= SPEED_LIMIT_REFRESH_DRIFT_M;
   const stale = now - lastSpeedLimitFetchAt >= SPEED_LIMIT_REFRESH_MS;
@@ -9798,12 +9888,22 @@ function startWatching() {
         drawNavigationLine();
         evaluateNavigationProgress();
         updateTurnByTurnDisplay(userCoords);
-        if (drivenPathLine) {
+        if (drivenPathLine && !drivenPathGapFilling) {
           const lastDriven = drivenPathCoords[drivenPathCoords.length - 1];
           const lastDrivenPt = lastDriven ? { lat: lastDriven[0], lon: lastDriven[1] } : null;
-          if (!lastDrivenPt || distMeters(lastDrivenPt, userCoords) >= NAV_DRIVEN_PATH_MIN_DISTANCE_M) {
+          if (!lastDrivenPt) {
             drivenPathCoords.push([userCoords.lat, userCoords.lon]);
             drivenPathLine.addLatLng([userCoords.lat, userCoords.lon]);
+            drivenPathLastAt = Date.now();
+          } else if (distMeters(lastDrivenPt, userCoords) >= NAV_DRIVEN_PATH_MIN_DISTANCE_M) {
+            const gapMs = drivenPathLastAt ? Date.now() - drivenPathLastAt : 0;
+            if (gapMs >= NAV_DRIVEN_PATH_GAP_MS) {
+              fillDrivenPathGap(lastDrivenPt, { lat: userCoords.lat, lon: userCoords.lon });
+            } else {
+              drivenPathCoords.push([userCoords.lat, userCoords.lon]);
+              drivenPathLine.addLatLng([userCoords.lat, userCoords.lon]);
+              drivenPathLastAt = Date.now();
+            }
           }
         }
       }
@@ -9871,6 +9971,7 @@ document.addEventListener('visibilitychange', () => {
 document.getElementById('followLocationBtn').style.display = 'flex';
 document.getElementById('pinMapBtn').style.display = 'flex';
 document.getElementById('drivingModeBtn').style.display = showNavBtnPref ? 'flex' : 'none';
+document.getElementById('bikeModeBtn').style.display = showNavBtnPref ? 'flex' : 'none';
 document.getElementById('heatmapBtn').style.display = showHeatmapBtnPref ? 'flex' : 'none';
 document.getElementById('mainMapCompass').style.display = 'flex';
 
