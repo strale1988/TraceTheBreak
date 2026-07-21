@@ -85,6 +85,7 @@ button, [onclick], [role="button"]{
   --form-control-h: 40px;
   --icon-tint-filter: brightness(0) invert(32%);
   --floating-bg: rgba(255,255,255,.92);
+  --speed-capsule-bg: rgba(255,255,255,.72);
   --floating-border: #e2e2e0;
   --floating-shadow: rgba(0,0,0,.18);
   --map-tile-filter: none;
@@ -151,6 +152,7 @@ html[data-theme="dark"]{
   --accent-rgb: 255,144,52;
   --icon-tint-filter: brightness(0) invert(88%);
   --floating-bg: rgba(28,28,28,.92);
+  --speed-capsule-bg: rgba(28,28,28,.68);
   --floating-border: rgba(255,255,255,.12);
   --floating-shadow: rgba(0,0,0,.55);
   --map-tile-filter: invert(1) hue-rotate(180deg) brightness(.92) contrast(.92);
@@ -1182,7 +1184,7 @@ body.driving-active .driving-speed-widget{ display:flex; }
   align-items:center;
   justify-content:flex-start;
   gap:4px;
-  background:var(--floating-bg);
+  background:var(--speed-capsule-bg);
   backdrop-filter:blur(8px);
   -webkit-backdrop-filter:blur(8px);
   border:3px solid #5ec98a;
@@ -1221,9 +1223,9 @@ body.bike-mode-active .driving-speed-capsule{ min-height:0; padding:14px 8px; ga
 body.bike-mode-active .driving-speed-value{ margin-top:0; }
 
 @keyframes overspeedFlash {
-  0%   { background: var(--floating-bg); }
+  0%   { background: var(--speed-capsule-bg); }
   50%  { background: #d61f1f; }
-  100% { background: var(--floating-bg); }
+  100% { background: var(--speed-capsule-bg); }
 }
 .driving-speed-capsule.overspeed-flash{
   animation: overspeedFlash .6s ease-in-out 3;
@@ -1410,6 +1412,74 @@ body.driving-active .driving-report-sheet{ display:flex; }
 .driving-tile.tile-signage{  background:#f1c40f; }
 .driving-tile.tile-flooding{ background:#3498db; }
 .driving-tile.tile-other{    background:#9b59b6; }
+
+/* Bike mode swaps the road-only tap row for a compact "+" that opens a small grid of
+   the report categories a cyclist actually runs into (sewage, potholes/road, streetlights,
+   waste, green spaces, illegal parking, forest trails, bike lanes). Kept collapsed by
+   default rather than always-on tiles — riding is slower than driving so the extra tap to
+   open it is an acceptable trade for not permanently covering the screen with 8 buttons. */
+body.bike-mode-active .driving-tile-row{ display:none; }
+.bike-quick-row{ display:none; flex-direction:column; align-items:center; gap:var(--space-10); }
+body.bike-mode-active .bike-quick-row{ display:flex; }
+.bike-quick-fab{
+  width:52px; height:52px;
+  border-radius:50%;
+  background:#ff4b4b;
+  color:#fff;
+  border:none;
+  box-shadow:0 4px 14px rgba(0,0,0,.3);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex-shrink:0;
+  transition:transform .18s ease, background .18s ease;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+.bike-quick-fab img{ width:22px; height:22px; filter:brightness(0) invert(1); }
+.bike-quick-fab:active{ transform:scale(.9); }
+.bike-quick-fab.open{ transform:rotate(45deg); background:var(--text-primary); }
+.bike-quick-fab.open:active{ transform:rotate(45deg) scale(.9); }
+.bike-quick-grid{
+  display:grid;
+  grid-template-columns:repeat(4, 1fr);
+  gap:var(--space-8);
+  width:100%;
+  max-height:0;
+  opacity:0;
+  overflow:hidden;
+  pointer-events:none;
+  transition:max-height .25s ease, opacity .2s ease;
+}
+.bike-quick-grid.open{
+  max-height:180px;
+  opacity:1;
+  pointer-events:auto;
+  margin-bottom:var(--space-4);
+}
+.bike-quick-grid.submitting{ opacity:.5; pointer-events:none; }
+.bike-quick-tile{
+  border:none;
+  border-radius:var(--radius-lg);
+  color:#fff;
+  padding:12px 2px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  transition:filter .15s, transform .1s;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+.bike-quick-tile:active{ filter:brightness(.85); transform:scale(.95); }
+.bike-quick-tile-icon{
+  width:26px; height:26px; display:inline-block;
+  background-color:#fff;
+  filter:drop-shadow(0 1px 2px rgba(0,0,0,.35));
+  -webkit-mask-position:center; mask-position:center;
+  -webkit-mask-size:contain; mask-size:contain;
+  -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
+}
 .driving-section-btn{
   width:100%;
   padding:14px;
@@ -2991,11 +3061,17 @@ span.flatpickr-weekday {
     <span id="sectionRecordBtnLabel">Start Section Report</span>
   </button>
   <div class="driving-tile-row">
-    <div class="driving-tile tile-pothole" onclick="handleTileTap('pothole')" title="Pothole" aria-label="Pothole"><div class="driving-tile-icon-glyph" aria-hidden="true" style="-webkit-mask-image:url('icons/pothole.png');mask-image:url('icons/pothole.png');"></div><span id="dTilePothole">Pothole</span></div>
-    <div class="driving-tile tile-cracked" onclick="handleTileTap('cracked')" title="Damaged pavement" aria-label="Damaged pavement"><div class="driving-tile-icon-glyph" aria-hidden="true" style="-webkit-mask-image:url('icons/road-damaged.png');mask-image:url('icons/road-damaged.png');"></div><span id="dTileCracked">Damaged pavement</span></div>
-    <div class="driving-tile tile-signage" onclick="handleTileTap('signage')" title="Bad signage" aria-label="Bad signage"><div class="driving-tile-icon-glyph" aria-hidden="true" style="-webkit-mask-image:url('icons/traffic-cone.png');mask-image:url('icons/traffic-cone.png');"></div><span id="dTileSignage">Bad signage</span></div>
-    <div class="driving-tile tile-flooding" onclick="handleTileTap('flooding')" title="Flooding" aria-label="Flooding"><div class="driving-tile-icon-glyph" aria-hidden="true" style="-webkit-mask-image:url('icons/flood-risk.png');mask-image:url('icons/flood-risk.png');"></div><span id="dTileFlooding">Flooding</span></div>
-    <div class="driving-tile tile-other" onclick="handleTileTap(null)" title="Other road issue" aria-label="Other road issue"><div class="driving-tile-icon-glyph" aria-hidden="true" style="-webkit-mask-image:url('icons/warning-symbol.png');mask-image:url('icons/warning-symbol.png');"></div><span id="dTileOther">Other road issue</span></div>
+    <div class="driving-tile tile-pothole" onclick="handleTileTap('Road','pothole')" title="Pothole" aria-label="Pothole"><div class="driving-tile-icon-glyph" aria-hidden="true" style="-webkit-mask-image:url('icons/pothole.png');mask-image:url('icons/pothole.png');"></div><span id="dTilePothole">Pothole</span></div>
+    <div class="driving-tile tile-cracked" onclick="handleTileTap('Road','cracked')" title="Damaged pavement" aria-label="Damaged pavement"><div class="driving-tile-icon-glyph" aria-hidden="true" style="-webkit-mask-image:url('icons/road-damaged.png');mask-image:url('icons/road-damaged.png');"></div><span id="dTileCracked">Damaged pavement</span></div>
+    <div class="driving-tile tile-signage" onclick="handleTileTap('Road','signage')" title="Bad signage" aria-label="Bad signage"><div class="driving-tile-icon-glyph" aria-hidden="true" style="-webkit-mask-image:url('icons/traffic-cone.png');mask-image:url('icons/traffic-cone.png');"></div><span id="dTileSignage">Bad signage</span></div>
+    <div class="driving-tile tile-flooding" onclick="handleTileTap('Road','flooding')" title="Flooding" aria-label="Flooding"><div class="driving-tile-icon-glyph" aria-hidden="true" style="-webkit-mask-image:url('icons/flood-risk.png');mask-image:url('icons/flood-risk.png');"></div><span id="dTileFlooding">Flooding</span></div>
+    <div class="driving-tile tile-other" onclick="handleTileTap('Road',null)" title="Other road issue" aria-label="Other road issue"><div class="driving-tile-icon-glyph" aria-hidden="true" style="-webkit-mask-image:url('icons/warning-symbol.png');mask-image:url('icons/warning-symbol.png');"></div><span id="dTileOther">Other road issue</span></div>
+  </div>
+  <div class="bike-quick-row">
+    <div class="bike-quick-grid" id="bikeQuickGrid"></div>
+    <button type="button" class="bike-quick-fab" id="bikeQuickFab" onclick="toggleBikeQuickGrid()" title="Report" aria-label="Report">
+      <img src="icons/reports/report_new.png" alt="">
+    </button>
   </div>
 </div>
 
@@ -6160,6 +6236,7 @@ function applyLang(){
   document.getElementById('reportPhotoAddBtn').setAttribute('aria-label', t('reportPhotoAddBtn'));
   document.getElementById('reportPhotoGalleryBtn').title   = t('reportPhotoGalleryBtn');
   document.getElementById('reportPhotoGalleryBtn').setAttribute('aria-label', t('reportPhotoGalleryBtn'));
+  renderBikeQuickGrid();
   const offlineRetryEl = document.getElementById('offlineQueueRetryLabel');
   if (offlineRetryEl) offlineRetryEl.textContent = t('offlineQueueRetry');
   const globalOfflineRetryEl = document.getElementById('globalOfflineBannerRetryLabel');
@@ -9007,6 +9084,7 @@ function toggleDrivingMode(mode) {
     }
     if (navPanelOpen) closeNavigatePanel();
     hideTurnByTurnDisplay();
+    closeBikeQuickGrid();
     setUserMarkerStyle(false);
     if (!walkingHeadingMode) {
       resetMapBearing();
@@ -9319,15 +9397,53 @@ function shouldBlockReportSubmission() {
   return false;
 }
 
-function handleTileTap(subcategoryKey) {
-  if (sectionAwaitingCategory) {
-    finalizeSectionReport(subcategoryKey);
-  } else {
-    quickReportRoad(subcategoryKey);
-  }
+// Bike mode's quick-tap categories — top-level categories a cyclist is realistically the
+// one to notice and report, rather than the road-surface-only subcategories the car tile
+// row uses. Rendered into #bikeQuickGrid (see renderBikeQuickGrid), one tap = instant report
+// at the current location with no subcategory, same as the "Other" car tile.
+const BIKE_QUICK_CATEGORIES = ['Sewage', 'Road', 'Streetlight', 'Waste', 'GreenSpaces', 'Parking', 'Forest', 'BikeLanes'];
+
+function renderBikeQuickGrid() {
+  const grid = document.getElementById('bikeQuickGrid');
+  if (!grid) return;
+  grid.innerHTML = BIKE_QUICK_CATEGORIES.map(cat => {
+    const label = translateCategory(cat);
+    const icon = categoryIcon(cat);
+    return `<div class="bike-quick-tile" style="background:${categoryColor(cat)};" onclick="handleTileTap('${cat}', null)" title="${label}" aria-label="${label}"><div class="bike-quick-tile-icon" style="-webkit-mask-image:url('${icon}');mask-image:url('${icon}');"></div></div>`;
+  }).join('');
 }
 
-async function quickReportRoad(subcategoryKey) {
+function toggleBikeQuickGrid() {
+  const grid = document.getElementById('bikeQuickGrid');
+  if (!grid) return;
+  if (grid.classList.contains('open')) closeBikeQuickGrid();
+  else openBikeQuickGrid();
+}
+
+function openBikeQuickGrid() {
+  const grid = document.getElementById('bikeQuickGrid');
+  const fab = document.getElementById('bikeQuickFab');
+  if (grid) grid.classList.add('open');
+  if (fab) fab.classList.add('open');
+}
+
+function closeBikeQuickGrid() {
+  const grid = document.getElementById('bikeQuickGrid');
+  const fab = document.getElementById('bikeQuickFab');
+  if (grid) grid.classList.remove('open');
+  if (fab) fab.classList.remove('open');
+}
+
+function handleTileTap(category, subcategoryKey) {
+  if (sectionAwaitingCategory) {
+    finalizeSectionReport(category, subcategoryKey);
+  } else {
+    quickReportTap(category, subcategoryKey);
+  }
+  if (isBikeMode()) closeBikeQuickGrid();
+}
+
+async function quickReportTap(category, subcategoryKey) {
   if (!currentSession || !currentProfile) { toast(t('signInFirst') || 'Sign in first', 'error'); return; }
   if (!currentProfile.is_admin && !isMobileDevice()) { toast(t('mobileOnlyReport'), 'error'); return; }
   if (!userCoords) { toast(t('waitGps'), 'error'); return; }
@@ -9341,12 +9457,14 @@ async function quickReportRoad(subcategoryKey) {
 
   reportSubmissionInFlight = true;
   const tileRow = document.querySelector('.driving-tile-row');
+  const bikeGrid = document.getElementById('bikeQuickGrid');
   if (tileRow) tileRow.classList.add('submitting');
+  if (bikeGrid) bikeGrid.classList.add('submitting');
   try {
     const { data, error } = await sb.from(TABLE).insert([{
       latitude: userCoords.lat,
       longitude: userCoords.lon,
-      category: 'Road',
+      category: category,
       subcategory: subcategoryKey,
       priority: 'normal',
       status: 'reported',
@@ -9366,6 +9484,7 @@ async function quickReportRoad(subcategoryKey) {
   } finally {
     reportSubmissionInFlight = false;
     if (tileRow) tileRow.classList.remove('submitting');
+    if (bikeGrid) bikeGrid.classList.remove('submitting');
   }
 }
 
@@ -9391,6 +9510,7 @@ function toggleSectionRecording() {
     }
     sectionAwaitingCategory = true;
     updateSectionButtonUI();
+    if (isBikeMode()) openBikeQuickGrid();
   }
 }
 
@@ -9398,10 +9518,11 @@ function cancelPendingSection() {
   sectionAwaitingCategory = false;
   updateSectionButtonUI();
   discardSectionDraft();
+  closeBikeQuickGrid();
   toast(t('sectionDiscarded') || 'Section discarded', 'error');
 }
 
-async function finalizeSectionReport(subcategoryKey) {
+async function finalizeSectionReport(category, subcategoryKey) {
   if (!currentSession || !currentProfile) { toast(t('signInFirst') || 'Sign in first', 'error'); return; }
   if (!currentProfile.is_admin && !isMobileDevice()) { toast(t('mobileOnlyReport'), 'error'); return; }
   if (sectionPoints.length < 2) {
@@ -9435,12 +9556,14 @@ async function finalizeSectionReport(subcategoryKey) {
 
   reportSubmissionInFlight = true;
   const tileRow = document.querySelector('.driving-tile-row');
+  const bikeGrid = document.getElementById('bikeQuickGrid');
   if (tileRow) tileRow.classList.add('submitting');
+  if (bikeGrid) bikeGrid.classList.add('submitting');
   try {
     const { data, error } = await sb.from(TABLE).insert([{
       latitude: mid[0],
       longitude: mid[1],
-      category: 'Road',
+      category: category,
       subcategory: subcategoryKey,
       priority: 'normal',
       status: 'reported',
@@ -9464,6 +9587,7 @@ async function finalizeSectionReport(subcategoryKey) {
   } finally {
     reportSubmissionInFlight = false;
     if (tileRow) tileRow.classList.remove('submitting');
+    if (bikeGrid) bikeGrid.classList.remove('submitting');
   }
 }
 
