@@ -982,6 +982,14 @@ body.nav-panel-open .driving-nav-card{
   transition:transform .25s linear;
 }
 
+.user-location-icon{
+  /* Smoothly glide between GPS fixes instead of snapping instantly on every update —
+     this is what removes the "choppy" jump-to-jump movement during navigation. Only the
+     position (translate) transitions here; heading rotation is handled separately by
+     .user-nav-arrow's own transition above. */
+  transition: transform .6s linear;
+}
+
 #drivingTopFade{
   position:fixed;
   top:0; left:0; right:0;
@@ -7437,7 +7445,7 @@ function setUserMarkerStyle(navStyle) {
   if (!userMarker) return;
   const size = navStyle ? 46 : 34;
   userMarker.setIcon(L.divIcon({
-    className: '',
+    className: 'user-location-icon',
     html: buildUserMarkerHtml(navStyle),
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2]
@@ -9168,12 +9176,29 @@ const SPEED_SMOOTHING_FACTOR       = 0.45;
 const POSITION_SMOOTH_MIN_FACTOR   = 0.5;
 const POSITION_SMOOTH_MAX_FACTOR   = 1.0;
 const POSITION_SMOOTH_FULL_SNAP_M  = 8;
-function smoothPositionFix(candidate) {
+// Below this accuracy (meters), a fix is trusted almost fully. At/above the "poor" threshold,
+// a fix is heavily distrusted regardless of how far it jumped — this is the piece that was
+// missing before: a single noisy, low-accuracy reading used to get treated exactly like a
+// crisp one as long as the jump itself looked plausible, so it could still yank the dot across
+// the map in one step. Now, the worse the reported accuracy, the more that fix gets eased in
+// gradually instead of snapped to.
+const GPS_ACCURACY_TRUSTED_M = 15;
+const GPS_ACCURACY_POOR_M    = 60;
+const GPS_ACCURACY_MIN_TRUST = 0.12;
+function smoothPositionFix(candidate, accuracy) {
   if (!smoothedFixCoords) { smoothedFixCoords = { lat: candidate.lat, lon: candidate.lon }; return smoothedFixCoords; }
   const jumpM = distMeters(smoothedFixCoords, candidate);
-  const factor = jumpM >= POSITION_SMOOTH_FULL_SNAP_M
+  let factor = jumpM >= POSITION_SMOOTH_FULL_SNAP_M
     ? POSITION_SMOOTH_MAX_FACTOR
     : POSITION_SMOOTH_MIN_FACTOR + (POSITION_SMOOTH_MAX_FACTOR - POSITION_SMOOTH_MIN_FACTOR) * (jumpM / POSITION_SMOOTH_FULL_SNAP_M);
+
+  if (typeof accuracy === 'number' && !isNaN(accuracy) && accuracy > GPS_ACCURACY_TRUSTED_M) {
+    const span = GPS_ACCURACY_POOR_M - GPS_ACCURACY_TRUSTED_M;
+    const badness = Math.min(1, (accuracy - GPS_ACCURACY_TRUSTED_M) / span);
+    const accuracyTrust = 1 - badness * (1 - GPS_ACCURACY_MIN_TRUST);
+    factor *= accuracyTrust;
+  }
+
   smoothedFixCoords = {
     lat: smoothedFixCoords.lat + (candidate.lat - smoothedFixCoords.lat) * factor,
     lon: smoothedFixCoords.lon + (candidate.lon - smoothedFixCoords.lon) * factor
@@ -9352,7 +9377,7 @@ function startWatching() {
       lastAcceptedFix = { lat: candidate.lat, lon: candidate.lon, t: pos.timestamp };
       hideGpsIssuePill();
 
-      userCoords = smoothPositionFix(candidate);
+      userCoords = smoothPositionFix(candidate, accuracy);
       hideGpsModal();
       resetGpsModalGate();
       stopGpsRetryLoop();
@@ -9363,7 +9388,7 @@ function startWatching() {
       if (!userMarker) {
         userMarker = L.marker([userCoords.lat, userCoords.lon], {
           icon: L.divIcon({
-            className: '',
+            className: 'user-location-icon',
             html: buildUserMarkerHtml(userMarkerNavStyle),
             iconSize: userMarkerNavStyle ? [46, 46] : [34, 34],
             iconAnchor: userMarkerNavStyle ? [23, 23] : [17, 17]
