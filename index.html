@@ -699,18 +699,33 @@ body.driving-active .report-fab-btn{ display:none !important; }
   background:var(--bg-surface);
   border:1px solid var(--border-color);
   border-radius:14px;
-  padding:16px 6px;
-  display:flex; flex-direction:column; align-items:center; gap:var(--space-10);
+  aspect-ratio:1;
+  width:100%;
+  padding:0;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
   cursor:pointer; text-align:center;
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
 }
 .wiz-tile:active{ filter:brightness(0.92); }
-.wiz-tile img{ width:44px; height:44px; }
-.wiz-tile span{ font-size:var(--fs-12-5); color:var(--text-primary); line-height:1.25; }
+.wiz-tile img{ width:30px; height:30px; }
+.wiz-tile span{
+  font-size:10px;
+  font-weight:var(--fw-bold);
+  color:var(--text-primary);
+  line-height:1.15;
+  text-align:center;
+  padding:0 4px;
+  max-width:100%;
+  overflow:hidden;
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+}
 .wiz-tile-icon{
-  width:44px; height:44px; flex:0 0 auto;
+  width:30px; height:30px; flex:0 0 auto;
   background-color:#fff;
+  filter:drop-shadow(0 1px 2px rgba(0,0,0,.35));
   -webkit-mask-size:contain; mask-size:contain;
   -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
   -webkit-mask-position:center; mask-position:center;
@@ -1190,28 +1205,28 @@ body.driving-active .driving-speed-widget{ display:flex; }
   flex-direction:column;
   align-items:center;
   justify-content:flex-start;
-  gap:4px;
+  gap:2px;
   background:var(--speed-capsule-bg);
   backdrop-filter:blur(8px);
   -webkit-backdrop-filter:blur(8px);
   border:3px solid #5ec98a;
   border-radius:999px;
-  padding:8px 8px 11px;
-  min-width:88px;
-  min-height:138px;
+  padding:5px 5px 6px;
+  min-width:66px;
+  min-height:104px;
   box-shadow:0 2px 8px rgba(0,0,0,.3);
   transition:border-color .25s, background-color .2s;
 }
 .driving-speed-capsule.gps-lost{ border-color:#ff4b4b; }
 .driving-speed-limit{
-  width:72px; height:72px;
+  width:54px; height:54px;
   border-radius:50%;
   background:#fff;
-  border:5px solid #d61f1f;
+  border:4px solid #d61f1f;
   display:flex;
   align-items:center;
   justify-content:center;
-  font-size:26px;
+  font-size:20px;
   font-weight:var(--fw-heavy);
   color:#111;
   transition:opacity .2s;
@@ -1219,14 +1234,14 @@ body.driving-active .driving-speed-widget{ display:flex; }
   line-height:1;
 }
 .driving-speed-limit.no-data{ opacity:.3; }
-.driving-speed-value{ font-size:26px; font-weight:var(--fw-heavy); color:var(--text-primary); line-height:1; margin-top:2px; }
-.driving-speed-unit{ font-size:var(--fs-11); font-weight:var(--fw-bold); color:var(--text-secondary); letter-spacing:.3px; margin-top:-2px; }
+.driving-speed-value{ font-size:20px; font-weight:var(--fw-heavy); color:var(--text-primary); line-height:1; margin-top:1px; }
+.driving-speed-unit{ font-size:var(--fs-9); font-weight:var(--fw-bold); color:var(--text-secondary); letter-spacing:.3px; margin-top:-2px; }
 
 /* Bike mode: no posted vehicle speed limit to show, so the circular sign is dropped and the
    capsule shrinks down to just wrap the current-speed readout instead of leaving a big empty
    gap where the sign used to be. */
 body.bike-mode-active .driving-speed-limit{ display:none; }
-body.bike-mode-active .driving-speed-capsule{ min-height:0; padding:14px 8px; gap:2px; }
+body.bike-mode-active .driving-speed-capsule{ min-height:0; padding:10px 6px; gap:2px; }
 body.bike-mode-active .driving-speed-value{ margin-top:0; }
 
 @keyframes overspeedFlash {
@@ -1401,7 +1416,7 @@ body.bike-mode-active .bike-quick-grid{ display:grid; }
 .bike-quick-grid.submitting{ opacity:.5; pointer-events:none; }
 .quick-tile{
   border:none;
-  border-radius:var(--radius-md);
+  border-radius:14px;
   color:#fff;
   aspect-ratio:1;
   width:100%;
@@ -9449,13 +9464,32 @@ function shouldBlockReportSubmission() {
 
 // Car and bike mode's quick-tap categories — top-level categories a driver/cyclist is
 // realistically the one to notice and report. Car sticks to the core road/infrastructure
-// set (road issues, street lighting, sewage, waste); bike covers a broader set relevant
-// to cyclists, with bike lanes and road first since those are most directly bike-relevant.
+// set (road issues, street lighting, sewage, waste, illegal parking, electricity); bike
+// covers the set relevant to cyclists, with bike lanes and road first since those are
+// most directly bike-relevant.
 // Rendered into #carQuickGrid / #bikeQuickGrid (see renderQuickGrid): tapping a category
 // shows that category's subcategory tiles in the same grid (with a back tile), and
 // tapping a subcategory (or a category that has none, like Parking) submits the report.
-const CAR_QUICK_CATEGORIES = ['Road', 'Streetlight', 'Sewage', 'Waste'];
-const BIKE_QUICK_CATEGORIES = ['BikeLanes', 'Road', 'Sewage', 'Streetlight', 'Waste', 'GreenSpaces', 'Parking', 'Forest'];
+// Electricity's subcategory list is trimmed for the quick-tap flow (see
+// QUICK_SUBCATEGORY_OVERRIDES) — only the issues a driver/cyclist can meaningfully spot
+// from the road are offered, not the full set from the report wizard.
+const CAR_QUICK_CATEGORIES = ['Road', 'Streetlight', 'Sewage', 'Waste', 'Parking', 'Electricity'];
+const BIKE_QUICK_CATEGORIES = ['BikeLanes', 'Road', 'Sewage', 'Streetlight', 'Waste', 'Parking'];
+
+// Some categories have a fuller subcategory list in the report wizard than makes sense
+// for the quick-tap driving/biking flow, where only issues a driver/cyclist can plausibly
+// spot in passing should be offered. Keyed by quick-tap mode, then category, to a list of
+// subcategory keys (in SUBCATEGORIES[cat]) to show, in order — anything not listed here
+// falls back to the full SUBCATEGORIES[cat] list.
+const QUICK_SUBCATEGORY_OVERRIDES = {
+  car: { Electricity: ['pole_damage', 'exposed_wire', 'other'] }
+};
+function quickSubcategoryList(modeKey, cat) {
+  const full = SUBCATEGORIES[cat] || [];
+  const overrideKeys = QUICK_SUBCATEGORY_OVERRIDES[modeKey] && QUICK_SUBCATEGORY_OVERRIDES[modeKey][cat];
+  if (!overrideKeys) return full;
+  return overrideKeys.map(key => full.find(s => s.key === key)).filter(Boolean);
+}
 
 // Tracks, per mode, whether that mode's grid is currently showing top-level categories
 // (null) or the subcategory tiles for a chosen category.
@@ -9491,7 +9525,7 @@ function renderQuickCategoryTiles(grid, categories, modeKey) {
 }
 
 function renderQuickSubcategoryTiles(grid, cat, modeKey) {
-  const list = SUBCATEGORIES[cat] || [];
+  const list = quickSubcategoryList(modeKey, cat);
   const icons = WIZ_SUBCATEGORY_ICONS[cat] || {};
   const backLabel = t('bikeQuickBack') || 'Back';
   const backTile = `<div class="quick-tile quick-tile-back" onclick="quickGridGoBack('${modeKey}')" title="${backLabel}" aria-label="${backLabel}"><div class="quick-tile-icon" style="-webkit-mask-image:url('icons/arrow.png');mask-image:url('icons/arrow.png');"></div><span class="quick-tile-label">${backLabel}</span></div>`;
@@ -9505,7 +9539,7 @@ function renderQuickSubcategoryTiles(grid, cat, modeKey) {
 }
 
 function handleQuickCategoryTap(modeKey, cat) {
-  const list = SUBCATEGORIES[cat] || [];
+  const list = quickSubcategoryList(modeKey, cat);
   if (!list.length) { handleTileTap(cat, null); return; }
   setQuickCategory(modeKey, cat);
   renderQuickGrid(modeKey);
@@ -10415,6 +10449,7 @@ const SUBCATEGORIES = {
     { key:'exposed_wire', en:'Exposed / damaged wire',             sr:'Oštećen ili otkriven kabl' },
     { key:'transformer',  en:'Transformer / substation issue',     sr:'Kvar na trafostanici' },
     { key:'voltage',      en:'Voltage fluctuation',                sr:'Kolebanje napona' },
+    { key:'pole_damage',  en:'Pole damage',                        sr:'Oštećen stub' },
     { key:'other',        en:'Other',                              sr:'Drugo' }
   ],
   Sewage: [
@@ -11085,7 +11120,7 @@ function resetReportingForm() {
 const WIZ_CATEGORY_ICONS = CATEGORY_ICONS;
 const WIZ_SUBCATEGORY_ICONS = {
   Water: { burst_leak:'water_leak.png', no_supply:'water_no_supply.png', low_pressure:'water_low_pressure.png', discoloration:'water_discoloration.png', other:'ui_other.png' },
-  Electricity: { outage:'electricity_outage.png', exposed_wire:'electricity_damaged_wire.png', transformer:'electricity_transformer_issue.png', voltage:'electricity_voltage_fluctuation.png', other:'ui_other.png' },
+  Electricity: { outage:'electricity_outage.png', exposed_wire:'electricity_damaged_wire.png', transformer:'electricity_transformer_issue.png', voltage:'electricity_voltage_fluctuation.png', pole_damage:'electricity_pole_damage.png', other:'ui_other.png' },
   Sewage: { blockage:'sewage_overflow.png', manhole:'sewage_manhole_issue.png', odor:'sewage_odor.png', other:'ui_other.png' },
   Gas: { leak:'gas_leak.png', outage:'gas_outage.png', other:'ui_other.png' },
   Heating: { no_heat:'heating_no_heat.png', leak:'heating_leak.png', low_temp:'heating_low_temp.png', other:'ui_other.png' },
