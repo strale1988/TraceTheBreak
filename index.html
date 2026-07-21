@@ -1181,34 +1181,44 @@ body.driving-active .driving-speed-widget{ display:flex; }
   flex-direction:column;
   align-items:center;
   justify-content:flex-start;
-  gap:6px;
+  gap:4px;
   background:var(--bg-surface);
   border:3px solid #5ec98a;
   border-radius:999px;
-  padding:14px 12px 16px;
-  min-width:66px;
-  min-height:106px;
+  padding:12px 10px 16px;
+  min-width:104px;
+  min-height:168px;
   box-shadow:0 2px 8px rgba(0,0,0,.3);
-  transition:border-color .25s;
+  transition:border-color .25s, background-color .2s;
 }
 .driving-speed-capsule.gps-lost{ border-color:#ff4b4b; }
 .driving-speed-limit{
-  width:38px; height:38px;
+  width:88px; height:88px;
   border-radius:50%;
   background:#fff;
-  border:3px solid #d61f1f;
+  border:6px solid #d61f1f;
   display:flex;
   align-items:center;
   justify-content:center;
-  font-size:var(--fs-15);
+  font-size:34px;
   font-weight:var(--fw-heavy);
   color:#111;
   transition:opacity .2s;
   flex-shrink:0;
+  line-height:1;
 }
 .driving-speed-limit.no-data{ opacity:.3; }
-.driving-speed-value{ font-size:var(--fs-32); font-weight:var(--fw-heavy); color:var(--text-primary); line-height:1; }
-.driving-speed-unit{ font-size:var(--fs-12); font-weight:var(--fw-bold); color:var(--text-secondary); letter-spacing:.3px; margin-top:-4px; }
+.driving-speed-value{ font-size:26px; font-weight:var(--fw-heavy); color:var(--text-primary); line-height:1; margin-top:2px; }
+.driving-speed-unit{ font-size:var(--fs-11); font-weight:var(--fw-bold); color:var(--text-secondary); letter-spacing:.3px; margin-top:-2px; }
+
+@keyframes overspeedFlash {
+  0%   { background: var(--bg-surface); }
+  50%  { background: #d61f1f; }
+  100% { background: var(--bg-surface); }
+}
+.driving-speed-capsule.overspeed-flash{
+  animation: overspeedFlash .6s ease-in-out 3;
+}
 
 /* Turn-by-turn info now lives inside the bottom sheet (drivingNavCard) and expands the
    sheet itself when a turn is coming up, instead of floating a separate card above the
@@ -3152,6 +3162,13 @@ span.flatpickr-weekday {
         <span id="drivingSafetyToggleLabel">Show safe-driving reminder when starting driving mode</span>
         <span class="toggle-switch">
           <input type="checkbox" id="drivingSafetyToggleInput" checked onchange="setDrivingSafetyReminderEnabled(this.checked)">
+          <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+        </span>
+      </label>
+      <label class="settings-toggle-row" id="overspeedAlertToggleRow">
+        <span id="overspeedAlertToggleLabel">Warn me when I'm 5+ km/h over the speed limit</span>
+        <span class="toggle-switch">
+          <input type="checkbox" id="overspeedAlertToggleInput" checked onchange="setOverspeedAlertEnabled(this.checked)">
           <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
         </span>
       </label>
@@ -6417,6 +6434,7 @@ function showSettingsModal() {
   renderStatusFilterSettings();
   initSoundSettingsUi();
   initDrivingSafetySettingsUi();
+  initOverspeedAlertSettingsUi();
   initMapButtonToggleUi();
   updateNearbyCheckinSegmentUI();
   updateContactReminderSegmentUI();
@@ -8373,6 +8391,69 @@ function initDrivingSafetySettingsUi() {
   if (input) input.checked = drivingSafetyReminderEnabled;
 }
 
+/* ---------- Over-speed alert ---------- */
+// Flashes the speed capsule and plays a sound when the driver is 5+ km/h over the fetched
+// speed limit. Edge-triggered with hysteresis (must drop back within OVERSPEED_RESET_MARGIN_KMH
+// of the limit before it can fire again) so it doesn't flap on/off while riding right at the
+// threshold, plus a cooldown so a long stretch of continuous speeding doesn't leave it flashing
+// nonstop — just a periodic reminder.
+const OVERSPEED_ALERT_PREF_KEY   = 'ttb_overspeed_alert_enabled';
+const OVERSPEED_THRESHOLD_KMH    = 5;
+const OVERSPEED_RESET_MARGIN_KMH = 3;
+const OVERSPEED_ALERT_COOLDOWN_MS = 30000;
+
+function getOverspeedAlertPref() {
+  try {
+    const v = localStorage.getItem(OVERSPEED_ALERT_PREF_KEY);
+    return v === null ? true : v === '1';
+  } catch (err) { return true; }
+}
+let overspeedAlertEnabled = getOverspeedAlertPref();
+function setOverspeedAlertEnabled(enabled) {
+  overspeedAlertEnabled = !!enabled;
+  try { localStorage.setItem(OVERSPEED_ALERT_PREF_KEY, overspeedAlertEnabled ? '1' : '0'); } catch (err) {}
+}
+function initOverspeedAlertSettingsUi() {
+  const input = document.getElementById('overspeedAlertToggleInput');
+  if (input) input.checked = overspeedAlertEnabled;
+}
+
+let currentSpeedLimitKmh  = null;
+let overspeedArmed        = true;
+let lastOverspeedAlertAt  = 0;
+
+function checkOverspeed() {
+  if (!drivingMode || !overspeedAlertEnabled) return;
+  if (currentSpeedLimitKmh === null || smoothedSpeedKmh === null) return;
+
+  const over = smoothedSpeedKmh - currentSpeedLimitKmh;
+  if (over < OVERSPEED_RESET_MARGIN_KMH) { overspeedArmed = true; return; }
+  if (over < OVERSPEED_THRESHOLD_KMH) return;
+
+  const now = Date.now();
+  if (!overspeedArmed && (now - lastOverspeedAlertAt) < OVERSPEED_ALERT_COOLDOWN_MS) return;
+
+  overspeedArmed = false;
+  lastOverspeedAlertAt = now;
+  triggerOverspeedAlert();
+}
+
+function triggerOverspeedAlert() {
+  playOverspeedAlertSound();
+  const capsule = document.getElementById('drivingSpeedCapsule');
+  if (!capsule) return;
+  capsule.classList.remove('overspeed-flash');
+  void capsule.offsetWidth; // force reflow so the animation restarts cleanly if re-triggered
+  capsule.classList.add('overspeed-flash');
+  capsule.addEventListener('animationend', () => capsule.classList.remove('overspeed-flash'), { once: true });
+}
+
+function playOverspeedAlertSound() {
+  playTone(880, 140, 0, 0.22);
+  playTone(880, 140, 220, 0.22);
+  playTone(880, 140, 440, 0.22);
+}
+
 function showDrivingSafetyModal() {
   const modal = document.getElementById('drivingSafetyModal');
   const inner = document.getElementById('drivingSafetyModalInner');
@@ -8851,6 +8932,10 @@ function toggleDrivingMode() {
       applyMapBearing(-currentHeading);
     }
     if (compassBtn) compassBtn.style.display = 'none';
+    currentSpeedLimitKmh = null;
+    overspeedArmed = true;
+    const capsule = document.getElementById('drivingSpeedCapsule');
+    if (capsule) capsule.classList.remove('overspeed-flash');
   }
 
   setTimeout(() => { if (typeof map !== 'undefined' && map.invalidateSize) { map.invalidateSize(); updateRotationOrigin(); } }, 60);
@@ -9509,6 +9594,7 @@ function parseSpeedLimitTag(raw) {
 
 function updateSpeedLimitDisplay(value) {
   const el = document.getElementById('drivingSpeedLimit');
+  currentSpeedLimitKmh = value || null;
   if (!el) return;
   if (value) {
     el.textContent = value;
@@ -9517,6 +9603,7 @@ function updateSpeedLimitDisplay(value) {
     el.textContent = '--';
     el.classList.add('no-data');
   }
+  checkOverspeed();
 }
 
 let gpsWatchId = null;
@@ -9658,6 +9745,7 @@ function startWatching() {
             speedEl.textContent = '--';
           }
         }
+        checkOverspeed();
         maybeFetchSpeedLimit(userCoords.lat, userCoords.lon);
         maybeReloadBumpsNear(userCoords.lat, userCoords.lon);
       }
@@ -14301,6 +14389,9 @@ function renderNearbyCheckinStepContact(report) {
 function nearbyCheckinStillBroken(reportId) {
   const report = globalActiveData.find(r => r.id === reportId);
   castStatusVote(reportId, 'reported');
+  // Don't ask "want to contact the service now?" while driving — deciding on that and
+  // potentially opening a phone/contact modal is not something to hand the driver mid-drive.
+  if (drivingMode) { hideNearbyCheckinModal(); return; }
   if (report) renderNearbyCheckinStepContact(report);
   else hideNearbyCheckinModal();
 }
