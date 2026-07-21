@@ -3658,6 +3658,7 @@ const SUPABASE_URL = 'https://fnkqmwweljsupbmerbkh.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZua3Ftd3dlbGpzdXBibWVyYmtoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3OTcwODUsImV4cCI6MjA5NzM3MzA4NX0.eX3mxnSpGmJ6Ebw7Y4F_jHiJarPH4ri9WNYXwmLi16I';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const TABLE = 'brake_reports';
+const BUMPS_TABLE = 'bumps'; // separate, minimal, anonymous table — see BUMP DETECTION section
 const PROFILES_TABLE = 'profiles';
 const MUNICIPALITIES_TABLE = 'municipalities';
 const UTILITY_COMPANIES_TABLE = 'utility_companies';
@@ -8826,6 +8827,8 @@ function toggleDrivingMode() {
     if (userCoords) followMapTo(userCoords.lat, userCoords.lon);
     if (compassBtn) compassBtn.style.display = 'flex';
     requestOrientationPermission();
+    requestMotionPermission();
+    if (userCoords) maybeReloadBumpsNear(userCoords.lat, userCoords.lon);
     if (headingUpMode && currentHeading !== null) applyMapBearing(-currentHeading);
     if (destinationCoords && userCoords) updateTurnByTurnDisplay(userCoords);
     openOverlay('drivingMode', () => { if (drivingMode) toggleDrivingMode(); });
@@ -8851,6 +8854,193 @@ function toggleDrivingMode() {
   }
 
   setTimeout(() => { if (typeof map !== 'undefined' && map.invalidateSize) { map.invalidateSize(); updateRotationOrigin(); } }, 60);
+}
+
+// ========================================================================================
+// BUMP DETECTION — accelerometer-based bump/pothole logging while driving
+// ----------------------------------------------------------------------------------------
+// Goal: drop a small anonymous dot on the map wherever the car takes a hit, shared so other
+// drivers see (and don't re-log) the same bump. No category, no photo, no owner — just a
+// location. Three things make this reasonably accurate instead of just noisy:
+//   1. We work off the acceleration magnitude (not a single axis), so phone mounting angle
+//      doesn't matter.
+//   2. The trigger threshold is relative to a rolling baseline of "normal" vibration for the
+//      current road, not a fixed number — a smooth highway and a rough gravel road both get a
+//      sensible threshold instead of one under- or over-firing on the other.
+//   3. We gate on driving speed and debounce each event, and correct the GPS fix forward using
+//      current heading/speed so the dot lands close to where the bump actually happened rather
+//      than wherever the last (up to ~1s old) GPS fix was.
+// ========================================================================================
+let motionPermissionAsked = false;
+let motionListenerAttached = false;
+let gravityEstimate  = null;   // fallback low-pass gravity vector, only used when the browser
+                                // doesn't give us gravity-free acceleration directly (common
+                                // on Android/Chrome, where event.acceleration is often null)
+let bumpBaselineMag  = null;   // rolling "normal vibration for this road" reference level
+let lastBumpAt       = 0;
+
+const GRAVITY_LOWPASS_ALPHA  = 0.12;
+const BUMP_BASELINE_ALPHA    = 0.05;
+const BUMP_RATIO_THRESHOLD   = 2.5;  // spike must be this many times the current baseline...
+const BUMP_ABS_FLOOR_MS2     = 3.5;  // ...and clear this absolute floor (m/s²), so a near-zero
+                                      // baseline on a billiard-smooth road can't self-trigger
+const BUMP_MIN_SPEED_KMH     = 8;    // below this, ignore everything — kills false positives
+                                      // from parking, door slams, curbs, picking up the phone
+const BUMP_REFRACTORY_MS     = 550;  // one dot per bump, not one per suspension oscillation
+const BUMP_DEDUPE_RADIUS_M   = 12;   // an existing dot this close means "already logged"
+const BUMP_LOAD_RADIUS_KM    = 3;    // how far around the car we keep known bumps loaded
+const BUMP_RELOAD_DISTANCE_M = 800;  // re-query for nearby bumps after moving this far
+
+function requestMotionPermission() {
+  if (motionPermissionAsked) return;
+  if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+    motionPermissionAsked = true;
+    DeviceMotionEvent.requestPermission().then(state => {
+      if (state === 'granted') attachMotionListener();
+    }).catch(() => {});
+  } else {
+    motionPermissionAsked = true;
+    attachMotionListener(); // most Android browsers need no explicit permission prompt
+  }
+}
+
+function attachMotionListener() {
+  if (motionListenerAttached) return;
+  motionListenerAttached = true;
+  window.addEventListener('devicemotion', handleDeviceMotion, true);
+}
+
+function handleDeviceMotion(event) {
+  if (!drivingMode) return;
+
+  let ax, ay, az;
+  const lin = event.acceleration;
+  const raw = event.accelerationIncludingGravity;
+  if (lin && typeof lin.x === 'number' && !isNaN(lin.x)) {
+    ax = lin.x; ay = lin.y; az = lin.z;
+  } else if (raw && typeof raw.x === 'number' && !isNaN(raw.x)) {
+    if (!gravityEstimate) gravityEstimate = { x: raw.x, y: raw.y, z: raw.z };
+    gravityEstimate.x += (raw.x - gravityEstimate.x) * GRAVITY_LOWPASS_ALPHA;
+    gravityEstimate.y += (raw.y - gravityEstimate.y) * GRAVITY_LOWPASS_ALPHA;
+    gravityEstimate.z += (raw.z - gravityEstimate.z) * GRAVITY_LOWPASS_ALPHA;
+    ax = raw.x - gravityEstimate.x;
+    ay = raw.y - gravityEstimate.y;
+    az = raw.z - gravityEstimate.z;
+  } else {
+    return; // no usable accelerometer data on this device/browser
+  }
+
+  const mag = Math.sqrt(ax * ax + ay * ay + az * az);
+
+  if (bumpBaselineMag === null) { bumpBaselineMag = mag; return; }
+
+  const isSpike = mag > bumpBaselineMag * BUMP_RATIO_THRESHOLD && mag > BUMP_ABS_FLOOR_MS2;
+
+  // Only fold non-spike samples into the baseline, so a genuine bump can't drag its own
+  // reference level up mid-event and end up masking the very next bump.
+  if (!isSpike) {
+    bumpBaselineMag += (mag - bumpBaselineMag) * BUMP_BASELINE_ALPHA;
+    return;
+  }
+
+  if (Date.now() - lastBumpAt < BUMP_REFRACTORY_MS) return;
+  if (smoothedSpeedKmh === null || smoothedSpeedKmh < BUMP_MIN_SPEED_KMH) return;
+
+  lastBumpAt = Date.now();
+  const pos = estimateCurrentPosition();
+  if (pos) recordBump(pos.lat, pos.lon);
+}
+
+// Dead-reckons a small correction forward from the last accepted GPS fix using current heading
+// and speed, since devicemotion fires far more often than GPS updates (a 1s-old fix is already
+// ~28m stale at 100km/h). Capped and speed-gated so a stalled/lost GPS fix can't extrapolate
+// somewhere wild.
+function estimateCurrentPosition() {
+  if (!userCoords) return null;
+  if (!lastAcceptedFix || currentHeading === null || !smoothedSpeedKmh || smoothedSpeedKmh < 0.5) {
+    return { lat: userCoords.lat, lon: userCoords.lon };
+  }
+  const dtSeconds = Math.min((Date.now() - lastAcceptedFix.t) / 1000, 3);
+  const distanceM = (smoothedSpeedKmh / 3.6) * dtSeconds;
+  if (distanceM < 0.5) return { lat: userCoords.lat, lon: userCoords.lon };
+  return projectPoint(userCoords.lat, userCoords.lon, currentHeading, distanceM);
+}
+
+function projectPoint(lat, lon, bearingDeg, distanceM) {
+  const R = 6371000;
+  const brng = bearingDeg * Math.PI / 180;
+  const lat1 = lat * Math.PI / 180;
+  const lon1 = lon * Math.PI / 180;
+  const dOverR = distanceM / R;
+  const lat2 = Math.asin(Math.sin(lat1) * Math.cos(dOverR) + Math.cos(lat1) * Math.sin(dOverR) * Math.cos(brng));
+  const lon2 = lon1 + Math.atan2(Math.sin(brng) * Math.sin(dOverR) * Math.cos(lat1), Math.cos(dOverR) - Math.sin(lat1) * Math.sin(lat2));
+  return { lat: lat2 * 180 / Math.PI, lon: ((lon2 * 180 / Math.PI) + 540) % 360 - 180 };
+}
+
+let bumpMarkersLayer     = null;
+let loadedBumps          = []; // {id, lat, lon} — known/rendered bumps, used for de-dupe
+let lastBumpLoadCenter   = null;
+
+function ensureBumpLayer() {
+  if (!bumpMarkersLayer) bumpMarkersLayer = L.layerGroup().addTo(map);
+  return bumpMarkersLayer;
+}
+
+function findNearbyBump(lat, lon) {
+  return loadedBumps.find(b => distMeters({ lat: b.lat, lon: b.lon }, { lat, lon }) <= BUMP_DEDUPE_RADIUS_M) || null;
+}
+
+function drawBumpDot(lat, lon) {
+  L.circleMarker([lat, lon], {
+    radius: 3.5, weight: 0, fillOpacity: 0.85, fillColor: '#ff9034'
+  }).addTo(ensureBumpLayer());
+}
+
+async function recordBump(lat, lon) {
+  if (findNearbyBump(lat, lon)) return; // someone already logged this one — nothing to do
+
+  // Optimistic local placeholder: the dot appears immediately (no waiting on the network) and
+  // de-dupes correctly against any further bumps detected before the insert round-trip returns.
+  const placeholder = { id: `local-${Date.now()}`, lat, lon };
+  loadedBumps.push(placeholder);
+  drawBumpDot(lat, lon);
+
+  try {
+    const { data, error } = await sb.from(BUMPS_TABLE).insert([{ latitude: lat, longitude: lon }]).select('id').single();
+    if (error) throw error;
+    if (data && data.id) placeholder.id = data.id;
+  } catch (err) {
+    // Not critical — the dot still shows locally for this drive even if the shared write failed
+    // (e.g. signed out, offline). No toast here on purpose: this runs silently in the background
+    // and shouldn't distract the driver.
+    console.warn('Bump insert failed:', err);
+  }
+}
+
+async function loadBumpsNear(lat, lon) {
+  const latDelta = BUMP_LOAD_RADIUS_KM / 111;
+  const lonDelta = BUMP_LOAD_RADIUS_KM / (111 * Math.cos(lat * Math.PI / 180) || 1);
+  try {
+    const { data, error } = await sb.from(BUMPS_TABLE)
+      .select('id,latitude,longitude')
+      .gte('latitude', lat - latDelta).lte('latitude', lat + latDelta)
+      .gte('longitude', lon - lonDelta).lte('longitude', lon + lonDelta)
+      .limit(1000);
+    if (error) throw error;
+    (data || []).forEach(row => {
+      if (loadedBumps.some(b => b.id === row.id)) return;
+      loadedBumps.push({ id: row.id, lat: row.latitude, lon: row.longitude });
+      drawBumpDot(row.latitude, row.longitude);
+    });
+  } catch (err) {
+    console.warn('Bump load failed:', err);
+  }
+}
+
+function maybeReloadBumpsNear(lat, lon) {
+  if (lastBumpLoadCenter && distMeters(lastBumpLoadCenter, { lat, lon }) < BUMP_RELOAD_DISTANCE_M) return;
+  lastBumpLoadCenter = { lat, lon };
+  loadBumpsNear(lat, lon);
 }
 
 let reportSubmissionInFlight = false;
@@ -9469,6 +9659,7 @@ function startWatching() {
           }
         }
         maybeFetchSpeedLimit(userCoords.lat, userCoords.lon);
+        maybeReloadBumpsNear(userCoords.lat, userCoords.lon);
       }
 
       if (sectionRecording) {
