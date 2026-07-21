@@ -1265,7 +1265,7 @@ body.driving-active .driving-speed-widget{ display:flex; }
   justify-content:space-between;
 }
 body.driving-active .driving-float-action-row{ display:flex; }
-.driving-action-row-right{ display:flex; gap:var(--space-8); }
+.driving-action-row-right{ display:flex; flex-direction:column; align-items:center; gap:var(--space-8); }
 .driving-back-btn, .driving-search-btn{
   background:var(--bg-surface-alt);
   border:1px solid var(--accent);
@@ -7836,6 +7836,17 @@ function onNavStateChange(prev, next) {
     setFollowMode(true);
     const from = userCoords || manualCoords;
     if (from) followMapTo(from.lat, from.lon);
+
+    // Only (re)start the driven-path trail on a genuinely new nav session — not when we're
+    // just coming back from an off-route recalculation, which would otherwise wipe out the
+    // trail the driver has already covered.
+    if (prev !== NavState.OFF_ROUTE && prev !== NavState.RECALCULATING) {
+      if (drivenPathLine) { map.removeLayer(drivenPathLine); drivenPathLine = null; }
+      drivenPathCoords = from ? [[from.lat, from.lon]] : [];
+      if (drivenPathCoords.length) {
+        drivenPathLine = L.polyline(drivenPathCoords, { color: 'var(--accent)', weight: 5, opacity: .5 }).addTo(map);
+      }
+    }
   }
 
   if (next === NavState.ARRIVED) {
@@ -7873,6 +7884,9 @@ const ON_ROUTE_RECOVER_THRESHOLD_M = 25;
 let destinationCoords  = null;
 let destinationMarker  = null;
 let navigationLine     = null;
+let drivenPathLine     = null;
+let drivenPathCoords   = [];
+const NAV_DRIVEN_PATH_MIN_DISTANCE_M = 8;
 let navRouteSteps      = [];
 let navStepIndex       = 0;
 let navPanelOpen       = false;
@@ -7964,10 +7978,28 @@ function toggleNavigatePanel() {
   if (navPanelOpen) {
     setTimeout(() => document.getElementById('navigateSearchInput').focus(), 50);
     if (navState === NavState.IDLE) setNavState(NavState.SEARCHING);
+    // onNavStateChange only hides this button when we actually transition into SEARCHING
+    // (i.e. starting fresh from IDLE). If the panel is reopened while already navigating,
+    // navState stays NAVIGATING and the button would otherwise stay visible on top of the
+    // search panel — so hide it directly here regardless of nav state.
+    const navCloseBtn = document.getElementById('navigateClearBtn');
+    if (navCloseBtn) navCloseBtn.style.display = 'none';
     openOverlay('navigatePanel', closeNavigatePanel);
   } else {
     if (navState === NavState.SEARCHING) setNavState(NavState.IDLE);
+    restoreNavCloseBtnVisibility();
     closeOverlay('navigatePanel');
+  }
+}
+
+// Restores the close-navigation (✕) button's visibility once the destination search panel
+// is dismissed, for any nav state that should show it. Needed because onNavStateChange only
+// runs on an actual state transition, which doesn't happen when the panel is closed while
+// navState was already NAVIGATING/OFF_ROUTE/etc. (see toggleNavigatePanel/closeNavigatePanel).
+function restoreNavCloseBtnVisibility() {
+  const navCloseBtn = document.getElementById('navigateClearBtn');
+  if (navCloseBtn && navState !== NavState.IDLE && navState !== NavState.SEARCHING) {
+    navCloseBtn.style.display = 'flex';
   }
 }
 
@@ -7983,6 +8015,7 @@ function closeNavigatePanel() {
   const pinHint = document.getElementById('navigatePinHint');
   if (pinBtn) pinBtn.classList.remove('active');
   if (pinHint) pinHint.style.display = 'none';
+  restoreNavCloseBtnVisibility();
   closeOverlay('navigatePanel');
 }
 
@@ -8134,7 +8167,7 @@ async function drawNavigationLine(force) {
       navLastRouteFrom = { lat: from.lat, lon: from.lon };
 
       if (navigationLine) map.removeLayer(navigationLine);
-      navigationLine = L.polyline(route.coords, { color: '#00d0ff', weight: 5, opacity: .9 }).addTo(map);
+      navigationLine = L.polyline(route.coords, { color: 'var(--accent)', weight: 5, opacity: .9 }).addTo(map);
       navigationLine._isFallback = false;
 
       navRouteSteps = route.steps;
@@ -8149,7 +8182,7 @@ async function drawNavigationLine(force) {
       const latlngs = [[from.lat, from.lon], [destinationCoords.lat, destinationCoords.lon]];
       if (navigationLine) map.removeLayer(navigationLine);
       navigationLine = L.polyline(latlngs, {
-        color: '#00d0ff', weight: 4, opacity: .85, dashArray: '8 8'
+        color: 'var(--accent)', weight: 4, opacity: .85, dashArray: '8 8'
       }).addTo(map);
       navigationLine._isFallback = true;
       navRouteSteps = [];
@@ -8534,6 +8567,8 @@ function clearNavigation() {
   navStepIndex = 0;
   hideTurnByTurnDisplay();
   if (navigationLine)    { map.removeLayer(navigationLine); navigationLine = null; }
+  if (drivenPathLine)    { map.removeLayer(drivenPathLine); drivenPathLine = null; }
+  drivenPathCoords = [];
   if (destinationMarker) { map.removeLayer(destinationMarker); destinationMarker = null; }
   document.getElementById('navigateActiveInfo').style.display = 'none';
   document.getElementById('navigateDestText').textContent = '';
@@ -9391,6 +9426,14 @@ function startWatching() {
         drawNavigationLine();
         evaluateNavigationProgress();
         updateTurnByTurnDisplay(userCoords);
+        if (drivenPathLine) {
+          const lastDriven = drivenPathCoords[drivenPathCoords.length - 1];
+          const lastDrivenPt = lastDriven ? { lat: lastDriven[0], lon: lastDriven[1] } : null;
+          if (!lastDrivenPt || distMeters(lastDrivenPt, userCoords) >= NAV_DRIVEN_PATH_MIN_DISTANCE_M) {
+            drivenPathCoords.push([userCoords.lat, userCoords.lon]);
+            drivenPathLine.addLatLng([userCoords.lat, userCoords.lon]);
+          }
+        }
       }
 
       checkFormReady();
