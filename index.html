@@ -85,7 +85,8 @@ button, [onclick], [role="button"]{
   --form-control-h: 40px;
   --icon-tint-filter: brightness(0) invert(32%);
   --floating-bg: rgba(255,255,255,.92);
-  --speed-capsule-bg: rgba(255,255,255,.72);
+  --speed-capsule-bg: rgba(255,255,255,.45);
+  --driving-sheet-bg: rgba(255,255,255,.55);
   --floating-border: #e2e2e0;
   --floating-shadow: rgba(0,0,0,.18);
   --map-tile-filter: none;
@@ -152,7 +153,8 @@ html[data-theme="dark"]{
   --accent-rgb: 255,144,52;
   --icon-tint-filter: brightness(0) invert(88%);
   --floating-bg: rgba(28,28,28,.92);
-  --speed-capsule-bg: rgba(28,28,28,.68);
+  --speed-capsule-bg: rgba(28,28,28,.42);
+  --driving-sheet-bg: rgba(28,28,28,.55);
   --floating-border: rgba(255,255,255,.12);
   --floating-shadow: rgba(0,0,0,.55);
   --map-tile-filter: invert(1) hue-rotate(180deg) brightness(.92) contrast(.92);
@@ -996,11 +998,16 @@ body.nav-panel-open .driving-nav-card{
 
 .user-location-icon{
   /* Smoothly glide between GPS fixes instead of snapping instantly on every update —
-     this is what removes the "choppy" jump-to-jump movement during navigation. Only the
-     position (translate) transitions here; heading rotation is handled separately by
-     .user-nav-arrow's own transition above. */
+     this is what removes the "choppy" jump-to-jump movement when just walking/browsing.
+     Only the position (translate) transitions here; heading rotation is handled separately
+     by .user-nav-arrow's own transition above. */
   transition: transform .6s linear;
 }
+/* While driving/navigating, position is instead driven continuously every animation frame
+   (see startMarkerAnimLoop/markerAnimTick — dead-reckoned from heading+speed rather than
+   jumping only on each raw GPS fix), so this transition is turned off to avoid the two
+   smoothing mechanisms fighting each other and re-introducing a laggy, uneven glide. */
+body.driving-active .user-location-icon{ transition:none; }
 
 #drivingTopFade{
   position:fixed;
@@ -1336,7 +1343,7 @@ body.driving-active .driving-float-action-row{ display:flex; }
   position:fixed;
   left:0; right:0; bottom:0;
   z-index:2550;
-  background:var(--floating-bg);
+  background:var(--driving-sheet-bg);
   backdrop-filter:blur(8px);
   -webkit-backdrop-filter:blur(8px);
   border-top:1px solid var(--floating-border);
@@ -1371,88 +1378,67 @@ body.driving-active .driving-report-sheet{ display:flex; }
   font-size:var(--fs-13);
 }
 .section-awaiting-cancel:active{ background:var(--border-color-strong); }
-.driving-tile-row{
-  display:flex;
-  gap:var(--space-6);
-}
-.driving-tile-row.submitting{
-  opacity:.5;
-  pointer-events:none;
-}
-.driving-tile{
-
-  flex:1;
-  min-width:0;
-  border:none;
-  border-radius:var(--radius-xl);
-  color:#fff;
-  padding:16px 2px;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:center;
-  cursor:pointer;
-  transition:filter .15s, transform .1s;
-  -webkit-tap-highlight-color:transparent;
-  touch-action:manipulation;
-}
-.driving-tile span{ display:none; }
-.driving-tile-icon-glyph{
-  width:32px; height:32px; display:inline-block;
-  background-color:#fff;
-  filter:drop-shadow(0 1px 2px rgba(0,0,0,.35));
-  -webkit-mask-position:center; mask-position:center;
-  -webkit-mask-size:contain; mask-size:contain;
-  -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
-}
-.driving-tile:active{ filter:brightness(.85); transform:scale(.96); }
-
-.driving-tile.tile-pothole{  background:#e74c3c; }
-.driving-tile.tile-cracked{  background:#e67e22; }
-.driving-tile.tile-signage{  background:#f1c40f; }
-.driving-tile.tile-flooding{ background:#3498db; }
-.driving-tile.tile-other{    background:#9b59b6; }
-
-/* Bike mode swaps the road-only tap row for a grid of the report categories a cyclist
-   actually runs into (bike lanes and road issues first, since those are what a rider is
-   most likely to hit directly, then sewage, streetlights, waste, green spaces, illegal
-   parking, forest trails). Always visible as square tiles rather than tucked behind a
-   button — tapping a category shows its subcategory tiles in the same grid (see
-   renderBikeQuickGrid) so there's still just one screen to look at while riding. */
-body.bike-mode-active .driving-tile-row{ display:none; }
+/* Both car (driving) mode and bike mode use the same tap-a-category-then-subcategory
+   grid (see renderQuickGrid / CAR_QUICK_CATEGORIES / BIKE_QUICK_CATEGORIES): tapping a
+   category shows that category's subcategory tiles in the same grid (with a back tile),
+   and tapping a subcategory (or a category that has none, like Parking) submits the
+   report. Car's grid sticks to the core road/infrastructure categories a driver is
+   realistically the one to notice (road, street lighting, sewage, waste); bike's covers
+   a broader set relevant to cyclists (bike lanes and road issues first, since those are
+   most directly bike-relevant). Always visible as square tiles rather than tucked behind
+   a button, and each grid is only shown while its own mode is active. 3 columns — big
+   enough to hit one-handed while rolling/driving. */
+.car-quick-grid,
 .bike-quick-grid{
   display:none;
-  grid-template-columns:repeat(4, 1fr);
-  gap:var(--space-8);
+  grid-template-columns:repeat(3, 1fr);
+  gap:var(--space-10);
   width:100%;
 }
+body.driving-active:not(.bike-mode-active) .car-quick-grid{ display:grid; }
 body.bike-mode-active .bike-quick-grid{ display:grid; }
+.car-quick-grid.submitting,
 .bike-quick-grid.submitting{ opacity:.5; pointer-events:none; }
-.bike-quick-tile{
+.quick-tile{
   border:none;
   border-radius:var(--radius-md);
   color:#fff;
   aspect-ratio:1;
   width:100%;
   display:flex;
+  flex-direction:column;
   align-items:center;
   justify-content:center;
+  gap:4px;
   cursor:pointer;
   transition:filter .15s, transform .1s;
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
 }
-.bike-quick-tile:active{ filter:brightness(.85); transform:scale(.95); }
-.bike-quick-tile-back{ background:var(--bg-surface-alt); border:1px solid var(--border-color-strong); }
-.bike-quick-tile-back .bike-quick-tile-icon{ background-color:var(--text-primary); filter:none; transform:rotate(-90deg); }
-.bike-quick-tile-icon{
-  width:28px; height:28px; display:inline-block;
+.quick-tile:active{ filter:brightness(.85); transform:scale(.95); }
+.quick-tile-back{ background:var(--bg-surface-alt); border:1px solid var(--border-color-strong); }
+.quick-tile-back .quick-tile-icon{ background-color:var(--text-primary); filter:none; transform:rotate(-90deg); }
+.quick-tile-icon{
+  width:30px; height:30px; display:inline-block;
   background-color:#fff;
   filter:drop-shadow(0 1px 2px rgba(0,0,0,.35));
   -webkit-mask-position:center; mask-position:center;
   -webkit-mask-size:contain; mask-size:contain;
   -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
 }
+.quick-tile-label{
+  font-size:10px;
+  font-weight:var(--fw-bold);
+  line-height:1.15;
+  text-align:center;
+  padding:0 4px;
+  max-width:100%;
+  overflow:hidden;
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+}
+.quick-tile-back .quick-tile-label{ color:var(--text-primary); }
 .driving-section-btn{
   width:100%;
   padding:14px;
@@ -3033,13 +3019,7 @@ span.flatpickr-weekday {
   <button class="driving-section-btn" id="sectionRecordBtn" onclick="toggleSectionRecording()">
     <span id="sectionRecordBtnLabel">Start Section Report</span>
   </button>
-  <div class="driving-tile-row">
-    <div class="driving-tile tile-pothole" onclick="handleTileTap('Road','pothole')" title="Pothole" aria-label="Pothole"><div class="driving-tile-icon-glyph" aria-hidden="true" style="-webkit-mask-image:url('icons/pothole.png');mask-image:url('icons/pothole.png');"></div><span id="dTilePothole">Pothole</span></div>
-    <div class="driving-tile tile-cracked" onclick="handleTileTap('Road','cracked')" title="Damaged pavement" aria-label="Damaged pavement"><div class="driving-tile-icon-glyph" aria-hidden="true" style="-webkit-mask-image:url('icons/road-damaged.png');mask-image:url('icons/road-damaged.png');"></div><span id="dTileCracked">Damaged pavement</span></div>
-    <div class="driving-tile tile-signage" onclick="handleTileTap('Road','signage')" title="Bad signage" aria-label="Bad signage"><div class="driving-tile-icon-glyph" aria-hidden="true" style="-webkit-mask-image:url('icons/traffic-cone.png');mask-image:url('icons/traffic-cone.png');"></div><span id="dTileSignage">Bad signage</span></div>
-    <div class="driving-tile tile-flooding" onclick="handleTileTap('Road','flooding')" title="Flooding" aria-label="Flooding"><div class="driving-tile-icon-glyph" aria-hidden="true" style="-webkit-mask-image:url('icons/flood-risk.png');mask-image:url('icons/flood-risk.png');"></div><span id="dTileFlooding">Flooding</span></div>
-    <div class="driving-tile tile-other" onclick="handleTileTap('Road',null)" title="Other road issue" aria-label="Other road issue"><div class="driving-tile-icon-glyph" aria-hidden="true" style="-webkit-mask-image:url('icons/warning-symbol.png');mask-image:url('icons/warning-symbol.png');"></div><span id="dTileOther">Other road issue</span></div>
-  </div>
+  <div class="car-quick-grid" id="carQuickGrid"></div>
   <div class="bike-quick-grid" id="bikeQuickGrid"></div>
 </div>
 
@@ -3224,6 +3204,13 @@ span.flatpickr-weekday {
         <span id="overspeedAlertToggleLabel">Warn me when I'm 5+ km/h over the speed limit</span>
         <span class="toggle-switch">
           <input type="checkbox" id="overspeedAlertToggleInput" checked onchange="setOverspeedAlertEnabled(this.checked)">
+          <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+        </span>
+      </label>
+      <label class="settings-toggle-row" id="bumpDetectionToggleRow">
+        <span id="bumpDetectionToggleLabel">Detect potholes/bumps automatically while driving</span>
+        <span class="toggle-switch">
+          <input type="checkbox" id="bumpDetectionToggleInput" checked onchange="setBumpDetectionEnabled(this.checked)">
           <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
         </span>
       </label>
@@ -6048,6 +6035,8 @@ const T = {
   drivingSafetyBody:         { en:'You are more important than a pothole. Keep your eyes on the road — glance at reports and directions only when it is safe to do so, and let a passenger handle the phone if possible. Reporting can always wait until you have stopped.', sr:'Vi ste važniji od rupe na putu. Držite pogled na putu — na prijave i uputstva pogledajte samo kada je bezbedno, a ako je moguće, neka telefon koristi suvozač. Prijavu uvek možete uneti kasnije, kada se zaustavite.' },
   drivingSafetyAckBtn:       { en:'Got it, drive safe',                                       sr:'Razumem, vozimo bezbedno' },
   drivingSafetyDontShowAgain:{ en:'Do not show this again',                                    sr:'Ne prikazuj ponovo' },
+  overspeedAlertToggleLabel: { en:'Warn me when I\'m 5+ km/h over the speed limit',           sr:'Upozori me kada pređem ograničenje za 5+ km/h' },
+  bumpDetectionToggleLabel:  { en:'Detect potholes/bumps automatically while driving',           sr:'Automatski otkrivaj rupe/udarce na putu tokom vožnje' },
 
   leaderboardBtnTitle:     { en:'Rankings',                           sr:'Rang lista' },
 
@@ -6205,7 +6194,8 @@ function applyLang(){
   document.getElementById('reportPhotoAddBtn').setAttribute('aria-label', t('reportPhotoAddBtn'));
   document.getElementById('reportPhotoGalleryBtn').title   = t('reportPhotoGalleryBtn');
   document.getElementById('reportPhotoGalleryBtn').setAttribute('aria-label', t('reportPhotoGalleryBtn'));
-  renderBikeQuickGrid();
+  renderQuickGrid('car');
+  renderQuickGrid('bike');
   const offlineRetryEl = document.getElementById('offlineQueueRetryLabel');
   if (offlineRetryEl) offlineRetryEl.textContent = t('offlineQueueRetry');
   const globalOfflineRetryEl = document.getElementById('globalOfflineBannerRetryLabel');
@@ -6275,6 +6265,10 @@ function applyLang(){
   if (drivingSafetySectionTitleEl) drivingSafetySectionTitleEl.textContent = t('drivingSafetySectionTitle');
   const drivingSafetyToggleLabelEl = document.getElementById('drivingSafetyToggleLabel');
   if (drivingSafetyToggleLabelEl) drivingSafetyToggleLabelEl.textContent = t('drivingSafetyToggleLabel');
+  const overspeedAlertToggleLabelEl = document.getElementById('overspeedAlertToggleLabel');
+  if (overspeedAlertToggleLabelEl) overspeedAlertToggleLabelEl.textContent = t('overspeedAlertToggleLabel');
+  const bumpDetectionToggleLabelEl = document.getElementById('bumpDetectionToggleLabel');
+  if (bumpDetectionToggleLabelEl) bumpDetectionToggleLabelEl.textContent = t('bumpDetectionToggleLabel');
   const nearbyCheckinTitleEl = document.getElementById('nearbyCheckinSectionTitle');
   if (nearbyCheckinTitleEl) nearbyCheckinTitleEl.textContent = t('nearbyCheckinSectionTitle');
   const nearbyCheckinHintEl = document.getElementById('nearbyCheckinSectionHint');
@@ -6368,16 +6362,6 @@ function applyLang(){
   }
 
   updateDrivingGpsStatus();
-  document.getElementById('dTilePothole').textContent     = t('dTilePothole');
-  document.getElementById('dTileCracked').textContent     = t('dTileCracked');
-  document.getElementById('dTileSignage').textContent     = t('dTileSignage');
-  document.getElementById('dTileFlooding').textContent    = t('dTileFlooding');
-  document.getElementById('dTileOther').textContent       = t('dTileOther');
-  document.getElementById('dTilePothole').closest('.driving-tile').title  = t('dTilePothole');
-  document.getElementById('dTileCracked').closest('.driving-tile').title  = t('dTileCracked');
-  document.getElementById('dTileSignage').closest('.driving-tile').title = t('dTileSignage');
-  document.getElementById('dTileFlooding').closest('.driving-tile').title = t('dTileFlooding');
-  document.getElementById('dTileOther').closest('.driving-tile').title   = t('dTileOther');
   updateSectionButtonUI();
   document.getElementById('drivingCenterBtn').title = t('followTitle');
   document.getElementById('drivingModeBtn').title = t('drivingBtnTitle');
@@ -6494,6 +6478,7 @@ function showSettingsModal() {
   initSoundSettingsUi();
   initDrivingSafetySettingsUi();
   initOverspeedAlertSettingsUi();
+  initBumpDetectionSettingsUi();
   initMapButtonToggleUi();
   updateNearbyCheckinSegmentUI();
   updateContactReminderSegmentUI();
@@ -7382,6 +7367,11 @@ let sectionAwaitingCategory = false;
 let sectionPoints      = [];
 let sectionPolyline    = null;
 const SECTION_MIN_DISTANCE_M = 8;
+// Mirrors drivenPathLastAt/NAV_DRIVEN_PATH_GAP_MS/drivenPathGapFilling below, but for the
+// section-recording breadcrumb (see fillSectionPathGap).
+const SECTION_PATH_GAP_MS = 20000;
+let sectionLastAt      = null;
+let sectionGapFilling  = false;
 
 let currentHeading            = null;
 let compassActive             = false;
@@ -7637,7 +7627,13 @@ function isDeviceNearlyFlat(beta) {
 const ORIENTATION_MAX_JUMP_DEG = 120;
 
 function handleOrientationEvent(event) {
-  if (isHeadingUpActive() && (Date.now() - lastGpsHeadingAt) < GPS_HEADING_FRESH_MS) {
+  // A fresh GPS-course heading (derived from actual movement direction) is always more
+  // reliable than the phone's magnetic compass while driving/navigating — the compass can
+  // be thrown off by phone mount position, dashboard magnets, etc., and previously this
+  // only deferred to GPS course while heading-up mode was active, letting the compass yank
+  // the on-map arrow off the road's direction whenever the map was north-up. Now GPS course
+  // wins whenever it's recent, in either map mode.
+  if ((Date.now() - lastGpsHeadingAt) < GPS_HEADING_FRESH_MS) {
     return;
   }
 
@@ -7690,6 +7686,18 @@ function distMeters(a, b) {
   const dLon = toRad(b.lon - a.lon);
   const s = Math.sin(dLat/2)**2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon/2)**2;
   return 2 * R * Math.asin(Math.sqrt(s));
+}
+
+// Initial compass bearing (0-360, 0=north) from point a to point b. Used to tell whether a
+// report sitting near the driver is actually ahead of them (their side/direction of travel)
+// or behind/across the road (e.g. the opposite carriageway of a divided road they're passing).
+function bearingBetween(a, b) {
+  const toRad = d => d * Math.PI / 180;
+  const lat1 = toRad(a.lat), lat2 = toRad(b.lat);
+  const dLon = toRad(b.lon - a.lon);
+  const y = Math.sin(dLon) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
 }
 
 // ========================================================================================
@@ -8277,6 +8285,31 @@ async function fillDrivenPathGap(from, to) {
   }
 }
 
+// Same idea as fillDrivenPathGap, but for the manual "Start Section Report" breadcrumb trail.
+// Section recording previously just appended every raw fix directly with no gap handling at
+// all, so a stretch of coarse/jumpy fixes (app backgrounded then foregrounded mid-recording,
+// phone asleep, etc.) would leave the drawn section zig-zagging across blocks instead of
+// following the road actually traveled. This routes between the last good point and the new
+// one the same way, so the recorded section stays snapped to the road through any such gap.
+async function fillSectionPathGap(from, to) {
+  if (sectionGapFilling || !sectionPolyline) return;
+  sectionGapFilling = true;
+  try {
+    const route = await fetchRoute(from, to);
+    route.coords.slice(1).forEach(coord => {
+      sectionPoints.push({ lat: coord[0], lon: coord[1] });
+      sectionPolyline.addLatLng(coord);
+    });
+  } catch (err) {
+    console.warn('Section-path gap fill failed, drawing straight segment instead:', err.message);
+    sectionPoints.push({ lat: to.lat, lon: to.lon });
+    sectionPolyline.addLatLng([to.lat, to.lon]);
+  } finally {
+    sectionLastAt = Date.now();
+    sectionGapFilling = false;
+  }
+}
+
 async function fetchRoute(from, to) {
   if (!isValidCoordObj(from) || !isValidCoordObj(to)) {
     throw new Error('invalid coordinates for routing');
@@ -8531,6 +8564,27 @@ function setOverspeedAlertEnabled(enabled) {
 function initOverspeedAlertSettingsUi() {
   const input = document.getElementById('overspeedAlertToggleInput');
   if (input) input.checked = overspeedAlertEnabled;
+}
+
+/* ---------- Pothole/bump detection (accelerometer) ---------- */
+// On by default. Lets people who find the vibration-based detector too chatty (false
+// positives on rough roads, or just don't want it running) turn the whole thing off —
+// requestMotionPermission/handleDeviceMotion both check this before doing anything.
+const BUMP_DETECTION_PREF_KEY = 'ttb_bump_detection_enabled';
+function getBumpDetectionPref() {
+  try {
+    const v = localStorage.getItem(BUMP_DETECTION_PREF_KEY);
+    return v === null ? true : v === '1';
+  } catch (err) { return true; }
+}
+let bumpDetectionEnabled = getBumpDetectionPref();
+function setBumpDetectionEnabled(enabled) {
+  bumpDetectionEnabled = !!enabled;
+  try { localStorage.setItem(BUMP_DETECTION_PREF_KEY, bumpDetectionEnabled ? '1' : '0'); } catch (err) {}
+}
+function initBumpDetectionSettingsUi() {
+  const input = document.getElementById('bumpDetectionToggleInput');
+  if (input) input.checked = bumpDetectionEnabled;
 }
 
 let currentSpeedLimitKmh  = null;
@@ -9042,6 +9096,7 @@ function toggleDrivingMode(mode) {
     if (destinationCoords && userCoords) updateTurnByTurnDisplay(userCoords);
     openOverlay('drivingMode', () => { if (drivingMode) toggleDrivingMode(); });
     if (drivingSafetyReminderEnabled) showDrivingSafetyModal();
+    startMarkerAnimLoop();
   } else {
     closeOverlay('drivingMode');
     if (document.getElementById('drivingSafetyModal')?.style.display === 'flex') hideDrivingSafetyModal();
@@ -9053,8 +9108,9 @@ function toggleDrivingMode(mode) {
     }
     if (navPanelOpen) closeNavigatePanel();
     hideTurnByTurnDisplay();
-    resetBikeQuickGrid();
+    resetQuickGrids();
     setUserMarkerStyle(false);
+    stopMarkerAnimLoop();
     if (!walkingHeadingMode) {
       resetMapBearing();
     } else if (currentHeading !== null) {
@@ -9111,7 +9167,7 @@ const BUMP_LOAD_RADIUS_KM    = 3;    // how far around the car we keep known bum
 const BUMP_RELOAD_DISTANCE_M = 800;  // re-query for nearby bumps after moving this far
 
 function requestMotionPermission() {
-  if (motionPermissionAsked) return;
+  if (motionPermissionAsked || !bumpDetectionEnabled) return;
   if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
     motionPermissionAsked = true;
     DeviceMotionEvent.requestPermission().then(state => {
@@ -9130,7 +9186,7 @@ function attachMotionListener() {
 }
 
 function handleDeviceMotion(event) {
-  if (!drivingMode) return;
+  if (!drivingMode || !bumpDetectionEnabled) return;
 
   let ax, ay, az;
   const lin = event.acceleration;
@@ -9187,6 +9243,31 @@ function estimateCurrentPosition() {
   const distanceM = (smoothedSpeedKmh / 3.6) * dtSeconds;
   if (distanceM < 0.5) return { lat: userCoords.lat, lon: userCoords.lon };
   return projectPoint(userCoords.lat, userCoords.lon, currentHeading, distanceM);
+}
+
+// ----------------------------------------------------------------------------------------
+// Continuous marker motion while driving/navigating. Previously the on-map arrow only moved
+// when a raw GPS fix arrived (every ~1s) via a CSS transition on the marker, which produced a
+// visible "glide, stop, glide" rhythm rather than smooth continuous travel — especially
+// noticeable since fixes don't land at a perfectly even cadence. This drives the marker every
+// animation frame using the same dead-reckoning estimate already computed for bump-position
+// correction (estimateCurrentPosition), so the arrow keeps moving steadily between fixes
+// instead of waiting for the next one. Raw fixes still arrive as before and simply re-anchor
+// the estimate (via userCoords/lastAcceptedFix/smoothedSpeedKmh), correcting drift without a
+// visible jump-then-ease.
+let markerAnimFrameId = null;
+function markerAnimTick() {
+  if (!drivingMode || !userMarker) { markerAnimFrameId = null; return; }
+  const pos = estimateCurrentPosition();
+  if (pos) userMarker.setLatLng([pos.lat, pos.lon]);
+  markerAnimFrameId = requestAnimationFrame(markerAnimTick);
+}
+function startMarkerAnimLoop() {
+  if (markerAnimFrameId !== null) return;
+  markerAnimFrameId = requestAnimationFrame(markerAnimTick);
+}
+function stopMarkerAnimLoop() {
+  if (markerAnimFrameId !== null) { cancelAnimationFrame(markerAnimFrameId); markerAnimFrameId = null; }
 }
 
 function projectPoint(lat, lon, bearingDeg, distanceM) {
@@ -9366,71 +9447,86 @@ function shouldBlockReportSubmission() {
   return false;
 }
 
-// Bike mode's quick-tap categories — top-level categories a cyclist is realistically the
-// one to notice and report, rather than the road-surface-only subcategories the car tile
-// row uses. Bike lanes and road come first since those are the most directly bike-relevant.
-// Rendered into #bikeQuickGrid (see renderBikeQuickGrid): tapping a category shows that
-// category's subcategory tiles in the same grid (with a back tile), and tapping a
-// subcategory (or a category that has none, like Parking) submits the report.
+// Car and bike mode's quick-tap categories — top-level categories a driver/cyclist is
+// realistically the one to notice and report. Car sticks to the core road/infrastructure
+// set (road issues, street lighting, sewage, waste); bike covers a broader set relevant
+// to cyclists, with bike lanes and road first since those are most directly bike-relevant.
+// Rendered into #carQuickGrid / #bikeQuickGrid (see renderQuickGrid): tapping a category
+// shows that category's subcategory tiles in the same grid (with a back tile), and
+// tapping a subcategory (or a category that has none, like Parking) submits the report.
+const CAR_QUICK_CATEGORIES = ['Road', 'Streetlight', 'Sewage', 'Waste'];
 const BIKE_QUICK_CATEGORIES = ['BikeLanes', 'Road', 'Sewage', 'Streetlight', 'Waste', 'GreenSpaces', 'Parking', 'Forest'];
 
-// Tracks whether the grid is currently showing top-level categories (null) or the
-// subcategory tiles for a chosen category.
+// Tracks, per mode, whether that mode's grid is currently showing top-level categories
+// (null) or the subcategory tiles for a chosen category.
+let carQuickCategory = null;
 let bikeQuickCategory = null;
 
-function renderBikeQuickGrid() {
-  const grid = document.getElementById('bikeQuickGrid');
+function quickGridConfig(modeKey) {
+  return modeKey === 'car'
+    ? { gridId: 'carQuickGrid', categories: CAR_QUICK_CATEGORIES }
+    : { gridId: 'bikeQuickGrid', categories: BIKE_QUICK_CATEGORIES };
+}
+function getQuickCategory(modeKey) { return modeKey === 'car' ? carQuickCategory : bikeQuickCategory; }
+function setQuickCategory(modeKey, cat) { if (modeKey === 'car') carQuickCategory = cat; else bikeQuickCategory = cat; }
+
+function renderQuickGrid(modeKey) {
+  const { gridId, categories } = quickGridConfig(modeKey);
+  const grid = document.getElementById(gridId);
   if (!grid) return;
-  if (bikeQuickCategory) {
-    renderBikeQuickSubcategoryTiles(grid, bikeQuickCategory);
+  const current = getQuickCategory(modeKey);
+  if (current) {
+    renderQuickSubcategoryTiles(grid, current, modeKey);
   } else {
-    renderBikeQuickCategoryTiles(grid);
+    renderQuickCategoryTiles(grid, categories, modeKey);
   }
 }
 
-function renderBikeQuickCategoryTiles(grid) {
-  grid.innerHTML = BIKE_QUICK_CATEGORIES.map(cat => {
+function renderQuickCategoryTiles(grid, categories, modeKey) {
+  grid.innerHTML = categories.map(cat => {
     const label = translateCategory(cat);
     const icon = categoryIcon(cat);
-    return `<div class="bike-quick-tile" style="background:${categoryColor(cat)};" onclick="handleBikeCategoryTap('${cat}')" title="${label}" aria-label="${label}"><div class="bike-quick-tile-icon" style="-webkit-mask-image:url('${icon}');mask-image:url('${icon}');"></div></div>`;
+    return `<div class="quick-tile" style="background:${categoryColor(cat)};" onclick="handleQuickCategoryTap('${modeKey}','${cat}')" title="${label}" aria-label="${label}"><div class="quick-tile-icon" style="-webkit-mask-image:url('${icon}');mask-image:url('${icon}');"></div><span class="quick-tile-label">${label}</span></div>`;
   }).join('');
 }
 
-function renderBikeQuickSubcategoryTiles(grid, cat) {
+function renderQuickSubcategoryTiles(grid, cat, modeKey) {
   const list = SUBCATEGORIES[cat] || [];
   const icons = WIZ_SUBCATEGORY_ICONS[cat] || {};
   const backLabel = t('bikeQuickBack') || 'Back';
-  const backTile = `<div class="bike-quick-tile bike-quick-tile-back" onclick="bikeQuickGoBack()" title="${backLabel}" aria-label="${backLabel}"><div class="bike-quick-tile-icon" style="-webkit-mask-image:url('icons/arrow.png');mask-image:url('icons/arrow.png');"></div></div>`;
+  const backTile = `<div class="quick-tile quick-tile-back" onclick="quickGridGoBack('${modeKey}')" title="${backLabel}" aria-label="${backLabel}"><div class="quick-tile-icon" style="-webkit-mask-image:url('icons/arrow.png');mask-image:url('icons/arrow.png');"></div><span class="quick-tile-label">${backLabel}</span></div>`;
   const subTiles = list.map(s => {
     const subLabel = lang === 'sr' ? s.sr : s.en;
     const iconFile = icons[s.key];
-    const iconHtml = iconFile ? `<div class="bike-quick-tile-icon" style="-webkit-mask-image:url('icons/reports/${iconFile}');mask-image:url('icons/reports/${iconFile}');"></div>` : '';
-    return `<div class="bike-quick-tile" style="background:${categoryColor(cat)};" onclick="handleBikeSubcategoryTap('${cat}','${s.key}')" title="${subLabel}" aria-label="${subLabel}">${iconHtml}</div>`;
+    const iconHtml = iconFile ? `<div class="quick-tile-icon" style="-webkit-mask-image:url('icons/reports/${iconFile}');mask-image:url('icons/reports/${iconFile}');"></div>` : '';
+    return `<div class="quick-tile" style="background:${categoryColor(cat)};" onclick="handleQuickSubcategoryTap('${modeKey}','${cat}','${s.key}')" title="${subLabel}" aria-label="${subLabel}">${iconHtml}<span class="quick-tile-label">${subLabel}</span></div>`;
   }).join('');
   grid.innerHTML = backTile + subTiles;
 }
 
-function handleBikeCategoryTap(cat) {
+function handleQuickCategoryTap(modeKey, cat) {
   const list = SUBCATEGORIES[cat] || [];
   if (!list.length) { handleTileTap(cat, null); return; }
-  bikeQuickCategory = cat;
-  renderBikeQuickGrid();
+  setQuickCategory(modeKey, cat);
+  renderQuickGrid(modeKey);
 }
 
-function handleBikeSubcategoryTap(cat, subKey) {
+function handleQuickSubcategoryTap(modeKey, cat, subKey) {
   handleTileTap(cat, subKey);
-  bikeQuickCategory = null;
-  renderBikeQuickGrid();
+  setQuickCategory(modeKey, null);
+  renderQuickGrid(modeKey);
 }
 
-function bikeQuickGoBack() {
-  bikeQuickCategory = null;
-  renderBikeQuickGrid();
+function quickGridGoBack(modeKey) {
+  setQuickCategory(modeKey, null);
+  renderQuickGrid(modeKey);
 }
 
-function resetBikeQuickGrid() {
+function resetQuickGrids() {
+  carQuickCategory = null;
   bikeQuickCategory = null;
-  renderBikeQuickGrid();
+  renderQuickGrid('car');
+  renderQuickGrid('bike');
 }
 
 function handleTileTap(category, subcategoryKey) {
@@ -9454,9 +9550,9 @@ async function quickReportTap(category, subcategoryKey) {
   if (!freshSession) return;
 
   reportSubmissionInFlight = true;
-  const tileRow = document.querySelector('.driving-tile-row');
+  const carGrid = document.getElementById('carQuickGrid');
   const bikeGrid = document.getElementById('bikeQuickGrid');
-  if (tileRow) tileRow.classList.add('submitting');
+  if (carGrid) carGrid.classList.add('submitting');
   if (bikeGrid) bikeGrid.classList.add('submitting');
   try {
     const { data, error } = await sb.from(TABLE).insert([{
@@ -9481,7 +9577,7 @@ async function quickReportTap(category, subcategoryKey) {
     toast(describeAuthError(err), 'error');
   } finally {
     reportSubmissionInFlight = false;
-    if (tileRow) tileRow.classList.remove('submitting');
+    if (carGrid) carGrid.classList.remove('submitting');
     if (bikeGrid) bikeGrid.classList.remove('submitting');
   }
 }
@@ -9493,6 +9589,7 @@ function toggleSectionRecording() {
     if (!(currentProfile && currentProfile.is_admin) && !hasReliableGps()) { toast(t('gpsTooWeak'), 'error'); return; }
     sectionRecording = true;
     sectionPoints = [{ lat: userCoords.lat, lon: userCoords.lon }];
+    sectionLastAt = Date.now();
     sectionPolyline = L.polyline([[userCoords.lat, userCoords.lon]], {
       color: '#ff4b4b', weight: 6, opacity: 0.85, lineCap: 'round'
     }).addTo(map);
@@ -9508,7 +9605,7 @@ function toggleSectionRecording() {
     }
     sectionAwaitingCategory = true;
     updateSectionButtonUI();
-    if (isBikeMode()) resetBikeQuickGrid();
+    resetQuickGrids();
   }
 }
 
@@ -9516,7 +9613,7 @@ function cancelPendingSection() {
   sectionAwaitingCategory = false;
   updateSectionButtonUI();
   discardSectionDraft();
-  resetBikeQuickGrid();
+  resetQuickGrids();
   toast(t('sectionDiscarded') || 'Section discarded', 'error');
 }
 
@@ -9553,9 +9650,9 @@ async function finalizeSectionReport(category, subcategoryKey) {
   const mid = pathJson[Math.floor(pathJson.length / 2)];
 
   reportSubmissionInFlight = true;
-  const tileRow = document.querySelector('.driving-tile-row');
+  const carGrid = document.getElementById('carQuickGrid');
   const bikeGrid = document.getElementById('bikeQuickGrid');
-  if (tileRow) tileRow.classList.add('submitting');
+  if (carGrid) carGrid.classList.add('submitting');
   if (bikeGrid) bikeGrid.classList.add('submitting');
   try {
     const { data, error } = await sb.from(TABLE).insert([{
@@ -9584,7 +9681,7 @@ async function finalizeSectionReport(category, subcategoryKey) {
     toast(describeAuthError(err), 'error');
   } finally {
     reportSubmissionInFlight = false;
-    if (tileRow) tileRow.classList.remove('submitting');
+    if (carGrid) carGrid.classList.remove('submitting');
     if (bikeGrid) bikeGrid.classList.remove('submitting');
   }
 }
@@ -9610,6 +9707,8 @@ function updateSectionButtonUI() {
 function discardSectionDraft() {
   if (sectionPolyline) { map.removeLayer(sectionPolyline); sectionPolyline = null; }
   sectionPoints = [];
+  sectionLastAt = null;
+  sectionGapFilling = false;
 }
 
 function updateGpsModalText(){
@@ -9998,11 +10097,17 @@ function startWatching() {
         maybeReloadBumpsNear(userCoords.lat, userCoords.lon);
       }
 
-      if (sectionRecording) {
+      if (sectionRecording && !sectionGapFilling) {
         const last = sectionPoints[sectionPoints.length - 1];
         if (distMeters(last, userCoords) >= SECTION_MIN_DISTANCE_M) {
-          sectionPoints.push({ lat: userCoords.lat, lon: userCoords.lon });
-          if (sectionPolyline) sectionPolyline.addLatLng([userCoords.lat, userCoords.lon]);
+          const gapMs = sectionLastAt ? Date.now() - sectionLastAt : 0;
+          if (gapMs >= SECTION_PATH_GAP_MS) {
+            fillSectionPathGap(last, { lat: userCoords.lat, lon: userCoords.lon });
+          } else {
+            sectionPoints.push({ lat: userCoords.lat, lon: userCoords.lon });
+            if (sectionPolyline) sectionPolyline.addLatLng([userCoords.lat, userCoords.lon]);
+            sectionLastAt = Date.now();
+          }
         }
       }
 
@@ -10087,6 +10192,12 @@ document.addEventListener('visibilitychange', () => {
     navigator.geolocation.clearWatch(gpsWatchId);
     gpsWatchId = null;
   }
+  // Force the next fix to be treated as a gap (rather than trusting whatever elapsed-time
+  // math falls out of possibly-throttled background timers) so the breadcrumb/driven-path
+  // trail gets routed back onto the road instead of drawing a raw line across whatever
+  // coarse/stale fixes trickled in while backgrounded.
+  if (sectionRecording) sectionLastAt = 0;
+  if (drivenPathLine) drivenPathLastAt = 0;
   startWatching();
 });
 
@@ -14396,6 +14507,14 @@ function refreshReportContactCounts(reportId) {
 }
 
 const NEARBY_CHECKIN_RADIUS_M = 30;
+// Driving at any real speed, 30m gives almost no time to read the prompt and react before
+// passing it — widen the radius specifically while driving so the check-in appears earlier.
+const NEARBY_CHECKIN_RADIUS_M_DRIVING = 55;
+// Only ask about a report while driving if it's roughly ahead of us (within this many degrees
+// either side of our current heading) — otherwise a report sitting just off to the side or
+// behind (e.g. on the opposite carriageway of a divided road we're passing) would trigger an
+// irrelevant "is this still there?" prompt for a lane we're not even in.
+const NEARBY_CHECKIN_DRIVING_HEADING_TOLERANCE_DEG = 70;
 const NEARBY_CHECKIN_SCAN_THROTTLE_MS = 15000;
 // While driving, only ask about categories a driver can actually notice at a glance
 // from a moving car — potholes/pavement damage/flooding. Everything else (streetlights,
@@ -14578,11 +14697,21 @@ function maybeShowNearbyCheckin() {
   if (now - lastGlobal < cooldown.global) return;
 
   const history = readNearbyCheckinHistory();
+  const activeRadius = drivingMode ? NEARBY_CHECKIN_RADIUS_M_DRIVING : NEARBY_CHECKIN_RADIUS_M;
   const candidate = globalActiveData
     .filter(r => r.status === 'reported' && isValidLatLng(r.latitude, r.longitude) && (!currentSession || r.owner_id !== currentSession.user.id))
     .filter(r => !drivingMode || DRIVING_CHECKIN_CATEGORIES.has(r.category))
     .map(r => ({ r, d: distMeters(userCoords, { lat: r.latitude, lon: r.longitude }) }))
-    .filter(x => x.d <= NEARBY_CHECKIN_RADIUS_M && (now - (history[x.r.id] || 0)) >= cooldown.perReport)
+    .filter(x => x.d <= activeRadius && (now - (history[x.r.id] || 0)) >= cooldown.perReport)
+    // While driving, only ask about reports roughly ahead of us in our current lane/direction
+    // of travel — without this, a report on the opposite carriageway of a divided road (which
+    // can sit just as physically close to us as one in our own lane) would trigger the same
+    // prompt even though we have no way to act on it from where we are.
+    .filter(x => {
+      if (!drivingMode || typeof currentHeading !== 'number' || isNaN(currentHeading)) return true;
+      const bearingToReport = bearingBetween(userCoords, { lat: x.r.latitude, lon: x.r.longitude });
+      return Math.abs(shortestAngleDelta(currentHeading, bearingToReport)) <= NEARBY_CHECKIN_DRIVING_HEADING_TOLERANCE_DEG;
+    })
     .sort((a, b) => a.d - b.d)[0];
   if (!candidate) return;
 
