@@ -1261,7 +1261,7 @@ body.driving-active .driving-speed-widget{ display:flex; }
   right:12px;
   z-index:2600;
   bottom:calc(var(--driving-sheet-height, 160px) + 12px + env(safe-area-inset-bottom, 0px));
-  align-items:center;
+  align-items:flex-end;
   justify-content:space-between;
 }
 body.driving-active .driving-float-action-row{ display:flex; }
@@ -1442,9 +1442,9 @@ body.driving-active .driving-report-sheet{ display:flex; }
 .driving-nav-close-btn{
   flex-shrink:0;
   width:34px; height:34px;
-  background:var(--bg-surface-alt);
-  border:1px solid var(--border-color-strong);
-  color:var(--text-secondary);
+  background:var(--accent);
+  border:1px solid var(--accent);
+  color:#fff;
   font-size:var(--fs-15);
   position:fixed;
   top:calc(var(--header-h, 64px) + 12px + 40px + 10px);
@@ -1452,7 +1452,7 @@ body.driving-active .driving-report-sheet{ display:flex; }
   z-index:2400;
   box-shadow:0 3px 12px var(--floating-shadow);
 }
-.driving-nav-close-btn:active{ background:var(--border-color-strong); }
+.driving-nav-close-btn:active{ background:var(--accent); filter:brightness(.9); }
 
 body.driving-active .legend-row,
 body.driving-active .bottom-muni-bar,
@@ -7568,6 +7568,10 @@ function handleOrientationEvent(event) {
   updateUserMarkerRotation();
 }
 
+function isNavigationActive() {
+  return navState === NavState.NAVIGATING || navState === NavState.OFF_ROUTE || navState === NavState.RECALCULATING;
+}
+
 function distMeters(a, b) {
   if (!a || !b) return Infinity;
   const R = 6371000;
@@ -9370,8 +9374,12 @@ function startWatching() {
         showMunicipalityBoundaryForPoint(userCoords.lat, userCoords.lon, userMarker, 'gps');
         // First GPS fix of the session: start out following the user automatically.
         setFollowMode(true);
-      } else if (drivingMode) {
+      } else if (drivingMode || isNavigationActive()) {
         snapUserToRoadThenShow(userCoords.lat, userCoords.lon);
+        if (!drivingMode && !currentContactsMunicipality && Date.now() - lastMuniRetryAt > MUNI_RETRY_INTERVAL_MS) {
+          lastMuniRetryAt = Date.now();
+          showMunicipalityBoundaryForPoint(userCoords.lat, userCoords.lon, userMarker, 'gps');
+        }
       } else {
         userMarker.setLatLng([userCoords.lat, userCoords.lon]);
         if (followMode) followMapTo(userCoords.lat, userCoords.lon);
