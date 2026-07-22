@@ -127,6 +127,10 @@ h3.subTitle{font-size:var(--fs-13);margin:16px 0 6px;color:var(--text-secondary)
 .modalBox{background:var(--bg-surface);border-radius:var(--radius-lg);padding:22px;max-width:440px;width:92%;}
 .modalBox h3{margin-top:0;}
 .hidden{display:none !important;}
+#continentBar{display:flex;flex-wrap:wrap;gap:6px;padding:8px 10px;border-bottom:1px solid var(--border-color);}
+.continentBtn{padding:4px 12px;border-radius:var(--radius-pill);font-size:var(--fs-12,12px);font-weight:600;border:1px solid var(--border-color);background:var(--bg-surface-alt);color:var(--text-muted);cursor:pointer;}
+.continentBtn.active{background:#2563eb;border-color:#2563eb;color:#fff;}
+.countryPoly.dimmed{cursor:default;}
 
 .leaflet-interactive.countryPoly{transition:fill-opacity .15s;}
 </style>
@@ -144,6 +148,7 @@ h3.subTitle{font-size:var(--fs-13);margin:16px 0 6px;color:var(--text-secondary)
 
 <div id="layout">
   <div id="leftPane">
+    <div id="continentBar" class="hidden"></div>
     <div id="worldMap"></div>
     <div id="sidePanel">
       <div id="countryEmpty" class="emptyState">Click a country on the map to see its municipalities and public-service contact coverage.</div>
@@ -310,6 +315,7 @@ function cyrillicToLatin(str){
    ========================================================================= */
 let currentSession = null;
 let currentProfile = null;
+let selectedContinent = null;   // client-side filter, global-admin only
 let countriesByCode = {};      // code -> {code, name}
 let municipalityCache = [];    // all rows from municipalities table
 let companiesCache = [];       // all rows from utility_companies table
@@ -373,6 +379,24 @@ async function loadProfile(){
   updateAuthUI();
 }
 function isAdmin(){ return !!(currentProfile && currentProfile.is_admin); }
+// admin_level: 1 = single municipality, 2 = single country, 3 = global.
+// A profile with admin_level left unset is treated as global (3) — this keeps
+// existing admins working exactly as before until you explicitly scope them
+// down to a country or municipality.
+function myAdminLevel(){
+  if(!currentProfile) return null;
+  return currentProfile.admin_level == null ? 3 : currentProfile.admin_level;
+}
+function isGlobalAdmin(){ return isAdmin() && myAdminLevel() === 3; }
+function myScopeCountry(){ return currentProfile ? (currentProfile.scope_country_code || null) : null; }
+function myScopeMunicipality(){ return currentProfile ? (currentProfile.scope_municipality_id || null) : null; }
+function isCountryClickable(code){
+  const level = myAdminLevel();
+  if(level == null) return true; // signed out / no profile — unrestricted browsing (read-only anyway)
+  if(level === 3) return !selectedContinent || (countriesByCode[code] && countriesByCode[code].continent === selectedContinent);
+  if(level === 2) return code === myScopeCountry();
+  return false; // level 1 doesn't browse other countries at all
+}
 function currentUserLabel(){
   if(!currentSession) return 'anonymous';
   return (currentProfile && currentProfile.username) || currentSession.user.email || currentSession.user.id;
@@ -574,6 +598,39 @@ function countryNameFromFeature(feature){
   const p = feature.properties || {};
   return p.ADMIN || p.name || p.NAME || p.admin || '';
 }
+// Rough bounding boxes for map.fitBounds() when a continent is picked.
+// [[southLat, westLng], [northLat, eastLng]] — approximate, just for framing the view.
+const CONTINENT_BOUNDS = {
+  'Europe':        [[34, -25], [72, 45]],
+  'Asia':          [[-10, 25], [55, 150]],
+  'Africa':        [[-35, -20], [38, 52]],
+  'North America': [[5, -170], [75, -50]],
+  'South America': [[-58, -82], [13, -33]],
+  'Oceania':       [[-50, 110], [10, 180]]
+};
+function continentsAvailable(){
+  const set = new Set();
+  Object.values(countriesByCode).forEach(c => { if(c.continent) set.add(c.continent); });
+  return Array.from(set).sort();
+}
+function renderContinentBar(){
+  const bar = document.getElementById('continentBar');
+  if(!isGlobalAdmin()){ bar.classList.add('hidden'); bar.innerHTML = ''; return; }
+  const continents = continentsAvailable();
+  if(!continents.length){ bar.classList.add('hidden'); bar.innerHTML = ''; return; }
+  bar.classList.remove('hidden');
+  bar.innerHTML = `<button class="continentBtn ${!selectedContinent ? 'active' : ''}" onclick="selectContinent(null)">All</button>` +
+    continents.map(c => `<button class="continentBtn ${c === selectedContinent ? 'active' : ''}" onclick="selectContinent('${escapeHtml(c)}')">${escapeHtml(c)}</button>`).join('');
+}
+function selectContinent(continent){
+  selectedContinent = continent;
+  renderContinentBar();
+  refreshMapStyles();
+  if(map){
+    if(continent && CONTINENT_BOUNDS[continent]) map.fitBounds(CONTINENT_BOUNDS[continent]);
+    else map.setView([30, 15], 2);
+  }
+}
 async function initMap(){
   map = L.map('worldMap', { worldCopyJump:true, minZoom:1 }).setView([30, 15], 2);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -607,6 +664,10 @@ async function initMap(){
             toast('Could not identify that country (missing ISO code in the map data) — ' + (name || 'unknown'), 'error');
             return;
           }
+          if(!isCountryClickable(code)){
+            toast('That country is outside your admin scope.', 'error');
+            return;
+          }
           selectCountry(code, name);
         }catch(err){
           console.error('Failed to open country panel:', err);
@@ -626,10 +687,12 @@ function styleForCountry(feature){
   if(stats.munis > 0){
     fill = stats.covered === stats.munis ? '#2ecc71' : '#e16e11';
   }
+  const outOfScope = !isCountryClickable(code);
   return {
-    className:'countryPoly',
+    className:'countryPoly' + (outOfScope ? ' dimmed' : ''),
     color:'#888', weight:0.6,
-    fillColor: fill, fillOpacity: code === selectedCountryCode ? 0.85 : 0.55
+    fillColor: outOfScope ? '#e5e5e2' : fill,
+    fillOpacity: outOfScope ? 0.15 : (code === selectedCountryCode ? 0.85 : 0.55)
   };
 }
 function refreshMapStyles(){ if(worldLayer) worldLayer.eachLayer(l => worldLayer.resetStyle(l)); }
@@ -1321,6 +1384,36 @@ async function saveResearch(category, municipalityId, mergeIntoId){
 }
 
 /* =========================================================================
+   ADMIN SCOPE — level 1 = one municipality, level 2 = one country, level 3 = global.
+   Data itself should also be restricted server-side via RLS (see the migration
+   SQL) — this function only drives what the UI shows/auto-opens; it is not a
+   substitute for the database-level policies.
+   ========================================================================= */
+function applyAdminScope(){
+  renderContinentBar();
+  const leftPane = document.getElementById('leftPane');
+  if(!currentProfile){ leftPane.classList.remove('hidden'); return; }
+  const level = myAdminLevel();
+  if(level === 1){
+    leftPane.classList.add('hidden');
+    const muniId = myScopeMunicipality();
+    if(muniId != null && municipalityCache.some(m => m.id === muniId)){
+      selectedMunicipalityId = muniId;
+      document.getElementById('rightEmpty').classList.add('hidden');
+      renderMunicipalityPanel();
+    }
+  } else if(level === 2){
+    leftPane.classList.remove('hidden');
+    const cc = myScopeCountry();
+    if(cc && countriesByCode[cc] && selectedCountryCode !== cc){
+      selectCountry(cc, countriesByCode[cc].name);
+    }
+  } else {
+    leftPane.classList.remove('hidden');
+  }
+}
+
+/* =========================================================================
    INIT
    ========================================================================= */
 async function init(){
@@ -1330,11 +1423,25 @@ async function init(){
   updateAuthUI();
   sb.auth.onAuthStateChange(async (event, session) => {
     currentSession = session;
-    if(currentSession) await loadProfile(); else { currentProfile = null; updateAuthUI(); }
+    if(currentSession) await loadProfile(); else currentProfile = null;
+    updateAuthUI();
+    // Re-fetch: RLS scopes what each admin_level can see, so the visible
+    // countries/municipalities/companies can change on sign-in/out.
+    selectedContinent = null;
+    selectedCountryCode = null;
+    selectedMunicipalityId = null;
+    await Promise.all([loadCountries(), loadMunicipalities(), loadCompanies()]);
+    document.getElementById('countryEmpty').classList.remove('hidden');
+    document.getElementById('countryPanel').classList.add('hidden');
+    document.getElementById('rightEmpty').classList.remove('hidden');
+    document.getElementById('muniPanel').classList.add('hidden');
+    refreshMapStyles();
+    applyAdminScope();
   });
 
   await Promise.all([loadCountries(), loadMunicipalities(), loadCompanies()]);
   await initMap();
+  applyAdminScope();
 }
 document.getElementById('signInBtn').addEventListener('click', () => openModal('signInModal'));
 init();
