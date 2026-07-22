@@ -2944,7 +2944,7 @@ span.flatpickr-weekday {
   <div id="heatmapBtn" class="pin-map-btn heatmap-btn" style="display:none" title="Heatmap" onclick="toggleHeatmap()">
     <img class="icon-img" src="icons/heatmap.png" alt="Heatmap">
   </div>
-  <div id="mainMapCompass" class="map-compass heading-up-disabled" style="display:none" title="Heading — tap to rotate the map with your direction of travel" onclick="toggleWalkingCompassMode()">
+  <div id="mainMapCompass" class="map-compass heading-up-disabled" style="display:none" title="Heading: tap to rotate the map with your direction of travel" onclick="toggleWalkingCompassMode()">
     <div class="compass-face">
       <div class="compass-needle" id="mainCompassNeedle">
         <svg viewBox="0 0 24 24"><path d="M12 2 L16 13 L12 11 L8 13 Z" fill="#ff4b4b"/><path d="M12 22 L16 13 L12 15 L8 13 Z" fill="#ccc"/></svg>
@@ -2994,7 +2994,7 @@ span.flatpickr-weekday {
   </button>
   <div class="driving-action-row-right">
     <button class="driving-search-btn" id="drivingSearchBtn" onclick="toggleNavigatePanel()" title="Search destination"><img class="icon-img" src="icons/search.png" alt="Search"></button>
-    <div id="mapCompass" class="map-compass" title="Heading — tap to toggle map rotation" onclick="toggleHeadingUpMode()">
+    <div id="mapCompass" class="map-compass" title="Heading: tap to toggle map rotation" onclick="toggleHeadingUpMode()">
       <div class="compass-face">
         <div class="compass-needle" id="compassNeedle">
           <svg viewBox="0 0 24 24"><path d="M12 2 L16 13 L12 11 L8 13 Z" fill="#ff4b4b"/><path d="M12 22 L16 13 L12 15 L8 13 Z" fill="#ccc"/></svg>
@@ -4075,16 +4075,16 @@ const BADGES = [
     descEn:'Create your profile and join TraceTheBreak.',            descSr:'Napravite profil i pridružite se TraceTheBreak-u.',
     check: p => !!p },
   { id:'reporter',       icon:'badge-reporter.png',       nameEn:'Reporter',       nameSr:'Reporter',
-    descEn:'Reach Level 2 — earn 3 civic points.',                    descSr:'Dostignite Nivo 2 — osvojite 3 građanska poena.',
+    descEn:'Reach Level 2: earn 3 civic points.',                     descSr:'Dostignite Nivo 2: osvojite 3 građanska poena.',
     check: p => (p && p.total_contributions || 0) >= 3 },
   { id:'inspector',      icon:'badge-inspector.png',      nameEn:'Inspector',      nameSr:'Inspektor',
-    descEn:'Reach Level 3 — earn 8 civic points.',                    descSr:'Dostignite Nivo 3 — osvojite 8 građanskih poena.',
+    descEn:'Reach Level 3: earn 8 civic points.',                     descSr:'Dostignite Nivo 3: osvojite 8 građanskih poena.',
     check: p => (p && p.total_contributions || 0) >= 8 },
   { id:'guardian',       icon:'badge-guardian.png',       nameEn:'Guardian',       nameSr:'Čuvar',
-    descEn:'Reach Level 4 — earn 15 civic points.',                   descSr:'Dostignite Nivo 4 — osvojite 15 građanskih poena.',
+    descEn:'Reach Level 4: earn 15 civic points.',                    descSr:'Dostignite Nivo 4: osvojite 15 građanskih poena.',
     check: p => (p && p.total_contributions || 0) >= 15 },
   { id:'community_hero', icon:'badge-community-hero.png', nameEn:'Community Hero', nameSr:'Heroj zajednice',
-    descEn:'Reach Level 5 — earn 25 civic points.',                   descSr:'Dostignite Nivo 5 — osvojite 25 građanskih poena.',
+    descEn:'Reach Level 5: earn 25 civic points.',                    descSr:'Dostignite Nivo 5: osvojite 25 građanskih poena.',
     check: p => (p && p.total_contributions || 0) >= 25 },
   { id:'first_fix',      icon:'badge-first-fix.png',      nameEn:'First Fix',      nameSr:'Prva popravka',
     descEn:'Have one of your reports confirmed fixed.',               descSr:'Neka vam jedna prijava bude potvrđeno rešena.',
@@ -4356,7 +4356,7 @@ function buildBadgeIconHtml(badge, earnedIn, profile, stats) {
   const ringColor = pair ? pair.fg : null;
   const titleSuffix = soon ? ` (${t('badgeComingSoon')})` : '';
   const fraction = soon ? 0 : badgeProgressFraction(badge, earned, profile, stats);
-  return `<div class="badge-tile${earned ? ' earned' : ''}${soon ? ' badge-tile-soon' : ''}" title="${escapeHtml(badgeName(badge))} — ${escapeHtml(badgeDesc(badge))}${titleSuffix}" onclick="showBadgeInfo('${badge.id}', ${earned}, ${soon}, ${fraction})">
+  return `<div class="badge-tile${earned ? ' earned' : ''}${soon ? ' badge-tile-soon' : ''}" title="${escapeHtml(badgeName(badge))}: ${escapeHtml(badgeDesc(badge))}${titleSuffix}" onclick="showBadgeInfo('${badge.id}', ${earned}, ${soon}, ${fraction})">
     <div class="badge-tile-circle-wrap">
       ${earned ? '' : badgeProgressRingSvg(fraction, ringColor)}
       <div class="badge-tile-circle" style="background:${bg};">
@@ -5542,7 +5542,7 @@ const T = {
   endSectionBtn:     { en:'Stop Recording',              sr:'Zaustavi snimanje' },
   pickSectionType:   { en:'Tap a type below to save this section', sr:'Dodirnite tip ispod da sačuvate ovu deonicu' },
   sectionStarted:    { en:'Section recording started',   sr:'Snimanje deonice je počelo' },
-  sectionTooShort:   { en:'Not enough movement recorded — section discarded.', sr:'Nema dovoljno kretanja — deonica je odbačena.' },
+  sectionTooShort:   { en:'Not enough movement recorded. Section discarded.', sr:'Nema dovoljno kretanja. Deonica je odbačena.' },
   sectionDiscarded:  { en:'Section discarded',           sr:'Deonica odbačena' },
   signInFirst:       { en:'Please sign in first',        sr:'Prijavite se prvo' },
   sessionExpiredReauth: { en:'Your session expired. Please sign in again and retry.', sr:'Sesija je istekla. Prijavite se ponovo i pokušajte opet.' },
@@ -5559,7 +5559,7 @@ const T = {
   waitGps:      { en:'Waiting for GPS...',               sr:'Čekanje GPS-a...' },
   gpsTooWeak:   { en:"Your location signal is too weak or inaccurate to submit a report from here. Move to an open area and try again.", sr:'Signal lokacije je preslab ili netačan da bi se prijava poslala odavde. Pomerite se na otvoren prostor i pokušajte ponovo.' },
   gpsIssuePillWeak: { en:'Weak GPS signal (±{acc}m)',      sr:'Slab GPS signal (±{acc}m)' },
-  gpsIssuePillJump: { en:'GPS signal unstable — waiting for a steadier fix', sr:'GPS signal nestabilan — čekam stabilniji signal' },
+  gpsIssuePillJump: { en:'GPS signal unstable, waiting for a steadier fix', sr:'GPS signal nestabilan, čekam stabilniji signal' },
   tapMapToPlacePin: { en:'Tap the map to place the pin.', sr:'Dodirnite mapu da postavite pin.' },
   wizStepLabel:       { en:'Step',                       sr:'Korak' },
   wizCategoryTitle:   { en:"What's the issue?",          sr:'O kakvom kvaru se radi?' },
@@ -5572,13 +5572,13 @@ const T = {
   wizTakePhoto:       { en:'Take photo',                  sr:'Slikaj' },
   wizChoosePhoto:     { en:'Choose photo',                sr:'Izaberi iz galerije' },
   submitted:    { en:'Report submitted.',                sr:'Prijava uspešna.' },
-  offlineQueued:      { en:'No signal — saved on your device. It\u2019ll submit automatically once you\u2019re back online.', sr:'Nema signala — sačuvano na uređaju. Biće poslato automatski čim se povežete.' },
+  offlineQueued:      { en:'No signal, saved on your device. It\u2019ll submit automatically once you\u2019re back online.', sr:'Nema signala, sačuvano na uređaju. Biće poslato automatski čim se povežete.' },
   offlineQueueBadge:  { en:'{n} report(s) waiting for signal', sr:'{n} prijava(e) čeka signal' },
   offlineQueueRetry:  { en:'Retry',                       sr:'Pokušaj ponovo' },
   offlineSynced:      { en:'\u2713 {n} queued report(s) submitted.', sr:'\u2713 {n} sačuvanih prijava poslato.' },
-  offlineStillOffline:{ en:'Still no signal — will keep trying automatically.', sr:'I dalje nema signala — pokušaćemo ponovo automatski.' },
-  offlineSyncRateLimited: { en:'Sending too many queued reports at once — the rest will send automatically in a bit.', sr:'Šalje se previše sačuvanih prijava odjednom — ostale će biti poslate automatski uskoro.' },
-  reportRateLimitedPrefix: { en:'You\'re submitting reports quickly — try again in ', sr:'Prebrzo šaljete prijave — pokušajte ponovo za ' },
+  offlineStillOffline:{ en:'Still no signal, will keep trying automatically.', sr:'I dalje nema signala, pokušaćemo ponovo automatski.' },
+  offlineSyncRateLimited: { en:'Sending too many queued reports at once, the rest will send automatically in a bit.', sr:'Šalje se previše sačuvanih prijava odjednom, ostale će biti poslate automatski uskoro.' },
+  reportRateLimitedPrefix: { en:'You\'re submitting reports quickly, try again in ', sr:'Prebrzo šaljete prijave, pokušajte ponovo za ' },
   reportRateLimitedSuffix: { en:'s.',                    sr:'s.' },
   reportRateLimitedServerFallbackSuffix: { en:'a moment.', sr:'trenutak.' },
   timeFilter:   { en:'Time Window Filter',               sr:'Filter vremenskog prozora' },
@@ -5621,7 +5621,7 @@ const T = {
   offlineAutoCacheToggleLabel: { en:'Auto-cache map around areas you view', sr:'Automatski keširaj mapu oko oblasti koje pregledate' },
   offlineAutoCacheHint:   { en:"Quietly extends your offline map outward, in the background, up to roughly a country's worth of coverage.", sr:'U pozadini tiho proširuje vašu mapu van mreže, otprilike do pokrivenosti cele zemlje.' },
   offlineMapStorageUsed:  { en:'Offline data stored: {mb} MB',      sr:'Sačuvano podataka van mreže: {mb} MB' },
-  mainCompassTitle:  { en:'Heading — tap to rotate the map with your direction of travel', sr:'Pravac — dodirnite da rotirate mapu prema pravcu kretanja' },
+  mainCompassTitle:  { en:'Heading: tap to rotate the map with your direction of travel', sr:'Pravac: dodirnite da rotirate mapu prema pravcu kretanja' },
   catPH:        { en:'Select break type…',               sr:'Izaberite vrstu kvara…' },
   prioPH:       { en:'Select priority…',                 sr:'Izaberite prioritet…' },
   gpsTitle:     { en:'GPS Not Enabled',                  sr:'GPS nije uključen' },
@@ -5637,7 +5637,7 @@ const T = {
   helpStep2:    { en:'2. Tap the report button:',        sr:'2. Pritisnite dugme za prijavu:' },
   helpStep2Body:{ en:'Tap the red report button (<img class="icon-img icon-img-inline" src="icons/reports/report_new.png" alt="report">) to start a report at your location.', sr:'Pritisnite crveno dugme za prijavu (<img class="icon-img icon-img-inline" src="icons/reports/report_new.png" alt="report">) da započnete prijavu na vašoj lokaciji.' },
   helpStep3:    { en:'3. Choose what broke:',            sr:'3. Izaberite šta se pokvarilo:' },
-  helpStep3Body:{ en:'Select the type of break — water, electricity, sewage, gas, heating, road, streetlight, waste, walkways, bike lanes, green spaces, or other.', sr:'Izaberite vrstu kvara — voda, struja, kanalizacija, gas, grejanje, put, ulična rasveta, otpad, pešačke staze, biciklističke staze, zelene površine ili ostalo.' },
+  helpStep3Body:{ en:'Select the type of break: water, electricity, sewage, gas, heating, road, streetlight, waste, walkways, bike lanes, green spaces, or other.', sr:'Izaberite vrstu kvara: voda, struja, kanalizacija, gas, grejanje, put, ulična rasveta, otpad, pešačke staze, biciklističke staze, zelene površine ili ostalo.' },
   helpStep4:    { en:'4. Submit:',                       sr:'4. Pošalji:' },
   helpStep4Body:{ en:'Add an optional note, then tap "REPORT BREAK".', sr:'Dodajte opcionu napomenu i pritisnite "PRIJAVI KVAR".' },
   popupStatus:  { en:'Status', sr:'Status' },
@@ -5669,16 +5669,16 @@ const T = {
   adminDashboardXpMax:         { en:'Highest prestige rank reached.', sr:'Dostignut najviši prestižni rang.' },
   adminDashboardXpProgress:    { en:'{n} more to reach {level}',    sr:'Još {n} do ranga {level}' },
   adminDashboardBadgesTitle:  { en:'Admin achievements',           sr:'Administratorska dostignuća' },
-  adminDashboardScopeNote1:   { en:'Full power inside this municipality. Elsewhere, your vote carries the strongest weight — unless you\u2019re physically on-site, where you can still take full control.', sr:'Puna ovlašćenja unutar ove opštine. Van nje, vaš glas ima najveću težinu — osim ako se ne nalazite fizički na licu mesta, gde i dalje imate punu kontrolu.' },
-  adminDashboardScopeNote2:   { en:'Full power inside this country. Elsewhere, your vote carries the strongest weight — unless you\u2019re physically on-site, where you can still take full control.', sr:'Puna ovlašćenja unutar ove zemlje. Van nje, vaš glas ima najveću težinu — osim ako se ne nalazite fizički na licu mesta, gde i dalje imate punu kontrolu.' },
+  adminDashboardScopeNote1:   { en:'Full power inside this municipality. Elsewhere, your vote carries the strongest weight, unless you\u2019re physically on-site, where you can still take full control.', sr:'Puna ovlašćenja unutar ove opštine. Van nje, vaš glas ima najveću težinu, osim ako se ne nalazite fizički na licu mesta, gde i dalje imate punu kontrolu.' },
+  adminDashboardScopeNote2:   { en:'Full power inside this country. Elsewhere, your vote carries the strongest weight, unless you\u2019re physically on-site, where you can still take full control.', sr:'Puna ovlašćenja unutar ove zemlje. Van nje, vaš glas ima najveću težinu, osim ako se ne nalazite fizički na licu mesta, gde i dalje imate punu kontrolu.' },
   adminDashboardScopeNote3:   { en:'Full power everywhere, all the time.', sr:'Puna ovlašćenja svuda, u svakom trenutku.' },
   profileProgressToNext:    { en:'{n} points to {level}',          sr:'Još {n} poena do nivoa: {level}' },
-  profileMaxLevel:          { en:'You\u2019ve reached the top level — your vote counts as much as it can.', sr:'Dostigli ste najviši nivo — vaš glas vredi maksimalno.' },
+  profileMaxLevel:          { en:'You\u2019ve reached the top level: your vote counts as much as it can.', sr:'Dostigli ste najviši nivo: vaš glas vredi maksimalno.' },
   profileStats:  { en:'{s} successful out of {t} civic points', sr:'{s} uspešnih od ukupno {t} poena' },
   desktopBlockedMsg: { en:'Reporting is available on mobile only, so every report can be verified on-site.', sr:'Prijavljivanje je dostupno samo na mobilnom uređaju, kako bi svaka prijava mogla da se proveri na licu mesta.' },
   mobileOnlyReport:  { en:'Reporting is available on mobile only.', sr:'Prijavljivanje je dostupno samo na mobilnom uređaju.' },
   proximityInRange:  { en:'\u2713 Close enough to report', sr:'\u2713 Dovoljno blizu za prijavu' },
-  proximityTooFar:   { en:'{d}m away — get closer to report', sr:'{d}m udaljenosti — priđite bliže da prijavite' },
+  proximityTooFar:   { en:'{d}m away, get closer to report', sr:'{d}m udaljenosti, priđite bliže da prijavite' },
   tooFarToReport:    { en:'You must be within 50m of the pin to report it ({d}m away).', sr:'Morate biti u krugu od 50m od pina da biste prijavili (udaljenost {d}m).' },
   vpnBlockedReport:  { en:'Reports can\u2019t be filed while using a VPN or proxy. Turn it off and try again.', sr:'Prijave nije moguće slati dok je uključen VPN ili proksi. Isključite ga i pokušajte ponovo.' },
   dashboardSectionTitle:     { en:'My Dashboard',        sr:'Moja tabla' },
@@ -5760,7 +5760,7 @@ const T = {
   navCalculating:    { en:'Calculating route…',                      sr:'Računanje rute…' },
   navPreview:        { en:'Route ready',                             sr:'Ruta spremna' },
   navNavigating:     { en:'Navigating',                               sr:'Navigacija u toku' },
-  navOffRoute:       { en:'Off route — recalculating shortly',        sr:'Skrenuli ste s rute — preračunavanje uskoro' },
+  navOffRoute:       { en:'Off route, recalculating shortly',        sr:'Skrenuli ste s rute, preračunavanje uskoro' },
   navRecalculating:  { en:'Recalculating route…',                     sr:'Preračunavanje rute…' },
   navigateArrived:   { en:'You have arrived',                         sr:'Stigli ste' },
   navigateTimeLabel: { en:'Remaining',                                 sr:'Preostalo' },
@@ -5813,9 +5813,9 @@ const T = {
   detailContactsError:   { en:'Could not load contacts.',                  sr:'Kontakti nisu učitani.' },
 
   contactCountsTitle:      { en:'Contact activity',                            sr:'Aktivnost kontaktiranja' },
-  contactNudgeText:        { en:'You haven\'t contacted the responsible service about this yet — use the contacts below.', sr:'Još niste kontaktirali nadležnu službu povodom ovoga — koristite kontakte ispod.' },
+  contactNudgeText:        { en:'You haven\'t contacted the responsible service about this yet. Use the contacts below.', sr:'Još niste kontaktirali nadležnu službu povodom ovoga. Koristite kontakte ispod.' },
   duplicateNoticeTitle:    { en:'{n} similar report(s) already nearby', sr:'{n} sličnih prijava već postoji u blizini' },
-  duplicateNoticeHint:     { en:'Check the map before submitting — this issue may already be logged.', sr:'Proverite mapu pre slanja — ovaj problem je možda već prijavljen.' },
+  duplicateNoticeHint:     { en:'Check the map before submitting: this issue may already be logged.', sr:'Proverite mapu pre slanja: ovaj problem je možda već prijavljen.' },
   contactCountsEmailLabel: { en:'Contacted by email',                          sr:'Kontaktirano mejlom' },
   contactCountsPhoneLabel: { en:'Contacted by phone',                          sr:'Kontaktirano telefonom' },
   contactConfirmTitle:            { en:'Quick check',                                            sr:'Kratko pitanje' },
@@ -5825,7 +5825,7 @@ const T = {
   contactConfirmQuestionPhoneNamed:{ en:'Did you contact {name} by phone about this report?',    sr:'Da li ste telefonom kontaktirali {name} povodom ove prijave?' },
   contactConfirmYesBtn:   { en:'Yes, I did',                                   sr:'Da, jesam' },
   contactConfirmNoBtn:    { en:'No',                                          sr:'Ne' },
-  contactConfirmThanks:   { en:'Thanks — recorded.',                          sr:'Hvala — zabeleženo.' },
+  contactConfirmThanks:   { en:'Thanks, recorded.',                           sr:'Hvala, zabeleženo.' },
   postReportContactPrompt: { en:'Report submitted. Would you like to notify the responsible service now?', sr:'Prijava je poslata. Da li želite odmah da obavestite nadležnu službu?' },
   postReportContactTitle:  { en:'Notify the responsible service',             sr:'Obavestite nadležnu službu' },
   postReportContactCloseBtn: { en:'Close',                                    sr:'Zatvori' },
@@ -5834,7 +5834,7 @@ const T = {
   followUpEmailPrompt:     { en:'Would you also like to send a follow-up email to {name} about this report?', sr:'Da li želite da pošaljete i email {name} povodom ove prijave?' },
   followUpEmailYesBtn:     { en:'Send email',                                 sr:'Pošalji email' },
   followUpEmailNoBtn:      { en:'No thanks',                                  sr:'Ne, hvala' },
-  followUpEmailSubject:    { en:'Follow-up: {category} report',               sr:'Dopuna: prijava — {category}' },
+  followUpEmailSubject:    { en:'Follow-up: {category} report',               sr:'Dopuna prijave: {category}' },
   followUpEmailBodyIntro:  { en:'Following up by phone regarding this report ({category}). Details and location:', sr:'Dopuna nakon telefonskog poziva povodom ove prijave ({category}). Detalji i lokacija:' },
 
   contactReminderModalTitle: { en:'Contact reminder',                         sr:'Podsetnik za kontakt' },
@@ -5877,14 +5877,14 @@ const T = {
   companyPdfFailed:        { en:'Could not create the PDF. Try again.',                sr:'PDF nije mogao biti napravljen. Pokušajte ponovo.' },
   companyPdfDownloaded:    { en:'PDF downloaded.',                                     sr:'PDF preuzet.' },
   companyPdfShared:        { en:'PDF ready to send.',                                  sr:'PDF je spreman za slanje.' },
-  companyPdfAttachReminder:{ en:'PDF downloaded — attach it to the email before sending.', sr:'PDF je preuzet — dodajte ga kao prilog pre slanja mejla.' },
+  companyPdfAttachReminder:{ en:'PDF downloaded. Attach it to the email before sending.', sr:'PDF je preuzet. Dodajte ga kao prilog pre slanja mejla.' },
   companyPdfTotalReports:  { en:'Total reports',                                       sr:'Ukupno prijava' },
   companyPdfDescription:   { en:'Description',                                         sr:'Opis' },
   companyPdfEmailSubject:  { en:'Reports overview – {name}',                           sr:'Pregled prijava – {name}' },
   companyPdfEmailIntro:    { en:'Attached is an overview of {count} reported issue(s) relevant to your service ({name}).', sr:'U prilogu se nalazi pregled od {count} prijavljenih problema koji se odnose na vašu službu ({name}).' },
   companyPdfEmailAsk:      { en:'Please review the reports below and take the appropriate action.', sr:'Molimo vas da razmotrite navedene prijave i preduzmete odgovarajuće mere.' },
   emailWrongRecipientNote: { en:"Did this email land in the wrong inbox? Please let us know by replying.", sr:'Da li je ovaj mejl slučajno stigao do vas? Molimo obavestite nas odgovorom na ovu poruku.' },
-  municipalityContactsUnverifiedNote: { en:"These contacts haven't been verified yet — please double-check before relying on them.", sr:'Ovi kontakti još nisu provereni — molimo proverite ih pre nego što ih iskoristite.' },
+  municipalityContactsUnverifiedNote: { en:"These contacts haven't been verified yet. Please double-check before relying on them.", sr:'Ovi kontakti još nisu provereni. Molimo proverite ih pre nego što ih iskoristite.' },
 
   ucSectionTitle:    { en:'Utility company contacts',            sr:'Kontakti javnih preduzeća' },
   ucSearchPH:        { en:'Search contacts (name, municipality, category)…', sr:'Pretraga kontakata (naziv, opština, kategorija)…' },
@@ -5892,22 +5892,22 @@ const T = {
   ucGeocodeBackfillBtn:      { en:'Geocode missing addresses',    sr:'Geokodiraj adrese bez koordinata' },
   contactFlagAdminNotifyMsg: { en:'{name} was flagged: the {type} contact info may be wrong.', sr:'{name} je prijavljen: {type} kontakt podatak je možda pogrešan.' },
   ucGeocodeBackfillRunning:  { en:'Geocoding {current}/{total}…', sr:'Geokodiranje {current}/{total}…' },
-  ucGeocodeBackfillDone:     { en:'Done — {found}/{total} addresses geocoded.', sr:'Gotovo — {found}/{total} adresa geokodirano.' },
+  ucGeocodeBackfillDone:     { en:'Done: {found}/{total} addresses geocoded.', sr:'Gotovo: {found}/{total} adresa geokodirano.' },
   ucGeocodeBackfillNone:     { en:'Every contact with an address already has coordinates.', sr:'Svi kontakti sa adresom već imaju koordinate.' },
   ucNoContacts:      { en:'No utility companies added yet.',     sr:'Još uvek nema unetih javnih preduzeća.' },
   ucLoadingList:     { en:'Loading contacts…',                   sr:'Učitavanje kontakata…' },
   ucMuniNoContacts:  { en:'No contacts added yet.',               sr:'Još uvek nema unetih kontakata.' },
-  ucSelectMunicipality: { en:'— Select municipality —',          sr:'— Izaberi opštinu —' },
+  ucSelectMunicipality: { en:'Select municipality\u2026',          sr:'Izaberi opštinu\u2026' },
   ucNoMunicipalitiesHint: { en:'No municipalities cached yet. Move the map to the desired area and tap "Add municipality from map center".', sr:'Još nema keširanih opština. Pomerite mapu na željeno mesto i pritisnite "Dodaj opštinu sa centra mape".' },
   ucAddMuniBtn:      { en:'Add municipality from map center',  sr:'Dodaj opštinu sa centra mape' },
   ucAddMuniLoading:  { en:'Looking up municipality…',            sr:'Tražim opštinu…' },
   ucAddMuniFail:     { en:'Could not find a municipality at the current map center.', sr:'Nije pronađena opština na trenutnom centru mape.' },
   ucFixBoundariesBtn:      { en:'Fix all municipality boundaries', sr:'Popravi sve granice opština' },
   ucFixBoundariesConfirm:  { en:'This will merge duplicate municipalities and re-fetch boundaries for {count} municipalities with missing borders. It may take a few minutes and cannot be undone. Continue?', sr:'Ovo će spojiti duplirane opštine i ponovo preuzeti granice za {count} opština kojima nedostaju granice. Može potrajati nekoliko minuta i ne može se poništiti. Nastaviti?' },
-  ucFixBoundariesNone:     { en:'No duplicate or broken municipality boundaries found — everything looks clean.', sr:'Nema dupliranih ili oštećenih granica opština — sve izgleda ispravno.' },
+  ucFixBoundariesNone:     { en:'No duplicate or broken municipality boundaries found. Everything looks clean.', sr:'Nema dupliranih ili oštećenih granica opština. Sve izgleda ispravno.' },
   ucFixBoundariesMerging:  { en:'Merging duplicates {current}/{total}…', sr:'Spajanje duplikata {current}/{total}…' },
   ucFixBoundariesRunning:  { en:'Fetching borders {current}/{total}…', sr:'Preuzimanje granica {current}/{total}…' },
-  ucFixBoundariesDone:     { en:'Done — merged {merged}, fixed {fixed}/{total} borders.', sr:'Gotovo — spojeno {merged}, popravljeno {fixed}/{total} granica.' },
+  ucFixBoundariesDone:     { en:'Done: merged {merged}, fixed {fixed}/{total} borders.', sr:'Gotovo: spojeno {merged}, popravljeno {fixed}/{total} granica.' },
   ucNamePH:          { en:'Company name',                        sr:'Naziv preduzeća' },
   ucPhonePH:         { en:'Phone',                                sr:'Telefon' },
   ucEmailPH:         { en:'Email',                                sr:'E-mail' },
@@ -5920,8 +5920,8 @@ const T = {
   ucDeleteConfirm:   { en:'Delete this contact permanently?',     sr:'Trajno obrisati ovaj kontakt?' },
   ucVerifyBtn:       { en:'Admin has checked the data',           sr:'Admin je proverio podatke' },
   ucVerifyConfirm:   { en:'Confirm that this contact\'s details are accurate? It will only become visible to reporters once confirmed.', sr:'Potvrđujete da su podaci o ovom kontaktu tačni? Postaće vidljivi prijaviocima tek nakon potvrde.' },
-  ucVerifiedStatus:  { en:'✓ Verified — visible to reporters',    sr:'✓ Provereno — vidljivo prijaviocima' },
-  ucUnverifiedStatus:{ en:'Not verified yet — hidden from reporters', sr:'Još nije provereno — skriveno od prijavilaca' },
+  ucVerifiedStatus:  { en:'✓ Verified: visible to reporters',     sr:'✓ Provereno: vidljivo prijaviocima' },
+  ucUnverifiedStatus:{ en:'Not verified yet: hidden from reporters', sr:'Još nije provereno: skriveno od prijavilaca' },
   ucVerifiedChip:    { en:'Verified',                             sr:'Provereno' },
   ucUnverifiedChip:  { en:'Unverified',                           sr:'Nije provereno' },
   ucUncategorizedChip: { en:'Uncategorized',                      sr:'Nekategorisano' },
@@ -5941,7 +5941,7 @@ const T = {
   photoViewFullSizeAfter:  { en:'View after photo full size',                  sr:'Prikaži fotografiju "posle" u punoj veličini' },
   photoLoginPrompt:       { en:'Log in to see the photo.',                    sr:'Prijavite se da biste videli fotografiju.' },
   addPhotoTooltip:        { en:'Add photo',                                   sr:'Dodaj fotografiju' },
-  photoAddedPending:      { en:'Photo added — waiting for admin review.',     sr:'Fotografija dodata — čeka proveru administratora.' },
+  photoAddedPending:      { en:'Photo added. Waiting for admin review.',      sr:'Fotografija dodata. Čeka proveru administratora.' },
   photoAddedApproved:     { en:'Photo added.',                                sr:'Fotografija dodata.' },
 
   queueFilterPH:          { en:'Filter this list…',                          sr:'Filtriraj ovu listu…' },
@@ -5951,20 +5951,20 @@ const T = {
   photoApproveBtn:        { en:'Approve',                                     sr:'Odobri' },
   photoRejectBtn:         { en:'Reject',                                      sr:'Odbij' },
   photoRejectConfirm:     { en:'Reject this photo as spam/inaccurate? The report will be flagged for follow-up.', sr:'Odbiti ovu fotografiju kao spam/netačnu? Prijava će biti označena za dalju proveru.' },
-  photoApproved:          { en:'Photo approved — now visible on the report.', sr:'Fotografija odobrena — sada je vidljiva na prijavi.' },
+  photoApproved:          { en:'Photo approved. Now visible on the report.',  sr:'Fotografija odobrena. Sada je vidljiva na prijavi.' },
   photoRejected:          { en:'Photo rejected.',                             sr:'Fotografija odbijena.' },
   photoActionFailed:      { en:'Could not save that. Try again.',            sr:'Nije sačuvano. Pokušajte ponovo.' },
   detailAfterPhotoTitle:  { en:'After (fixed)',                              sr:'Posle (popravljeno)' },
   detailBeforePhotoTitle: { en:'Before',                                     sr:'Pre' },
   afterPhotoPrompt:       { en:'Add an "after" photo to show it is fixed?',  sr:'Dodati fotografiju "posle" da pokažete da je popravljeno?' },
-  afterPhotoAddedPending: { en:'After photo added — waiting for admin review.', sr:'Fotografija "posle" dodata — čeka proveru administratora.' },
+  afterPhotoAddedPending: { en:'After photo added. Waiting for admin review.', sr:'Fotografija "posle" dodata. Čeka proveru administratora.' },
   afterPhotoLoginPrompt:  { en:'Log in to see the after photo.',             sr:'Prijavite se da biste videli fotografiju "posle".' },
   afterPhotoRejectedOwnerNote: { en:'Your after photo didn\'t pass review, so it isn\'t shown publicly.', sr:'Vaša fotografija "posle" nije prošla proveru, pa nije javno prikazana.' },
   queueTypeAfterPhoto:    { en:'After-photo pending',                        sr:'Fotografija "posle" na čekanju' },
   addAfterPhotoBtn:       { en:'Add after photo',                            sr:'Dodaj fotografiju "posle"' },
   detailGalleryTitle:     { en:'Photos from the community',                  sr:'Fotografije zajednice' },
   addGalleryPhotoBtn:     { en:'Add a photo',                                sr:'Dodaj fotografiju' },
-  galleryEmpty:           { en:'No community photos yet — be the first.',    sr:'Još nema fotografija zajednice — budite prvi.' },
+  galleryEmpty:           { en:'No community photos yet, be the first.',     sr:'Još nema fotografija zajednice, budite prvi.' },
   galleryPhotoAdded:      { en:'Photo added to the gallery.',                sr:'Fotografija je dodata u galeriju.' },
   galleryPhotoDeleteConfirm: { en:'Remove this photo from the gallery?',     sr:'Ukloniti ovu fotografiju iz galerije?' },
   galleryPhotoDeleted:    { en:'Photo removed.',                             sr:'Fotografija je uklonjena.' },
@@ -5977,13 +5977,13 @@ const T = {
   flagReportValidationError: { en:'Please describe what\'s wrong.',           sr:'Molimo opišite šta nije u redu.' },
   flagReportLoginRequired:{ en:'Sign in to flag a report.',                   sr:'Prijavite se da biste označili prijavu.' },
   flagReportOwnReport:    { en:'You can\'t flag your own report.',            sr:'Ne možete označiti sopstvenu prijavu.' },
-  flagReportSubmitted:    { en:'Flagged — an admin will review it.',          sr:'Označeno — administrator će pregledati.' },
+  flagReportSubmitted:    { en:'Flagged. An admin will review it.',           sr:'Označeno. Administrator će pregledati.' },
   flagReportAlreadyFlaggedNote: { en:'You flagged this on {date}:',           sr:'Označili ste ovo {date}:' },
   flagReportError:        { en:'Could not submit. Try again.',                sr:'Slanje nije uspelo. Pokušajte ponovo.' },
   contactFlagOtherBtn:     { en:'Report a problem with this contact',        sr:'Prijavite problem sa ovim kontaktom' },
   contactFlagOtherPH:      { en:'What\'s wrong with this contact? (wrong municipality, duplicate, closed down…)', sr:'Šta nije u redu sa ovim kontaktom? (pogrešna opština, duplikat, ugašen…)' },
   contactFlagLoginRequired:{ en:'Sign in to flag this contact.',              sr:'Prijavite se da biste označili ovaj kontakt.' },
-  contactFlagSubmitted:    { en:'Thanks — flagged this contact for review.',  sr:'Hvala — kontakt je označen za proveru.' },
+  contactFlagSubmitted:    { en:'Thanks, flagged this contact for review.',   sr:'Hvala, kontakt je označen za proveru.' },
   contactFlagAlready:      { en:'Already flagged',                            sr:'Već označeno' },
   contactFlagError:        { en:'Could not submit. Try again.',               sr:'Slanje nije uspelo. Pokušajte ponovo.' },
   ucFlagWarning:           { en:'{n} report(s) that this contact didn\'t work', sr:'{n} prijava(e) da ovaj kontakt ne radi' },
@@ -6038,8 +6038,11 @@ const T = {
   drivingSafetySectionTitle: { en:'Driving mode',                                            sr:'Režim vožnje' },
   drivingSafetyToggleLabel:  { en:'Show safe-driving reminder when starting driving mode',    sr:'Prikaži podsetnik o bezbednoj vožnji pri pokretanju režima vožnje' },
   drivingSafetyTitle:        { en:'Drive safe',                                               sr:'Vozite bezbedno' },
-  drivingSafetyBody:         { en:'You are more important than a pothole. Keep your eyes on the road — glance at reports and directions only when it is safe to do so, and let a passenger handle the phone if possible. Reporting can always wait until you have stopped.', sr:'Vi ste važniji od rupe na putu. Držite pogled na putu — na prijave i uputstva pogledajte samo kada je bezbedno, a ako je moguće, neka telefon koristi suvozač. Prijavu uvek možete uneti kasnije, kada se zaustavite.' },
+  drivingSafetyBody:         { en:'You are more important than a pothole. Keep your eyes on the road. Glance at reports and directions only when it is safe to do so, and let a passenger handle the phone if possible. Reporting can always wait until you have stopped.', sr:'Vi ste važniji od rupe na putu. Držite pogled na putu. Na prijave i uputstva pogledajte samo kada je bezbedno, a ako je moguće, neka telefon koristi suvozač. Prijavu uvek možete uneti kasnije, kada se zaustavite.' },
   drivingSafetyAckBtn:       { en:'Got it, drive safe',                                       sr:'Razumem, vozimo bezbedno' },
+  drivingSafetyBikeTitle:     { en:'Ride safe',                                               sr:'Vozite bezbedno biciklom' },
+  drivingSafetyBikeBody:      { en:'Out here you don\'t have a metal frame around you: you are far more exposed than a driver. Keep both hands on the bars and your eyes on the road, and only glance at reports or directions once you have safely stopped. Wear a helmet, ride predictably, and let a friend handle the phone if you are riding with company. Reporting can always wait until you have stopped.', sr:'Ovde nemate metalni oklop oko sebe: mnogo ste izloženiji od vozača automobila. Držite obe ruke na upravljaču i pogled na putu, a prijave i uputstva pogledajte tek kada se bezbedno zaustavite. Nosite kacigu, vozite predvidljivo, i ako vozite u društvu, neka telefon koristi saputnik. Prijavu uvek možete uneti kasnije, kada se zaustavite.' },
+  drivingSafetyBikeAckBtn:    { en:'Got it, ride safe',                                       sr:'Razumem, vozimo bezbedno' },
   drivingSafetyDontShowAgain:{ en:'Do not show this again',                                    sr:'Ne prikazuj ponovo' },
   overspeedAlertToggleLabel: { en:'Warn me when I\'m 5+ km/h over the speed limit',           sr:'Upozori me kada pređem ograničenje za 5+ km/h' },
   bumpDetectionToggleLabel:  { en:'Detect potholes/bumps automatically while driving',           sr:'Automatski otkrivaj rupe/udarce na putu tokom vožnje' },
@@ -6047,11 +6050,11 @@ const T = {
   leaderboardBtnTitle:     { en:'Rankings',                           sr:'Rang lista' },
 
   onboardingStepReportTitle:      { en:'Report a problem',                                   sr:'Prijavi problem' },
-  onboardingStepReportText:       { en:'Tap here to report something you see — a pothole, a leak, anything.', sr:'Dodirni ovde da prijaviš nešto što vidiš — rupu na putu, curenje, bilo šta.' },
+  onboardingStepReportText:       { en:'Tap here to report something you see: a pothole, a leak, anything.', sr:'Dodirni ovde da prijaviš nešto što vidiš: rupu na putu, curenje, bilo šta.' },
   onboardingStepPinTitle:         { en:'GPS looking off?',                                   sr:'GPS lokacija nije tačna?' },
   onboardingStepPinText:          { en:'Drop a pin to fine-tune the exact spot on the map if your GPS location isn\'t precise enough.', sr:'Postavi pribadaču da precizno odabereš tačno mesto na mapi ako GPS lokacija nije dovoljno tačna.' },
   onboardingStepDrivingTitle:     { en:'Driving mode',                                       sr:'Režim vožnje' },
-  onboardingStepDrivingText:      { en:'Turn this on to quickly report road issues — potholes, damaged pavement, signage — with one big tap while you drive.', sr:'Uključi ovo da brzo prijaviš probleme na putu — rupe, oštećen kolovoz, signalizaciju — jednim dodirom velikog dugmeta dok voziš.' },
+  onboardingStepDrivingText:      { en:'Turn this on to quickly report road issues (potholes, damaged pavement, signage) with one big tap while you drive.', sr:'Uključi ovo da brzo prijaviš probleme na putu (rupe, oštećen kolovoz, signalizaciju) jednim dodirom velikog dugmeta dok voziš.' },
   onboardingStepLeaderboardTitle: { en:'Your dashboard',                                     sr:'Tvoja kontrolna tabla' },
   onboardingStepLeaderboardText:  { en:'Track your own reports and stats here.',              sr:'Prati svoje prijave i statistiku ovde.' },
   onboardingNextBtn:              { en:'Next',                                               sr:'Dalje' },
@@ -6731,8 +6734,8 @@ function buildHelpModalContent() {
       <p><strong>${t('helpStep4')}</strong> ${t('helpStep4Body')}</p>
       <p><strong><img class="icon-img icon-img-inline" src="icons/target.png" alt="compass"></strong> ${lang === 'sr' ? 'Uključite praćenje da mapa uvek prati vašu lokaciju, kao navigacija.' : 'Turn on follow mode to keep the map centered on you, like a navigation app.'}</p>
       <p><strong>${lang === 'sr' ? 'Prijavljivanje na licu mesta' : 'On-site reporting'}</strong> ${lang === 'sr'
-        ? 'Prijavljivanje je dostupno samo na mobilnom uređaju, a ako ručno postavite pin na mapu, morate biti u krugu od 50 metara od njega da biste ga prijavili — mala isprekidana kružnica na mapi pokazuje koliko ste blizu.'
-        : 'Reporting is available on mobile only, and if you drop a pin manually, you need to be within 50 meters of it to submit — a small dashed ring on the map shows how close you are.'}</p>
+        ? 'Prijavljivanje je dostupno samo na mobilnom uređaju, a ako ručno postavite pin na mapu, morate biti u krugu od 50 metara od njega da biste ga prijavili. Mala isprekidana kružnica na mapi pokazuje koliko ste blizu.'
+        : 'Reporting is available on mobile only, and if you drop a pin manually, you need to be within 50 meters of it to submit. A small dashed ring on the map shows how close you are.'}</p>
 
       <div style="font-size:10px; font-weight:var(--fw-bold); letter-spacing:.4px; text-transform:uppercase; color:var(--text-muted); margin-top:4px;">
         ${lang === 'sr' ? 'Detaljni vodič' : 'Detailed guide'}
@@ -6745,16 +6748,16 @@ function buildHelpModalContent() {
           return acc('icons/car.png',
             'Driving mode',
             'Režim vožnje',
-            'Driving mode adds a row of big tap-to-report buttons along the bottom of the screen — it does not report anything on its own, you still tap a button each time. Tap one to instantly log a problem at your current location. To mark a whole stretch of bad road instead of a single point, tap "Start Section Report", drive over the bad stretch, then tap the button again to stop recording — tapping one of the same buttons then lets you pick a type and save the section. Because it is built for a single quick tap rather than filling in a form, it is faster to use while moving than the regular report screen, but you should still only tap it at a stop or let a passenger handle it.',
-            'Režim vožnje dodaje red velikih dugmadi za prijavu na dnu ekrana — on ne prijavljuje ništa sam od sebe, i dalje morate dodirnuti dugme svaki put. Dodirnite jedno da odmah prijavite problem na trenutnoj lokaciji. Da obeležite ceo loš deo puta umesto jedne tačke, pritisnite "Počni prijavu deonice", provozite se preko problematičnog dela, pa pritisnite dugme opet da zaustavite snimanje — zatim dodirnite jedno od istih dugmadi da izaberete vrstu problema i sačuvate deonicu. Pošto je napravljen za jedan brz dodir umesto popunjavanja obrasca, brži je za korišćenje u vožnji od običnog ekrana za prijavu, ali ga je najbolje koristiti samo dok stojite ili prepustiti saputniku.',
+            'Driving mode adds a row of big tap-to-report buttons along the bottom of the screen. It does not report anything on its own, you still tap a button each time. Tap one to instantly log a problem at your current location. To mark a whole stretch of bad road instead of a single point, tap "Start Section Report", drive over the bad stretch, then tap the button again to stop recording. Tapping one of the same buttons then lets you pick a type and save the section. Because it is built for a single quick tap rather than filling in a form, it is faster to use while moving than the regular report screen, but you should still only tap it at a stop or let a passenger handle it.',
+            'Režim vožnje dodaje red velikih dugmadi za prijavu na dnu ekrana. On ne prijavljuje ništa sam od sebe, i dalje morate dodirnuti dugme svaki put. Dodirnite jedno da odmah prijavite problem na trenutnoj lokaciji. Da obeležite ceo loš deo puta umesto jedne tačke, pritisnite "Počni prijavu deonice", provozite se preko problematičnog dela, pa pritisnite dugme opet da zaustavite snimanje. Zatim dodirnite jedno od istih dugmadi da izaberete vrstu problema i sačuvate deonicu. Pošto je napravljen za jedan brz dodir umesto popunjavanja obrasca, brži je za korišćenje u vožnji od običnog ekrana za prijavu, ali ga je najbolje koristiti samo dok stojite ili prepustiti saputniku.',
             drivingModeVisible
           );
         })()}
         ${acc('icons/close.png',
           'Editing & deleting your reports',
           'Izmena i brisanje vaših prijava',
-          'Open a report you filed — either by tapping its pin on the map or from Settings → My Dashboard → My Reports — and you\'ll find a Delete button on it, so you can remove a report you made by mistake. Admins with authority over the area additionally get an Edit button there to correct a report\'s details.',
-          'Otvorite prijavu koju ste vi podneli — bilo dodirom na njen pin na mapi ili preko Podešavanja → Moja tabla → Moje prijave — i naći ćete dugme Obriši, kako biste mogli da uklonite prijavu koju ste podneli greškom. Admini sa ovlašćenjem nad tom oblašću tu dodatno imaju i dugme Izmeni za ispravku podataka prijave.'
+          'Open a report you filed (either by tapping its pin on the map or from Settings → My Dashboard → My Reports) and you\'ll find a Delete button on it, so you can remove a report you made by mistake. Admins with authority over the area additionally get an Edit button there to correct a report\'s details.',
+          'Otvorite prijavu koju ste vi podneli (bilo dodirom na njen pin na mapi ili preko Podešavanja → Moja tabla → Moje prijave) i naći ćete dugme Obriši, kako biste mogli da uklonite prijavu koju ste podneli greškom. Admini sa ovlašćenjem nad tom oblašću tu dodatno imaju i dugme Izmeni za ispravku podataka prijave.'
         )}
         ${acc('icons/user.png',
           'Levels, points & badges',
@@ -6765,26 +6768,26 @@ function buildHelpModalContent() {
         ${acc('icons/suggest.png',
           'Voting on report status',
           'Glasanje o statusu prijave',
-          'Anyone can browse reports, but changing a report\'s status (for example marking it as fixed) works by community vote. As a regular user you need to be on-site — within 50 meters of the pin — to cast that vote, and your vote carries more weight the higher your level is; once enough weighted votes agree on the same status, it updates automatically. Admins are the exception: an admin voting within their own municipality or country can resolve the status instantly with a single vote, without needing to be on-site.',
-          'Svako može da pregleda prijave, ali promena statusa prijave (na primer označavanje da je otklonjena) ide glasanjem zajednice. Kao običan korisnik morate biti na licu mesta — u krugu od 50 metara od pina — da biste glasali, a vaš glas ima veću težinu što je vaš nivo viši; kada se sakupi dovoljno ponderisanih glasova koji se slažu oko istog statusa, on se automatski menja. Admini su izuzetak: admin koji glasa unutar svoje opštine ili zemlje može odmah rešiti status jednim glasom, bez potrebe da bude na licu mesta.'
+          'Anyone can browse reports, but changing a report\'s status (for example marking it as fixed) works by community vote. As a regular user you need to be on-site (within 50 meters of the pin) to cast that vote, and your vote carries more weight the higher your level is; once enough weighted votes agree on the same status, it updates automatically. Admins are the exception: an admin voting within their own municipality or country can resolve the status instantly with a single vote, without needing to be on-site.',
+          'Svako može da pregleda prijave, ali promena statusa prijave (na primer označavanje da je otklonjena) ide glasanjem zajednice. Kao običan korisnik morate biti na licu mesta (u krugu od 50 metara od pina) da biste glasali, a vaš glas ima veću težinu što je vaš nivo viši; kada se sakupi dovoljno ponderisanih glasova koji se slažu oko istog statusa, on se automatski menja. Admini su izuzetak: admin koji glasa unutar svoje opštine ili zemlje može odmah rešiti status jednim glasom, bez potrebe da bude na licu mesta.'
         )}
         ${acc('icons/phone.png',
           'Municipality contacts',
           'Kontakti opštine',
-          'The phone icon in the top bar shows verified contacts — phone numbers, emails, and utility companies — for whichever municipality you are currently in. Use it to report an issue directly to the responsible office, and log the call or email as a "contact event" so other users can see it has already been reported and when.',
-          'Ikonica telefona u gornjoj traci prikazuje proverene kontakte — telefone, email adrese i komunalna preduzeća — za opštinu u kojoj se trenutno nalazite. Koristite je da prijavite problem direktno nadležnoj službi i zabeležite poziv ili email kao "kontakt događaj" kako bi drugi korisnici videli da je već prijavljeno i kada.'
+          'The phone icon in the top bar shows verified contacts (phone numbers, emails, and utility companies) for whichever municipality you are currently in. Use it to report an issue directly to the responsible office, and log the call or email as a "contact event" so other users can see it has already been reported and when.',
+          'Ikonica telefona u gornjoj traci prikazuje proverene kontakte (telefone, email adrese i komunalna preduzeća) za opštinu u kojoj se trenutno nalazite. Koristite je da prijavite problem direktno nadležnoj službi i zabeležite poziv ili email kao "kontakt događaj" kako bi drugi korisnici videli da je već prijavljeno i kada.'
         )}
         ${acc('icons/camera.png',
           'Photos & before/after',
           'Fotografije i pre/posle',
-          'You can attach a photo when submitting a report, and add more photos to it later from the report detail view — they show up in that report\'s community gallery. Once a report is marked fixed, you can add an "after" photo, which pairs with the original to create a before/after comparison anyone can view.',
-          'Možete da priložite fotografiju prilikom slanja prijave, a kasnije dodate još fotografija iz detalja prijave — one se prikazuju u galeriji te prijave. Kada je prijava označena kao otklonjena, možete dodati fotografiju "posle", koja se uparuje sa originalnom i pravi pre/posle poređenje koje svi mogu da vide.'
+          'You can attach a photo when submitting a report, and add more photos to it later from the report detail view. They show up in that report\'s community gallery. Once a report is marked fixed, you can add an "after" photo, which pairs with the original to create a before/after comparison anyone can view.',
+          'Možete da priložite fotografiju prilikom slanja prijave, a kasnije dodate još fotografija iz detalja prijave. One se prikazuju u galeriji te prijave. Kada je prijava označena kao otklonjena, možete dodati fotografiju "posle", koja se uparuje sa originalnom i pravi pre/posle poređenje koje svi mogu da vide.'
         )}
         ${acc('icons/notification.png',
           'Notifications & leaderboard',
           'Obaveštenja i rang lista',
-          'The bell icon shows notifications about your reports — status changes, replies, and admin broadcasts for your area. The rankings icon shows the leaderboard of top contributors, so you can see how you compare and get a bit of friendly competition going.',
-          'Ikonica zvona prikazuje obaveštenja o vašim prijavama — promene statusa, odgovore i objave admina za vašu oblast. Ikonica rangiranja prikazuje rang listu najaktivnijih korisnika, tako da možete da vidite kako se upoređujete i uživate u prijateljskom nadmetanju.'
+          'The bell icon shows notifications about your reports: status changes, replies, and admin broadcasts for your area. The rankings icon shows the leaderboard of top contributors, so you can see how you compare and get a bit of friendly competition going.',
+          'Ikonica zvona prikazuje obaveštenja o vašim prijavama: promene statusa, odgovore i objave admina za vašu oblast. Ikonica rangiranja prikazuje rang listu najaktivnijih korisnika, tako da možete da vidite kako se upoređujete i uživate u prijateljskom nadmetanju.'
         )}
         ${acc('icons/settings.png',
           'Settings, theme & language',
@@ -8639,12 +8642,17 @@ function showDrivingSafetyModal() {
   const modal = document.getElementById('drivingSafetyModal');
   const inner = document.getElementById('drivingSafetyModalInner');
   if (!modal || !inner) return;
+  const isBike = travelMode === 'bike';
+  const icon  = isBike ? 'icons/bicycle.png' : 'icons/car.png';
+  const title = isBike ? t('drivingSafetyBikeTitle') : t('drivingSafetyTitle');
+  const body  = isBike ? t('drivingSafetyBikeBody')  : t('drivingSafetyBody');
+  const ackLabel = isBike ? t('drivingSafetyBikeAckBtn') : t('drivingSafetyAckBtn');
   inner.innerHTML = `
-    <div class="generic-modal-icon"><img class="icon-img icon-img-modal" src="icons/car.png" alt=""></div>
-    <h2>${t('drivingSafetyTitle')}</h2>
-    <p>${escapeHtml(t('drivingSafetyBody'))}</p>
+    <div class="generic-modal-icon"><img class="icon-img icon-img-modal" src="${icon}" alt=""></div>
+    <h2>${title}</h2>
+    <p>${escapeHtml(body)}</p>
     <div style="display:flex;flex-direction:column;gap:var(--space-8);">
-      <button type="button" style="background:var(--accent);color:white;border:none;border-radius:14px;padding:12px 20px;font-size:var(--fs-14);font-weight:var(--fw-semibold);cursor:pointer;min-height:44px;" onclick="hideDrivingSafetyModal()">${t('drivingSafetyAckBtn')}</button>
+      <button type="button" style="background:var(--accent);color:white;border:none;border-radius:14px;padding:12px 20px;font-size:var(--fs-14);font-weight:var(--fw-semibold);cursor:pointer;min-height:44px;" onclick="hideDrivingSafetyModal()">${ackLabel}</button>
       <button type="button" class="settings-btn" style="background:transparent;box-shadow:none;" onclick="dismissDrivingSafetyModalPermanently()">${t('drivingSafetyDontShowAgain')}</button>
     </div>`;
   bringModalToFront(modal);
@@ -8715,7 +8723,7 @@ function instructionForStep(step) {
   if (type === 'depart')  return null;
 
   if (type === 'roundabout' || type === 'rotary' || type === 'roundabout turn') {
-    const label = exit ? `${t('turnRoundabout')} — ${t('turnExit')} ${exit}` : t('turnRoundabout');
+    const label = exit ? `${t('turnRoundabout')}, ${t('turnExit')} ${exit}` : t('turnRoundabout');
     return { icon: 'turn-roundabout.png', text: name ? `${label} (${name})` : label };
   }
 
@@ -8734,7 +8742,7 @@ function instructionForStep(step) {
   else if (type === 'end of road')  { icon = 'turn-end-of-road.png'; text = t('turnEndOfRoad'); }
   else if (type === 'on ramp' || type === 'off ramp') { icon = 'turn-ramp.png'; text = t('turnRamp'); }
 
-  return { icon, text: name ? `${text} — ${name}` : text };
+  return { icon, text: name ? `${text}, ${name}` : text };
 }
 
 let tbtChimePlayedForStep = -1;
@@ -9648,7 +9656,7 @@ function toggleSectionRecording() {
     sectionRecording = false;
     if (sectionPoints.length < 2) {
       updateSectionButtonUI();
-      toast(t('sectionTooShort') || 'Not enough movement recorded — section discarded.', 'error');
+      toast(t('sectionTooShort') || 'Not enough movement recorded. Section discarded.', 'error');
       discardSectionDraft();
       return;
     }
@@ -15309,7 +15317,7 @@ async function buildCompanyReportsPdfBlob(company, reports) {
   doc.setFont('helvetica', 'bold'); doc.setFontSize(19);
   doc.text(pdfSafeText(company.name || '—'), margin, 36);
   doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-  doc.text(pdfSafeText(lang === 'sr' ? 'Pregled prijava — TraceTheBreak' : 'Reports overview — TraceTheBreak'), margin, 51);
+  doc.text(pdfSafeText(lang === 'sr' ? 'Pregled prijava: TraceTheBreak' : 'Reports overview: TraceTheBreak'), margin, 51);
   resetInk();
   y = headerBarH + 24;
 
