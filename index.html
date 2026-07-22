@@ -663,7 +663,7 @@ body.driving-active .bottomright-stack{ display:none !important; }
   z-index:420;
 }
 .report-fab-btn:active{ transform:translateX(-50%) scale(.9); box-shadow:0 2px 8px rgba(0,0,0,.3); }
-.report-fab-btn img{ width:26px; height:26px; filter:brightness(0) invert(1); }
+.report-fab-btn img{ width:32px; height:32px; filter:brightness(0) invert(1); }
 body.driving-active .report-fab-btn{ display:none !important; }
 
 #reportFormPanel{ display:none !important; }
@@ -708,7 +708,7 @@ body.driving-active .report-fab-btn{ display:none !important; }
   touch-action:manipulation;
 }
 .wiz-tile:active{ filter:brightness(0.92); }
-.wiz-tile img{ width:30px; height:30px; }
+.wiz-tile img{ width:38px; height:38px; }
 .wiz-tile span{
   font-size:10px;
   font-weight:var(--fw-bold);
@@ -723,7 +723,7 @@ body.driving-active .report-fab-btn{ display:none !important; }
   -webkit-box-orient:vertical;
 }
 .wiz-tile-icon{
-  width:30px; height:30px; flex:0 0 auto;
+  width:38px; height:38px; flex:0 0 auto;
   background-color:#fff;
   filter:drop-shadow(0 1px 2px rgba(0,0,0,.35));
   -webkit-mask-size:contain; mask-size:contain;
@@ -744,9 +744,9 @@ body.driving-active .report-fab-btn{ display:none !important; }
   touch-action:manipulation;
 }
 .wiz-bar:active{ background:var(--bg-surface-alt); }
-.wiz-bar img{ width:32px; height:32px; flex:0 0 auto; }
+.wiz-bar img{ width:40px; height:40px; flex:0 0 auto; }
 .wiz-bar-icon{
-  width:32px; height:32px; flex:0 0 auto;
+  width:40px; height:40px; flex:0 0 auto;
   -webkit-mask-size:contain; mask-size:contain;
   -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
   -webkit-mask-position:center; mask-position:center;
@@ -1434,7 +1434,7 @@ body.bike-mode-active .bike-quick-grid{ display:grid; }
 .quick-tile-back{ background:var(--bg-surface-alt); border:1px solid var(--border-color-strong); }
 .quick-tile-back .quick-tile-icon{ background-color:var(--text-primary); filter:none; transform:rotate(-90deg); }
 .quick-tile-icon{
-  width:30px; height:30px; display:inline-block;
+  width:38px; height:38px; display:inline-block;
   background-color:#fff;
   filter:drop-shadow(0 1px 2px rgba(0,0,0,.35));
   -webkit-mask-position:center; mask-position:center;
@@ -2488,6 +2488,7 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   font-size:var(--fs-9-5); font-weight:var(--fw-bold); text-transform:uppercase; letter-spacing:.2px;
   padding:2px 6px; border-radius:var(--radius-lg); color:white;
 }
+.uc-cat-chip-empty{ background:var(--text-muted) !important; }
 .uc-item-actions{ display:flex; gap:var(--space-6); flex-shrink:0; }
 
 .admin-action-btn, .uc-item-actions button, .photo-review-actions button{
@@ -5930,6 +5931,7 @@ const T = {
   ucUnverifiedStatus:{ en:'Not verified yet — hidden from reporters', sr:'Još nije provereno — skriveno od prijavilaca' },
   ucVerifiedChip:    { en:'Verified',                             sr:'Provereno' },
   ucUnverifiedChip:  { en:'Unverified',                           sr:'Nije provereno' },
+  ucUncategorizedChip: { en:'Uncategorized',                      sr:'Nekategorisano' },
 
   reportPhotoAddBtn:      { en:'Take photo',                                  sr:'Uslikaj' },
   reportPhotoGalleryBtn:  { en:'Choose from gallery',                         sr:'Izaberi iz galerije' },
@@ -12654,16 +12656,23 @@ async function fixAllMunicipalityBoundaries() {
 // ========================================================================================
 // COMPANY & MUNICIPALITY POPUPS/MODALS
 // ========================================================================================
+// Always render a tags row under a public-service company's name — even if the company
+// has no categories assigned yet, so the layout (and the presence of the row) stays
+// consistent across the POI popup, the detail modal, contact cards, and the admin list.
+function buildCompanyCatsHtml(c, marginBottom) {
+  const chips = (c.categories && c.categories.length)
+    ? c.categories.map(cat => `<span class="uc-cat-chip" style="background:${categoryColor(cat)};">${escapeHtml(translateCategory(cat))}</span>`).join('')
+    : `<span class="uc-cat-chip uc-cat-chip-empty">${escapeHtml(t('ucUncategorizedChip'))}</span>`;
+  return `<div class="uc-item-cats" style="margin-bottom:${marginBottom || 0}px;">${chips}</div>`;
+}
+
 function buildCompanyPopupHtml(c, lat, lon) {
 
   const navigateBtnHtml = (drivingMode && isValidLatLng(lat, lon) && c.id != null)
     ? `<button class="status-action-btn" style="background:#2a2a2a;" onclick="navigateToUtilityCompany('${escapeHtml(String(c.id))}', ${lat}, ${lon})">${t('navigatePinPopupBtn')}</button>`
     : '';
   const headerColor = (c.categories && c.categories[0]) ? categoryColor(c.categories[0]) : '#3a3a3a';
-  const catsHtml = (c.categories || []).length
-    ? `<div class="uc-item-cats" style="margin-bottom:8px;">${c.categories.map(cat =>
-        `<span class="uc-cat-chip" style="background:${categoryColor(cat)};">${escapeHtml(translateCategory(cat))}</span>`).join('')}</div>`
-    : '';
+  const catsHtml = buildCompanyCatsHtml(c, 8);
   if (c && c.id != null) utilityCompanyRegistry.set(String(c.id), c);
   const iconBtnsHtml = [
     c.phone   ? `<a class="poi-contact-icon-btn" href="tel:${escapeHtml(c.phone)}" title="${escapeHtml(c.phone)}"><img src="icons/phone.png" alt="phone"></a>` : '',
@@ -12761,10 +12770,7 @@ function showCompanyDetailModal(id) {
     headerEl.classList.add('status-colored');
   }
 
-  const catsHtml = (c.categories || []).length
-    ? `<div class="uc-item-cats" style="margin-bottom:2px;">${c.categories.map(cat =>
-        `<span class="uc-cat-chip" style="background:${categoryColor(cat)};">${escapeHtml(translateCategory(cat))}</span>`).join('')}</div>`
-    : '';
+  const catsHtml = buildCompanyCatsHtml(c, 2);
 
   const muni = c.municipality_id != null ? getMunicipalityById(c.municipality_id) : null;
   const muniSectionHtml = muni
@@ -13416,9 +13422,9 @@ function renderUcList() {
         ? escapeHtml(municipalityDisplayName(muni)) + (muni.country_code ? ' (' + escapeHtml(muni.country_code) + ')' : '')
         : t('detailUnknown');
       const itemsHtml = companies.length ? companies.map(c => {
-        const catsHtml = (c.categories || []).map(cat =>
-          '<span class="uc-cat-chip" style="background:' + categoryColor(cat) + ';">' + translateCategory(cat) + '</span>'
-        ).join('');
+        const catsHtml = (c.categories && c.categories.length)
+          ? c.categories.map(cat => '<span class="uc-cat-chip" style="background:' + categoryColor(cat) + ';">' + translateCategory(cat) + '</span>').join('')
+          : '<span class="uc-cat-chip uc-cat-chip-empty">' + t('ucUncategorizedChip') + '</span>';
         const verifiedChip = c.verified
           ? '<span class="uc-verified-chip">' + t('ucVerifiedChip') + '</span>'
           : '<span class="uc-unverified-chip">' + t('ucUnverifiedChip') + '</span>';
@@ -14233,6 +14239,7 @@ function renderContactCards(companies, reportId) {
   return companies.map(c => `
     <div class="contact-card">
       <div class="contact-card-name">${escapeHtml(c.name)}</div>
+      ${buildCompanyCatsHtml(c, 6)}
       ${renderContactRows(c, reportId)}
     </div>
   `).join('');
