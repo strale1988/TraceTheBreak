@@ -2000,6 +2000,13 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   line-height:1.4;
   word-break:break-word;
 }
+.popup-personal-note{
+  margin:2px 8px 6px 8px;
+  font-size:var(--fs-9-5);
+  color:var(--text-muted);
+  font-style:italic;
+  line-height:1.35;
+}
 .popup-timeline{
   padding:5px 8px 2px 8px;
   display:flex;
@@ -5743,6 +5750,7 @@ const T = {
   banUserNotFound:  { en:'User not found.',                          sr:'Korisnik nije pronađen.' },
   bannedAccountNotice: { en:'Your account is suspended from posting reports, flags, or votes.', sr:'Vaš nalog je suspendovan i ne može da šalje prijave, oznake ni glasove.' },
   markReported:  { en:'Mark Reported',                             sr:'Označi kao prijavljeno' },
+  personalProblemOwnerNote: { en:'This is your own report, so you can update its status directly without a community vote.', sr:'Ovo je vaša prijava, pa možete direktno da ažurirate njen status bez glasanja zajednice.' },
   navigateSearchPH:  { en:'Search destination...',                  sr:'Pretraži odredište...' },
   navigatePinPopupBtn: { en:'Navigate',                             sr:'Navigiraj' },
   navigateSearching: { en:'Searching...',                           sr:'Pretraga...' },
@@ -6768,8 +6776,8 @@ function buildHelpModalContent() {
         ${acc('icons/suggest.png',
           'Voting on report status',
           'Glasanje o statusu prijave',
-          'Anyone can browse reports, but changing a report\'s status (for example marking it as fixed) works by community vote. As a regular user you need to be on-site (within 50 meters of the pin) to cast that vote, and your vote carries more weight the higher your level is; once enough weighted votes agree on the same status, it updates automatically. Admins are the exception: an admin voting within their own municipality or country can resolve the status instantly with a single vote, without needing to be on-site.',
-          'Svako može da pregleda prijave, ali promena statusa prijave (na primer označavanje da je otklonjena) ide glasanjem zajednice. Kao običan korisnik morate biti na licu mesta (u krugu od 50 metara od pina) da biste glasali, a vaš glas ima veću težinu što je vaš nivo viši; kada se sakupi dovoljno ponderisanih glasova koji se slažu oko istog statusa, on se automatski menja. Admini su izuzetak: admin koji glasa unutar svoje opštine ili zemlje može odmah rešiti status jednim glasom, bez potrebe da bude na licu mesta.'
+          'Anyone can browse reports, but changing a report\'s status (for example marking it as fixed) works by community vote. As a regular user you need to be on-site (within 50 meters of the pin) to cast that vote, and your vote carries more weight the higher your level is; once enough weighted votes agree on the same status, it updates automatically. Admins are the exception: an admin voting within their own municipality or country can resolve the status instantly with a single vote, without needing to be on-site. Personal utility problems work differently: for most Water, Electricity, Sewage, Gas, and Heating reports, only you (the reporter) can mark it in progress or fixed, no vote needed, since nobody else can usually confirm your own service is back. A few subcategories in those same categories are really shared infrastructure, like a damaged power pole or a broken sewage manhole cover, and those still go through the normal vote.',
+          'Svako može da pregleda prijave, ali promena statusa prijave (na primer označavanje da je otklonjena) ide glasanjem zajednice. Kao običan korisnik morate biti na licu mesta (u krugu od 50 metara od pina) da biste glasali, a vaš glas ima veću težinu što je vaš nivo viši; kada se sakupi dovoljno ponderisanih glasova koji se slažu oko istog statusa, on se automatski menja. Admini su izuzetak: admin koji glasa unutar svoje opštine ili zemlje može odmah rešiti status jednim glasom, bez potrebe da bude na licu mesta. Lični komunalni problemi funkcionišu drugačije: kod većine prijava za vodu, struju, kanalizaciju, gas i grejanje, samo vi (kao prijavilac) možete da označite prijavu kao u toku ili popravljenu, bez glasanja, jer niko drugi obično ne može da potvrdi da je vaša usluga vraćena. Neke podvrste unutar tih istih kategorija su zapravo deljena infrastruktura, poput oštećenog stuba ili polomljenog šaht poklopca kanalizacije, i za njih se i dalje glasa na uobičajen način.'
         )}
         ${acc('icons/phone.png',
           'Municipality contacts',
@@ -10562,6 +10570,30 @@ const CATEGORIES_REQUIRING_COMMENT = new Set(['Suggestion']);
 // status everywhere it would otherwise show up (popups, edit form, timeline).
 const CATEGORIES_SKIPPING_IN_PROGRESS = new Set(['Parking']);
 function categorySkipsInProgress(category) { return CATEGORIES_SKIPPING_IN_PROGRESS.has(category); }
+
+// Utility-outage categories are usually a household's own problem, not something a passerby
+// can see or confirm — nobody else can tell whether your water is back on. So for these, the
+// reporter's own status update is trusted directly instead of going through the normal
+// community vote (see reportSkipsVoting / buildPopupHtml). A handful of subcategories inside
+// these categories are actually shared, visible infrastructure damage though (a snapped pole,
+// a burst main in the street, a broken manhole cover), and those still need the normal vote
+// like Road/Streetlight/Waste/etc. always do — listed per category in PUBLIC_SUBCATEGORY_OVERRIDES.
+const PERSONAL_PROBLEM_CATEGORIES = new Set(['Water', 'Electricity', 'Sewage', 'Gas', 'Heating']);
+const PUBLIC_SUBCATEGORY_OVERRIDES = {
+  Water:       new Set(['burst_leak']),
+  Electricity: new Set(['pole_damage', 'exposed_wire', 'transformer']),
+  Sewage:      new Set(['manhole', 'blockage']),
+  Gas:         new Set(['leak']),
+  Heating:     new Set([]),
+};
+// True if this report is the reporter's own personal utility problem (owner can mark it in
+// progress/fixed directly, no vote needed) rather than shared infrastructure (needs a vote).
+function reportIsPersonalProblem(report) {
+  if (!PERSONAL_PROBLEM_CATEGORIES.has(report.category)) return false;
+  const overrides = PUBLIC_SUBCATEGORY_OVERRIDES[report.category];
+  if (overrides && report.subcategory && overrides.has(report.subcategory)) return false;
+  return true;
+}
 const STATUS_COLORS = {
   'reported':    '#ff4b4b',
   'in_progress': '#f5a623',
@@ -13775,6 +13807,7 @@ function buildPopupHtml(report) {
     : translateCategory(report.category);
 
   const hasFullPower = hasFullPowerOverReport(report);
+  const isPersonalProblem = reportIsPersonalProblem(report);
   let actionsHtml = '';
   if (hasFullPower) {
 
@@ -13786,7 +13819,19 @@ function buildPopupHtml(report) {
     actionsHtml = `<div class="status-action-row">
       ${statuses.map(s => `<button class="status-action-btn" style="background:${s.bg};" onclick='updateReportStatus(${groupIdsJson},"${s.key}")'>${s.label}</button>`).join('')}
     </div>`;
-  } else if (currentSession && report.status !== 'fixed') {
+  } else if (isPersonalProblem && isOwner && report.status !== 'fixed') {
+    // Your own utility outage — nobody else can confirm your water/power/gas/heat is back,
+    // so you can just mark it yourself instead of waiting on a vote.
+    const statuses = [
+      { key: 'reported',    label: t('markReported'),   bg: STATUS_COLORS.reported },
+      { key: 'in_progress', label: t('markInProgress'), bg: STATUS_COLORS.in_progress },
+      { key: 'fixed',       label: t('markFixed'),      bg: STATUS_COLORS.fixed }
+    ].filter(s => s.key !== report.status && !(s.key === 'in_progress' && categorySkipsInProgress(report.category)));
+    actionsHtml = `<div class="status-action-row">
+      ${statuses.map(s => `<button class="status-action-btn" style="background:${s.bg};" onclick='updateReportStatus(${groupIdsJson},"${s.key}")'>${s.label}</button>`).join('')}
+    </div>
+    <div class="popup-personal-note">${t('personalProblemOwnerNote')}</div>`;
+  } else if (currentSession && report.status !== 'fixed' && !isPersonalProblem) {
     const statuses = [
       { key: 'reported',    label: t('markReported'),   bg: STATUS_COLORS.reported },
       { key: 'in_progress', label: t('markInProgress'), bg: STATUS_COLORS.in_progress },
@@ -15602,6 +15647,19 @@ function buildDetailStatusReadonlyHtml(report, reporterName) {
   const noteRowHtml = (report.comment || canAddPhotoInline)
     ? `<div class="popup-note-row" style="margin-top:10px;">${report.comment ? `<div class="popup-note">${escapeHtml(report.comment)}</div>` : '<div style="flex:1 1 auto;"></div>'}${addPhotoBtnHtml}</div>`
     : '';
+  const personalResolveHtml = (!hasFullPower && isOwner && report.status !== 'fixed' && reportIsPersonalProblem(report))
+    ? (() => {
+        const statuses = [
+          { key: 'reported',    label: t('markReported'),   bg: STATUS_COLORS.reported },
+          { key: 'in_progress', label: t('markInProgress'), bg: STATUS_COLORS.in_progress },
+          { key: 'fixed',       label: t('markFixed'),      bg: STATUS_COLORS.fixed }
+        ].filter(s => s.key !== report.status && !(s.key === 'in_progress' && categorySkipsInProgress(report.category)));
+        return `<div class="status-action-row">
+          ${statuses.map(s => `<button class="status-action-btn" style="background:${s.bg};" onclick="resolvePersonalReportFromDetail('${report.id}','${s.key}')">${s.label}</button>`).join('')}
+        </div>
+        <div class="popup-personal-note">${t('personalProblemOwnerNote')}</div>`;
+      })()
+    : '';
   return `
     <div class="detail-section-title-row">
       <div class="detail-section-title">${t('popupStatus')}</div>
@@ -15616,6 +15674,7 @@ function buildDetailStatusReadonlyHtml(report, reporterName) {
     <div class="detail-row"><span class="detail-row-label">${t('priorityLabel')}</span><span class="status-pill" style="background:${priorityColor(report.priority)};">${priorityLabelText(report.priority)}</span></div>
     <div class="detail-row"><span class="detail-row-label">${t('reportedByLabel')}</span><span class="detail-row-value">${escapeHtml(reporterName)}</span>${reporterBanControlHtml(report)}</div>
     ${(() => { const g = duplicateGroupFor(report.id); return g ? `<div class="detail-row"><span class="detail-row-label">✓</span><span class="detail-row-value">${t('confirmedByLabel').replace('{n}', g.count)}</span></div>` : ''; })()}
+    ${personalResolveHtml}
     <div class="popup-timeline" style="margin-top:8px;">
       ${buildTimelineItem(report.created_at, true, STATUS_COLORS.reported)}
       ${categorySkipsInProgress(report.category) ? '' : buildTimelineItem(report.in_progress_at, !!report.in_progress_at, STATUS_COLORS.in_progress)}
@@ -15624,6 +15683,7 @@ function buildDetailStatusReadonlyHtml(report, reporterName) {
     ${noteRowHtml}
   `;
 }
+
 
 function buildDetailEditFieldsHtml(report) {
   const cats = ['Water','Electricity','Sewage','Gas','Heating','Road','Streetlight','Waste','Walkways','BikeLanes','GreenSpaces','Parking','Suggestion','Forest','FarmersMarket','Other'];
@@ -15808,6 +15868,14 @@ async function deleteReport(reportId) {
     console.error('Delete error (full):', err);
     toast(describeAuthError(err), 'error');
   }
+}
+
+// Same as updateReportStatus, but also re-renders the report detail modal afterward — used
+// by the owner self-resolve buttons in buildDetailStatusReadonlyHtml, since that view (unlike
+// the map popup) doesn't get automatically rebuilt when the underlying report data reloads.
+async function resolvePersonalReportFromDetail(reportId, newStatus) {
+  await updateReportStatus(reportId, newStatus);
+  await showReportDetailModal(reportId);
 }
 
 async function updateReportStatus(reportIdOrIds, newStatus) {
