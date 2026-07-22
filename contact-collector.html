@@ -213,7 +213,31 @@ const WORLD_GEOJSON_URLS = [
 // by country, and even within Serbia different sources use 7 or 8, so we query both and
 // dedupe. Add more country overrides here as we cover more countries.
 const OSM_ADMIN_LEVELS_BY_COUNTRY = {
-  RS: [7, 8]   // Serbian gradovi/opštine — tagged inconsistently at level 7 or 8
+  // Confidence notes: "high" = confirmed against OSM wiki/community docs or verified
+  // directly; "medium"/"low" = best-effort from general OSM convention knowledge,
+  // NOT individually verified — check the in-app preview before importing these.
+  RS: [7, 8],   // Serbian gradovi/opštine — tagged inconsistently at level 7 or 8 (high)
+  PL: [7],      // Polish gminy — confirmed level 7, NOT 8 (high, verified via OSM wiki/forum)
+  PT: [7],      // Portuguese concelhos/municípios; freguesias sit at 8 (medium)
+  DK: [7],      // Danish kommuner (medium)
+  SE: [7],      // Swedish kommuner (medium)
+  NO: [7],      // Norwegian kommuner (medium)
+  IS: [7],      // Icelandic sveitarfélög (low)
+  LV: [7],      // Latvian novadi (low)
+  LT: [6],      // Lithuanian savivaldybės (low — verify)
+  IE: [6],      // Irish administrative counties/cities — no true "municipality" tier (medium)
+  GB: [8],      // UK unitary authorities/districts/boroughs — structure varies a lot
+                // by nation/region within the UK; treat as low confidence (medium-low)
+  MT: [6],      // Maltese local councils (low)
+  AD: [7],      // Andorran parròquies — only 7 total, top-level = lowest level here (medium)
+  SM: [6],      // Sammarinese castelli — 9 total (medium)
+  UA: [8],      // Ukrainian hromady (post-2020 reform) (low — verify)
+  // Everything below defaults to [8] via DEFAULT_OSM_ADMIN_LEVELS and is generally
+  // reliable for Western/Central/Southern Europe (DE, AT, CH, FR, BE, NL, IT, ES,
+  // CZ, SK, HU, RO, BG, HR, SI, BA, ME, MK, AL, GR, CY, EE, FI, LU) — but still
+  // worth a quick preview-check on first import per country.
+  // MC and VA have no municipal subdivisions at all (single-commune city-states) —
+  // don't run the municipality import for these two.
 };
 const DEFAULT_OSM_ADMIN_LEVELS = [8];
 // Selectable range shown in the UI so an admin can override the layer for a given
