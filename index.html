@@ -2070,26 +2070,23 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 }
 .popup-edit-form select,
 .popup-edit-form input[type="text"]{
-  background:#f7f7f7 !important;
-  color:#111 !important;
-  border:1px solid #ddd;
+  background:var(--bg-surface-alt); color:var(--text-primary);
+  border:1px solid var(--border-color-strong);
   border-radius:7px;
   padding:7px 8px;
   font-size:var(--fs-12-5);
   width:100%;
   box-sizing:border-box;
   -webkit-tap-highlight-color:transparent;
-  color-scheme:light;
 }
 .popup-edit-form select option{
-  background:#f7f7f7;
-  color:#111;
+  background:var(--bg-surface-alt);
+  color:var(--text-primary);
 }
 .popup-edit-form select:focus,
 .popup-edit-form input[type="text"]:focus{
   outline:none;
   border-color:var(--accent);
-  background:#fff !important;
 }
 
 .status-action-row{
@@ -2145,6 +2142,7 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   width:12px;
   height:12px;
   flex-shrink:0;
+  filter:var(--icon-tint-filter);
   opacity:.85;
 }
 .vote-progress-track{
@@ -2524,7 +2522,7 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   transition:transform .15s ease;
   transform:rotate(90deg);
 }
-.uc-group-chevron img{ width:100%; height:100%; display:block; }
+.uc-group-chevron img{ width:100%; height:100%; display:block; filter:var(--icon-tint-filter); }
 details[open] > summary .uc-group-chevron{ transform:rotate(180deg);  }
 .uc-muni-items{
   display:flex; flex-direction:column; gap:var(--space-8); padding:0 10px 10px;
@@ -2664,11 +2662,11 @@ details[open] > summary .uc-group-chevron{ transform:rotate(180deg);  }
 }
 .poi-contact-icon-btn{
   flex:0 0 auto; width:36px; height:36px;
-  border:1px solid #ddd; background:#f5f5f5;
+  border:1px solid var(--border-color); background:var(--bg-surface-alt);
   text-decoration:none;
 }
-.poi-contact-icon-btn img{ width:17px; height:17px; filter:brightness(0); opacity:.75; }
-.poi-contact-icon-btn:active{ background:#e8e8e8; }
+.poi-contact-icon-btn img{ width:17px; height:17px; filter:var(--icon-tint-filter); opacity:.85; }
+.poi-contact-icon-btn:active{ background:var(--border-color-strong); }
 
 #reportPhotoAddBtn, #reportPhotoGalleryBtn{
   width:var(--form-control-h);
@@ -11411,11 +11409,11 @@ function wizRenderDetails(body) {
       <label>${t('wizPhotoLabel') || 'Photo (optional)'}</label>
       <div class="wiz-photo-row">
         <div class="wiz-photo-btn" onclick="triggerReportPhotoCamera()">
-          <img src="icons/camera.png" alt="">
+          <img class="icon-tint-dark" src="icons/camera.png" alt="">
           <span>${t('wizTakePhoto') || 'Take photo'}</span>
         </div>
         <div class="wiz-photo-btn" onclick="triggerReportPhotoGallery()">
-          <img src="icons/gallery.png" alt="">
+          <img class="icon-tint-dark" src="icons/gallery.png" alt="">
           <span>${t('wizChoosePhoto') || 'Choose photo'}</span>
         </div>
       </div>
