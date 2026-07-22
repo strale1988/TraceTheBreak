@@ -1454,27 +1454,23 @@ body.bike-mode-active .bike-quick-grid{ display:grid; }
   -webkit-box-orient:vertical;
 }
 .quick-tile-back .quick-tile-label{ color:var(--text-primary); }
-.driving-section-btn{
-  width:100%;
-  padding:14px;
-  border-radius:14px;
-  font-size:var(--fs-14);
-  font-weight:var(--fw-heavy);
-  letter-spacing:.3px;
+.quick-tile-record{
   background:color-mix(in srgb, var(--driving-tile-base) 65%, #ff4b4b 35%);
   border:2px solid #ff4b4b;
-  color:white;
-  cursor:pointer;
-  transition:background .15s, border-color .15s, transform .1s;
-  -webkit-tap-highlight-color:transparent;
-  touch-action:manipulation;
 }
-.driving-section-btn:active{ transform:scale(.96); }
-.driving-section-btn.recording{
+.quick-tile-record:active{ filter:brightness(.85); transform:scale(.95); }
+.quick-tile-record.recording{
   background:#ff4b4b;
   border-color:#ff4b4b;
   animation:pulseRec 1.2s infinite;
 }
+.quick-tile-record.section-record-disabled{ opacity:.35; pointer-events:none; }
+.quick-record-shape{
+  width:20px; height:20px; border-radius:50%; background:#fff; flex:0 0 auto;
+  filter:drop-shadow(0 1px 2px rgba(0,0,0,.35));
+  transition:border-radius .15s;
+}
+.quick-tile-record.recording .quick-record-shape{ border-radius:5px; }
 .driving-nav-dest{
   display:block;
   font-size:var(--fs-14);
@@ -3032,9 +3028,6 @@ span.flatpickr-weekday {
     <span id="sectionAwaitingText">Tap a type below to save this section</span>
     <button class="section-awaiting-cancel" onclick="cancelPendingSection()" title="Discard">✕</button>
   </div>
-  <button class="driving-section-btn" id="sectionRecordBtn" onclick="toggleSectionRecording()">
-    <span id="sectionRecordBtnLabel">Start Section Report</span>
-  </button>
   <div class="car-quick-grid" id="carQuickGrid"></div>
   <div class="bike-quick-grid" id="bikeQuickGrid"></div>
 </div>
@@ -9468,17 +9461,19 @@ function shouldBlockReportSubmission() {
 
 // Car and bike mode's quick-tap categories — top-level categories a driver/cyclist is
 // realistically the one to notice and report. Car sticks to the core road/infrastructure
-// set (road issues, street lighting, sewage, waste, illegal parking, electricity); bike
-// covers the set relevant to cyclists, with bike lanes and road first since those are
-// most directly bike-relevant.
+// set (road issues, street lighting, waste, illegal parking, electricity); bike covers the
+// set relevant to cyclists, with bike lanes and road first since those are most directly
+// bike-relevant. 'SECTION_RECORD' is a sentinel, not a real category — it marks the slot
+// where the "record a bad stretch of road" tile renders instead (see
+// renderSectionRecordTile / toggleSectionRecording).
 // Rendered into #carQuickGrid / #bikeQuickGrid (see renderQuickGrid): tapping a category
 // shows that category's subcategory tiles in the same grid (with a back tile), and
 // tapping a subcategory (or a category that has none, like Parking) submits the report.
 // Electricity's subcategory list is trimmed for the quick-tap flow (see
 // QUICK_SUBCATEGORY_OVERRIDES) — only the issues a driver/cyclist can meaningfully spot
 // from the road are offered, not the full set from the report wizard.
-const CAR_QUICK_CATEGORIES = ['Road', 'Streetlight', 'Sewage', 'Waste', 'Parking', 'Electricity'];
-const BIKE_QUICK_CATEGORIES = ['BikeLanes', 'Road', 'Sewage', 'Streetlight', 'Waste', 'Parking'];
+const CAR_QUICK_CATEGORIES = ['Road', 'Streetlight', 'SECTION_RECORD', 'Waste', 'Parking', 'Electricity'];
+const BIKE_QUICK_CATEGORIES = ['BikeLanes', 'Road', 'SECTION_RECORD', 'Streetlight', 'Waste', 'Parking'];
 
 // Some categories have a fuller subcategory list in the report wizard than makes sense
 // for the quick-tap driving/biking flow, where only issues a driver/cyclist can plausibly
@@ -9522,10 +9517,26 @@ function renderQuickGrid(modeKey) {
 
 function renderQuickCategoryTiles(grid, categories, modeKey) {
   grid.innerHTML = categories.map(cat => {
+    if (cat === 'SECTION_RECORD') return renderSectionRecordTile();
     const label = translateCategory(cat);
     const icon = categoryIcon(cat);
     return `<div class="quick-tile" style="background:${categoryColor(cat)};" onclick="handleQuickCategoryTap('${modeKey}','${cat}')" title="${label}" aria-label="${label}"><div class="quick-tile-icon" style="-webkit-mask-image:url('${icon}');mask-image:url('${icon}');"></div><span class="quick-tile-label">${label}</span></div>`;
   }).join('');
+}
+
+// The "record a bad stretch of road" tile that sits in the quick-tap grid (where Sewage
+// used to be). It's not a category — tapping it starts/stops section recording via
+// toggleSectionRecording(), same as the old standalone button did. It can exist in both
+// the car and bike grids' DOM at once (only one grid is visible per mode via CSS), so it's
+// addressed by class rather than id, and updateSectionButtonUI() updates every instance.
+function renderSectionRecordTile() {
+  const label = sectionRecording ? (t('endSectionBtn') || 'Stop Recording') : (t('startSectionBtn') || 'Start Section Report');
+  const recordingClass = sectionRecording ? ' recording' : '';
+  const disabledClass = sectionAwaitingCategory ? ' section-record-disabled' : '';
+  return `<div class="quick-tile quick-tile-record section-record-tile${recordingClass}${disabledClass}" onclick="toggleSectionRecording()" title="${label}" aria-label="${label}">
+    <div class="quick-record-shape"></div>
+    <span class="quick-tile-label section-record-label">${label}</span>
+  </div>`;
 }
 
 function renderQuickSubcategoryTiles(grid, cat, modeKey) {
@@ -9725,21 +9736,23 @@ async function finalizeSectionReport(category, subcategoryKey) {
 }
 
 function updateSectionButtonUI() {
-  const btn  = document.getElementById('sectionRecordBtn');
-  const label = document.getElementById('sectionRecordBtnLabel');
   const bar  = document.getElementById('sectionAwaitingBar');
   const barText = document.getElementById('sectionAwaitingText');
 
   if (bar) bar.style.display = sectionAwaitingCategory ? 'flex' : 'none';
-  if (btn) btn.style.display = sectionAwaitingCategory ? 'none' : 'flex';
   if (barText) barText.textContent = t('pickSectionType') || 'Tap a type below to save this section';
 
-  if (btn && label) {
-    btn.classList.toggle('recording', sectionRecording);
-    label.textContent = sectionRecording
-      ? (t('endSectionBtn') || 'Stop Recording')
-      : (t('startSectionBtn') || 'Start Section Report');
-  }
+  const label = sectionRecording
+    ? (t('endSectionBtn') || 'Stop Recording')
+    : (t('startSectionBtn') || 'Start Section Report');
+  document.querySelectorAll('.section-record-tile').forEach(tile => {
+    tile.classList.toggle('recording', sectionRecording);
+    tile.classList.toggle('section-record-disabled', sectionAwaitingCategory);
+    tile.title = label;
+    tile.setAttribute('aria-label', label);
+    const labelEl = tile.querySelector('.section-record-label');
+    if (labelEl) labelEl.textContent = label;
+  });
 }
 
 function discardSectionDraft() {
