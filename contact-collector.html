@@ -536,6 +536,20 @@ function countryCoverageStats(code){
 /* =========================================================================
    WORLD MAP
    ========================================================================= */
+// The public geo-countries GeoJSON has changed its property names over time
+// (older copies use ADMIN/ISO_A2, newer copies use "name"/"ISO3166-1-Alpha-2"),
+// and mirrors can lag behind each other. Rather than hard-code one schema,
+// pull whichever keys are actually present so a future dataset change
+// doesn't silently break country clicks again.
+function countryCodeFromFeature(feature){
+  const p = feature.properties || {};
+  const code = p.ISO_A2 || p['ISO3166-1-Alpha-2'] || p.iso_a2 || p.ISO2 || p.iso2 || null;
+  return (code && code !== '-99') ? String(code).toUpperCase() : null;
+}
+function countryNameFromFeature(feature){
+  const p = feature.properties || {};
+  return p.ADMIN || p.name || p.NAME || p.admin || '';
+}
 async function initMap(){
   map = L.map('worldMap', { worldCopyJump:true, minZoom:1 }).setView([30, 15], 2);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -562,7 +576,14 @@ async function initMap(){
     onEachFeature: (feature, layer) => {
       layer.on('click', () => {
         try{
-          selectCountry(feature.properties.ISO_A2, feature.properties.ADMIN || feature.properties.name);
+          const code = countryCodeFromFeature(feature);
+          const name = countryNameFromFeature(feature);
+          if(!code){
+            console.error('Country feature has no recognizable ISO code:', feature.properties);
+            toast('Could not identify that country (missing ISO code in the map data) — ' + (name || 'unknown'), 'error');
+            return;
+          }
+          selectCountry(code, name);
         }catch(err){
           console.error('Failed to open country panel:', err);
           toast('Could not open that country: ' + err.message, 'error');
@@ -570,12 +591,12 @@ async function initMap(){
       });
       layer.on('mouseover', () => layer.setStyle({ fillOpacity: 0.75 }));
       layer.on('mouseout', () => worldLayer.resetStyle(layer));
-      layer.bindTooltip(feature.properties.ADMIN || feature.properties.name || '', { sticky:true });
+      layer.bindTooltip(countryNameFromFeature(feature) || '', { sticky:true });
     }
   }).addTo(map);
 }
 function styleForCountry(feature){
-  const code = (feature.properties.ISO_A2 || '').toUpperCase();
+  const code = countryCodeFromFeature(feature) || '';
   const stats = countryCoverageStats(code);
   let fill = '#cfcfcc';       // no municipalities on file yet
   if(stats.munis > 0){
