@@ -195,6 +195,15 @@ h3.subTitle{font-size:var(--fs-13);margin:16px 0 6px;color:var(--text-secondary)
   </div>
 </div>
 
+<div id="bulkImportModal" class="modalOverlay hidden">
+  <div class="modalBox" style="max-width:520px;">
+    <h3>Bulk import municipalities</h3>
+    <p style="font-size:12px;color:var(--text-muted)">Runs live OpenStreetMap queries from your browser, one country at a time, ~2s apart to stay within Overpass's fair-use limits.</p>
+    <div id="bulkImportLog" style="max-height:320px;overflow-y:auto;margin-top:10px;font-size:12px;font-family:monospace;border:1px solid var(--border-color);border-radius:8px;padding:8px;background:var(--bg-surface-alt);"></div>
+    <div style="text-align:right;margin-top:14px;"><button class="btn ghost" onclick="closeModal('bulkImportModal')">Close</button></div>
+  </div>
+</div>
+
 <script>
 /* =========================================================================
    CONFIG / CONSTANTS
@@ -617,10 +626,14 @@ function renderContinentBar(){
   const bar = document.getElementById('continentBar');
   if(!isGlobalAdmin()){ bar.classList.add('hidden'); bar.innerHTML = ''; return; }
   const continents = continentsAvailable();
-  if(!continents.length){ bar.classList.add('hidden'); bar.innerHTML = ''; return; }
   bar.classList.remove('hidden');
-  bar.innerHTML = `<button class="continentBtn ${!selectedContinent ? 'active' : ''}" onclick="selectContinent(null)">All</button>` +
-    continents.map(c => `<button class="continentBtn ${c === selectedContinent ? 'active' : ''}" onclick="selectContinent('${escapeHtml(c)}')">${escapeHtml(c)}</button>`).join('');
+  let html = '';
+  if(continents.length){
+    html += `<button class="continentBtn ${!selectedContinent ? 'active' : ''}" onclick="selectContinent(null)">All</button>` +
+      continents.map(c => `<button class="continentBtn ${c === selectedContinent ? 'active' : ''}" onclick="selectContinent('${escapeHtml(c)}')">${escapeHtml(c)}</button>`).join('');
+  }
+  html += `<button class="continentBtn" style="margin-left:auto;background:#fff3cd;border-color:#e0b400;color:#7a5c00;" onclick="bulkImportAllCountries()">⟳ Bulk import all countries</button>`;
+  bar.innerHTML = html;
 }
 function selectContinent(continent){
   selectedContinent = continent;
@@ -1009,6 +1022,50 @@ async function importDiscoveredMunicipalities(code){
   }catch(err){
     toast('Import failed: ' + err.message, 'error');
   }
+}
+async function bulkImportAllCountries(){
+  if(!isGlobalAdmin()){ toast('Only a global admin can run the bulk import.', 'error'); return; }
+  const codes = Object.keys(countriesByCode).sort((a, b) => (countriesByCode[a].name||a).localeCompare(countriesByCode[b].name||b));
+  if(!codes.length){ toast('No countries on file yet — run the country seed SQL first.', 'error'); return; }
+  const proceed = confirm(`This will query OpenStreetMap for each of the ${codes.length} countries on file, one at a time (~2s apart to respect Overpass's fair-use limits), and import any new municipalities found. This can take several minutes and makes live requests to overpass-api.de directly from your browser. Continue?`);
+  if(!proceed) return;
+
+  openModal('bulkImportModal');
+  const log = document.getElementById('bulkImportLog');
+  log.innerHTML = '';
+  let totalImported = 0, totalErrors = 0;
+  for(const code of codes){
+    const name = (countriesByCode[code] && countriesByCode[code].name) || code;
+    const row = document.createElement('div');
+    row.textContent = `${name} (${code}): checking…`;
+    log.appendChild(row);
+    log.scrollTop = log.scrollHeight;
+    try{
+      await checkForNewMunicipalities(code);
+      const state = discoverState[code];
+      if(state && state.error) throw new Error(state.error);
+      const n = state && state.candidates ? state.candidates.length : 0;
+      if(n > 0){
+        await importDiscoveredMunicipalities(code);
+        totalImported += n;
+        row.textContent = `${name} (${code}): imported ${n} new municipalit${n === 1 ? 'y' : 'ies'}.`;
+      } else {
+        row.textContent = `${name} (${code}): up to date, nothing new.`;
+      }
+    }catch(err){
+      totalErrors++;
+      row.textContent = `${name} (${code}): failed — ${err.message}`;
+      row.style.color = '#c0392b';
+    }
+    log.scrollTop = log.scrollHeight;
+    await new Promise(r => setTimeout(r, 2000)); // stay polite to the shared public Overpass instance
+  }
+  const summary = document.createElement('div');
+  summary.style.cssText = 'margin-top:8px;font-weight:700;';
+  summary.textContent = `Done. Imported ${totalImported} municipalities across ${codes.length} countries${totalErrors ? `, ${totalErrors} countries failed (see above — often means that country's admin_level guess needs adjusting)` : ''}.`;
+  log.appendChild(summary);
+  log.scrollTop = log.scrollHeight;
+  toast(`Bulk import finished: ${totalImported} municipalities imported.`, 'success');
 }
 async function searchMunicipality(){
   const q = document.getElementById('muniSearchInput').value.trim();
