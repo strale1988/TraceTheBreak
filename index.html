@@ -5764,6 +5764,7 @@ const T = {
   bannedAccountNotice: { en:'Your account is suspended from posting reports, flags, or votes.', sr:'Vaš nalog je suspendovan i ne može da šalje prijave, oznake ni glasove.' },
   markReported:  { en:'Mark Reported',                             sr:'Označi kao prijavljeno' },
   personalProblemOwnerNote: { en:'This is your own report, so you can update its status directly without a community vote.', sr:'Ovo je vaša prijava, pa možete direktno da ažurirate njen status bez glasanja zajednice.' },
+  ownerInProgressNote: { en:"As the reporter, you can mark this in progress yourself — this can't be undone, and marking it fixed still needs neighbors to confirm.", sr:'Kao prijavljivač, možete sami označiti da je u toku — ovo se ne može poništiti, a da bi bilo označeno kao popravljeno i dalje je potrebna potvrda komšija.' },
   navigateSearchPH:  { en:'Search destination...',                  sr:'Pretraži odredište...' },
   navigatePinPopupBtn: { en:'Navigate',                             sr:'Navigiraj' },
   navigateSearching: { en:'Searching...',                           sr:'Pretraga...' },
@@ -6111,6 +6112,12 @@ let lang = (function () {
   try { return localStorage.getItem(LANG_STORAGE_KEY) || 'sr'; } catch (e) { return 'sr'; }
 })();
 let globalActiveData = [];
+// Bumped every time globalActiveData's *content* changes (reassigned, or mutated in place via
+// push/splice/index-assignment). Lets anything derived purely from report data — currently
+// just duplicate-group clustering, see recomputeDuplicateGroups — skip recomputing itself on
+// plain pan/zoom, where the data hasn't actually changed at all.
+let activeDataVersion = 0;
+function markActiveDataChanged() { activeDataVersion++; }
 let fp = null;
 
 function setLang(l){
@@ -7364,8 +7371,18 @@ let dateRangeOnlyData = [];
 // direction/heading field is added to the report schema.
 const DUPLICATE_MERGE_RADIUS_M = 15;
 let duplicateGroupByReportId = new Map(); // reportId -> { ids, primaryId, count }
+let _duplicateGroupsComputedForVersion = -1;
 
 function recomputeDuplicateGroups() {
+  // This is O(n × groups) (each candidate scans existing groups looking for a match), which
+  // gets expensive as the loaded report count grows — recomputing it on every single moveend
+  // (see syncMarkers, called from the plain, undebounced 'moveend' handler) was the main cause
+  // of pan/zoom stutter once a view had a few thousand reports loaded, even though panning or
+  // zooming alone never changes which reports exist or where they are. Skip the recompute
+  // whenever the underlying data hasn't changed since last time.
+  if (_duplicateGroupsComputedForVersion === activeDataVersion) return;
+  _duplicateGroupsComputedForVersion = activeDataVersion;
+
   duplicateGroupByReportId = new Map();
   const candidates = globalActiveData
     .filter(r => r.status !== 'fixed' && isValidLatLng(r.latitude, r.longitude) && !isSectionReport(r))
@@ -7809,9 +7826,9 @@ function nearestPointOnSegment(p, a, b) {
   return { lat: a[0] + tt * (b[0] - a[0]), lon: a[1] + tt * (b[1] - a[1]) };
 }
 
-function distanceToPolylineMeters(point, latlngs) {
-  if (!point || !Array.isArray(latlngs) || latlngs.length < 2) return Infinity;
-  let best = Infinity;
+function nearestPointOnPolyline(point, latlngs) {
+  if (!point || !Array.isArray(latlngs) || latlngs.length < 2) return null;
+  let best = null, bestDist = Infinity;
   for (let i = 0; i < latlngs.length - 1; i++) {
     const raw1 = latlngs[i], raw2 = latlngs[i + 1];
     const a = Array.isArray(raw1) ? raw1 : [raw1.lat, raw1.lng];
@@ -7819,9 +7836,14 @@ function distanceToPolylineMeters(point, latlngs) {
     if (!isValidLatLng(a[0], a[1]) || !isValidLatLng(b[0], b[1])) continue;
     const nearest = nearestPointOnSegment(point, a, b);
     const d = distMeters(point, nearest);
-    if (d < best) best = d;
+    if (d < bestDist) { bestDist = d; best = nearest; }
   }
-  return best;
+  return best ? { lat: best.lat, lon: best.lon, dist: bestDist } : null;
+}
+
+function distanceToPolylineMeters(point, latlngs) {
+  const nearest = nearestPointOnPolyline(point, latlngs);
+  return nearest ? nearest.dist : Infinity;
 }
 
 function toast(msg, kind) {
@@ -9286,13 +9308,32 @@ function handleDeviceMotion(event) {
 // somewhere wild.
 function estimateCurrentPosition() {
   if (!userCoords) return null;
+  let pos;
   if (!lastAcceptedFix || currentHeading === null || !smoothedSpeedKmh || smoothedSpeedKmh < 0.5) {
-    return { lat: userCoords.lat, lon: userCoords.lon };
+    pos = { lat: userCoords.lat, lon: userCoords.lon };
+  } else {
+    const dtSeconds = Math.min((Date.now() - lastAcceptedFix.t) / 1000, 3);
+    const distanceM = (smoothedSpeedKmh / 3.6) * dtSeconds;
+    pos = distanceM < 0.5
+      ? { lat: userCoords.lat, lon: userCoords.lon }
+      : projectPoint(userCoords.lat, userCoords.lon, currentHeading, distanceM);
   }
-  const dtSeconds = Math.min((Date.now() - lastAcceptedFix.t) / 1000, 3);
-  const distanceM = (smoothedSpeedKmh / 3.6) * dtSeconds;
-  if (distanceM < 0.5) return { lat: userCoords.lat, lon: userCoords.lon };
-  return projectPoint(userCoords.lat, userCoords.lon, currentHeading, distanceM);
+  return snapToRouteIfClose(pos);
+}
+
+// GPS jitter alone (typically a few meters, more in urban canyons) is enough to make the raw
+// dead-reckoned dot visibly wander across lanes or off onto the sidewalk even when the car
+// hasn't actually left the road. While actively driving a real routed line (not the straight
+// "as the crow flies" fallback shown when routing failed), pull the position onto the route
+// itself whenever it's still plausibly on it. Once the driver has genuinely drifted past the
+// same threshold the reroute logic already treats as "off route" (navOnRouteRecoverThresholdM),
+// stop snapping — showing the real position lets the existing reroute machinery kick in
+// honestly instead of gluing the arrow to a route the driver has actually left.
+function snapToRouteIfClose(pos) {
+  if (!pos || !drivingMode || !navigationLine || navigationLine._isFallback) return pos;
+  const nearest = nearestPointOnPolyline(pos, navigationLine.getLatLngs());
+  if (!nearest || nearest.dist > navOnRouteRecoverThresholdM()) return pos;
+  return { lat: nearest.lat, lon: nearest.lon };
 }
 
 // ----------------------------------------------------------------------------------------
@@ -11225,7 +11266,6 @@ function wizStepsFor(cat) {
   const steps = ['category'];
   if (cat && (SUBCATEGORIES[cat] || []).length) steps.push('subcategory');
   steps.push('priority');
-  if (cat !== 'Suggestion' && !categorySkipsInProgress(cat)) steps.push('status');
   steps.push('details');
   return steps;
 }
@@ -11326,7 +11366,6 @@ function wizRender() {
   if (step === 'category') return wizRenderCategory(body);
   if (step === 'subcategory') return wizRenderSubcategory(body);
   if (step === 'priority') return wizRenderPriority(body);
-  if (step === 'status') return wizRenderStatus(body);
   if (step === 'details') return wizRenderDetails(body);
 }
 
@@ -11397,25 +11436,6 @@ function wizSelectPriority(p) {
   document.getElementById('priority').value = p;
   checkFormReady();
   wizState.priority = p;
-  wizAdvance();
-}
-
-function wizRenderStatus(body) {
-  const opts = ['reported', 'in_progress'];
-  body.innerHTML = `
-    <p class="wiz-step-label">${t('wizStepLabel') || 'Step'}</p>
-    <h3 class="wiz-step-title">${t('wizStatusTitle') || "What's the current state?"}</h3>
-    <div class="wiz-list">
-      ${opts.map(s => `
-        <div class="wiz-bar" onclick="wizSelectStatus('${s}')">
-          <div class="wiz-bar-icon" style="background-color:${statusColor(s)};-webkit-mask-image:url('icons/reports/${WIZ_STATUS_ICONS[s]}');mask-image:url('icons/reports/${WIZ_STATUS_ICONS[s]}');"></div>
-          <span>${statusLabel(s)}</span>
-        </div>`).join('')}
-    </div>`;
-}
-
-function wizSelectStatus(s) {
-  wizState.status = s;
   wizAdvance();
 }
 
@@ -13317,7 +13337,7 @@ async function resolveReportFlags(reportId) {
 function viewReportFromAdminQueue(reportId) {
   const waitingItem = waitingListCache.find(item => item.report.id === reportId);
   const cached = (waitingItem && waitingItem.report) || allReportsSearchCache.find(r => r.id === reportId);
-  if (cached && !globalActiveData.some(r => r.id === cached.id)) globalActiveData.push(cached);
+  if (cached && !globalActiveData.some(r => r.id === cached.id)) { globalActiveData.push(cached); markActiveDataChanged(); }
   showReportDetailModal(reportId);
 }
 
@@ -14004,9 +14024,9 @@ function buildPopupHtml(report) {
     </div>`;
   } else if (isPersonalProblem && isOwner && report.status !== 'fixed') {
     // Your own utility outage — nobody else can confirm your water/power/gas/heat is back,
-    // so you can just mark it yourself instead of waiting on a vote.
+    // so you can just mark it yourself instead of waiting on a vote. Forward-only: 'reported'
+    // is deliberately left out below, so once you've moved off it there's no going back.
     const statuses = [
-      { key: 'reported',    label: t('markReported'),   bg: STATUS_COLORS.reported },
       { key: 'in_progress', label: t('markInProgress'), bg: STATUS_COLORS.in_progress },
       { key: 'fixed',       label: t('markFixed'),      bg: STATUS_COLORS.fixed }
     ].filter(s => s.key !== report.status && !(s.key === 'in_progress' && categorySkipsInProgress(report.category)));
@@ -14020,8 +14040,21 @@ function buildPopupHtml(report) {
       { key: 'in_progress', label: t('markInProgress'), bg: STATUS_COLORS.in_progress },
       { key: 'fixed',       label: t('markFixed'),      bg: STATUS_COLORS.fixed }
     ].filter(s => s.key !== report.status && !(s.key === 'in_progress' && categorySkipsInProgress(report.category)));
+    // The reporter can fast-track their own still-'reported' public issue straight to
+    // in_progress, no vote needed — but only that one move, only once, and only from
+    // 'reported': it writes directly via updateReportStatus instead of going through
+    // castStatusVote. Everything else here (including anyone voting 'reported' again later
+    // to flag it as still broken, or voting it 'fixed') stays a normal community vote — the
+    // reporter can't unilaterally undo their own in_progress mark, and can't unilaterally
+    // mark shared infrastructure fixed either.
     actionsHtml = `<div class="status-action-row">
-      ${statuses.map(s => `<button class="status-action-btn" style="background:${s.bg};" onclick='castStatusVote(${groupIdsJson},"${s.key}")'>${s.label}</button>`).join('')}
+      ${statuses.map(s => {
+        const isOwnerFastTrack = isOwner && s.key === 'in_progress' && report.status === 'reported';
+        const handler = isOwnerFastTrack
+          ? `updateReportStatus(${groupIdsJson},"${s.key}")`
+          : `castStatusVote(${groupIdsJson},"${s.key}")`;
+        return `<button class="status-action-btn" style="background:${s.bg};" onclick='${handler}'>${s.label}</button>`;
+      }).join('')}
     </div>
     ${buildVoteProgressHtml(report)}`;
   }
@@ -15349,7 +15382,7 @@ async function openSharedReportFromUrl() {
   try {
     const { data, error } = await sb.from(TABLE).select('*').eq('id', reportId).single();
     if (error || !data) throw (error || new Error('Report not found'));
-    if (!globalActiveData.some(r => r.id === data.id)) globalActiveData.push(data);
+    if (!globalActiveData.some(r => r.id === data.id)) { globalActiveData.push(data); markActiveDataChanged(); }
     if (isValidLatLng(data.latitude, data.longitude)) {
       map.setView([data.latitude, data.longitude], Math.max(map.getZoom(), 16), { animate: false });
     }
@@ -15830,19 +15863,32 @@ function buildDetailStatusReadonlyHtml(report, reporterName) {
   const noteRowHtml = (report.comment || canAddPhotoInline)
     ? `<div class="popup-note-row" style="margin-top:10px;">${report.comment ? `<div class="popup-note">${escapeHtml(report.comment)}</div>` : '<div style="flex:1 1 auto;"></div>'}${addPhotoBtnHtml}</div>`
     : '';
-  const personalResolveHtml = (!hasFullPower && isOwner && report.status !== 'fixed' && reportIsPersonalProblem(report))
-    ? (() => {
-        const statuses = [
-          { key: 'reported',    label: t('markReported'),   bg: STATUS_COLORS.reported },
-          { key: 'in_progress', label: t('markInProgress'), bg: STATUS_COLORS.in_progress },
-          { key: 'fixed',       label: t('markFixed'),      bg: STATUS_COLORS.fixed }
-        ].filter(s => s.key !== report.status && !(s.key === 'in_progress' && categorySkipsInProgress(report.category)));
-        return `<div class="status-action-row">
-          ${statuses.map(s => `<button class="status-action-btn" style="background:${s.bg};" onclick="resolvePersonalReportFromDetail('${report.id}','${s.key}')">${s.label}</button>`).join('')}
-        </div>
-        <div class="popup-personal-note">${t('personalProblemOwnerNote')}</div>`;
-      })()
-    : '';
+  const personalResolveHtml = (() => {
+    if (hasFullPower || !isOwner || report.status === 'fixed') return '';
+    if (reportIsPersonalProblem(report)) {
+      // Forward-only: 'reported' is deliberately left out, so once you've moved off it
+      // there's no going back — matches the map popup's owner self-service buttons.
+      const statuses = [
+        { key: 'in_progress', label: t('markInProgress'), bg: STATUS_COLORS.in_progress },
+        { key: 'fixed',       label: t('markFixed'),      bg: STATUS_COLORS.fixed }
+      ].filter(s => s.key !== report.status && !(s.key === 'in_progress' && categorySkipsInProgress(report.category)));
+      if (!statuses.length) return '';
+      return `<div class="status-action-row">
+        ${statuses.map(s => `<button class="status-action-btn" style="background:${s.bg};" onclick="resolvePersonalReportFromDetail('${report.id}','${s.key}')">${s.label}</button>`).join('')}
+      </div>
+      <div class="popup-personal-note">${t('personalProblemOwnerNote')}</div>`;
+    }
+    // Public/shared-infrastructure report: the reporter can self-mark it in_progress — a
+    // one-way move, only while it's still 'reported'. Marking it fixed always needs the
+    // community vote (see the map popup), so there's no self-service button for that here.
+    if (report.status === 'reported' && !categorySkipsInProgress(report.category)) {
+      return `<div class="status-action-row">
+        <button class="status-action-btn" style="background:${STATUS_COLORS.in_progress};" onclick="resolvePersonalReportFromDetail('${report.id}','in_progress')">${t('markInProgress')}</button>
+      </div>
+      <div class="popup-personal-note">${t('ownerInProgressNote')}</div>`;
+    }
+    return '';
+  })();
   return `
     <div class="detail-section-title-row">
       <div class="detail-section-title">${t('popupStatus')}</div>
@@ -16433,6 +16479,7 @@ function pruneLoadedReportsIfNeeded() {
     return da - db;
   });
   globalActiveData = globalActiveData.slice(0, MAX_LOADED_REPORTS);
+  markActiveDataChanged();
 }
 
 async function loadPinsByWindow() {
@@ -16475,6 +16522,7 @@ async function loadPinsByWindow() {
     freshInWindow.forEach(r => merged.set(r.id, r));
     (alwaysOnRes.data || []).forEach(r => merged.set(r.id, r));
     globalActiveData = Array.from(merged.values());
+    markActiveDataChanged();
     pruneLoadedReportsIfNeeded();
 
     await loadVoteProgress(globalActiveData.map(r => r.id));
@@ -16517,6 +16565,7 @@ function applyRealtimeReportChange(eventType, newRow, oldRow) {
     const existed = globalActiveData.some(r => r.id === id);
     if (!existed) return;
     globalActiveData = globalActiveData.filter(r => r.id !== id);
+    markActiveDataChanged();
     const marker = markerById.get(id);
     if (marker) { removeReportLayer(marker); markerById.delete(id); }
     const pin = sectionPinById.get(id);
@@ -16540,6 +16589,7 @@ function applyRealtimeReportChange(eventType, newRow, oldRow) {
     // selected date range) — drop it like loadPinsByWindow would.
     if (idx !== -1) {
       globalActiveData.splice(idx, 1);
+      markActiveDataChanged();
       const marker = markerById.get(newRow.id);
       if (marker) { removeReportLayer(marker); markerById.delete(newRow.id); }
       const pin = sectionPinById.get(newRow.id);
@@ -16552,6 +16602,7 @@ function applyRealtimeReportChange(eventType, newRow, oldRow) {
 
   if (idx === -1) globalActiveData.push(newRow);
   else globalActiveData[idx] = newRow;
+  markActiveDataChanged();
 
   syncMarkers(true);
   updateReportCount();
