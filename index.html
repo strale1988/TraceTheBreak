@@ -11803,6 +11803,44 @@ const loadedMuniCountries = new Set();
 const MUNICIPALITY_CACHE_STORAGE_KEY = 'ttb_municipality_cache_v2';
 const MUNI_SELECT_COLS = 'id,slug,osm_type,osm_id,admin_level,name,name_en,country_code,centroid_lat,centroid_lon,boundary,bbox';
 
+// Lightweight sibling to municipalityCache below, without the boundary/bbox geometry columns.
+// The utility-contacts admin panel only ever needs id/name/country_code — for grouping,
+// domain-scope checks (isMunicipalityInAdminDomain only looks at id + country_code), and the
+// "add contact" municipality picker — never point-in-polygon lookups. Fetching full boundary
+// GeoJSON for all ~94k municipalities worldwide just to open that panel was a lot of unnecessary
+// payload; this keeps that panel fast while leaving the full loader (below) untouched for the
+// admin tooling that genuinely needs geometry (boundary repair, "add municipality from map
+// center", map rendering).
+const MUNI_LITE_SELECT_COLS = 'id,slug,name,name_en,country_code';
+let municipalityLiteCache = [];
+let municipalityLiteCacheLoadPromise = null;
+async function loadMunicipalityLiteCache(forceRefresh) {
+  if (municipalityLiteCacheLoadPromise && !forceRefresh) return municipalityLiteCacheLoadPromise;
+  municipalityLiteCacheLoadPromise = (async () => {
+    const PAGE_SIZE = 1000;
+    let allRows = [];
+    let from = 0;
+    try {
+      while (true) {
+        const { data, error } = await sb.from(MUNICIPALITIES_TABLE).select(MUNI_LITE_SELECT_COLS)
+          .range(from, from + PAGE_SIZE - 1);
+        if (error) throw error;
+        allRows = allRows.concat(data || []);
+        if (!data || data.length < PAGE_SIZE) break;
+        from += PAGE_SIZE;
+      }
+      municipalityLiteCache = allRows;
+    } catch (err) {
+      console.error('Failed to load lightweight municipality cache:', err.message);
+    }
+  })();
+  return municipalityLiteCacheLoadPromise;
+}
+function getMunicipalityByIdLite(id) {
+  if (id == null) return null;
+  return municipalityLiteCache.find(m => String(m.id) === String(id)) || null;
+}
+
 // ========================================================================================
 // MUNICIPALITY RESOLUTION — boundary cache, geocoding, auto-registration
 // ========================================================================================
@@ -12539,7 +12577,7 @@ async function backfillUcCoordinates() {
   for (let i = 0; i < candidates.length; i++) {
     const c = candidates[i];
     if (btn) btn.textContent = t('ucGeocodeBackfillRunning').replace('{current}', String(i + 1)).replace('{total}', String(candidates.length));
-    const muni = getMunicipalityById(c.municipality_id);
+    const muni = getMunicipalityByIdLite(c.municipality_id);
     const pos = await geocodeAddress(c.address, muni ? municipalityDisplayName(muni) : '', muni ? muni.country_code : null);
     if (pos && isValidLatLng(pos.lat, pos.lon)) {
       try {
@@ -12942,7 +12980,7 @@ function municipalityDisplayName(m) {
 function canManageContactsForMunicipality(municipalityId) {
   if (!currentProfile || !currentProfile.is_admin) return false;
   if (currentAdminLevel() >= 3) return true;
-  const muni = municipalityId != null ? getMunicipalityById(municipalityId) : null;
+  const muni = municipalityId != null ? getMunicipalityByIdLite(municipalityId) : null;
   return isMunicipalityInAdminDomain(muni);
 }
 
@@ -12959,7 +12997,7 @@ async function loadUtilityCompaniesAdmin() {
   const listEl = document.getElementById('ucList');
   if (listEl) listEl.innerHTML = '<div class="detail-loading">' + t('ucLoadingList') + '</div>';
 
-  await Promise.all([loadMunicipalityCache(true), loadCountryContinentCache()]);
+  await Promise.all([loadMunicipalityLiteCache(true), loadCountryContinentCache()]);
   populateUcMunicipalitySelect();
   populateUcCatChecks();
   applyUcFormTranslations();
@@ -13379,8 +13417,8 @@ function populateUcMunicipalitySelect() {
   const prevValue = sel.value;
 
   const selectable = currentAdminLevel() >= 3
-    ? municipalityCache
-    : municipalityCache.filter(m => isMunicipalityInAdminDomain(m));
+    ? municipalityLiteCache
+    : municipalityLiteCache.filter(m => isMunicipalityInAdminDomain(m));
   const sorted = [...selectable].sort((a, b) =>
     municipalityDisplayName(a).localeCompare(municipalityDisplayName(b)));
   const placeholder = '<option value="" disabled>' + t('ucSelectMunicipality') + '</option>';
@@ -13475,12 +13513,12 @@ function renderUcList() {
 
   // Full domain-scoped municipality tree — level 3 (global) sees every municipality, level 2
   // (country) sees their own country's municipalities, level 1 (municipality) sees just their
-  // one municipality. Built from municipalityCache itself, not from ucCompaniesCache, so a
+  // one municipality. Built from municipalityLiteCache itself, not from ucCompaniesCache, so a
   // country or municipality with zero contacts saved yet still shows up as a browsable, empty
   // entry rather than disappearing until someone adds its first contact.
   const inDomainMunis = currentAdminLevel() >= 3
-    ? municipalityCache
-    : municipalityCache.filter(m => isMunicipalityInAdminDomain(m));
+    ? municipalityLiteCache
+    : municipalityLiteCache.filter(m => isMunicipalityInAdminDomain(m));
 
   if (!inDomainMunis.length) {
     listEl.innerHTML = '<div class="detail-empty">' + t('ucNoContacts') + '</div>';
@@ -13751,7 +13789,7 @@ async function persistUcRow(verified) {
   row.verified_at = verified ? new Date().toISOString() : null;
   row.verified_by = verified ? (currentSession ? currentSession.user.id : null) : null;
 
-  const muni = getMunicipalityById(row.municipality_id);
+  const muni = getMunicipalityByIdLite(row.municipality_id);
   if (row.phone) row.phone = formatPhoneNumberForSave(row.phone, muni ? muni.country_code : null);
 
   const existing = ucEditingId ? ucCompaniesCache.find(c => String(c.id) === String(ucEditingId)) : null;
