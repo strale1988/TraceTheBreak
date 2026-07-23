@@ -2495,11 +2495,25 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 .admin-action-btn, .uc-item-actions button, .photo-review-actions button{
   border:none; border-radius:var(--radius-sm); padding:7px 10px; font-size:var(--fs-12); font-weight:var(--fw-semibold); cursor:pointer;
 }
+.uc-continent-list{ display:flex; flex-direction:column; gap:var(--space-8); }
+.uc-continent-group{
+  border:1px solid var(--border-color); border-radius:var(--radius-lg); overflow:hidden;
+  background:var(--bg-surface-alt);
+}
+.uc-continent-group > summary{
+  list-style:none; cursor:pointer; padding:11px 12px;
+  display:flex; align-items:center; gap:var(--space-8);
+  font-weight:var(--fw-bold); font-size:var(--fs-14);
+  text-transform:uppercase; letter-spacing:.02em;
+}
+.uc-continent-group > summary::-webkit-details-marker{ display:none; }
+.uc-continent-group > .uc-group-list{ padding:0 8px 8px; }
 .uc-group-list{ display:flex; flex-direction:column; gap:var(--space-8); }
 .uc-country-group{
   border:1px solid var(--border-color); border-radius:var(--radius-lg); overflow:hidden;
   background:var(--bg-surface);
 }
+.uc-muni-count-label{ font-weight:var(--fw-regular); font-size:var(--fs-11); color:var(--text-muted); }
 .uc-country-group > summary{
   list-style:none; cursor:pointer; padding:10px 12px;
   display:flex; align-items:center; gap:var(--space-8);
@@ -3731,6 +3745,7 @@ const BUMPS_TABLE = 'bumps'; // separate, minimal, anonymous table — see BUMP 
 const PROFILES_TABLE = 'profiles';
 const MUNICIPALITIES_TABLE = 'municipalities';
 const UTILITY_COMPANIES_TABLE = 'utility_companies';
+const COUNTRIES_TABLE = 'countries';
 const REPORT_CONTACT_EVENTS_TABLE = 'report_contact_events';
 const MUNICIPALITY_STATS_TABLE = 'municipality_report_stats';
 
@@ -5901,6 +5916,15 @@ const T = {
   ucGeocodeBackfillDone:     { en:'Done: {found}/{total} addresses geocoded.', sr:'Gotovo: {found}/{total} adresa geokodirano.' },
   ucGeocodeBackfillNone:     { en:'Every contact with an address already has coordinates.', sr:'Svi kontakti sa adresom već imaju koordinate.' },
   ucNoContacts:      { en:'No utility companies added yet.',     sr:'Još uvek nema unetih javnih preduzeća.' },
+  ucMuniCountLabel:  { en:'{n} municipalities',                  sr:'{n} opština' },
+  continentEurope:        { en:'Europe',        sr:'Evropa' },
+  continentAsia:           { en:'Asia',          sr:'Azija' },
+  continentAfrica:         { en:'Africa',        sr:'Afrika' },
+  continentNorthAmerica:   { en:'North America', sr:'Severna Amerika' },
+  continentSouthAmerica:   { en:'South America', sr:'Južna Amerika' },
+  continentOceania:        { en:'Oceania',       sr:'Okeanija' },
+  continentAntarctica:     { en:'Antarctica',    sr:'Antarktik' },
+  continentUnknown:        { en:'Other',         sr:'Ostalo' },
   ucLoadingList:     { en:'Loading contacts…',                   sr:'Učitavanje kontakata…' },
   ucMuniNoContacts:  { en:'No contacts added yet.',               sr:'Još uvek nema unetih kontakata.' },
   ucSelectMunicipality: { en:'Select municipality\u2026',          sr:'Izaberi opštinu\u2026' },
@@ -11826,9 +11850,25 @@ async function loadMunicipalityCache(forceRefresh) {
       }
     }
     try {
-      const { data, error } = await sb.from(MUNICIPALITIES_TABLE).select(MUNI_SELECT_COLS);
-      if (error) throw error;
-      municipalityCache = data || [];
+      // A plain unbounded .select() only ever returns PostgREST's default page (1000 rows).
+      // With 90k+ municipalities worldwide (bulk import + auto-registration), that page was
+      // silently truncating the cache to whatever happened to sort first — which meant entire
+      // countries (Serbia included) never made it into municipalityCache at all, and every
+      // admin-domain check against them (utility contacts, report scoping, etc.) quietly
+      // failed as if those municipalities didn't exist. Page through with .range() until a
+      // page comes back short, so the cache always has everything.
+      const PAGE_SIZE = 1000;
+      let allRows = [];
+      let from = 0;
+      while (true) {
+        const { data, error } = await sb.from(MUNICIPALITIES_TABLE).select(MUNI_SELECT_COLS)
+          .range(from, from + PAGE_SIZE - 1);
+        if (error) throw error;
+        allRows = allRows.concat(data || []);
+        if (!data || data.length < PAGE_SIZE) break;
+        from += PAGE_SIZE;
+      }
+      municipalityCache = allRows;
       loadedMuniIds.clear();
       municipalityCache.forEach(m => {
         loadedMuniIds.add(m.id);
@@ -12919,7 +12959,7 @@ async function loadUtilityCompaniesAdmin() {
   const listEl = document.getElementById('ucList');
   if (listEl) listEl.innerHTML = '<div class="detail-loading">' + t('ucLoadingList') + '</div>';
 
-  await loadMunicipalityCache(true);
+  await Promise.all([loadMunicipalityCache(true), loadCountryContinentCache()]);
   populateUcMunicipalitySelect();
   populateUcCatChecks();
   applyUcFormTranslations();
@@ -13365,6 +13405,41 @@ function populateUcCatChecks() {
   ).join('');
 }
 
+// countryCode -> continent name (from the `countries` table's `continent` column). Loaded once
+// per session; used to group the utility-contacts admin panel by continent, above the existing
+// per-country grouping.
+let countryContinentCache = new Map();
+let countryContinentCacheLoaded = false;
+async function loadCountryContinentCache() {
+  if (countryContinentCacheLoaded) return;
+  try {
+    const { data, error } = await sb.from(COUNTRIES_TABLE).select('code,continent');
+    if (error) throw error;
+    countryContinentCache = new Map((data || []).map(r => [String(r.code || '').toUpperCase(), r.continent || '']));
+    countryContinentCacheLoaded = true;
+  } catch (err) {
+    console.error('Failed to load country/continent list:', err.message);
+  }
+}
+const CONTINENT_LABEL_KEYS = {
+  'Europe': 'continentEurope',
+  'Asia': 'continentAsia',
+  'Africa': 'continentAfrica',
+  'North America': 'continentNorthAmerica',
+  'South America': 'continentSouthAmerica',
+  'Oceania': 'continentOceania',
+  'Antarctica': 'continentAntarctica',
+};
+function continentOfCountry(countryCode) {
+  const raw = countryCode ? countryContinentCache.get(String(countryCode).toUpperCase()) : '';
+  return raw || '';
+}
+function continentDisplayName(continent) {
+  if (!continent) return t('continentUnknown');
+  const key = CONTINENT_LABEL_KEYS[continent];
+  return key ? t(key) : continent;
+}
+
 let _countryNameDisplay = null;
 function countryDisplayName(code) {
   if (!code) return t('detailUnknown');
@@ -13461,7 +13536,22 @@ function renderUcList() {
   const sortedCountryCodes = Array.from(visibleCountryGroups.keys()).sort((a, b) =>
     countryDisplayName(a).localeCompare(countryDisplayName(b)));
 
-  listEl.innerHTML = '<div class="uc-group-list">' + sortedCountryCodes.map(countryCode => {
+  // Group countries under their continent (from the `countries` table's continent column).
+  // Countries with no continent on record (or no country code at all) fall into their own
+  // "Other" bucket at the end, rather than disappearing.
+  const continentGroups = new Map(); // continent -> [countryCode, ...]
+  sortedCountryCodes.forEach(countryCode => {
+    const continent = continentOfCountry(countryCode);
+    if (!continentGroups.has(continent)) continentGroups.set(continent, []);
+    continentGroups.get(continent).push(countryCode);
+  });
+  const sortedContinents = Array.from(continentGroups.keys()).sort((a, b) => {
+    if (!a && b) return 1;
+    if (a && !b) return -1;
+    return continentDisplayName(a).localeCompare(continentDisplayName(b));
+  });
+
+  const countryGroupHtml = (countryCode) => {
     const muniGroups = visibleCountryGroups.get(countryCode);
     const countryTotal = Array.from(muniGroups.values()).reduce((n, g) => n + g.companies.length, 0);
     const sortedMuniKeys = Array.from(muniGroups.keys()).sort((a, b) =>
@@ -13504,11 +13594,24 @@ function renderUcList() {
       '</details>';
     }).join('');
 
+    const muniCountLabel = t('ucMuniCountLabel').replace('{n}', String(muniGroups.size));
     return '<details class="uc-country-group" id="uc-country-group-' + (countryCode || 'unknown') + '">' +
       '<summary><span class="uc-group-chevron"><img src="icons/arrow.png" alt=""></span> ' + escapeHtml(countryDisplayName(countryCode)) +
         (countryCode ? ' (' + escapeHtml(countryCode) + ')' : '') +
+        ' <span class="uc-muni-count-label">' + escapeHtml(muniCountLabel) + '</span>' +
         ' <span class="uc-country-count">(' + countryTotal + ')</span></summary>' +
       muniHtml +
+    '</details>';
+  };
+
+  listEl.innerHTML = '<div class="uc-continent-list">' + sortedContinents.map(continent => {
+    const codes = continentGroups.get(continent);
+    const continentTotal = codes.reduce((n, code) =>
+      n + Array.from(visibleCountryGroups.get(code).values()).reduce((m, g) => m + g.companies.length, 0), 0);
+    return '<details class="uc-continent-group" id="uc-continent-group-' + (continent ? continent.replace(/\s+/g, '-') : 'other') + '">' +
+      '<summary><span class="uc-group-chevron"><img src="icons/arrow.png" alt=""></span> ' + escapeHtml(continentDisplayName(continent)) +
+        ' <span class="uc-country-count">(' + continentTotal + ')</span></summary>' +
+      '<div class="uc-group-list">' + codes.map(countryGroupHtml).join('') + '</div>' +
     '</details>';
   }).join('') + '</div>';
 
