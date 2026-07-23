@@ -11803,44 +11803,6 @@ const loadedMuniCountries = new Set();
 const MUNICIPALITY_CACHE_STORAGE_KEY = 'ttb_municipality_cache_v2';
 const MUNI_SELECT_COLS = 'id,slug,osm_type,osm_id,admin_level,name,name_en,country_code,centroid_lat,centroid_lon,boundary,bbox';
 
-// Lightweight sibling to municipalityCache below, without the boundary/bbox geometry columns.
-// The utility-contacts admin panel only ever needs id/name/country_code — for grouping,
-// domain-scope checks (isMunicipalityInAdminDomain only looks at id + country_code), and the
-// "add contact" municipality picker — never point-in-polygon lookups. Fetching full boundary
-// GeoJSON for all ~94k municipalities worldwide just to open that panel was a lot of unnecessary
-// payload; this keeps that panel fast while leaving the full loader (below) untouched for the
-// admin tooling that genuinely needs geometry (boundary repair, "add municipality from map
-// center", map rendering).
-const MUNI_LITE_SELECT_COLS = 'id,slug,name,name_en,country_code';
-let municipalityLiteCache = [];
-let municipalityLiteCacheLoadPromise = null;
-async function loadMunicipalityLiteCache(forceRefresh) {
-  if (municipalityLiteCacheLoadPromise && !forceRefresh) return municipalityLiteCacheLoadPromise;
-  municipalityLiteCacheLoadPromise = (async () => {
-    const PAGE_SIZE = 1000;
-    let allRows = [];
-    let from = 0;
-    try {
-      while (true) {
-        const { data, error } = await sb.from(MUNICIPALITIES_TABLE).select(MUNI_LITE_SELECT_COLS)
-          .range(from, from + PAGE_SIZE - 1);
-        if (error) throw error;
-        allRows = allRows.concat(data || []);
-        if (!data || data.length < PAGE_SIZE) break;
-        from += PAGE_SIZE;
-      }
-      municipalityLiteCache = allRows;
-    } catch (err) {
-      console.error('Failed to load lightweight municipality cache:', err.message);
-    }
-  })();
-  return municipalityLiteCacheLoadPromise;
-}
-function getMunicipalityByIdLite(id) {
-  if (id == null) return null;
-  return municipalityLiteCache.find(m => String(m.id) === String(id)) || null;
-}
-
 // ========================================================================================
 // MUNICIPALITY RESOLUTION — boundary cache, geocoding, auto-registration
 // ========================================================================================
@@ -12284,6 +12246,15 @@ function findMunicipalityByNameMatch(candidateNames, countryCode) {
 
 const _autoRegisterInFlight = new Map();
 
+// A municipality id coming back as e.g. "session:opstina beocin|RS" (see the duplicate-key
+// fallback below) is a session-only placeholder, never a real DB row — every `municipality_id`
+// column downstream (municipalities.id itself, reports.municipality_id, utility_companies
+// queries, stats queries) is a bigint, so sending a placeholder string into any of those
+// silently 400s. Callers that are about to use an id in a query/write must check this first.
+function isRealMunicipalityId(id) {
+  return typeof id === 'number' || (typeof id === 'string' && /^\d+$/.test(id));
+}
+
 async function autoRegisterMunicipality(name, countryCode, lat, lon, osmType, osmId) {
   if (!name) return null;
   const key = normalizeMuniNameForMatch(name) + '|' + (countryCode || '');
@@ -12307,9 +12278,29 @@ async function autoRegisterMunicipality(name, countryCode, lat, lon, osmType, os
       const { data, error } = await sb.from(MUNICIPALITIES_TABLE).insert(row).select().single();
       if (error) throw error;
       municipalityCache.push(data);
+      loadedMuniIds.add(data.id);
       writeMunicipalityCacheToStorage(municipalityCache);
       return data;
     } catch (err) {
+      // A duplicate-key error on osm_type/osm_id means the row already exists in the DB —
+      // it just wasn't in our local cache yet (e.g. registered by another session, or its
+      // stored boundary is empty so findMunicipalityInCache/findMunicipalityByNameMatch never
+      // matched it). Fetch the real row instead of minting a fake session-only id for it —
+      // that fake id is what was breaking the contacts button and the stats row, since it
+      // can never be used in a real bigint query.
+      const isDuplicateKey = err.code === '23505' || /duplicate key/i.test(err.message || '');
+      if (isDuplicateKey && osmType && osmId != null) {
+        try {
+          const { data: existing, error: fetchErr } = await sb.from(MUNICIPALITIES_TABLE)
+            .select(MUNI_SELECT_COLS).eq('osm_type', osmType).eq('osm_id', osmId).maybeSingle();
+          if (!fetchErr && existing) {
+            mergeMunicipalitiesIntoCache([existing]);
+            return existing;
+          }
+        } catch (fetchErr) {
+          console.error('Failed to fetch existing municipality after duplicate-key conflict:', fetchErr.message);
+        }
+      }
       console.error('Failed to auto-register municipality (showing it for this session only):', err.message);
       row.id = 'session:' + key;
       return row;
@@ -12347,7 +12338,7 @@ async function resolveReportMunicipality(report) {
   }
   let muni = findMunicipalityInCache(report.latitude, report.longitude);
   if (!muni) muni = await resolveMunicipalityViaGeocode(report.latitude, report.longitude);
-  if (muni && muni.id != null) {
+  if (muni && isRealMunicipalityId(muni.id)) {
     sb.from(TABLE).update({ municipality_id: muni.id }).eq('id', report.id)
       .then(({ error }) => { if (!error) report.municipality_id = muni.id; });
   }
@@ -12356,7 +12347,7 @@ async function resolveReportMunicipality(report) {
 
 function resolveAndAttachMunicipality(reportId, lat, lon) {
   resolveMunicipality(lat, lon).then(muni => {
-    if (!muni || muni.id == null || !reportId) return;
+    if (!muni || !isRealMunicipalityId(muni.id) || !reportId) return;
     sb.from(TABLE).update({ municipality_id: muni.id }).eq('id', reportId)
       .then(({ error }) => { if (error) console.error('Failed to attach municipality to report:', error.message); });
   }).catch(err => console.error('resolveAndAttachMunicipality error:', err.message));
@@ -12382,9 +12373,10 @@ let bottomMuniStatsRequestId = 0;
 function updateBottomMunicipalityBar(muni) {
   const contactsBtn = document.getElementById('municipalityContactsBtn');
   if (contactsBtn) {
+    const canShowContacts = !!muni && isRealMunicipalityId(muni.id);
     contactsBtn.style.display = 'flex';
-    contactsBtn.disabled = !muni;
-    contactsBtn.classList.toggle('is-disabled', !muni);
+    contactsBtn.disabled = !canShowContacts;
+    contactsBtn.classList.toggle('is-disabled', !canShowContacts);
   }
   loadBottomMuniStats(muni);
 }
@@ -12394,7 +12386,7 @@ async function loadBottomMuniStats(muni) {
   if (!row) return;
   const requestId = ++bottomMuniStatsRequestId;
   const statuses = ['reported', 'in_progress', 'fixed'];
-  if (!muni || muni.id == null) {
+  if (!muni || !isRealMunicipalityId(muni.id)) {
     row.innerHTML = statuses.map(status => `
       <div class="bottom-muni-stat">
         <span class="bottom-muni-stat-dot" style="background:${statusColor(status)}"></span>
@@ -12489,14 +12481,27 @@ async function focusUtilityCompanyAddress(id) {
   if (!pos || !isValidLatLng(pos.lat, pos.lon)) return;
   viewLocationOnMap(pos.lat, pos.lon);
 }
-async function loadAllCompanyMarkers() {
+// Loads utility-company markers for the current map viewport (plus a padding margin) instead
+// of every verified company worldwide — mirrors the report-pin loader's approach
+// (currentViewportBBox/viewportBBoxContains, defined further down but hoisted). Companies
+// already placed on the map are tracked in loadedCompanyMarkerIds so re-entering a
+// previously-visited area never re-fetches or re-adds duplicate markers; panning to a new area
+// just adds its companies on top, same "merge, never replace" pattern as the municipality cache.
+let lastLoadedCompanyBBox = null;
+const loadedCompanyMarkerIds = new Set();
+
+async function loadCompanyMarkersByWindow() {
+  const bbox = currentViewportBBox();
+  lastLoadedCompanyBBox = bbox;
   let companies;
   try {
     const { data, error } = await sb.from(UTILITY_COMPANIES_TABLE)
       .select('*')
       .eq('verified', true)
       .not('lat', 'is', null)
-      .not('lon', 'is', null);
+      .not('lon', 'is', null)
+      .gte('lat', bbox.minLat).lte('lat', bbox.maxLat)
+      .gte('lon', bbox.minLon).lte('lon', bbox.maxLon);
     if (error) throw error;
     companies = data || [];
   } catch (err) {
@@ -12507,12 +12512,19 @@ async function loadAllCompanyMarkers() {
 
   for (const c of companies) {
     if (!isValidLatLng(c.lat, c.lon)) continue;
+    if (c.id != null) {
+      if (loadedCompanyMarkerIds.has(String(c.id))) {
+        utilityCompanyRegistry.set(String(c.id), c); // keep registry fresh even if marker already exists
+        continue;
+      }
+      utilityCompanyRegistry.set(String(c.id), c);
+      loadedCompanyMarkerIds.add(String(c.id));
+    }
     const marker = L.marker([c.lat, c.lon], {
       icon: L.divIcon({ className: '', html: buildCompanyMarkerHtml(), iconSize: [26, 26], iconAnchor: [13, 13] }),
       zIndexOffset: 200
     });
     marker._utilityCompany = { c, lat: c.lat, lon: c.lon };
-    if (c.id != null) utilityCompanyRegistry.set(String(c.id), c);
     marker.off('click');
     marker.on('click', () => {
       if (drivingMode) navigateToUtilityCompany(String(c.id), c.lat, c.lon);
@@ -12522,20 +12534,44 @@ async function loadAllCompanyMarkers() {
   }
 }
 
-let municipalityStatsCache = new Map();
-let municipalityStatsLoadPromise = null;
-async function loadMunicipalityStatsCache() {
-  if (municipalityStatsLoadPromise) return municipalityStatsLoadPromise;
-  municipalityStatsLoadPromise = (async () => {
+let companyMarkersReloadTimer = null;
+function scheduleCompanyMarkersReloadIfNeeded() {
+  if (companyMarkersReloadTimer) clearTimeout(companyMarkersReloadTimer);
+  companyMarkersReloadTimer = setTimeout(() => {
+    companyMarkersReloadTimer = null;
+    const b = map.getBounds();
+    const visible = { minLat: b.getSouthWest().lat, maxLat: b.getNorthEast().lat, minLon: b.getSouthWest().lng, maxLon: b.getNorthEast().lng };
+    if (!viewportBBoxContains(lastLoadedCompanyBBox, visible)) loadCompanyMarkersByWindow();
+  }, VIEWPORT_RELOAD_DEBOUNCE_MS);
+}
+map.on('moveend', scheduleCompanyMarkersReloadIfNeeded);
+map.on('zoomend', scheduleCompanyMarkersReloadIfNeeded);
+
+// Stats used to be preloaded for every municipality worldwide on every page view
+// (loadMunicipalityStatsCache, a full-table select) even though they're only ever looked at
+// one municipality at a time, in the company-detail modal. Fetch per id instead, memoizing so
+// re-opening the same company's detail modal in the same session doesn't re-hit the network.
+const municipalityStatsCache = new Map();
+const municipalityStatsFetchInFlight = new Map();
+async function getMunicipalityStats(municipalityId) {
+  if (municipalityStatsCache.has(municipalityId)) return municipalityStatsCache.get(municipalityId);
+  if (municipalityStatsFetchInFlight.has(municipalityId)) return municipalityStatsFetchInFlight.get(municipalityId);
+  const promise = (async () => {
     try {
-      const { data, error } = await sb.from(MUNICIPALITY_STATS_TABLE).select('*');
+      const { data, error } = await sb.from(MUNICIPALITY_STATS_TABLE).select('*')
+        .eq('municipality_id', municipalityId).maybeSingle();
       if (error) throw error;
-      (data || []).forEach(row => municipalityStatsCache.set(row.municipality_id, row));
+      municipalityStatsCache.set(municipalityId, data || null);
+      return data || null;
     } catch (err) {
-      console.error('Failed to load municipality stats cache:', err.message);
+      console.error('Failed to load municipality stats:', err.message);
+      return null;
+    } finally {
+      municipalityStatsFetchInFlight.delete(municipalityId);
     }
   })();
-  return municipalityStatsLoadPromise;
+  municipalityStatsFetchInFlight.set(municipalityId, promise);
+  return promise;
 }
 
 function buildMuniStatsGridHtml(stats) {
@@ -12577,7 +12613,7 @@ async function backfillUcCoordinates() {
   for (let i = 0; i < candidates.length; i++) {
     const c = candidates[i];
     if (btn) btn.textContent = t('ucGeocodeBackfillRunning').replace('{current}', String(i + 1)).replace('{total}', String(candidates.length));
-    const muni = getMunicipalityByIdLite(c.municipality_id);
+    const muni = getMunicipalityById(c.municipality_id);
     const pos = await geocodeAddress(c.address, muni ? municipalityDisplayName(muni) : '', muni ? muni.country_code : null);
     if (pos && isValidLatLng(pos.lat, pos.lon)) {
       try {
@@ -12596,7 +12632,7 @@ async function backfillUcCoordinates() {
     btn.disabled = false;
     setTimeout(() => { btn.textContent = t('ucGeocodeBackfillBtn'); }, 4000);
   }
-  loadAllCompanyMarkers();
+  loadCompanyMarkersByWindow();
 }
 
 // ---- Municipality boundary repair tool ------------------------------------
@@ -12834,7 +12870,7 @@ function hideMunicipalityContactsModal() {
 }
 
 async function showMunicipalityContactsModal() {
-  if (!currentContactsMunicipality) {
+  if (!currentContactsMunicipality || !isRealMunicipalityId(currentContactsMunicipality.id)) {
     toast(t('municipalityContactsNoMuni'), 'error');
     return;
   }
@@ -12884,7 +12920,8 @@ function hideCompanyDetailModal() {
   closeOverlay('companyDetailModal');
 }
 
-function showCompanyDetailModal(id) {
+let companyDetailStatsRequestId = 0;
+async function showCompanyDetailModal(id) {
   const c = utilityCompanyRegistry.get(String(id));
   if (!c) return;
   const modal = document.getElementById('companyDetailModal');
@@ -12892,6 +12929,8 @@ function showCompanyDetailModal(id) {
   const titleEl = document.getElementById('companyDetailTitle');
   const headerEl = document.getElementById('companyDetailHeader');
   if (!modal || !body || !titleEl) return;
+
+  const requestId = ++companyDetailStatsRequestId;
 
   titleEl.textContent = c.name;
   if (headerEl) {
@@ -12908,15 +12947,6 @@ function showCompanyDetailModal(id) {
       </div>`
     : '';
 
-  const stats = c.municipality_id != null ? municipalityStatsCache.get(c.municipality_id) : null;
-  const statsHtml = buildMuniStatsGridHtml(stats);
-  const statsSectionHtml = statsHtml
-    ? `<div class="detail-section">
-        <div class="detail-section-title">${t('muniStatsSectionLabel')}</div>
-        ${statsHtml}
-      </div>`
-    : '';
-
   body.innerHTML = `
     <div class="detail-section">
       <div class="detail-section-title">${t('detailContactsTitle')}</div>
@@ -12924,12 +12954,26 @@ function showCompanyDetailModal(id) {
       ${renderContactRows(c)}
     </div>
     ${muniSectionHtml}
-    ${statsSectionHtml}
+    <div id="companyDetailStatsSection"></div>
   `;
 
   bringModalToFront(modal);
   modal.style.display = 'flex';
   openOverlay('companyDetailModal', hideCompanyDetailModal);
+
+  if (c.municipality_id != null) {
+    const stats = await getMunicipalityStats(c.municipality_id);
+    if (requestId !== companyDetailStatsRequestId) return; // a different company was opened meanwhile
+    const statsHtml = buildMuniStatsGridHtml(stats);
+    const statsSectionEl = document.getElementById('companyDetailStatsSection');
+    if (statsSectionEl && statsHtml) {
+      statsSectionEl.innerHTML = `
+        <div class="detail-section">
+          <div class="detail-section-title">${t('muniStatsSectionLabel')}</div>
+          ${statsHtml}
+        </div>`;
+    }
+  }
 }
 function navigateToUtilityCompany(id, lat, lon) {
   const c = utilityCompanyRegistry.get(String(id));
@@ -12980,7 +13024,7 @@ function municipalityDisplayName(m) {
 function canManageContactsForMunicipality(municipalityId) {
   if (!currentProfile || !currentProfile.is_admin) return false;
   if (currentAdminLevel() >= 3) return true;
-  const muni = municipalityId != null ? getMunicipalityByIdLite(municipalityId) : null;
+  const muni = municipalityId != null ? getMunicipalityById(municipalityId) : null;
   return isMunicipalityInAdminDomain(muni);
 }
 
@@ -12997,7 +13041,7 @@ async function loadUtilityCompaniesAdmin() {
   const listEl = document.getElementById('ucList');
   if (listEl) listEl.innerHTML = '<div class="detail-loading">' + t('ucLoadingList') + '</div>';
 
-  await Promise.all([loadMunicipalityLiteCache(true), loadCountryContinentCache()]);
+  await Promise.all([loadMunicipalityCache(true), loadCountryContinentCache()]);
   populateUcMunicipalitySelect();
   populateUcCatChecks();
   applyUcFormTranslations();
@@ -13417,8 +13461,8 @@ function populateUcMunicipalitySelect() {
   const prevValue = sel.value;
 
   const selectable = currentAdminLevel() >= 3
-    ? municipalityLiteCache
-    : municipalityLiteCache.filter(m => isMunicipalityInAdminDomain(m));
+    ? municipalityCache
+    : municipalityCache.filter(m => isMunicipalityInAdminDomain(m));
   const sorted = [...selectable].sort((a, b) =>
     municipalityDisplayName(a).localeCompare(municipalityDisplayName(b)));
   const placeholder = '<option value="" disabled>' + t('ucSelectMunicipality') + '</option>';
@@ -13513,12 +13557,12 @@ function renderUcList() {
 
   // Full domain-scoped municipality tree — level 3 (global) sees every municipality, level 2
   // (country) sees their own country's municipalities, level 1 (municipality) sees just their
-  // one municipality. Built from municipalityLiteCache itself, not from ucCompaniesCache, so a
+  // one municipality. Built from municipalityCache itself, not from ucCompaniesCache, so a
   // country or municipality with zero contacts saved yet still shows up as a browsable, empty
   // entry rather than disappearing until someone adds its first contact.
   const inDomainMunis = currentAdminLevel() >= 3
-    ? municipalityLiteCache
-    : municipalityLiteCache.filter(m => isMunicipalityInAdminDomain(m));
+    ? municipalityCache
+    : municipalityCache.filter(m => isMunicipalityInAdminDomain(m));
 
   if (!inDomainMunis.length) {
     listEl.innerHTML = '<div class="detail-empty">' + t('ucNoContacts') + '</div>';
@@ -13789,7 +13833,7 @@ async function persistUcRow(verified) {
   row.verified_at = verified ? new Date().toISOString() : null;
   row.verified_by = verified ? (currentSession ? currentSession.user.id : null) : null;
 
-  const muni = getMunicipalityByIdLite(row.municipality_id);
+  const muni = getMunicipalityById(row.municipality_id);
   if (row.phone) row.phone = formatPhoneNumberForSave(row.phone, muni ? muni.country_code : null);
 
   const existing = ucEditingId ? ucCompaniesCache.find(c => String(c.id) === String(ucEditingId)) : null;
@@ -16978,8 +17022,7 @@ runInitialLoadSequence().finally(hideMapLoadingOverlay);
 updateBottomMunicipalityBar(null);
 setupReportsRealtimeSync();
 openSharedReportFromUrl();
-loadAllCompanyMarkers();
-loadMunicipalityStatsCache();
+loadCompanyMarkersByWindow();
 // NOTE: currentProfile/currentSession are only populated once initAuth() resolves. Admin-only
 // UI (the admin panel button, "My Admin Role" dashboard section) is gated on that alone now —
 // it used to also wait on a full municipality-table load finishing first, but that table load
