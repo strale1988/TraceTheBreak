@@ -11835,11 +11835,22 @@ function readMunicipalityCacheFromStorage() {
   }
 }
 
+let _muniCacheWriteTimer = null;
 function writeMunicipalityCacheToStorage(rows) {
-  try {
-    localStorage.setItem(MUNICIPALITY_CACHE_STORAGE_KEY, JSON.stringify(rows));
-  } catch (e) {
-  }
+  // Serializing the whole cache — including every municipality's boundary polygon — is real
+  // main-thread work once a session has merged in a few countries' worth of data, and this
+  // gets called repeatedly in quick succession while panning around (mergeMunicipalitiesIntoCache
+  // fires on every near-point/country fetch). Coalesce bursts into a single write shortly after
+  // they settle rather than re-stringifying the entire array on every single call — this is
+  // just a warm-start cache for next page load, nothing here needs to land immediately.
+  if (_muniCacheWriteTimer) clearTimeout(_muniCacheWriteTimer);
+  _muniCacheWriteTimer = setTimeout(() => {
+    _muniCacheWriteTimer = null;
+    try {
+      localStorage.setItem(MUNICIPALITY_CACHE_STORAGE_KEY, JSON.stringify(rows));
+    } catch (e) {
+    }
+  }, 1500);
 }
 let municipalityCacheLoadPromise = null;
 // Full-table load — every municipality, every boundary polygon, in one request. This is
