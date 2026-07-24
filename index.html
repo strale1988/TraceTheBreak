@@ -3646,6 +3646,7 @@ span.flatpickr-weekday {
     </div>
 
     <div class="admin-section-title detail-section-title" id="notificationWaitingListSectionTitle" style="display:none;margin-top:18px;">Waiting for review</div>
+    <input type="text" id="adminSearchInput" oninput="onAdminSearchInput()" placeholder="Search reports…" style="display:none;width:100%;box-sizing:border-box;margin-bottom:10px;" autocomplete="off">
     <div id="notificationWaitingList"></div>
 
     <div class="admin-section-title detail-section-title" id="notificationInboxSectionTitle" style="display:none;margin-top:18px;">Your notifications</div>
@@ -4869,6 +4870,7 @@ function renderNotificationModalBody() {
   const composePanel = document.getElementById('notificationComposePanel');
   const wlTitle = document.getElementById('notificationWaitingListSectionTitle');
   const wlList = document.getElementById('notificationWaitingList');
+  const wlSearch = document.getElementById('adminSearchInput');
   const inboxTitle = document.getElementById('notificationInboxSectionTitle');
   const userList = document.getElementById('notificationUserList');
 
@@ -4879,19 +4881,23 @@ function renderNotificationModalBody() {
   document.getElementById('notificationMessageInput').placeholder = t('notificationMessagePH');
   document.getElementById('notificationSendBtn').textContent = t('notificationSendBtn');
   if (wlTitle) wlTitle.textContent = t('waitingListSectionTitle');
+  if (wlSearch) wlSearch.placeholder = t('adminSearchPH');
   if (inboxTitle) inboxTitle.textContent = t('notificationInboxSectionTitle');
 
   if (isAdmin) {
     composePanel.style.display = 'block';
     wlTitle.style.display = 'block';
     wlList.style.display = 'block';
+    if (wlSearch) wlSearch.style.display = 'block';
     inboxTitle.style.display = 'block';
+    resetAdminSearch();
     loadWaitingListAdmin();
     startWaitingListAutoRefresh();
   } else {
     composePanel.style.display = 'none';
     wlTitle.style.display = 'none';
     wlList.style.display = 'none';
+    if (wlSearch) wlSearch.style.display = 'none';
     inboxTitle.style.display = 'none';
   }
   userList.style.display = 'block';
@@ -5640,7 +5646,6 @@ const T = {
   offlineMapStorageUsed:  { en:'Offline data stored: {mb} MB',      sr:'Sačuvano podataka van mreže: {mb} MB' },
   offlineAutoCacheToggleLabel: { en:'Auto-cache map around areas you view', sr:'Automatski keširaj mapu oko oblasti koje pregledate' },
   offlineAutoCacheHint:   { en:"Quietly extends your offline map outward, in the background, up to roughly a country's worth of coverage.", sr:'U pozadini tiho proširuje vašu mapu van mreže, otprilike do pokrivenosti cele zemlje.' },
-  offlineMapStorageUsed:  { en:'Offline data stored: {mb} MB',      sr:'Sačuvano podataka van mreže: {mb} MB' },
   mainCompassTitle:  { en:'Heading: tap to rotate the map with your direction of travel', sr:'Pravac: dodirnite da rotirate mapu prema pravcu kretanja' },
   catPH:        { en:'Select break type…',               sr:'Izaberite vrstu kvara…' },
   prioPH:       { en:'Select priority…',                 sr:'Izaberite prioritet…' },
@@ -13102,7 +13107,15 @@ async function loadUtilityCompaniesAdmin() {
 }
 let ucContactFlagCountsCache = new Map();
 let waitingListCache = [];
-const WAITING_LIST_PREVIEW_LIMIT = 5;
+// These used to be the same constant (5), reused for both "how many to fetch per category"
+// and "how many to show in total after merging". That meant the merged queue silently
+// dropped everything past the 5 oldest items overall — with a real backlog (more than a
+// couple of pending photos + flags + stale reports combined), most of the queue was simply
+// invisible, un-searchable, and had no pagination. Separated into two constants: a per-query
+// fetch size, and a much larger display cap that's still bounded (so rendering stays cheap)
+// but is high enough that the admin search box actually has something to search through.
+const WAITING_LIST_FETCH_LIMIT = 50;
+const WAITING_LIST_DISPLAY_LIMIT = 150;
 const STALE_REPORT_DAYS = 30;
 
 async function loadWaitingListAdmin() {
@@ -13126,7 +13139,7 @@ async function loadWaitingListAdmin() {
     const { data, error } = await sb.from(TABLE).select('*')
       .eq('photo_status', 'pending')
       .order('created_at', { ascending: true })
-      .limit(WAITING_LIST_PREVIEW_LIMIT);
+      .limit(WAITING_LIST_FETCH_LIMIT);
     if (error) throw error;
     (data || []).forEach(r => addReason(r, 'photo', r.photo_uploaded_at || r.created_at));
   } catch (err) {
@@ -13137,7 +13150,7 @@ async function loadWaitingListAdmin() {
     const { data, error } = await sb.from(TABLE).select('*')
       .eq('after_photo_status', 'pending')
       .order('created_at', { ascending: true })
-      .limit(WAITING_LIST_PREVIEW_LIMIT);
+      .limit(WAITING_LIST_FETCH_LIMIT);
     if (error) throw error;
     (data || []).forEach(r => addReason(r, 'after_photo', r.after_photo_uploaded_at || r.created_at));
   } catch (err) {
@@ -13148,7 +13161,7 @@ async function loadWaitingListAdmin() {
     const { data, error } = await sb.from(TABLE).select('*')
       .eq('flagged_for_review', true)
       .order('created_at', { ascending: true })
-      .limit(WAITING_LIST_PREVIEW_LIMIT);
+      .limit(WAITING_LIST_FETCH_LIMIT);
     if (error) throw error;
     (data || []).forEach(r => addReason(r, 'rejected_photo', r.photo_reviewed_at || r.created_at));
   } catch (err) {
@@ -13160,7 +13173,7 @@ async function loadWaitingListAdmin() {
       .select('*, brake_reports(*), profiles!report_flags_flagged_by_fkey(username)')
       .eq('resolved', false)
       .order('created_at', { ascending: true })
-      .limit(WAITING_LIST_PREVIEW_LIMIT);
+      .limit(WAITING_LIST_FETCH_LIMIT);
     if (error) throw error;
     (data || []).forEach(row => {
       const report = row.brake_reports;
@@ -13177,7 +13190,7 @@ async function loadWaitingListAdmin() {
       .eq('status', 'reported')
       .lt('created_at', staleBefore)
       .order('created_at', { ascending: true })
-      .limit(WAITING_LIST_PREVIEW_LIMIT * 4);
+      .limit(WAITING_LIST_FETCH_LIMIT);
     if (staleErr) throw staleErr;
     if (staleCandidates && staleCandidates.length) {
       const ids = staleCandidates.map(r => r.id);
@@ -13193,7 +13206,7 @@ async function loadWaitingListAdmin() {
       ]);
       staleCandidates
         .filter(r => !touchedIds.has(r.id))
-        .slice(0, WAITING_LIST_PREVIEW_LIMIT)
+        .slice(0, WAITING_LIST_FETCH_LIMIT)
         .forEach(r => addReason(r, 'stale', r.created_at));
     }
   } catch (err) {
@@ -13203,7 +13216,7 @@ async function loadWaitingListAdmin() {
   waitingListCache = Array.from(items.values())
     .filter(item => item.reasons.includes('photo') || item.reasons.includes('after_photo') || item.reasons.includes('user_flag') || item.reasons.includes('stale') || hasFullPowerOverReport(item.report))
     .sort((a, b) => a.waitingSince - b.waitingSince)
-    .slice(0, WAITING_LIST_PREVIEW_LIMIT);
+    .slice(0, WAITING_LIST_DISPLAY_LIMIT);
   renderWaitingList();
 }
 
@@ -13244,7 +13257,9 @@ function renderWaitingList() {
 function renderWaitingListInto(containerId) {
   const listEl = document.getElementById(containerId);
   if (!listEl) return;
-  if (!waitingListCache.length) {
+  const searchInputEl = document.getElementById('adminSearchInput');
+  const hasSearchQuery = !!(searchInputEl && searchInputEl.value.trim());
+  if (!waitingListCache.length && !hasSearchQuery) {
     listEl.innerHTML = `<div class="detail-empty">${t('waitingListEmpty')}</div>`;
     return;
   }
@@ -13318,7 +13333,7 @@ function filterWaitingListBySearch(cache) {
   const rawQuery = inputEl ? inputEl.value.trim() : '';
   if (!rawQuery) return cache;
   const query = normalizeMuniNameForMatch(rawQuery);
-  return cache.filter(item => {
+  const localMatches = cache.filter(item => {
     const r = item.report;
     const haystack = normalizeMuniNameForMatch([
       r.comment, r.owner_username, categorySearchText(r.category),
@@ -13326,6 +13341,14 @@ function filterWaitingListBySearch(cache) {
     ].filter(Boolean).join(' '));
     return haystack.includes(query);
   });
+  // Broader matches from outside the review queue (populated by searchAllReportsAdmin as the
+  // admin types) — these aren't "waiting for review" so they carry no reason badges, just a
+  // Details button to jump straight into the report.
+  const localIds = new Set(localMatches.map(item => item.report.id));
+  const broaderMatches = allReportsSearchCache
+    .filter(r => !localIds.has(r.id))
+    .map(r => ({ report: r, waitingSince: new Date(r.created_at), reasons: [], flags: [] }));
+  return [...localMatches, ...broaderMatches];
 }
 
 async function resolveReportFlags(reportId) {
@@ -13353,11 +13376,53 @@ function viewReportFromAdminQueue(reportId) {
 }
 
 let allReportsSearchCache = [];
+let adminReportSearchTimer = null;
+let adminReportSearchToken = 0;
+
 function onAdminSearchInput() {
-  renderWaitingList();
+  renderWaitingList(); // instant local filter against the already-loaded review queue
+  const inputEl = document.getElementById('adminSearchInput');
+  const q = inputEl ? inputEl.value.trim() : '';
+  clearTimeout(adminReportSearchTimer);
+  if (!q) { allReportsSearchCache = []; return; }
+  // Widen to the full report table a moment later, so admins can find a report by comment
+  // text, reporter username, or id even if it isn't currently waiting for review.
+  adminReportSearchTimer = setTimeout(() => searchAllReportsAdmin(q), 350);
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function searchAllReportsAdmin(query) {
+  const token = ++adminReportSearchToken;
+  const pattern = '%' + query.replace(/[%_]/g, '\\$&') + '%';
+  try {
+    const queries = [
+      sb.from(TABLE).select('*').ilike('comment', pattern).order('created_at', { ascending: false }).limit(WAITING_LIST_FETCH_LIMIT),
+      sb.from(TABLE).select('*').ilike('owner_username', pattern).order('created_at', { ascending: false }).limit(WAITING_LIST_FETCH_LIMIT)
+    ];
+    // id is a uuid column — ilike on it would error server-side, so only attempt an exact
+    // match, and only when the query actually looks like one.
+    if (UUID_RE.test(query.trim())) {
+      queries.push(sb.from(TABLE).select('*').eq('id', query.trim()).limit(1));
+    }
+    const results = await Promise.all(queries);
+    for (const r of results) if (r.error) throw r.error;
+    if (token !== adminReportSearchToken) return; // a newer keystroke's search superseded this one
+
+    const merged = new Map();
+    results.forEach(r => (r.data || []).forEach(row => merged.set(row.id, row)));
+    allReportsSearchCache = Array.from(merged.values())
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      .slice(0, WAITING_LIST_FETCH_LIMIT);
+    renderWaitingList();
+  } catch (err) {
+    console.error('Admin report search failed:', err.message);
+  }
 }
 
 function resetAdminSearch() {
+  clearTimeout(adminReportSearchTimer);
+  adminReportSearchToken++; // invalidate any in-flight search response
   allReportsSearchCache = [];
   const inputEl = document.getElementById('adminSearchInput');
   if (inputEl) inputEl.value = '';
