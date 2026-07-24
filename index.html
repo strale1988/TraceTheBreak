@@ -8056,7 +8056,7 @@ function onNavStateChange(prev, next) {
       drivenPathCoords = from ? [[from.lat, from.lon]] : [];
       drivenPathLastAt = from ? Date.now() : null;
       if (drivenPathCoords.length) {
-        drivenPathLine = L.polyline(drivenPathCoords, { color: 'var(--accent)', weight: 5, opacity: .5 }).addTo(map);
+        drivenPathLine = L.polyline(drivenPathCoords, { color: 'var(--accent)', weight: 5, opacity: .5, dashArray: '8 8' }).addTo(map);
       }
     }
   }
@@ -8965,6 +8965,8 @@ function toggleFollowMode() {
   setFollowMode(!followMode);
   if (followMode && userCoords) {
     followMapTo(userCoords.lat, userCoords.lon);
+    pendingAutoRefollow = false;
+    reenableAutoHeadingIfManuallyRotated();
   }
 }
 
@@ -8993,6 +8995,7 @@ function scheduleAutoRefollow() {
       pendingAutoRefollow = false;
       setFollowMode(true);
       followMapTo(userCoords.lat, userCoords.lon);
+      reenableAutoHeadingIfManuallyRotated();
     }
   }, AUTO_REFOLLOW_DELAY_MS);
 }
@@ -9086,17 +9089,44 @@ function distanceBetweenTouches(t0, t1) {
   return Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
 }
 
+// Set when a manual rotation gesture is the *reason* heading-up mode got turned off,
+// so scheduleAutoRefollow() knows to restore it once the map auto-recenters back into
+// navigation mode. Not set if the user explicitly turned heading-up off via the compass
+// button — that's a deliberate choice and shouldn't be silently overridden.
+let headingUpDisabledByManualRotation = false;
+
 function disableAutoHeadingForManualRotation() {
   if (drivingMode) {
     if (headingUpMode) {
       headingUpMode = false;
+      headingUpDisabledByManualRotation = true;
       const btn = document.getElementById('mapCompass');
       if (btn) btn.classList.add('heading-up-disabled');
     }
   } else if (walkingHeadingMode) {
     walkingHeadingMode = false;
+    headingUpDisabledByManualRotation = true;
     const btn = document.getElementById('mainMapCompass');
     if (btn) btn.classList.add('heading-up-disabled');
+  }
+}
+
+// Restores heading-up/compass mode after the map auto-recenters back into navigation
+// mode, but only if a manual rotation (not an explicit tap on the compass button) was
+// what turned it off.
+function reenableAutoHeadingIfManuallyRotated() {
+  if (!headingUpDisabledByManualRotation) return;
+  headingUpDisabledByManualRotation = false;
+  if (drivingMode) {
+    headingUpMode = true;
+    const btn = document.getElementById('mapCompass');
+    if (btn) btn.classList.remove('heading-up-disabled');
+    if (currentHeading !== null) applyMapBearing(-currentHeading);
+  } else {
+    walkingHeadingMode = true;
+    const btn = document.getElementById('mainMapCompass');
+    if (btn) btn.classList.remove('heading-up-disabled');
+    if (currentHeading !== null) applyMapBearing(-currentHeading);
   }
 }
 
