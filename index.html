@@ -1356,6 +1356,27 @@ body.bike-mode-active .driving-speed-value{ margin-top:0; }
   pointer-events:auto;
   transform:translateX(-50%) translateY(0) scale(1);
 }
+
+/* Upcoming speed-limit signs, placed on the map ahead of the driver at the location of each
+   OSM way segment carrying a maxspeed tag. Styled like a real EU/Vienna-convention circular
+   speed-limit sign (white face, red ring, black number) so it reads as "the real sign" at a
+   glance rather than as another app icon — deliberately NOT tinted by the dark-map-tile filter,
+   since a physical sign's colors don't change at night either. */
+.speed-sign-marker{
+  width:34px; height:34px;
+  border-radius:50%;
+  background:#fff;
+  border:3px solid #e02020;
+  box-shadow:0 2px 8px rgba(0,0,0,.45);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-family:-apple-system,BlinkMacSystemFont,sans-serif;
+  font-weight:var(--fw-heavy);
+  font-size:12px;
+  line-height:1;
+  color:#111;
+}
 body.driving-active .driving-float-action-row{ display:flex; }
 .driving-action-row-right{ display:flex; flex-direction:column; align-items:center; gap:var(--space-8); }
 .driving-back-btn, .driving-search-btn{
@@ -8698,7 +8719,7 @@ function initDrivingSafetySettingsUi() {
 const OVERSPEED_ALERT_PREF_KEY   = 'ttb_overspeed_alert_enabled';
 const OVERSPEED_THRESHOLD_KMH    = 5;
 const OVERSPEED_RESET_MARGIN_KMH = 3;
-const OVERSPEED_ALERT_COOLDOWN_MS = 30000;
+const OVERSPEED_ALERT_COOLDOWN_MS = 5000;
 
 function getOverspeedAlertPref() {
   try {
@@ -9024,7 +9045,7 @@ function setFollowMode(enabled) {
 
 // Floating "you're in free-look" pill — shown while pendingAutoRefollow is true (i.e. the
 // user panned/rotated away from an active follow) so it's obvious how to get back, instead
-// of silently waiting out the AUTO_REFOLLOW_DELAY_MS timer with no feedback.
+// of silently waiting out the auto-refollow delay with no feedback.
 function showFreeLookPill() {
   const pill = document.getElementById('navFreeLookPill');
   if (!pill) return;
@@ -9048,7 +9069,21 @@ function toggleFollowMode() {
   }
 }
 
-const AUTO_REFOLLOW_DELAY_MS = 10000;
+// Fixed delays felt wrong at both ends: 10s is way too long to be off-course at highway
+// speed (you can cover 250+m before the map snaps back), but also too short when stopped
+// or moving slowly, where there's no urgency and it just interrupts someone reading the map.
+// Scales with current smoothed speed instead. Falls back to the old 10s default when speed
+// isn't known yet (e.g. right after a manual rotation before the first GPS fix lands).
+const AUTO_REFOLLOW_DELAY_DEFAULT_MS = 10000;
+function autoRefollowDelayMs() {
+  const speed = smoothedSpeedKmh;
+  if (speed === null || speed === undefined) return AUTO_REFOLLOW_DELAY_DEFAULT_MS;
+  if (speed >= 80) return 4000;
+  if (speed >= 50) return 6000;
+  if (speed >= 15) return 8000;
+  if (speed >= 3)  return 10000;
+  return 15000; // stopped or walking pace — no rush
+}
 let autoRefollowTimer = null;
 let pendingAutoRefollow = false;
 
@@ -9077,7 +9112,7 @@ function performAutoRefollow() {
 }
 
 // Lets the user tap the free-look pill to jump straight back into navigation instead of
-// waiting out the remainder of AUTO_REFOLLOW_DELAY_MS.
+// waiting out the remainder of the auto-refollow delay.
 function resumeNavFollowNow() {
   cancelAutoRefollowTimer();
   performAutoRefollow();
@@ -9089,7 +9124,7 @@ function scheduleAutoRefollow() {
   autoRefollowTimer = setTimeout(() => {
     autoRefollowTimer = null;
     performAutoRefollow();
-  }, AUTO_REFOLLOW_DELAY_MS);
+  }, autoRefollowDelayMs());
 }
 
 map.on('dragstart', onUserMapInteractionStart);
@@ -9335,6 +9370,7 @@ function toggleDrivingMode(mode) {
     if (compassBtn) compassBtn.style.display = 'none';
     currentSpeedLimitKmh = null;
     overspeedArmed = true;
+    clearSpeedSignMarkers();
     const capsule = document.getElementById('drivingSpeedCapsule');
     if (capsule) capsule.classList.remove('overspeed-flash');
   }
@@ -10178,8 +10214,25 @@ let lastSpeedLimitFetchAt  = 0;
 let lastSpeedLimitFetchLoc = null;
 const SPEED_LIMIT_REFRESH_MS      = 15000;
 const SPEED_LIMIT_REFRESH_DRIFT_M = 150;
-const SPEED_LIMIT_SEARCH_RADIUS_M = 45;
+const SPEED_LIMIT_SEARCH_RADIUS_M = 45;   // "current limit" reading: nearest tagged way to the driver
+const SPEED_SIGN_DISPLAY_RADIUS_M = 400;  // on-map signs: how far around/ahead we surface upcoming limits
+const SPEED_LIMIT_FETCH_TIMEOUT_MS = 6000;
 
+// One shared query covers both the digital "current limit" readout and the on-map signs —
+// deliberately not two separate Overpass calls, since overpass-api.de is a shared free
+// server and doubling the request rate would only make it more likely to get rate-limited
+// (see the reliability note below).
+//
+// NOTE on why the current-limit readout sometimes shows "--": two different things can
+// cause that, and only one of them is a bug. (1) OpenStreetMap's `maxspeed` tag simply isn't
+// present on every road — coverage is patchy on residential/local streets in particular, so
+// a genuine "not tagged in OSM" result is expected sometimes, not a fetch failure. (2) The
+// overpass-api.de endpoint is a shared free public server that can be slow, rate-limit, or
+// occasionally just hang with no response at all — that WAS a real bug here, because without
+// a client-side timeout a hung request left speedLimitFetching stuck `true` for the rest of
+// the drive, silently blocking every future attempt. The AbortController below fixes that;
+// failures are now also logged instead of disappearing into an empty catch, so a persistent
+// "--" can actually be diagnosed.
 function maybeFetchSpeedLimit(lat, lon) {
   if (!drivingMode || speedLimitFetching || isBikeMode()) return;
   const now = Date.now();
@@ -10191,10 +10244,16 @@ function maybeFetchSpeedLimit(lat, lon) {
   lastSpeedLimitFetchAt = now;
   lastSpeedLimitFetchLoc = { lat, lon };
 
-  const query = `[out:json][timeout:5];way(around:${SPEED_LIMIT_SEARCH_RADIUS_M},${lat},${lon})[highway][maxspeed];out tags center 8;`;
+  const query = `[out:json][timeout:5];way(around:${SPEED_SIGN_DISPLAY_RADIUS_M},${lat},${lon})[highway][maxspeed];out tags center 24;`;
   const url = 'https://overpass-api.de/api/interpreter?data=' + encodeURIComponent(query);
 
-  fetch(url).then(res => res.json()).then(data => {
+  const abortController = new AbortController();
+  const timeoutId = setTimeout(() => abortController.abort(), SPEED_LIMIT_FETCH_TIMEOUT_MS);
+
+  fetch(url, { signal: abortController.signal }).then(res => {
+    if (!res.ok) throw new Error(`Speed limit fetch: HTTP ${res.status}`);
+    return res.json();
+  }).then(data => {
     const candidates = (data.elements || []).filter(el => el.tags && el.tags.maxspeed && el.center);
     let nearest = null, nearestDist = Infinity;
     for (const el of candidates) {
@@ -10202,10 +10261,68 @@ function maybeFetchSpeedLimit(lat, lon) {
       if (d < nearestDist) { nearestDist = d; nearest = el; }
     }
     updateSpeedLimitDisplay(nearest ? parseSpeedLimitTag(nearest.tags.maxspeed) : null);
-  }).catch(() => {
+    renderSpeedSignMarkers(candidates, lat, lon);
+  }).catch(err => {
+    const reason = err && err.name === 'AbortError' ? 'timed out' : (err && err.message) || err;
+    console.warn('Speed limit fetch failed:', reason);
   }).finally(() => {
+    clearTimeout(timeoutId);
     speedLimitFetching = false;
   });
+}
+
+// ---------------------------------------------------------------------------------------
+// On-map speed-limit signs — approximate placement, by design. OSM doesn't map the physical
+// location of a sign post; `maxspeed` is a tag on a whole road segment (way). We place one
+// marker per way at that way's OSM-reported center point, which is usually somewhere within
+// the tagged stretch rather than exactly at the sign — close enough to see "this zone ahead
+// is 50" before you're in it, not pixel-accurate to where the physical sign stands.
+// ---------------------------------------------------------------------------------------
+let speedSignMarkersLayer = null;
+function ensureSpeedSignLayer() {
+  if (!speedSignMarkersLayer) speedSignMarkersLayer = L.layerGroup().addTo(map);
+  return speedSignMarkersLayer;
+}
+function clearSpeedSignMarkers() {
+  if (speedSignMarkersLayer) speedSignMarkersLayer.clearLayers();
+}
+
+const SPEED_SIGN_DEDUPE_RADIUS_M = 80; // collapse adjacent same-value way segments into one sign
+
+function buildSpeedSignIcon(value) {
+  const digits = String(value).length;
+  const fontSize = digits >= 3 ? '10px' : '13px';
+  return L.divIcon({
+    className: '',
+    html: `<div class="speed-sign-marker pin-upright" style="font-size:${fontSize}">${value}</div>`,
+    iconSize: [34, 34],
+    iconAnchor: [17, 17]
+  });
+}
+
+function renderSpeedSignMarkers(candidates, originLat, originLon) {
+  const layer = ensureSpeedSignLayer();
+  clearSpeedSignMarkers();
+  if (!drivingMode) return; // driving mode may have been toggled off while this request was in flight
+
+  // Nearest-first so the dedupe pass keeps the sign closest to the driver when two segments
+  // with the same limit sit close together (e.g. a way split partway through a zone).
+  const withDist = candidates
+    .map(el => ({ el, value: parseSpeedLimitTag(el.tags.maxspeed), dist: distMeters({ lat: originLat, lon: originLon }, { lat: el.center.lat, lon: el.center.lon }) }))
+    .filter(c => c.value !== null)
+    .sort((a, b) => a.dist - b.dist);
+
+  const placed = [];
+  for (const c of withDist) {
+    const tooClose = placed.some(p => p.value === c.value && distMeters({ lat: p.el.center.lat, lon: p.el.center.lon }, { lat: c.el.center.lat, lon: c.el.center.lon }) < SPEED_SIGN_DEDUPE_RADIUS_M);
+    if (tooClose) continue;
+    placed.push(c);
+    L.marker([c.el.center.lat, c.el.center.lon], {
+      icon: buildSpeedSignIcon(c.value),
+      interactive: false,
+      keyboard: false
+    }).addTo(layer);
+  }
 }
 
 function parseSpeedLimitTag(raw) {
