@@ -3687,7 +3687,23 @@ span.flatpickr-weekday {
 // plain http:// during local dev).
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(err => {
+    navigator.serviceWorker.register('./sw.js').then(() => {
+      let reloadPending = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (reloadPending) return;
+        reloadPending = true;
+        const wizardEl = document.getElementById('reportWizard');
+        const wizardOpen = !!(wizardEl && wizardEl.style.display !== 'none');
+        if (drivingMode || wizardOpen) {
+          // Mid-drive or mid-report — don't yank the page out from under them. They'll get
+          // the update the next time they reload on their own (or once they finish and this
+          // listener would otherwise have already fired the reload for a later update).
+          toast(t('appUpdateReadyToast'), 'success');
+        } else {
+          window.location.reload();
+        }
+      });
+    }).catch(err => {
       console.warn('Service worker registration failed:', err.message);
     });
   });
@@ -5682,6 +5698,7 @@ const T = {
   markFixed:     { en:'Mark Fixed',                                sr:'Označi Popravljeno' },
   yourReport:    { en:'Your report',                               sr:'Vaša prijava' },
   updateFail:    { en:'Could not update status. Try again.',       sr:'Ažuriranje statusa nije uspelo. Pokušajte ponovo.' },
+  appUpdateReadyToast: { en:"An update is ready — refresh when you're done here.", sr:'Dostupna je nova verzija — osvežite stranicu kada završite.' },
   updateConflict:{ en:'Another admin already changed this report\u2019s status. Refreshed to show the latest.', sr:'Drugi administrator je već promenio status ove prijave. Osveženo sa najnovijim stanjem.' },
   adminBadge:    { en:'ADMIN',                                     sr:'ADMIN' },
   adminTagGlobal:   { en:'Global',                                 sr:'Globalno' },
