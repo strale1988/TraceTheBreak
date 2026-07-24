@@ -1325,6 +1325,37 @@ body.bike-mode-active .driving-speed-value{ margin-top:0; }
   align-items:flex-end;
   justify-content:space-between;
 }
+.nav-free-look-pill{
+  display:flex;
+  align-items:center;
+  gap:var(--space-8);
+  position:fixed;
+  left:50%;
+  bottom:calc(var(--driving-sheet-height, 160px) + 64px + env(safe-area-inset-bottom, 0px));
+  z-index:2620;
+  background:var(--floating-bg);
+  backdrop-filter:blur(16px);
+  -webkit-backdrop-filter:blur(16px);
+  border:1px solid var(--floating-border);
+  color:var(--text-primary);
+  padding:10px 16px;
+  border-radius:var(--radius-pill);
+  font-size:var(--fs-13);
+  font-weight:var(--fw-semibold);
+  box-shadow:0 10px 30px var(--floating-shadow);
+  cursor:pointer;
+  user-select:none;
+  opacity:0;
+  pointer-events:none;
+  transform:translateX(-50%) translateY(10px) scale(.96);
+  transition:opacity .22s cubic-bezier(.2,.8,.2,1), transform .22s cubic-bezier(.2,.8,.2,1);
+}
+.nav-free-look-pill img{ width:16px; height:16px; filter:var(--icon-tint-filter); }
+.nav-free-look-pill.pill-visible{
+  opacity:1;
+  pointer-events:auto;
+  transform:translateX(-50%) translateY(0) scale(1);
+}
 body.driving-active .driving-float-action-row{ display:flex; }
 .driving-action-row-right{ display:flex; flex-direction:column; align-items:center; gap:var(--space-8); }
 .driving-back-btn, .driving-search-btn{
@@ -2956,14 +2987,14 @@ span.flatpickr-weekday {
 </div>
 
 <div id="bottomRightStack" class="bottomright-stack">
-  <div id="followLocationBtn" class="pin-map-btn" style="display:none" title="Follow my location" onclick="toggleFollowMode()"><img class="icon-img" src="icons/target.png" alt="Recenter"></div>
+  <div id="followLocationBtn" class="pin-map-btn" style="display:none" title="Follow my location" onclick="toggleFollowMode()" role="button" tabindex="0" aria-label="Follow my location" aria-pressed="false" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleFollowMode();}"><img class="icon-img" src="icons/target.png" alt=""></div>
   <div id="pinMapBtn" class="pin-map-btn" style="display:none" title="Set location manually" onclick="togglePinMode()"><img class="icon-img" src="icons/pin.png" alt="Pin"></div>
   <div id="drivingModeBtn" class="pin-map-btn" style="display:none" title="Driving mode" onclick="toggleDrivingMode('car')"><img class="icon-img" src="icons/car.png" alt="Driving mode"></div>
   <div id="bikeModeBtn" class="pin-map-btn" style="display:none" title="Bike mode" onclick="toggleDrivingMode('bike')"><img class="icon-img" src="icons/bicycle.png" alt="Bike mode"></div>
   <div id="heatmapBtn" class="pin-map-btn heatmap-btn" style="display:none" title="Heatmap" onclick="toggleHeatmap()">
     <img class="icon-img" src="icons/heatmap.png" alt="Heatmap">
   </div>
-  <div id="mainMapCompass" class="map-compass heading-up-disabled" style="display:none" title="Heading: tap to rotate the map with your direction of travel" onclick="toggleWalkingCompassMode()">
+  <div id="mainMapCompass" class="map-compass heading-up-disabled" style="display:none" title="Heading: tap to rotate the map with your direction of travel" onclick="toggleWalkingCompassMode()" role="button" tabindex="0" aria-label="Rotate map with direction of travel" aria-pressed="false" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleWalkingCompassMode();}">
     <div class="compass-face">
       <div class="compass-needle" id="mainCompassNeedle">
         <svg viewBox="0 0 24 24"><path d="M12 2 L16 13 L12 11 L8 13 Z" fill="#ff4b4b"/><path d="M12 22 L16 13 L12 15 L8 13 Z" fill="#ccc"/></svg>
@@ -2976,6 +3007,10 @@ span.flatpickr-weekday {
   <img src="icons/reports/report_new.png" alt="">
 </button>
 <div id="drivingTopFade"></div>
+<div id="navFreeLookPill" class="nav-free-look-pill" role="button" tabindex="0" onclick="resumeNavFollowNow()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();resumeNavFollowNow();}">
+  <img class="icon-img icon-img-inline" src="icons/target.png" alt="">
+  <span id="navFreeLookPillText"></span>
+</div>
 
 <!-- ========== NAVIGATION / DRIVING-MODE UI (route panel, turn-by-turn card, nav action row) ========== -->
 <div id="navigatePanel" class="navigate-panel">
@@ -3013,14 +3048,14 @@ span.flatpickr-weekday {
   </button>
   <div class="driving-action-row-right">
     <button class="driving-search-btn" id="drivingSearchBtn" onclick="toggleNavigatePanel()" title="Search destination"><img class="icon-img" src="icons/search.png" alt="Search"></button>
-    <div id="mapCompass" class="map-compass" title="Heading: tap to toggle map rotation" onclick="toggleHeadingUpMode()">
+    <div id="mapCompass" class="map-compass" title="Heading: tap to toggle map rotation" onclick="toggleHeadingUpMode()" role="button" tabindex="0" aria-label="Heading-up navigation" aria-pressed="true" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleHeadingUpMode();}">
       <div class="compass-face">
         <div class="compass-needle" id="compassNeedle">
           <svg viewBox="0 0 24 24"><path d="M12 2 L16 13 L12 11 L8 13 Z" fill="#ff4b4b"/><path d="M12 22 L16 13 L12 15 L8 13 Z" fill="#ccc"/></svg>
         </div>
       </div>
     </div>
-    <button class="driving-search-btn" id="drivingCenterBtn" onclick="toggleFollowMode()" title="Center on me"><img class="icon-img" src="icons/target.png" alt="Center"></button>
+    <button class="driving-search-btn" id="drivingCenterBtn" onclick="toggleFollowMode()" title="Center on me" aria-label="Recenter and follow my location" aria-pressed="false"><img class="icon-img" src="icons/target.png" alt=""></button>
   </div>
 </div>
 
@@ -3710,6 +3745,22 @@ if ('serviceWorker' in navigator) {
 }
 </script>
 <script>
+
+// ========================================================================================
+// GLOBAL ERROR HANDLING — last-resort net so an uncaught exception anywhere in the app
+// (a bad selector, a null map instance mid-navigation, an unawaited promise rejection)
+// leaves a trace in the console instead of just silently breaking whatever feature hit it.
+// Deliberately does NOT surface a toast for every error — most of these are non-fatal to
+// the rest of the app (one broken render call shouldn't interrupt someone mid-drive) and
+// a toast on every stray error would be more disruptive than helpful. This is a diagnostic
+// net, not a user-facing notification path.
+// ========================================================================================
+window.addEventListener('error', (event) => {
+  console.error('Uncaught error:', event.error || event.message, event.filename ? `(${event.filename}:${event.lineno})` : '');
+});
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('Unhandled promise rejection:', event.reason);
+});
 
 // ========================================================================================
 // BOOTSTRAP & CONFIG — header sizing, Supabase client, coordinate/path validation helpers
@@ -5857,6 +5908,7 @@ const T = {
   detailContactsError:   { en:'Could not load contacts.',                  sr:'Kontakti nisu učitani.' },
 
   contactCountsTitle:      { en:'Contact activity',                            sr:'Aktivnost kontaktiranja' },
+  navFreeLookResumeText:   { en:'Free look — tap to resume navigation',        sr:'Slobodan pregled — dodirnite za nastavak navigacije' },
   contactNudgeText:        { en:'You haven\'t contacted the responsible service about this yet. Use the contacts below.', sr:'Još niste kontaktirali nadležnu službu povodom ovoga. Koristite kontakte ispod.' },
   duplicateNoticeTitle:    { en:'{n} similar report(s) already nearby', sr:'{n} sličnih prijava već postoji u blizini' },
   duplicateNoticeHint:     { en:'Check the map before submitting: this issue may already be logged.', sr:'Proverite mapu pre slanja: ovaj problem je možda već prijavljen.' },
@@ -7261,11 +7313,11 @@ function refreshVisibleBadgeGrids() {
   try {
     const lbModal = document.getElementById('leaderboardModal');
     if (lbModal && lbModal.style.display !== 'none') renderUserDashboard();
-  } catch (e) {}
+  } catch (e) { console.warn('refreshVisibleBadgeGrids: renderUserDashboard failed', e); }
   try {
     const adminSection = document.getElementById('adminDashboardSection');
     if (adminSection && adminSection.style.display !== 'none') renderAdminDashboard();
-  } catch (e) {}
+  } catch (e) { console.warn('refreshVisibleBadgeGrids: renderAdminDashboard failed', e); }
 }
 
 setTimeout(initIconCaching, 0);
@@ -7656,7 +7708,10 @@ function updateUserMarkerRotation() {
 function toggleHeadingUpMode() {
   headingUpMode = !headingUpMode;
   const btn = document.getElementById('mapCompass');
-  if (btn) btn.classList.toggle('heading-up-disabled', !headingUpMode);
+  if (btn) {
+    btn.classList.toggle('heading-up-disabled', !headingUpMode);
+    btn.setAttribute('aria-pressed', String(headingUpMode));
+  }
   if (!headingUpMode) {
     resetMapBearing();
   } else if (drivingMode && currentHeading !== null) {
@@ -7668,7 +7723,10 @@ function toggleHeadingUpMode() {
 function toggleWalkingCompassMode() {
   walkingHeadingMode = !walkingHeadingMode;
   const btn = document.getElementById('mainMapCompass');
-  if (btn) btn.classList.toggle('heading-up-disabled', !walkingHeadingMode);
+  if (btn) {
+    btn.classList.toggle('heading-up-disabled', !walkingHeadingMode);
+    btn.setAttribute('aria-pressed', String(walkingHeadingMode));
+  }
   requestOrientationPermission();
   if (!walkingHeadingMode) {
     resetMapBearing();
@@ -8072,6 +8130,9 @@ function onNavStateChange(prev, next) {
 
   if (next === NavState.IDLE) {
     setFollowMode(false);
+    pendingAutoRefollow = false;
+    cancelAutoRefollowTimer();
+    hideFreeLookPill();
   }
 }
 
@@ -8956,9 +9017,24 @@ function clearNavigation() {
 function setFollowMode(enabled) {
   followMode = enabled;
   const btn = document.getElementById('drivingCenterBtn');
-  if (btn) btn.classList.toggle('active', enabled);
+  if (btn) { btn.classList.toggle('active', enabled); btn.setAttribute('aria-pressed', String(enabled)); }
   const generalBtn = document.getElementById('followLocationBtn');
-  if (generalBtn) generalBtn.classList.toggle('active', enabled);
+  if (generalBtn) { generalBtn.classList.toggle('active', enabled); generalBtn.setAttribute('aria-pressed', String(enabled)); }
+}
+
+// Floating "you're in free-look" pill — shown while pendingAutoRefollow is true (i.e. the
+// user panned/rotated away from an active follow) so it's obvious how to get back, instead
+// of silently waiting out the AUTO_REFOLLOW_DELAY_MS timer with no feedback.
+function showFreeLookPill() {
+  const pill = document.getElementById('navFreeLookPill');
+  if (!pill) return;
+  const textEl = document.getElementById('navFreeLookPillText');
+  if (textEl) textEl.textContent = t('navFreeLookResumeText');
+  pill.classList.add('pill-visible');
+}
+function hideFreeLookPill() {
+  const pill = document.getElementById('navFreeLookPill');
+  if (pill) pill.classList.remove('pill-visible');
 }
 
 function toggleFollowMode() {
@@ -8966,7 +9042,9 @@ function toggleFollowMode() {
   if (followMode && userCoords) {
     followMapTo(userCoords.lat, userCoords.lon);
     pendingAutoRefollow = false;
+    cancelAutoRefollowTimer();
     reenableAutoHeadingIfManuallyRotated();
+    hideFreeLookPill();
   }
 }
 
@@ -8982,8 +9060,27 @@ function onUserMapInteractionStart() {
   if (followMode) {
     pendingAutoRefollow = true;
     setFollowMode(false);
+    showFreeLookPill();
   }
   cancelAutoRefollowTimer();
+}
+
+// Shared by both the auto-refollow timer and the "tap to resume" pill so the two paths
+// can't drift out of sync.
+function performAutoRefollow() {
+  if (!(pendingAutoRefollow && userCoords)) return;
+  pendingAutoRefollow = false;
+  setFollowMode(true);
+  followMapTo(userCoords.lat, userCoords.lon);
+  reenableAutoHeadingIfManuallyRotated();
+  hideFreeLookPill();
+}
+
+// Lets the user tap the free-look pill to jump straight back into navigation instead of
+// waiting out the remainder of AUTO_REFOLLOW_DELAY_MS.
+function resumeNavFollowNow() {
+  cancelAutoRefollowTimer();
+  performAutoRefollow();
 }
 
 function scheduleAutoRefollow() {
@@ -8991,12 +9088,7 @@ function scheduleAutoRefollow() {
   cancelAutoRefollowTimer();
   autoRefollowTimer = setTimeout(() => {
     autoRefollowTimer = null;
-    if (pendingAutoRefollow && userCoords) {
-      pendingAutoRefollow = false;
-      setFollowMode(true);
-      followMapTo(userCoords.lat, userCoords.lon);
-      reenableAutoHeadingIfManuallyRotated();
-    }
+    performAutoRefollow();
   }, AUTO_REFOLLOW_DELAY_MS);
 }
 
@@ -9101,13 +9193,13 @@ function disableAutoHeadingForManualRotation() {
       headingUpMode = false;
       headingUpDisabledByManualRotation = true;
       const btn = document.getElementById('mapCompass');
-      if (btn) btn.classList.add('heading-up-disabled');
+      if (btn) { btn.classList.add('heading-up-disabled'); btn.setAttribute('aria-pressed', 'false'); }
     }
   } else if (walkingHeadingMode) {
     walkingHeadingMode = false;
     headingUpDisabledByManualRotation = true;
     const btn = document.getElementById('mainMapCompass');
-    if (btn) btn.classList.add('heading-up-disabled');
+    if (btn) { btn.classList.add('heading-up-disabled'); btn.setAttribute('aria-pressed', 'false'); }
   }
 }
 
@@ -9120,12 +9212,12 @@ function reenableAutoHeadingIfManuallyRotated() {
   if (drivingMode) {
     headingUpMode = true;
     const btn = document.getElementById('mapCompass');
-    if (btn) btn.classList.remove('heading-up-disabled');
+    if (btn) { btn.classList.remove('heading-up-disabled'); btn.setAttribute('aria-pressed', 'true'); }
     if (currentHeading !== null) applyMapBearing(-currentHeading);
   } else {
     walkingHeadingMode = true;
     const btn = document.getElementById('mainMapCompass');
-    if (btn) btn.classList.remove('heading-up-disabled');
+    if (btn) { btn.classList.remove('heading-up-disabled'); btn.setAttribute('aria-pressed', 'true'); }
     if (currentHeading !== null) applyMapBearing(-currentHeading);
   }
 }
@@ -11618,7 +11710,9 @@ async function deleteQueuedReport(localId) {
     const tx = db.transaction(OFFLINE_STORE, 'readwrite');
     tx.objectStore(OFFLINE_STORE).delete(localId);
     await idbTxDone(tx);
-  } catch (e) {}
+  } catch (e) {
+    console.warn('deleteQueuedReport: failed to remove synced report from offline queue', localId, e);
+  }
 }
 
 function isNetworkFailure(err) {
