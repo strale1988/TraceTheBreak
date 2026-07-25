@@ -9466,6 +9466,35 @@ function shouldBlockReportSubmission() {
 const CAR_QUICK_CATEGORIES = ['Road', 'Streetlight', 'SECTION_RECORD', 'Waste', 'Parking', 'Electricity'];
 const BIKE_QUICK_CATEGORIES = ['BikeLanes', 'Road', 'SECTION_RECORD', 'Streetlight', 'Waste', 'Parking'];
 
+const QUICK_DEFAULT_CATEGORY = 'Road';
+const QUICK_ROAD_DEFAULT_KEY = 'ttb_quick_road_default';
+function getQuickRoadDefaultPref() {
+  try {
+    const v = localStorage.getItem(QUICK_ROAD_DEFAULT_KEY);
+    return v === null ? true : v === '1';
+  } catch (err) { return true; }
+}
+let quickRoadDefaultEnabled = getQuickRoadDefaultPref();
+function setQuickRoadDefaultEnabled(enabled) {
+  quickRoadDefaultEnabled = !!enabled;
+  try { localStorage.setItem(QUICK_ROAD_DEFAULT_KEY, quickRoadDefaultEnabled ? '1' : '0'); } catch (err) {}
+  // Re-apply immediately: whichever grid is currently showing its resting (top-level or
+  // already-default) state should reflect the new preference right away.
+  resetQuickGrids();
+}
+function initQuickRoadDefaultSettingsUi() {
+  const input = document.getElementById('quickRoadDefaultToggleInput');
+  if (input) input.checked = quickRoadDefaultEnabled;
+}
+// The category the quick-report grid should rest on for a given mode: 'Road' subcategories
+// when the preference is enabled and that mode actually offers a Road category, otherwise
+// the plain top-level category grid (null).
+function defaultQuickCategoryFor(modeKey) {
+  if (!quickRoadDefaultEnabled) return null;
+  const { categories } = quickGridConfig(modeKey);
+  return categories.includes(QUICK_DEFAULT_CATEGORY) ? QUICK_DEFAULT_CATEGORY : null;
+}
+
 const QUICK_SUBCATEGORY_OVERRIDES = {
   car: { Electricity: ['pole_damage', 'exposed_wire', 'other'] }
 };
