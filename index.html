@@ -34,8 +34,7 @@
   <script>
     (function(){
       try {
-        // One-time migration: 'auto' used to mean the ambient/time/system "smart" chain.
-        // Now 'auto' means system-preference only, and that old behavior lives under 'smart'.
+
         if (!localStorage.getItem('ttb_theme_mode_v2_migrated')) {
           var legacy = localStorage.getItem('ttb_theme_mode');
           if (legacy === 'auto') localStorage.setItem('ttb_theme_mode', 'smart');
@@ -47,10 +46,7 @@
         if (mode === 'auto') {
           resolved = systemDark ? 'dark' : 'light';
         } else if (mode === 'smart') {
-          // Ambient-light reading isn't available synchronously this early, so fall back
-          // to local time — matches resolveThemeMode() below. Smart mode is meant to be
-          // day=light / night=dark regardless of the OS's own light/dark preference, so
-          // we don't consult systemDark here at all.
+
           var h = new Date().getHours();
           var isNight = h >= 20 || h < 7;
           resolved = isNight ? 'dark' : 'light';
@@ -92,6 +88,7 @@ button, [onclick], [role="button"]{
   --map-tile-filter: none;
   --native-color-scheme: light;
   --nav-accent: #0090ab;
+  --nav-route-color: #2f7dfb;
   --warn-bg: #fdf1da;
   --warn-border: #e16e11;
   --warn-text: #8a6212;
@@ -160,6 +157,7 @@ html[data-theme="dark"]{
   --map-tile-filter: invert(1) hue-rotate(180deg) brightness(.92) contrast(.92);
   --native-color-scheme: dark;
   --nav-accent: #00d0ff;
+  --nav-route-color: #5b9bff;
   --warn-bg: #2a2308;
   --warn-border: #e16e11;
   --warn-text: #f5c518;
@@ -179,12 +177,7 @@ html[data-theme="dark"]{
   opacity:0 !important;
   pointer-events:none !important;
 }
-/* While rotated, animated zoom is disabled (see updateZoomAnimationForRotation) because the
-   CSS zoom transform composes incorrectly with the rotation wrapper. That means the overlay
-   pane (navigation route / recorder road splines) gets redrawn in un-animated snaps at each
-   intermediate zoom step instead of gliding smoothly, which looks like it's jumping around
-   mid-gesture. Hiding it for the duration of a rotated zoom (like markers/popups already are)
-   avoids the visible jump — it simply reappears, correctly placed, once the zoom settles. */
+
 #map.map-zooming-rotated .leaflet-overlay-pane{
   opacity:0 !important;
   pointer-events:none !important;
@@ -1013,16 +1006,10 @@ body.nav-panel-open .driving-nav-card{
 }
 
 .user-location-icon{
-  /* Smoothly glide between GPS fixes instead of snapping instantly on every update —
-     this is what removes the "choppy" jump-to-jump movement when just walking/browsing.
-     Only the position (translate) transitions here; heading rotation is handled separately
-     by .user-nav-arrow's own transition above. */
+
   transition: transform .6s linear;
 }
-/* While driving/navigating, position is instead driven continuously every animation frame
-   (see startMarkerAnimLoop/markerAnimTick — dead-reckoned from heading+speed rather than
-   jumping only on each raw GPS fix), so this transition is turned off to avoid the two
-   smoothing mechanisms fighting each other and re-introducing a laggy, uneven glide. */
+
 body.driving-active .user-location-icon{ transition:none; }
 
 #drivingTopFade{
@@ -1275,9 +1262,6 @@ body.driving-active .driving-speed-widget{ display:flex; }
 .driving-speed-value{ font-size:20px; font-weight:var(--fw-heavy); color:var(--text-primary); line-height:1; margin-top:1px; }
 .driving-speed-unit{ font-size:var(--fs-9); font-weight:var(--fw-bold); color:var(--text-secondary); letter-spacing:.3px; margin-top:-2px; }
 
-/* Bike mode: no posted vehicle speed limit to show, so the circular sign is dropped and the
-   capsule shrinks down to just wrap the current-speed readout instead of leaving a big empty
-   gap where the sign used to be. */
 body.bike-mode-active .driving-speed-limit{ display:none; }
 body.bike-mode-active .driving-speed-capsule{ min-height:0; padding:10px 6px; gap:2px; }
 body.bike-mode-active .driving-speed-value{ margin-top:0; }
@@ -1291,9 +1275,6 @@ body.bike-mode-active .driving-speed-value{ margin-top:0; }
   animation: overspeedFlash .6s ease-in-out 3;
 }
 
-/* Turn-by-turn info now lives inside the bottom sheet (drivingNavCard) and expands the
-   sheet itself when a turn is coming up, instead of floating a separate card above the
-   action row (which sat in an awkward spot, easy to miss and easy to overlap). */
 .turn-by-turn-bar{
   display:flex;
   flex-direction:row;
@@ -1327,9 +1308,6 @@ body.bike-mode-active .driving-speed-value{ margin-top:0; }
   white-space:nowrap;
 }
 
-/* The card itself carries class "turn-by-turn-card" (not "turn-by-turn-bar" above) —
-   this is the actual positioning/visual styling for it. Floats near the top of the
-   driving screen, fades/slides in when a turn is coming up. */
 .turn-by-turn-card{
   position:fixed;
   top:calc(var(--header-h, 64px) + 10px + env(safe-area-inset-top, 0px));
@@ -1363,11 +1341,7 @@ body.bike-mode-active .driving-speed-value{ margin-top:0; }
   align-items:flex-end;
   justify-content:space-between;
 }
-/* Upcoming speed-limit signs, placed on the map ahead of the driver at the location of each
-   OSM way segment carrying a maxspeed tag. Styled like a real EU/Vienna-convention circular
-   speed-limit sign (white face, red ring, black number) so it reads as "the real sign" at a
-   glance rather than as another app icon — deliberately NOT tinted by the dark-map-tile filter,
-   since a physical sign's colors don't change at night either. */
+
 .speed-sign-marker{
   width:34px; height:34px;
   border-radius:50%;
@@ -1451,16 +1425,7 @@ body.driving-active .driving-report-sheet{ display:flex; }
   font-size:var(--fs-13);
 }
 .section-awaiting-cancel:active{ background:var(--border-color-strong); }
-/* Both car (driving) mode and bike mode use the same tap-a-category-then-subcategory
-   grid (see renderQuickGrid / CAR_QUICK_CATEGORIES / BIKE_QUICK_CATEGORIES): tapping a
-   category shows that category's subcategory tiles in the same grid (with a back tile),
-   and tapping a subcategory (or a category that has none, like Parking) submits the
-   report. Car's grid sticks to the core road/infrastructure categories a driver is
-   realistically the one to notice (road, street lighting, sewage, waste); bike's covers
-   a broader set relevant to cyclists (bike lanes and road issues first, since those are
-   most directly bike-relevant). Always visible as square tiles rather than tucked behind
-   a button, and each grid is only shown while its own mode is active. 3 columns — big
-   enough to hit one-handed while rolling/driving. */
+
 .car-quick-grid,
 .bike-quick-grid{
   display:none;
@@ -2343,8 +2308,7 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 .detail-row:not(:last-child){ border-bottom:1px solid var(--border-color); }
 .detail-row-label{ color:var(--text-muted); flex-shrink:0; display:flex; align-items:center; gap:var(--space-8); line-height:1.3; }
 .detail-row-icon{ width:14px; height:14px; flex-shrink:0; filter:var(--icon-tint-filter); opacity:.85; }
-/* Same one-line-and-ellipsize treatment as contact-card-row: values shrink instead of
-   wrapping to a second line or overflowing the modal — tap through for the full text. */
+
 .detail-row-value{ color:var(--text-primary); text-align:right; flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; line-height:1.3; }
 .detail-row-value a{ color:#4ea1ff; text-decoration:none; }
 .contact-card{
@@ -2372,13 +2336,11 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 .contact-pdf-export-row-btn{ width:100%; margin-bottom:8px; }
 .contact-card-row:not(:last-child){ border-bottom:1px solid var(--border-color); }
 .contact-card-row a{ color:#4ea1ff; text-decoration:none; }
-/* Links/values stay on one line and ellipsize instead of wrapping or overflowing the card —
-   the user will tap through to the link anyway, so the full text doesn't need to be visible. */
+
 .contact-card-row > a, .contact-card-row > span{ flex:1 1 auto; min-width:0; }
 .contact-card-row:not(.contact-card-notes) > a,
 .contact-card-row:not(.contact-card-notes) > span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .contact-card-icon{ width:15px; height:15px; flex-shrink:0; filter:var(--icon-tint-filter); }
-
 
 .map-pin-badge{
   width:26px; height:26px; box-sizing:border-box; border-radius:50%;
@@ -2880,7 +2842,6 @@ span.flatpickr-weekday {
   </div>
 </header>
 
-<!-- ========== MAP & ON-MAP CONTROLS (follow/pin/driving/heatmap buttons, compass, legend) ========== -->
 <div id="map"></div>
 <div id="mapLoadingOverlay">
   <div class="map-loading-spinner-wrap">
@@ -2974,8 +2935,6 @@ span.flatpickr-weekday {
   </div>
 </div>
 
-
-
 <div class="wiz-overlay" id="reportWizard" style="display:none">
   <div class="wiz-header">
     <button type="button" class="wiz-back-btn" id="wizBackBtn" onclick="wizGoBack()" aria-label="Back">‹</button>
@@ -3035,7 +2994,6 @@ span.flatpickr-weekday {
 </button>
 <div id="drivingTopFade"></div>
 
-<!-- ========== NAVIGATION / DRIVING-MODE UI (route panel, turn-by-turn card, nav action row) ========== -->
 <div id="navigatePanel" class="navigate-panel">
   <div class="navigate-row">
     <input type="text" id="navigateSearchInput" placeholder="Search destination..."
@@ -3113,8 +3071,6 @@ span.flatpickr-weekday {
 <div id="gpsIssuePill"><span class="gps-issue-dot"></span><span id="gpsIssuePillText"></span></div>
 <div id="pinsLoadingPill"><span class="pins-loading-dot"></span><span id="pinsLoadingPillText"></span></div>
 
-
-<!-- ========== MODALS (GPS, help, badges, settings, report detail, admin, analytics, notifications...) ========== -->
 <div id="gpsModal" class="generic-modal-overlay" style="display:none">
   <div class="generic-modal">
     <div class="generic-modal-icon"><img class="icon-img icon-img-modal" src="icons/pin.png" alt="Pin"></div>
@@ -3125,7 +3081,6 @@ span.flatpickr-weekday {
   </div>
 </div>
 
-
 <div id="helpModal" class="generic-modal-overlay" style="display:none">
   <div class="generic-modal" style="max-width: 380px;">
     <h2 id="helpModalTitle" style="margin-top: 6px;">How to Use</h2>
@@ -3133,7 +3088,6 @@ span.flatpickr-weekday {
     <button class="generic-modal-close" onclick="hideHelpModal()" id="helpModalBtn" style="margin-top:14px;">Close</button>
   </div>
 </div>
-
 
 <div id="badgeInfoModal" class="generic-modal-overlay" style="display:none">
   <div class="generic-modal">
@@ -3149,7 +3103,6 @@ span.flatpickr-weekday {
     <button class="generic-modal-close" onclick="hideBadgeInfo()">Close</button>
   </div>
 </div>
-
 
 <div id="contactConfirmModal" class="generic-modal-overlay" style="display:none">
   <div class="generic-modal" id="contactConfirmModalInner"></div>
@@ -3176,7 +3129,6 @@ span.flatpickr-weekday {
 </div>
 <input type="file" accept="image/*" capture="environment" id="reportPhotoPickerCamera" style="display:none">
 <input type="file" accept="image/*" id="reportPhotoPickerLibrary" style="display:none">
-
 
 <div id="settingsModal" class="fullscreen-modal-overlay" style="display:none">
   <div class="fullscreen-modal-header">
@@ -3740,10 +3692,7 @@ span.flatpickr-weekday {
 <script src="https://unpkg.com/libphonenumber-js@1.10.51/bundle/libphonenumber-js.min.js"></script>
 <script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script>
-// Registers the app-shell service worker (see sw.js) so the page itself — not just
-// map tiles and offline report data, which already had their own caching — can load
-// with zero connectivity. Safe no-op in browsers/contexts without SW support (e.g.
-// plain http:// during local dev).
+
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').then(() => {
@@ -3754,9 +3703,7 @@ if ('serviceWorker' in navigator) {
         const wizardEl = document.getElementById('reportWizard');
         const wizardOpen = !!(wizardEl && wizardEl.style.display !== 'none');
         if (drivingMode || wizardOpen) {
-          // Mid-drive or mid-report — don't yank the page out from under them. They'll get
-          // the update the next time they reload on their own (or once they finish and this
-          // listener would otherwise have already fired the reload for a later update).
+
           toast(t('appUpdateReadyToast'), 'success');
         } else {
           window.location.reload();
@@ -3770,15 +3717,6 @@ if ('serviceWorker' in navigator) {
 </script>
 <script>
 
-// ========================================================================================
-// GLOBAL ERROR HANDLING — last-resort net so an uncaught exception anywhere in the app
-// (a bad selector, a null map instance mid-navigation, an unawaited promise rejection)
-// leaves a trace in the console instead of just silently breaking whatever feature hit it.
-// Deliberately does NOT surface a toast for every error — most of these are non-fatal to
-// the rest of the app (one broken render call shouldn't interrupt someone mid-drive) and
-// a toast on every stray error would be more disruptive than helpful. This is a diagnostic
-// net, not a user-facing notification path.
-// ========================================================================================
 window.addEventListener('error', (event) => {
   console.error('Uncaught error:', event.error || event.message, event.filename ? `(${event.filename}:${event.lineno})` : '');
 });
@@ -3786,15 +3724,11 @@ window.addEventListener('unhandledrejection', (event) => {
   console.error('Unhandled promise rejection:', event.reason);
 });
 
-// ========================================================================================
-// BOOTSTRAP & CONFIG — header sizing, Supabase client, coordinate/path validation helpers
-// ========================================================================================
 function updateHeaderHeightVar() {
   const header = document.querySelector('header');
   if (header) document.documentElement.style.setProperty('--header-h', header.offsetHeight + 'px');
   if (typeof map !== 'undefined' && map.invalidateSize) map.invalidateSize({ animate: false, pan: false });
 }
-
 
 (function initAppPanelHeightTracking() {
   const panel = document.getElementById('appPanel');
@@ -3833,14 +3767,14 @@ const SUPABASE_URL = 'https://fnkqmwweljsupbmerbkh.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZua3Ftd3dlbGpzdXBibWVyYmtoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3OTcwODUsImV4cCI6MjA5NzM3MzA4NX0.eX3mxnSpGmJ6Ebw7Y4F_jHiJarPH4ri9WNYXwmLi16I';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const TABLE = 'brake_reports';
-const BUMPS_TABLE = 'bumps'; // separate, minimal, anonymous table — see BUMP DETECTION section
+const BUMPS_TABLE = 'bumps';
+
 const PROFILES_TABLE = 'profiles';
 const MUNICIPALITIES_TABLE = 'municipalities';
 const UTILITY_COMPANIES_TABLE = 'utility_companies';
 const COUNTRIES_TABLE = 'countries';
 const REPORT_CONTACT_EVENTS_TABLE = 'report_contact_events';
 const MUNICIPALITY_STATS_TABLE = 'municipality_report_stats';
-
 
 function isValidLat(lat) { return typeof lat === 'number' && isFinite(lat) && lat >= -90  && lat <= 90; }
 function isValidLng(lng) { return typeof lng === 'number' && isFinite(lng) && lng >= -180 && lng <= 180; }
@@ -3868,9 +3802,6 @@ let currentProfile = null;
 
 let voteProgressByReport = new Map();
 
-// ========================================================================================
-// AUTH — sign in/out (OAuth + OSM), session/profile load, auth UI state
-// ========================================================================================
 function describeAuthError(err) {
   if (!err) return 'Unknown error';
   if (typeof err === 'string') return err;
@@ -4040,19 +3971,11 @@ function updateAuthUI() {
   refreshUnreadNotificationCount();
 }
 
-// ---------- First-run onboarding tour ----------
-// A short, dismissible coach-mark walkthrough shown once, right after a user's map controls
-// become visible (i.e. they're logged in and have a username set). Steps whose target element
-// doesn't exist or isn't currently visible (e.g. driving mode hidden via a settings toggle) are
-// skipped automatically rather than pointing at nothing. Replayable any time from Settings.
 const ONBOARDING_SEEN_KEY = 'ttb_onboarding_seen_v1';
 let onboardingActiveSteps = [];
 let onboardingStepIndex = 0;
 let onboardingResizeHandlerBound = null;
 
-// ========================================================================================
-// ONBOARDING TOUR — first-run walkthrough
-// ========================================================================================
 function hasSeenOnboarding() {
   try { return localStorage.getItem(ONBOARDING_SEEN_KEY) === '1'; } catch (e) { return true; }
 }
@@ -4079,7 +4002,7 @@ function isOnboardingTargetVisible(el) {
 
 function maybeStartOnboardingTour() {
   if (hasSeenOnboarding()) return;
-  // small delay so the layout the buttons just appeared in (updateAuthUI just ran) has settled
+
   setTimeout(() => startOnboardingTour(false), 500);
 }
 
@@ -4166,9 +4089,6 @@ const USER_LEVELS = [
   { level:5, threshold:25, weight:3,   nameEn:'Community Hero',        nameSr:'Heroj zajednice' },
 ];
 
-// ========================================================================================
-// GAMIFICATION — user levels & badges (earning, progress, icons)
-// ========================================================================================
 function levelName(lvl) { return lang === 'sr' ? lvl.nameSr : lvl.nameEn; }
 function levelForPoints(points) {
   let current = USER_LEVELS[0];
@@ -4523,9 +4443,6 @@ const ADMIN_LEVELS = [
 ];
 const ADMIN_DEFAULT_LEVEL = 3;
 
-// ========================================================================================
-// GAMIFICATION — admin levels & moderation stats
-// ========================================================================================
 function adminLevelInfo(lvl) { return ADMIN_LEVELS.find(a => a.level === lvl) || null; }
 function adminLevelName(lvl) {
   const info = adminLevelInfo(lvl);
@@ -4837,9 +4754,7 @@ function isReportInAdminDomain(report) {
   if (!report) return false;
   let muni = report.municipality_id != null ? getMunicipalityById(report.municipality_id) : null;
   if (!muni && isValidLatLng(report.latitude, report.longitude)) {
-    // municipality_id is attached asynchronously after a report is created (reverse-geocode
-    // can take a few seconds, or fail); fall back to a live spatial lookup against the cached
-    // municipality boundaries so municipality/country admins aren't locked out in the meantime.
+
     muni = findMunicipalityInCache(report.latitude, report.longitude);
   }
   return isMunicipalityInAdminDomain(muni);
@@ -4887,7 +4802,8 @@ async function toggleBanReportOwner(reportId, ownerId) {
   let reason = null;
   if (!currentlyBanned) {
     reason = await themedPrompt(t('banReasonPrompt'), '');
-    if (reason === null) return; // cancelled
+    if (reason === null) return;
+
   } else if (!(await themedConfirm(t('unbanConfirm')))) {
     return;
   }
@@ -4921,9 +4837,6 @@ async function toggleBanReportOwner(reportId, ownerId) {
 
 let leaderboardCityMuni = null;
 
-// ========================================================================================
-// LEADERBOARD & NOTIFICATIONS
-// ========================================================================================
 function showLeaderboardModal() {
   document.getElementById('leaderboardModalTitle').innerHTML = '<img class="icon-img icon-img-inline" src="icons/trophy.png" alt=""> ' + t('leaderboardTitle');
   const lbModal = document.getElementById('leaderboardModal');
@@ -5107,9 +5020,7 @@ function renderUserNotifications() {
   }
   const isAdmin = !!(currentProfile && currentProfile.is_admin);
   listEl.innerHTML = userNotificationsCache.map(n => {
-    // Some notifications (e.g. "your report was flagged") are tied to a specific report.
-    // For admins, tapping one jumps straight to that report so it can be reviewed/edited
-    // instead of leaving them to go hunt for it in the queue.
+
     const reportId = n.report_id || n.related_report_id || null;
     const clickable = isAdmin && reportId;
     return `
@@ -5183,9 +5094,6 @@ function stopNotificationInboxAutoRefresh() {
   }
 }
 
-// ========================================================================================
-// USER DASHBOARD — personal stats, weekly chart, my reports, admin dashboard
-// ========================================================================================
 async function resolveLeaderboardCity() {
   if (leaderboardCityMuni) return leaderboardCityMuni;
   if (userCoords) {
@@ -5407,8 +5315,8 @@ async function renderUserDashboard() {
   }
 }
 
-// ---- My Reports: a signed-in user's own submitted reports, with live status ----
-let myReportsCache = null;   // null = not loaded yet, [] = loaded but empty
+let myReportsCache = null;
+
 let myReportsFilter = 'all';
 let myReportsLoadToken = 0;
 
@@ -5501,7 +5409,6 @@ async function renderMyReportsSection() {
     }
   }
 }
-
 
 async function renderAdminDashboard() {
   updateAdminPanelButtonVisibility();
@@ -5637,9 +5544,6 @@ async function initAuth() {
   });
 }
 
-// ========================================================================================
-// TRANSLATIONS & STATIC CONFIG DATA — the T{} dictionary and related constant tables
-// ========================================================================================
 function stripAuthHashFromUrl() {
   if (!window.location.hash) return;
   if (!/access_token=|refresh_token=/.test(window.location.hash)) return;
@@ -6191,9 +6095,6 @@ const T = {
   adminDashboardLadderTitle:{ en:'Admin Authority',                   sr:'Administratorska ovlašćenja' },
 };
 
-// ========================================================================================
-// I18N — t()/setLang(), language auto-detection by location
-// ========================================================================================
 function t(k){ return T[k]?.[lang] ?? k; }
 
 const LANG_STORAGE_KEY = 'ttb_lang';
@@ -6205,10 +6106,7 @@ let lang = (function () {
   try { return localStorage.getItem(LANG_STORAGE_KEY) || 'sr'; } catch (e) { return 'sr'; }
 })();
 let globalActiveData = [];
-// Bumped every time globalActiveData's *content* changes (reassigned, or mutated in place via
-// push/splice/index-assignment). Lets anything derived purely from report data — currently
-// just duplicate-group clustering, see recomputeDuplicateGroups — skip recomputing itself on
-// plain pan/zoom, where the data hasn't actually changed at all.
+
 let activeDataVersion = 0;
 function markActiveDataChanged() { activeDataVersion++; }
 let fp = null;
@@ -6240,8 +6138,7 @@ function applyResolvedLang(l){
 }
 
 const LANG_AUTO_COUNTRY_MAP_SR = ['rs', 'me', 'ba'];
-// Timezone names covering the region where we default to Serbian. Works fully offline —
-// no network or GPS needed — since Intl already knows the OS/browser timezone.
+
 const LANG_AUTO_TIMEZONE_MAP_SR = ['Europe/Belgrade', 'Europe/Podgorica', 'Europe/Sarajevo'];
 
 function countryCodeToLang(countryCode) {
@@ -6249,11 +6146,6 @@ function countryCodeToLang(countryCode) {
   return LANG_AUTO_COUNTRY_MAP_SR.includes(String(countryCode).toLowerCase()) ? 'sr' : 'en';
 }
 
-// GPS is off/denied — try to still guess a sensible language without it.
-// We can't read SIM/carrier info from a browser (no web API exposes that), so instead:
-// 1) IP-based geolocation (uses the network/ISP's registered location), then
-// 2) the device's timezone (works fully offline), then
-// 3) the browser/OS language setting.
 async function detectLanguageWithoutCoords() {
   try {
     const res = await fetch('https://ipapi.co/json/');
@@ -6269,7 +6161,8 @@ async function detectLanguageWithoutCoords() {
   try {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
     if (tz && LANG_AUTO_TIMEZONE_MAP_SR.includes(tz)) return 'sr';
-  } catch (err) { /* Intl unsupported — ignore */ }
+  } catch (err) {
+ }
 
   const browserLangs = navigator.languages && navigator.languages.length
     ? navigator.languages : [navigator.language].filter(Boolean);
@@ -6322,9 +6215,6 @@ function initLang(){
   if (langPref === 'auto') detectLanguageByLocation();
 }
 
-// ========================================================================================
-// MODALS — help, settings, admin panel, analytics
-// ========================================================================================
 function applyLang(){
   const mapLoadingTextEl = document.getElementById('mapLoadingText');
   if (mapLoadingTextEl) mapLoadingTextEl.textContent = t('loadingMap');
@@ -6646,9 +6536,6 @@ function hideAdminPanelModal() {
   closeOverlay('adminPanelModal');
 }
 
-// ---- Analytics dashboard ---------------------------------------------------------
-// Category/area/time trends for admins, scoped to whatever the admin can already see
-// via isReportInAdminDomain (municipality / country / global depending on admin_level).
 const ANALYTICS_RANGE_OPTIONS = [7, 30, 90];
 let analyticsRangeDays = 30;
 let analyticsLoadToken = 0;
@@ -6711,7 +6598,7 @@ async function loadAndRenderAnalytics() {
     }
     return;
   }
-  if (myToken !== analyticsLoadToken) return; // a newer range was selected meanwhile
+  if (myToken !== analyticsLoadToken) return;
 
   const scoped = rows.filter(isReportInAdminDomain);
   renderAnalytics(scoped);
@@ -6764,8 +6651,7 @@ function renderAnalytics(rows) {
 }
 
 function analyticsTrendBucketCount(days) {
-  // Daily buckets for short ranges stay readable; longer ranges collapse to weekly
-  // buckets so the chart doesn't turn into an unreadable wall of thin bars.
+
   return days <= 30 ? days : Math.ceil(days / 7);
 }
 
@@ -6832,16 +6718,12 @@ function renderAnalyticsBarList(elId, items, labelFn, colorFn) {
     </div>`;
   }).join('');
 }
-// ========================================================================================
-// HELP CONTENT, CALENDAR FILTER & SAVED MAP VIEW
-// ========================================================================================
+
 function buildHelpModalContent() {
   document.getElementById('helpModalTitle').textContent = t('helpTitle');
   document.getElementById('helpModalBtn').textContent = t('helpClose');
   const contentEl = document.getElementById('helpModalContent');
 
-  // Collapsible "Learn more" entry for the detailed guide below the quick-start steps.
-  // iconSrc may be null for entries that don't have a matching icon asset.
   const acc = (iconSrc, titleEn, titleSr, bodyEn, bodySr, openByDefault) => `
     <details${openByDefault ? ' open' : ''} style="border:1px solid var(--border-color); border-radius:var(--radius-xl); background:var(--bg-surface-alt); overflow:hidden;">
       <summary style="list-style:none; cursor:pointer; padding:10px 12px; font-size:13px; font-weight:var(--fw-semibold); display:flex; align-items:center; gap:8px; -webkit-tap-highlight-color:transparent;">
@@ -6985,8 +6867,8 @@ const map = L.map('map', {
   worldCopyJump: false,
   maxBounds: WORLD_BOUNDS,
   maxBoundsViscosity: 1.0,
-  minZoom: 2 // below this, a single world copy is narrower than most viewports and Leaflet
-             // would otherwise tile it side-by-side to fill the screen
+  minZoom: 2
+
 }).setView(
   savedMapView ? [savedMapView.lat, savedMapView.lng] : EUROPE_DEFAULT_CENTER,
   savedMapView ? savedMapView.zoom : EUROPE_DEFAULT_ZOOM
@@ -7020,16 +6902,9 @@ map.on('zoomend',   () => {
 });
 
 const TILE_CACHE_NAME = 'ttb-osm-tiles-v1';
-// Opened once and reused for every tile lookup — re-opening a Cache Storage bucket on
-// every single tile request (as a naive caches.open() call per tile would) adds a
-// redundant async hop even for cache hits, which is exactly the kind of delay that
-// shows up as a visible blank/background flash when many tiles are needed at once,
-// e.g. zooming out across several levels at once.
+
 const tileCacheReady = ('caches' in window) ? caches.open(TILE_CACHE_NAME) : Promise.resolve(null);
 
-// ========================================================================================
-// OFFLINE CACHING — map tiles & icon assets
-// ========================================================================================
 async function fetchTileCached(url) {
   const cache = await tileCacheReady;
   if (cache) {
@@ -7076,15 +6951,13 @@ new CachedTileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
   noWrap: true
 }).addTo(map);
 
-// ---- Offline tile pre-caching ----------------------------------------------------
-// Everyday panning already caches whatever tiles pass through the view (see
-// CachedTileLayer above), but that only covers ground you've actually looked at. This
-// adds a quiet automatic background job that keeps nudging the cached area outward
-// from wherever you already browse, capped at a country-ish radius so it can't run away.
 const OSM_TILE_SUBDOMAINS = ['a', 'b', 'c'];
-const OFFLINE_PRECACHE_CONCURRENCY = 2; // deliberately gentle — this hits the public OSM tile servers
-const AUTO_CACHE_MAX_RADIUS_KM = 120;   // practical stand-in for "the whole country" without real border lookups
-const AUTO_CACHE_TILE_BUDGET = 6000;    // lifetime cap on tiles the background job will fetch
+const OFFLINE_PRECACHE_CONCURRENCY = 2;
+
+const AUTO_CACHE_MAX_RADIUS_KM = 120;
+
+const AUTO_CACHE_TILE_BUDGET = 6000;
+
 const AUTO_CACHE_STORAGE_KEY = 'ttb_auto_cache_state_v1';
 const AUTO_CACHE_ENABLED_KEY = 'ttb_auto_cache_enabled_v1';
 
@@ -7143,7 +7016,6 @@ async function precacheTiles(tiles, { onProgress, shouldAbort } = {}) {
   return { done, fetched, failed, aborted };
 }
 
-// -- Automatic background expansion ------------------------------------------------
 function readAutoCacheState() {
   try {
     const raw = localStorage.getItem(AUTO_CACHE_STORAGE_KEY);
@@ -7162,15 +7034,16 @@ function setOfflineAutoCacheEnabled(enabled) {
   if (input) input.checked = enabled;
 }
 
-const AUTO_CACHE_RING_STEP_KM = 10;   // how far outward each background pass reaches
-const AUTO_CACHE_RING_TILE_CAP = 800; // per-pass cap so a single tick can't binge the budget
+const AUTO_CACHE_RING_STEP_KM = 10;
+
+const AUTO_CACHE_RING_TILE_CAP = 800;
+
 let autoCacheRunning = false;
 
 async function runAutoCacheTick() {
   if (autoCacheRunning || !isAutoCacheEnabled() || !('caches' in window)) return;
   if (!navigator.onLine) return;
-  // Be a good citizen of shared connections and of the OSM tile servers: only run on
-  // WiFi where that's knowable, and only once a real position/map center is available.
+
   const conn = navigator.connection;
   if (conn && conn.type && conn.type !== 'wifi' && conn.saveData) return;
 
@@ -7186,8 +7059,7 @@ async function runAutoCacheTick() {
   try {
     const ringOuter = Math.min(AUTO_CACHE_MAX_RADIUS_KM, state.doneRingKm + AUTO_CACHE_RING_STEP_KM);
     const outerBbox = bboxAroundKm(center.lat, center.lon, ringOuter);
-    // Farther-out rings get progressively lower max zoom — country-scale coverage only
-    // needs to be good enough for an overview, not street-level detail everywhere.
+
     const maxZ = ringOuter <= 20 ? 15 : ringOuter <= 50 ? 13 : 11;
     let tiles = tilesForBBoxZoomRange(outerBbox, 6, maxZ);
     if (state.doneRingKm > 0) {
@@ -7210,8 +7082,6 @@ async function runAutoCacheTick() {
   }
 }
 
-// Runs occasionally while idle rather than all at once — a background map-caching job
-// has no business competing with real usage for bandwidth or the main thread.
 const AUTO_CACHE_TICK_MS = 45000;
 setInterval(() => {
   const kickoff = () => runAutoCacheTick();
@@ -7303,8 +7173,7 @@ function collectAllIconPaths() {
   const turnIcons = (typeof TURN_ICONS !== 'undefined')
     ? Object.values(TURN_ICONS).map(f => `icons/${f}`)
     : [];
-  // CATEGORY_ICONS and WIZ_CATEGORY_ICONS are the same object (see WIZ_CATEGORY_ICONS
-  // definition) — only listed once here, correctly pathed under icons/reports/.
+
   const wizCategoryIcons = (typeof WIZ_CATEGORY_ICONS !== 'undefined')
     ? Object.values(WIZ_CATEGORY_ICONS).map(f => `icons/reports/${f}`)
     : [];
@@ -7356,9 +7225,6 @@ setTimeout(initIconCaching, 0);
 const CLUSTER_STATUS_RANK = { reported: 2, in_progress: 1, fixed: 0 };
 const CLUSTER_PRIORITY_RANK = { high: 2, normal: 1, low: 0 };
 
-// ========================================================================================
-// MAP RENDERING — clustering & heading/compass rotation
-// ========================================================================================
 function clusterWorstReport(cluster) {
   let worstStatus = null, worstPriority = null;
   cluster.getAllChildMarkers().forEach(m => {
@@ -7460,31 +7326,13 @@ let markerById    = new Map();
 let sectionPinById = new Map();
 let dateRangeOnlyData = [];
 
-// ---- Duplicate-report merging ---------------------------------------------------
-// When several people report the same real-world issue (e.g. a pothole), we don't want
-// N stacked pins on top of each other — we merge same-category, not-yet-fixed reports
-// within DUPLICATE_MERGE_RADIUS_M of one another into a single group. Only the earliest
-// report in each group ("primary") gets its own marker; its popup/detail view shows a
-// "Confirmed by N people" line, and status changes/votes applied to it are applied to
-// every report in the group so the whole physical issue moves together.
-//
-// Kept tight on purpose: a wider radius was pulling in reports from the opposite
-// carriageway of dual-carriageway roads (which are usually 15-30m+ apart including
-// the median) as if they were the same issue. Reports don't currently record which
-// direction the reporter was travelling in, so we can't do true "same side of the
-// road" matching — this radius is the safest practical stand-in for that until a
-// direction/heading field is added to the report schema.
 const DUPLICATE_MERGE_RADIUS_M = 15;
-let duplicateGroupByReportId = new Map(); // reportId -> { ids, primaryId, count }
+let duplicateGroupByReportId = new Map();
+
 let _duplicateGroupsComputedForVersion = -1;
 
 function recomputeDuplicateGroups() {
-  // This is O(n × groups) (each candidate scans existing groups looking for a match), which
-  // gets expensive as the loaded report count grows — recomputing it on every single moveend
-  // (see syncMarkers, called from the plain, undebounced 'moveend' handler) was the main cause
-  // of pan/zoom stutter once a view had a few thousand reports loaded, even though panning or
-  // zooming alone never changes which reports exist or where they are. Skip the recompute
-  // whenever the underlying data hasn't changed since last time.
+
   if (_duplicateGroupsComputedForVersion === activeDataVersion) return;
   _duplicateGroupsComputedForVersion = activeDataVersion;
 
@@ -7505,7 +7353,8 @@ function recomputeDuplicateGroups() {
   });
 
   groups.forEach(g => {
-    if (g.ids.length < 2) return; // nothing to merge for a lone report
+    if (g.ids.length < 2) return;
+
     const info = { ids: g.ids.slice(), primaryId: g.ids[0], count: g.ids.length };
     g.ids.forEach(id => duplicateGroupByReportId.set(id, info));
   });
@@ -7523,10 +7372,7 @@ let navPinMode    = false;
 
 let followMode        = false;
 let drivingMode        = false;
-// 'car' or 'bike' — picked when driving mode is entered (see toggleDrivingMode), and drives
-// which routing profile, thresholds, and widgets are used underneath the shared driving/nav
-// UI. Locked in for the duration of a session; to switch, exit and re-enter with the other
-// button, same as the existing single-button behavior.
+
 let travelMode         = 'car';
 function isBikeMode() { return drivingMode && travelMode === 'bike'; }
 let sectionRecording   = false;
@@ -7534,8 +7380,7 @@ let sectionAwaitingCategory = false;
 let sectionPoints      = [];
 let sectionPolyline    = null;
 const SECTION_MIN_DISTANCE_M = 8;
-// Mirrors drivenPathLastAt/NAV_DRIVEN_PATH_GAP_MS/drivenPathGapFilling below, but for the
-// section-recording breadcrumb (see fillSectionPathGap).
+
 const SECTION_PATH_GAP_MS = 20000;
 let sectionLastAt      = null;
 let sectionGapFilling  = false;
@@ -7579,12 +7424,6 @@ function applyMapBearing(targetHeadingDeg) {
   updateZoomAnimationForRotation();
 }
 
-// Leaflet animates zoom by applying its own CSS transform directly to mapPane.
-// Since mapPane now lives inside rotWrapper (which carries our rotation transform),
-// the two transforms compose incorrectly mid-animation, making polylines/markers
-// visibly swim until Leaflet's post-zoom _resetView() snaps everything back into
-// place. Disabling the animated transform while rotated sidesteps the conflict
-// entirely — zooms become an instant (still correct) redraw instead of animating.
 const ROTATION_EPSILON_DEG = 0.5;
 function updateZoomAnimationForRotation() {
   if (!map) return;
@@ -7593,11 +7432,7 @@ function updateZoomAnimationForRotation() {
   const shouldAnimate = !rotated && L.Browser.any3d;
   if (map._zoomAnimated !== shouldAnimate) {
     map._zoomAnimated = shouldAnimate;
-    // Flipping this private flag outside Leaflet's own zoom lifecycle leaves the map
-    // pane's cached transform/position out of sync with the new animation mode — the
-    // symptom is dragging feeling "stuck" or offset on the very next pan after a zoom.
-    // Forcing the same internal resync Leaflet performs after its own animated zooms
-    // snaps the pane back to a clean baseline so subsequent drags compute correctly.
+
     try { map._resetView(map.getCenter(), map.getZoom(), true); } catch (e) {}
   }
 }
@@ -7712,11 +7547,6 @@ function setUserMarkerStyle(navStyle) {
   updateUserMarkerRotation();
 }
 
-// Continuously-accumulated (unwrapped) heading used to rotate the nav arrow when the
-// map itself is north-up. currentHeading is stored mod 360, so animating straight to
-// it would make the arrow spin the "long way" around whenever heading crosses 0/360
-// (e.g. 359deg -> 1deg). Accumulating via shortestAngleDelta keeps the visual rotation
-// continuous, the same trick already used for mapBearing.
 let arrowContinuousAngle = 0;
 
 function updateUserMarkerRotation() {
@@ -7800,12 +7630,8 @@ function isDeviceNearlyFlat(beta) {
 const ORIENTATION_MAX_JUMP_DEG = 120;
 
 function handleOrientationEvent(event) {
-  // A fresh GPS-course heading (derived from actual movement direction) is always more
-  // reliable than the phone's magnetic compass while driving/navigating — the compass can
-  // be thrown off by phone mount position, dashboard magnets, etc., and previously this
-  // only deferred to GPS course while heading-up mode was active, letting the compass yank
-  // the on-map arrow off the road's direction whenever the map was north-up. Now GPS course
-  // wins whenever it's recent, in either map mode.
+  if (drivingMode) return;
+
   if ((Date.now() - lastGpsHeadingAt) < GPS_HEADING_FRESH_MS) {
     return;
   }
@@ -7861,9 +7687,6 @@ function distMeters(a, b) {
   return 2 * R * Math.asin(Math.sqrt(s));
 }
 
-// Initial compass bearing (0-360, 0=north) from point a to point b. Used to tell whether a
-// report sitting near the driver is actually ahead of them (their side/direction of travel)
-// or behind/across the road (e.g. the opposite carriageway of a divided road they're passing).
 function bearingBetween(a, b) {
   const toRad = d => d * Math.PI / 180;
   const lat1 = toRad(a.lat), lat2 = toRad(b.lat);
@@ -7873,9 +7696,6 @@ function bearingBetween(a, b) {
   return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
 }
 
-// ========================================================================================
-// GEO HELPERS, VPN CHECK, TOAST & THEMED DIALOGS
-// ========================================================================================
 function isMobileDevice() {
   if (navigator.userAgent.includes('TraceTheStuffApp')) return true;
   if (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)) return true;
@@ -7937,24 +7757,52 @@ function nearestPointOnSegment(p, a, b) {
   return { lat: a[0] + tt * (b[0] - a[0]), lon: a[1] + tt * (b[1] - a[1]) };
 }
 
-function nearestPointOnPolyline(point, latlngs) {
+function toLatLon(raw) {
+  return Array.isArray(raw) ? { lat: raw[0], lon: raw[1] } : { lat: raw.lat, lon: raw.lng };
+}
+
+function findNearestSegmentOnPolyline(point, latlngs) {
   if (!point || !Array.isArray(latlngs) || latlngs.length < 2) return null;
-  let best = null, bestDist = Infinity;
+  let bestIndex = -1, bestPoint = null, bestDist = Infinity;
   for (let i = 0; i < latlngs.length - 1; i++) {
     const raw1 = latlngs[i], raw2 = latlngs[i + 1];
     const a = Array.isArray(raw1) ? raw1 : [raw1.lat, raw1.lng];
     const b = Array.isArray(raw2) ? raw2 : [raw2.lat, raw2.lng];
     if (!isValidLatLng(a[0], a[1]) || !isValidLatLng(b[0], b[1])) continue;
-    const nearest = nearestPointOnSegment(point, a, b);
-    const d = distMeters(point, nearest);
-    if (d < bestDist) { bestDist = d; best = nearest; }
+    const candidate = nearestPointOnSegment(point, a, b);
+    const d = distMeters(point, candidate);
+    if (d < bestDist) { bestDist = d; bestPoint = candidate; bestIndex = i; }
   }
-  return best ? { lat: best.lat, lon: best.lon, dist: bestDist } : null;
+  return bestIndex === -1 ? null : { index: bestIndex, point: bestPoint, dist: bestDist };
+}
+
+function nearestPointOnPolyline(point, latlngs) {
+  const seg = findNearestSegmentOnPolyline(point, latlngs);
+  return seg ? { lat: seg.point.lat, lon: seg.point.lon, dist: seg.dist } : null;
 }
 
 function distanceToPolylineMeters(point, latlngs) {
   const nearest = nearestPointOnPolyline(point, latlngs);
   return nearest ? nearest.dist : Infinity;
+}
+
+function pointAheadOnPolyline(point, latlngs, aheadMeters) {
+  const seg = findNearestSegmentOnPolyline(point, latlngs);
+  if (!seg) return null;
+
+  let remaining = aheadMeters;
+  let current = seg.point;
+  for (let i = seg.index + 1; i < latlngs.length; i++) {
+    const next = toLatLon(latlngs[i]);
+    const segmentLength = distMeters(current, next);
+    if (segmentLength >= remaining) {
+      const frac = remaining / segmentLength;
+      return { lat: current.lat + (next.lat - current.lat) * frac, lon: current.lon + (next.lon - current.lon) * frac };
+    }
+    remaining -= segmentLength;
+    current = next;
+  }
+  return current; // route ends before we travel the full lookahead distance
 }
 
 function toast(msg, kind) {
@@ -7974,9 +7822,6 @@ function toast(msg, kind) {
   }, 2600);
 }
 
-// Themed replacements for window.confirm()/window.prompt() — same visual language as the
-// rest of the app's popups (nearby check-in, contact confirm, etc.) instead of the browser's
-// unstyled native dialog. Both return a Promise so call sites just `await` them.
 let themedDialogResolver = null;
 function closeThemedDialog(result) {
   const overlay = document.getElementById('themedDialogModal');
@@ -8017,10 +7862,6 @@ function themedPrompt(message, defaultValue, opts) {
   });
 }
 
-// Shared "take photo / choose from gallery" picker for all report-detail photo actions
-// (owner photo, after photo, community gallery photo) — same choice offered in the new
-// report form's photo-choice-dropdown, just presented as a small themed action sheet here
-// since these call sites are single buttons rather than an inline row.
 let photoSourceResolver = null;
 function closePhotoSourceModal(file) {
   const overlay = document.getElementById('photoSourceModal');
@@ -8058,9 +7899,6 @@ function pickReportPhotoSource() {
   });
 }
 
-
-// Direct picker: skips the "camera vs gallery" modal when the caller (e.g. two separate
-// inline buttons) already knows which source it wants.
 function pickReportPhotoDirect(source) {
   return new Promise(resolve => {
     const inputEl = document.getElementById(source === 'camera' ? 'reportPhotoPickerCamera' : 'reportPhotoPickerLibrary');
@@ -8102,9 +7940,6 @@ const NAV_TRANSITIONS = {
 
 let navState = NavState.IDLE;
 
-// ========================================================================================
-// NAVIGATION — driving-mode state machine, routing & destination search
-// ========================================================================================
 function setNavState(next) {
   if (next === navState) return;
   const allowed = NAV_TRANSITIONS[navState] || [];
@@ -8137,9 +7972,6 @@ function onNavStateChange(prev, next) {
     const from = userCoords || manualCoords;
     if (from) followMapTo(from.lat, from.lon);
 
-    // Only (re)start the driven-path trail on a genuinely new nav session — not when we're
-    // just coming back from an off-route recalculation, which would otherwise wipe out the
-    // trail the driver has already covered.
     if (prev !== NavState.OFF_ROUTE && prev !== NavState.RECALCULATING) {
       if (drivenPathLine) { map.removeLayer(drivenPathLine); drivenPathLine = null; }
       drivenPathCoords = from ? [[from.lat, from.lon]] : [];
@@ -8181,9 +8013,6 @@ function updateNavStatusText() {
   el.style.display = text ? 'block' : 'none';
 }
 
-// Car values below are unchanged from before bike mode existed — bike gets its own, tighter
-// tolerances (narrower paths/lanes, slower speeds) via these small lookups instead of new
-// globals scattered through the nav logic.
 function navArrivalRadiusM()          { return travelMode === 'bike' ? 20    : 25; }
 function navOffRouteThresholdM()      { return travelMode === 'bike' ? 25    : 40; }
 function navOnRouteRecoverThresholdM(){ return travelMode === 'bike' ? 15    : 25; }
@@ -8193,11 +8022,7 @@ let navigationLine     = null;
 let drivenPathLine     = null;
 let drivenPathCoords   = [];
 const NAV_DRIVEN_PATH_MIN_DISTANCE_M = 8;
-// If we go this long without adding a driven-path point (app backgrounded/killed, phone
-// asleep, tunnel, etc.), the next fix that comes in is treated as a signal gap rather than
-// a normal step — see fillDrivenPathGap() below — instead of just drawing a straight line
-// from wherever we were to wherever we ended up, which cuts across blocks/buildings instead
-// of following the road actually driven.
+
 const NAV_DRIVEN_PATH_GAP_MS = 20000;
 let drivenPathLastAt    = null;
 let drivenPathGapFilling = false;
@@ -8211,8 +8036,6 @@ let navLastRouteFrom   = null;
 function navRerouteIntervalMs() { return travelMode === 'bike' ? 20000 : 15000; }
 function navRerouteDriftM()     { return travelMode === 'bike' ? 25    : 40; }
 
-// OSRM exposes separate routing profiles per host — same API shape, so fetchRoute/
-// snapToNearestRoad/snapUserToRoadThenShow just need to ask for the right one.
 const OSRM_ROUTE_ENDPOINTS = {
   car:  'https://routing.openstreetmap.de/routed-car/route/v1/driving/',
   bike: 'https://routing.openstreetmap.de/routed-bike/route/v1/bike/'
@@ -8302,10 +8125,7 @@ function toggleNavigatePanel() {
   if (navPanelOpen) {
     setTimeout(() => document.getElementById('navigateSearchInput').focus(), 50);
     if (navState === NavState.IDLE) setNavState(NavState.SEARCHING);
-    // onNavStateChange only hides this button when we actually transition into SEARCHING
-    // (i.e. starting fresh from IDLE). If the panel is reopened while already navigating,
-    // navState stays NAVIGATING and the button would otherwise stay visible on top of the
-    // search panel — so hide it directly here regardless of nav state.
+
     const navCloseBtn = document.getElementById('navigateClearBtn');
     if (navCloseBtn) navCloseBtn.style.display = 'none';
     openOverlay('navigatePanel', closeNavigatePanel);
@@ -8316,10 +8136,6 @@ function toggleNavigatePanel() {
   }
 }
 
-// Restores the close-navigation (✕) button's visibility once the destination search panel
-// is dismissed, for any nav state that should show it. Needed because onNavStateChange only
-// runs on an actual state transition, which doesn't happen when the panel is closed while
-// navState was already NAVIGATING/OFF_ROUTE/etc. (see toggleNavigatePanel/closeNavigatePanel).
 function restoreNavCloseBtnVisibility() {
   const navCloseBtn = document.getElementById('navigateClearBtn');
   if (navCloseBtn && navState !== NavState.IDLE && navState !== NavState.SEARCHING) {
@@ -8439,18 +8255,12 @@ async function selectDestination(lat, lon, label) {
   });
 }
 
-// Bridges a gap in the driven-path trail (app backgrounded/killed, phone asleep, tunnel,
-// etc. meant we missed a stretch of fixes) by routing between the last recorded point and
-// the new one, so the trail still follows the road that was actually driven instead of
-// cutting a straight line across blocks/buildings. Uses the same car routing endpoint as
-// live navigation. Falls back to a straight segment if routing fails, so the trail always
-// connects — it just won't hug the road for that one gap.
 async function fillDrivenPathGap(from, to) {
   if (drivenPathGapFilling || !drivenPathLine) return;
   drivenPathGapFilling = true;
   try {
     const route = await fetchRoute(from, to);
-    // route.coords includes the 'from' point itself — skip it, it's already the trail's last point.
+
     route.coords.slice(1).forEach(coord => {
       drivenPathCoords.push(coord);
       drivenPathLine.addLatLng(coord);
@@ -8465,12 +8275,6 @@ async function fillDrivenPathGap(from, to) {
   }
 }
 
-// Same idea as fillDrivenPathGap, but for the manual "Start Section Report" breadcrumb trail.
-// Section recording previously just appended every raw fix directly with no gap handling at
-// all, so a stretch of coarse/jumpy fixes (app backgrounded then foregrounded mid-recording,
-// phone asleep, etc.) would leave the drawn section zig-zagging across blocks instead of
-// following the road actually traveled. This routes between the last good point and the new
-// one the same way, so the recorded section stays snapped to the road through any such gap.
 async function fillSectionPathGap(from, to) {
   if (sectionGapFilling || !sectionPolyline) return;
   sectionGapFilling = true;
@@ -8542,7 +8346,7 @@ async function drawNavigationLine(force) {
       navLastRouteFrom = { lat: from.lat, lon: from.lon };
 
       if (navigationLine) map.removeLayer(navigationLine);
-      navigationLine = L.polyline(route.coords, { color: 'var(--accent)', weight: 5, opacity: .9 }).addTo(map);
+      navigationLine = L.polyline(route.coords, { color: 'var(--nav-route-color)', weight: 5, opacity: .9 }).addTo(map);
       navigationLine._isFallback = false;
 
       navRouteSteps = route.steps;
@@ -8557,7 +8361,7 @@ async function drawNavigationLine(force) {
       const latlngs = [[from.lat, from.lon], [destinationCoords.lat, destinationCoords.lon]];
       if (navigationLine) map.removeLayer(navigationLine);
       navigationLine = L.polyline(latlngs, {
-        color: 'var(--accent)', weight: 4, opacity: .85, dashArray: '8 8'
+        color: 'var(--nav-route-color)', weight: 4, opacity: .85, dashArray: '8 8'
       }).addTo(map);
       navigationLine._isFallback = true;
       navRouteSteps = [];
@@ -8582,9 +8386,7 @@ function updateNavInfoText(meters, seconds, approximate) {
   const etaEl = document.getElementById('navigateEtaText');
   if (!distEl) return;
   distEl.textContent = (approximate ? '~' : '') + formatDistance(meters);
-  // Remaining time and arrival only come from a fresh route calculation (seconds != null).
-  // Between route refreshes we keep showing the last known values instead of blanking
-  // them out to '--', since the old numbers are still the best estimate we have.
+
   if (seconds != null) {
     if (timeEl) timeEl.textContent = formatDuration(seconds);
     if (etaEl) {
@@ -8594,12 +8396,9 @@ function updateNavInfoText(meters, seconds, approximate) {
   }
 }
 
-/* ---------- Map button visibility prefs (hidden by default) ---------- */
 const NAV_BTN_PREF_KEY = 'ttb_show_nav_btn';
 const HEATMAP_BTN_PREF_KEY = 'ttb_show_heatmap_btn';
-// ========================================================================================
-// SOUND ALERTS & DRIVING SAFETY REMINDER
-// ========================================================================================
+
 function getBoolPref(key, defaultVal) {
   try {
     const v = localStorage.getItem(key);
@@ -8635,7 +8434,6 @@ function initMapButtonToggleUi() {
   if (heatInput) heatInput.checked = showHeatmapBtnPref;
 }
 
-/* ---------- Sound engine (WebAudio, no external audio files) ---------- */
 const SOUND_PREF_KEY = 'ttb_sound_enabled';
 function getSoundEnabledPref() {
   try {
@@ -8697,11 +8495,6 @@ function initSoundSettingsUi() {
   if (input) input.checked = soundEnabled;
 }
 
-/* ---------- Driving safety reminder ---------- */
-// A one-tap-to-dismiss reminder shown each time driving mode starts, nudging people to
-// keep their eyes on the road and not fiddle with reports/navigation while moving. On
-// by default (safety-relevant), with a settings toggle to turn it off for people who
-// find it repetitive.
 const DRIVING_SAFETY_REMINDER_KEY = 'ttb_driving_safety_reminder';
 function getDrivingSafetyReminderPref() {
   try {
@@ -8719,12 +8512,6 @@ function initDrivingSafetySettingsUi() {
   if (input) input.checked = drivingSafetyReminderEnabled;
 }
 
-/* ---------- Over-speed alert ---------- */
-// Flashes the speed capsule and plays a sound when the driver is 5+ km/h over the fetched
-// speed limit. Edge-triggered with hysteresis (must drop back within OVERSPEED_RESET_MARGIN_KMH
-// of the limit before it can fire again) so it doesn't flap on/off while riding right at the
-// threshold, plus a cooldown so a long stretch of continuous speeding doesn't leave it flashing
-// nonstop — just a periodic reminder.
 const OVERSPEED_ALERT_PREF_KEY   = 'ttb_overspeed_alert_enabled';
 const OVERSPEED_THRESHOLD_KMH    = 5;
 const OVERSPEED_RESET_MARGIN_KMH = 3;
@@ -8746,10 +8533,6 @@ function initOverspeedAlertSettingsUi() {
   if (input) input.checked = overspeedAlertEnabled;
 }
 
-/* ---------- Pothole/bump detection (accelerometer) ---------- */
-// On by default. Lets people who find the vibration-based detector too chatty (false
-// positives on rough roads, or just don't want it running) turn the whole thing off —
-// requestMotionPermission/handleDeviceMotion both check this before doing anything.
 const BUMP_DETECTION_PREF_KEY = 'ttb_bump_detection_enabled';
 function getBumpDetectionPref() {
   try {
@@ -8792,7 +8575,8 @@ function triggerOverspeedAlert() {
   const capsule = document.getElementById('drivingSpeedCapsule');
   if (!capsule) return;
   capsule.classList.remove('overspeed-flash');
-  void capsule.offsetWidth; // force reflow so the animation restarts cleanly if re-triggered
+  void capsule.offsetWidth;
+
   capsule.classList.add('overspeed-flash');
   capsule.addEventListener('animationend', () => capsule.classList.remove('overspeed-flash'), { once: true });
 }
@@ -8848,7 +8632,8 @@ function maybeDrivingAudioAlert() {
     if (now - last < DRIVING_AUDIO_ALERT_COOLDOWN_MS) continue;
     drivingAudioAlertedAt.set(r.id, now);
     playNearbyReportChime();
-    break; // one chime per position update is enough
+    break;
+
   }
 }
 
@@ -8859,9 +8644,6 @@ const TBT_MIN_POPIN_M  = 60;
 const TBT_MAX_POPIN_M  = 500;
 const TBT_FADE_MS      = 350;
 
-// ========================================================================================
-// TURN-BY-TURN UI & NAVIGATION PROGRESS TRACKING
-// ========================================================================================
 function showTurnByTurnCard() {
   const card = document.getElementById('turnByTurnCard');
   if (!card) return;
@@ -9043,7 +8825,6 @@ function clearNavigation() {
   setNavState(NavState.IDLE);
 }
 
-
 function setFollowMode(enabled) {
   followMode = enabled;
   const btn = document.getElementById('drivingCenterBtn');
@@ -9062,11 +8843,6 @@ function toggleFollowMode() {
   }
 }
 
-// Flat 10s delay before follow-mode auto-resumes once the user stops interacting with the
-// map. Restarted (not just left running) on every interaction, so it always counts 10s of
-// actual quiet before snapping back. While an overlay (settings, etc.) is open over the map
-// the timer is paused entirely (see openOverlay/closeOverlay) and starts fresh at 10s again
-// once the user is back on the map/navigation.
 const AUTO_REFOLLOW_DELAY_MS = 10000;
 let autoRefollowTimer = null;
 let pendingAutoRefollow = false;
@@ -9108,16 +8884,8 @@ map.on('zoomend', scheduleAutoRefollow);
 let customDragActive = false;
 let customDragLast   = null;
 
-// ========================================================================================
-// MAP GESTURES — touch drag & two-finger rotation
-// ========================================================================================
 function rotationActive() {
-  // Must reflect whether the map is *visually* rotated right now, not whether
-  // heading-up mode happens to be on. Manual two-finger rotation deliberately
-  // turns heading-up mode off (disableAutoHeadingForManualRotation) while still
-  // leaving mapBearing non-zero — gating on isHeadingUpActive() here caused native
-  // (rotation-unaware) dragging to re-enable itself as soon as the user rotated
-  // manually, which is why drags went in the wrong direction after any rotation.
+
   return Math.abs(((mapBearing % 360) + 360) % 360) > ROTATION_EPSILON_DEG;
 }
 
@@ -9136,9 +8904,7 @@ function customDragPointerDown(e) {
   if (!rotationActive()) return;
   customDragActive = true;
   customDragLast = { x: e.clientX, y: e.clientY };
-  // Use the shared interaction-start handler (not a bare setFollowMode(false)) so this
-  // also arms pendingAutoRefollow — otherwise dragging while the map is rotated (the
-  // normal case in driving mode) permanently killed follow mode with no way back.
+
   onUserMapInteractionStart();
 }
 
@@ -9168,19 +8934,14 @@ function customDragPointerUp() {
   window.addEventListener('pointercancel', customDragPointerUp, { passive: true });
 })();
 
-/* ---------- Two-finger rotate gesture (coexists with Leaflet's native pinch-zoom) ---------- */
-// A pinch-to-zoom gesture naturally introduces a bit of unintended finger-angle drift, which
-// used to be enough to sneak past the old fixed deadzone and rotate the map when the user only
-// meant to zoom. We now decide, once per gesture, whether it's a "rotate" or a "zoom" gesture
-// and lock into that interpretation for the rest of the touch — so a zoom can't drift into a
-// rotation (or vice versa) partway through.
 let twoFingerRotateActive     = false;
 let twoFingerRotateStartAngle = 0;
 let twoFingerRotateStartBearing = 0;
 let twoFingerStartDistance    = 0;
-let twoFingerGestureLock      = null; // null | 'rotate' | 'zoom'
+let twoFingerGestureLock      = null;
+
 const TWO_FINGER_ROTATE_DEADZONE_DEG = 8;
-const TWO_FINGER_ZOOM_LOCK_RATIO     = 0.06; // 6% pinch-distance change locks in "zoom" first
+const TWO_FINGER_ZOOM_LOCK_RATIO     = 0.06;
 
 function angleBetweenTouches(t0, t1) {
   return Math.atan2(t1.clientY - t0.clientY, t1.clientX - t0.clientX) * 180 / Math.PI;
@@ -9189,10 +8950,6 @@ function distanceBetweenTouches(t0, t1) {
   return Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
 }
 
-// Set when a manual rotation gesture is the *reason* heading-up mode got turned off,
-// so scheduleAutoRefollow() knows to restore it once the map auto-recenters back into
-// navigation mode. Not set if the user explicitly turned heading-up off via the compass
-// button — that's a deliberate choice and shouldn't be silently overridden.
 let headingUpDisabledByManualRotation = false;
 
 function disableAutoHeadingForManualRotation() {
@@ -9211,9 +8968,6 @@ function disableAutoHeadingForManualRotation() {
   }
 }
 
-// Restores heading-up/compass mode after the map auto-recenters back into navigation
-// mode, but only if a manual rotation (not an explicit tap on the compass button) was
-// what turned it off.
 function reenableAutoHeadingIfManuallyRotated() {
   if (!headingUpDisabledByManualRotation) return;
   headingUpDisabledByManualRotation = false;
@@ -9258,7 +9012,8 @@ function onMapTouchMove(e) {
     } else if (distanceRatio >= TWO_FINGER_ZOOM_LOCK_RATIO) {
       twoFingerGestureLock = 'zoom';
     } else {
-      return; // still ambiguous — wait for a clearer signal before committing either way
+      return;
+
     }
   }
 
@@ -9281,7 +9036,6 @@ function onMapTouchEnd(e) {
   el.addEventListener('touchcancel', onMapTouchEnd, { passive: true });
 })();
 
-
 function toggleDrivingMode(mode) {
   const requestedMode = mode === 'bike' ? 'bike' : 'car';
   drivingMode = !drivingMode;
@@ -9301,9 +9055,7 @@ function toggleDrivingMode(mode) {
   updateRotationOrigin();
 
   if (drivingMode) {
-    // Fresh mode session: clear anything tied to the *other* profile so it can't leak in —
-    // a snapped position or cached route computed against the car road network, or a
-    // vibration baseline calibrated on car-suspension noise, isn't valid once we switch.
+
     snappedUserCoords = null;
     navLastRouteAt = 0;
     navLastRouteFrom = null;
@@ -9351,45 +9103,30 @@ function toggleDrivingMode(mode) {
   setTimeout(() => { if (typeof map !== 'undefined' && map.invalidateSize) { map.invalidateSize(); updateRotationOrigin(); } }, 60);
 }
 
-// ========================================================================================
-// BUMP DETECTION — accelerometer-based bump/pothole logging while driving
-// ----------------------------------------------------------------------------------------
-// Goal: drop a small anonymous dot on the map wherever the car takes a hit, shared so other
-// drivers see (and don't re-log) the same bump. No category, no photo, no owner — just a
-// location. Three things make this reasonably accurate instead of just noisy:
-//   1. We work off the acceleration magnitude (not a single axis), so phone mounting angle
-//      doesn't matter.
-//   2. The trigger threshold is relative to a rolling baseline of "normal" vibration for the
-//      current road, not a fixed number — a smooth highway and a rough gravel road both get a
-//      sensible threshold instead of one under- or over-firing on the other.
-//   3. We gate on driving speed and debounce each event, and correct the GPS fix forward using
-//      current heading/speed so the dot lands close to where the bump actually happened rather
-//      than wherever the last (up to ~1s old) GPS fix was.
-// ========================================================================================
 let motionPermissionAsked = false;
 let motionListenerAttached = false;
-let gravityEstimate  = null;   // fallback low-pass gravity vector, only used when the browser
-                                // doesn't give us gravity-free acceleration directly (common
-                                // on Android/Chrome, where event.acceleration is often null)
-let bumpBaselineMag  = null;   // rolling "normal vibration for this road" reference level
+let gravityEstimate  = null;
+
+let bumpBaselineMag  = null;
+
 let lastBumpAt       = 0;
 
 const GRAVITY_LOWPASS_ALPHA  = 0.12;
 const BUMP_BASELINE_ALPHA    = 0.05;
-// Car values unchanged from before bike mode existed. Bike gets its own starting-point
-// numbers — a bike-mounted phone picks up more constant ambient road buzz (less suspension
-// damping than a car), and cycling speeds are lower overall, so a straight reuse of the car
-// numbers would either miss real potholes or spam false positives. Treat these as a starting
-// point to field-tune once there's real ride data, same as the car ones originally were.
-function bumpRatioThreshold() { return travelMode === 'bike' ? 2.2 : 2.5; }  // spike must be this many times the current baseline...
-function bumpAbsFloorMs2()    { return travelMode === 'bike' ? 3.0 : 3.5; }  // ...and clear this absolute floor (m/s²), so a near-zero
-                                                                              // baseline on a billiard-smooth road can't self-trigger
-function bumpMinSpeedKmh()    { return travelMode === 'bike' ? 5   : 8; }    // below this, ignore everything — kills false positives
-                                                                              // from parking, door slams, curbs, picking up the phone
-const BUMP_REFRACTORY_MS     = 550;  // one dot per bump, not one per suspension oscillation
-const BUMP_DEDUPE_RADIUS_M   = 12;   // an existing dot this close means "already logged"
-const BUMP_LOAD_RADIUS_KM    = 3;    // how far around the car we keep known bumps loaded
-const BUMP_RELOAD_DISTANCE_M = 800;  // re-query for nearby bumps after moving this far
+
+function bumpRatioThreshold() { return travelMode === 'bike' ? 2.2 : 2.5; }
+
+function bumpAbsFloorMs2()    { return travelMode === 'bike' ? 3.0 : 3.5; }
+
+function bumpMinSpeedKmh()    { return travelMode === 'bike' ? 5   : 8; }
+
+const BUMP_REFRACTORY_MS     = 550;
+
+const BUMP_DEDUPE_RADIUS_M   = 12;
+
+const BUMP_LOAD_RADIUS_KM    = 3;
+
+const BUMP_RELOAD_DISTANCE_M = 800;
 
 function requestMotionPermission() {
   if (motionPermissionAsked || !bumpDetectionEnabled) return;
@@ -9400,7 +9137,8 @@ function requestMotionPermission() {
     }).catch(() => {});
   } else {
     motionPermissionAsked = true;
-    attachMotionListener(); // most Android browsers need no explicit permission prompt
+    attachMotionListener();
+
   }
 }
 
@@ -9427,7 +9165,8 @@ function handleDeviceMotion(event) {
     ay = raw.y - gravityEstimate.y;
     az = raw.z - gravityEstimate.z;
   } else {
-    return; // no usable accelerometer data on this device/browser
+    return;
+
   }
 
   const mag = Math.sqrt(ax * ax + ay * ay + az * az);
@@ -9436,8 +9175,6 @@ function handleDeviceMotion(event) {
 
   const isSpike = mag > bumpBaselineMag * bumpRatioThreshold() && mag > bumpAbsFloorMs2();
 
-  // Only fold non-spike samples into the baseline, so a genuine bump can't drag its own
-  // reference level up mid-event and end up masking the very next bump.
   if (!isSpike) {
     bumpBaselineMag += (mag - bumpBaselineMag) * BUMP_BASELINE_ALPHA;
     return;
@@ -9447,18 +9184,12 @@ function handleDeviceMotion(event) {
   if (smoothedSpeedKmh === null || smoothedSpeedKmh < bumpMinSpeedKmh()) return;
 
   lastBumpAt = Date.now();
-  // How many times over baseline this particular spike was — this is the only signal we
-  // have for "how rough was it", so it becomes the bump's severity. Not folded into the
-  // baseline (see above), so it's the raw spike-vs-normal-road ratio at the moment of impact.
+
   const severity = mag / bumpBaselineMag;
   const pos = estimateCurrentPosition();
   if (pos) recordBump(pos.lat, pos.lon, severity);
 }
 
-// Dead-reckons a small correction forward from the last accepted GPS fix using current heading
-// and speed, since devicemotion fires far more often than GPS updates (a 1s-old fix is already
-// ~28m stale at 100km/h). Capped and speed-gated so a stalled/lost GPS fix can't extrapolate
-// somewhere wild.
 function estimateCurrentPosition() {
   if (!userCoords) return null;
   let pos;
@@ -9474,14 +9205,6 @@ function estimateCurrentPosition() {
   return snapToRouteIfClose(pos);
 }
 
-// GPS jitter alone (typically a few meters, more in urban canyons) is enough to make the raw
-// dead-reckoned dot visibly wander across lanes or off onto the sidewalk even when the car
-// hasn't actually left the road. While actively driving a real routed line (not the straight
-// "as the crow flies" fallback shown when routing failed), pull the position onto the route
-// itself whenever it's still plausibly on it. Once the driver has genuinely drifted past the
-// same threshold the reroute logic already treats as "off route" (navOnRouteRecoverThresholdM),
-// stop snapping — showing the real position lets the existing reroute machinery kick in
-// honestly instead of gluing the arrow to a route the driver has actually left.
 function snapToRouteIfClose(pos) {
   if (!pos || !drivingMode || !navigationLine || navigationLine._isFallback) return pos;
   const nearest = nearestPointOnPolyline(pos, navigationLine.getLatLngs());
@@ -9489,16 +9212,6 @@ function snapToRouteIfClose(pos) {
   return { lat: nearest.lat, lon: nearest.lon };
 }
 
-// ----------------------------------------------------------------------------------------
-// Continuous marker motion while driving/navigating. Previously the on-map arrow only moved
-// when a raw GPS fix arrived (every ~1s) via a CSS transition on the marker, which produced a
-// visible "glide, stop, glide" rhythm rather than smooth continuous travel — especially
-// noticeable since fixes don't land at a perfectly even cadence. This drives the marker every
-// animation frame using the same dead-reckoning estimate already computed for bump-position
-// correction (estimateCurrentPosition), so the arrow keeps moving steadily between fixes
-// instead of waiting for the next one. Raw fixes still arrive as before and simply re-anchor
-// the estimate (via userCoords/lastAcceptedFix/smoothedSpeedKmh), correcting drift without a
-// visible jump-then-ease.
 let markerAnimFrameId = null;
 function markerAnimTick() {
   if (!drivingMode || !userMarker) { markerAnimFrameId = null; return; }
@@ -9526,7 +9239,8 @@ function projectPoint(lat, lon, bearingDeg, distanceM) {
 }
 
 let bumpMarkersLayer     = null;
-let loadedBumps          = []; // {id, lat, lon} — known/rendered bumps, used for de-dupe
+let loadedBumps          = [];
+
 let lastBumpLoadCenter   = null;
 
 function ensureBumpLayer() {
@@ -9538,23 +9252,17 @@ function findNearbyBump(lat, lon) {
   return loadedBumps.find(b => distMeters({ lat: b.lat, lon: b.lon }, { lat, lon }) <= BUMP_DEDUPE_RADIUS_M) || null;
 }
 
-// ----------------------------------------------------------------------------------------
-// Severity → visual mapping. severity is the raw "spike ÷ baseline" ratio from the moment
-// of impact (see handleDeviceMotion), so it's unbounded and noisy by nature. We clamp it into
-// a small, deliberately narrow band so the map stays calm and glanceable: even the roughest
-// bump is still a small filled dot, not a blob — the point is to notice a cluster of dots on
-// a bad stretch of road, not to have any single marker shout for attention.
-// This scale is independent of whichever mode's threshold actually triggered a given bump
-// (car and bike thresholds both hover in this range) — it's just a fixed display gradient,
-// not a detection parameter, so it doesn't need to track bumpRatioThreshold().
-const BUMP_SEVERITY_MIN   = 2.5;                  // at-threshold spike → smallest, lightest dot
-const BUMP_SEVERITY_MAX   = 6;                    // anything at/above this reads as "severe"
+const BUMP_SEVERITY_MIN   = 2.5;
+
+const BUMP_SEVERITY_MAX   = 6;
+
 const BUMP_RADIUS_MIN     = 2.5;
 const BUMP_RADIUS_MAX     = 4.5;
 const BUMP_OPACITY_MIN    = 0.45;
 const BUMP_OPACITY_MAX    = 0.85;
-const BUMP_COLOR_MILD     = { r: 0xff, g: 0x90, b: 0x34 }; // #ff9034 — light/normal bump
-const BUMP_COLOR_SEVERE   = { r: 0xd6, g: 0x1f, b: 0x1f }; // #d61f1f — matches the speed-limit red
+const BUMP_COLOR_MILD     = { r: 0xff, g: 0x90, b: 0x34 };
+
+const BUMP_COLOR_SEVERE   = { r: 0xd6, g: 0x1f, b: 0x1f };
 
 function bumpSeverityFactor(severity) {
   const s = typeof severity === 'number' && !isNaN(severity) ? severity : BUMP_SEVERITY_MIN;
@@ -9577,25 +9285,19 @@ function drawBumpDot(lat, lon, severity) {
 }
 
 async function recordBump(lat, lon, severity) {
-  if (findNearbyBump(lat, lon)) return; // someone already logged this one — nothing to do
+  if (findNearbyBump(lat, lon)) return;
 
-  // Optimistic local placeholder: the dot appears immediately (no waiting on the network) and
-  // de-dupes correctly against any further bumps detected before the insert round-trip returns.
   const placeholder = { id: `local-${Date.now()}`, lat, lon, severity };
   loadedBumps.push(placeholder);
   drawBumpDot(lat, lon, severity);
 
   try {
-    // severity is stored as a plain ratio (~2.5–6+), not remapped — remapping to the 0–1
-    // display range happens at render time so the stored value stays meaningful even if the
-    // visual scale is retuned later.
+
     const { data, error } = await sb.from(BUMPS_TABLE).insert([{ latitude: lat, longitude: lon, severity }]).select('id').single();
     if (error) throw error;
     if (data && data.id) placeholder.id = data.id;
   } catch (err) {
-    // Not critical — the dot still shows locally for this drive even if the shared write failed
-    // (e.g. signed out, offline). No toast here on purpose: this runs silently in the background
-    // and shouldn't distract the driver.
+
     console.warn('Bump insert failed:', err);
   }
 }
@@ -9630,17 +9332,14 @@ let reportSubmissionInFlight = false;
 
 const REPORT_RATE_LIMIT_BASE_MAX = 5;
 const REPORT_RATE_LIMIT_BASE_WINDOW_MS = 5 * 60 * 1000;
-const REPORT_RATE_LIMIT_MIN_WINDOW_MS = 90 * 1000; // never squeeze the window below 90s, even at max level
-const REPORT_RATE_LIMIT_EXTRA_PER_LEVEL = 1;        // +1 allowed report per level above Observer
-const REPORT_RATE_LIMIT_SHRINK_PER_LEVEL_MS = 45 * 1000; // window shrinks 45s per level
+const REPORT_RATE_LIMIT_MIN_WINDOW_MS = 90 * 1000;
+
+const REPORT_RATE_LIMIT_EXTRA_PER_LEVEL = 1;
+
+const REPORT_RATE_LIMIT_SHRINK_PER_LEVEL_MS = 45 * 1000;
+
 const REPORT_RATE_LIMIT_STORAGE_KEY = 'ttb_recent_report_times';
 
-// Higher-level users have earned faster reporting: the allowed count per window goes up and
-// the window itself shrinks as level rises. Admins bypass this limit entirely (see
-// shouldBlockReportSubmission below) rather than going through this scaling.
-// ========================================================================================
-// REPORT SUBMISSION — client-side rate limiting & quick/section report flow
-// ========================================================================================
 function reportRateLimitParamsForLevel(level) {
   const max = REPORT_RATE_LIMIT_BASE_MAX + level * REPORT_RATE_LIMIT_EXTRA_PER_LEVEL;
   const windowMs = Math.max(
@@ -9671,18 +9370,18 @@ function reportRateLimitWaitSeconds() {
 }
 
 function recordReportSubmission() {
-  // Store against the widest possible window so timestamps aren't pruned away too early for
-  // whatever level the user is currently at — reportRateLimitWaitSeconds() re-filters per call
-  // using the window that actually applies to their level.
+
   const recent = getRecentReportTimestamps(REPORT_RATE_LIMIT_BASE_WINDOW_MS);
   recent.push(Date.now());
   try { localStorage.setItem(REPORT_RATE_LIMIT_STORAGE_KEY, JSON.stringify(recent)); } catch (e) {}
-  myReportsCache = null; // a fresh report was filed — reload "My Reports" next time it's shown
+  myReportsCache = null;
+
 }
 
 function shouldBlockReportSubmission() {
   if (reportSubmissionInFlight) return true;
-  if (currentProfile && currentProfile.is_admin) return false; // admins are never rate-limited
+  if (currentProfile && currentProfile.is_admin) return false;
+
   const waitSeconds = reportRateLimitWaitSeconds();
   if (waitSeconds !== null) {
     toast(t('reportRateLimitedPrefix') + waitSeconds + t('reportRateLimitedSuffix'), 'error');
@@ -9691,27 +9390,9 @@ function shouldBlockReportSubmission() {
   return false;
 }
 
-// Car and bike mode's quick-tap categories — top-level categories a driver/cyclist is
-// realistically the one to notice and report. Car sticks to the core road/infrastructure
-// set (road issues, street lighting, waste, illegal parking, electricity); bike covers the
-// set relevant to cyclists, with bike lanes and road first since those are most directly
-// bike-relevant. 'SECTION_RECORD' is a sentinel, not a real category — it marks the slot
-// where the "record a bad stretch of road" tile renders instead (see
-// renderSectionRecordTile / toggleSectionRecording).
-// Rendered into #carQuickGrid / #bikeQuickGrid (see renderQuickGrid): tapping a category
-// shows that category's subcategory tiles in the same grid (with a back tile), and
-// tapping a subcategory (or a category that has none, like Parking) submits the report.
-// Electricity's subcategory list is trimmed for the quick-tap flow (see
-// QUICK_SUBCATEGORY_OVERRIDES) — only the issues a driver/cyclist can meaningfully spot
-// from the road are offered, not the full set from the report wizard.
 const CAR_QUICK_CATEGORIES = ['Road', 'Streetlight', 'SECTION_RECORD', 'Waste', 'Parking', 'Electricity'];
 const BIKE_QUICK_CATEGORIES = ['BikeLanes', 'Road', 'SECTION_RECORD', 'Streetlight', 'Waste', 'Parking'];
 
-// Some categories have a fuller subcategory list in the report wizard than makes sense
-// for the quick-tap driving/biking flow, where only issues a driver/cyclist can plausibly
-// spot in passing should be offered. Keyed by quick-tap mode, then category, to a list of
-// subcategory keys (in SUBCATEGORIES[cat]) to show, in order — anything not listed here
-// falls back to the full SUBCATEGORIES[cat] list.
 const QUICK_SUBCATEGORY_OVERRIDES = {
   car: { Electricity: ['pole_damage', 'exposed_wire', 'other'] }
 };
@@ -9722,8 +9403,6 @@ function quickSubcategoryList(modeKey, cat) {
   return overrideKeys.map(key => full.find(s => s.key === key)).filter(Boolean);
 }
 
-// Tracks, per mode, whether that mode's grid is currently showing top-level categories
-// (null) or the subcategory tiles for a chosen category.
 let carQuickCategory = null;
 let bikeQuickCategory = null;
 
@@ -9756,11 +9435,6 @@ function renderQuickCategoryTiles(grid, categories, modeKey) {
   }).join('');
 }
 
-// The "record a bad stretch of road" tile that sits in the quick-tap grid (where Sewage
-// used to be). It's not a category — tapping it starts/stops section recording via
-// toggleSectionRecording(), same as the old standalone button did. It can exist in both
-// the car and bike grids' DOM at once (only one grid is visible per mode via CSS), so it's
-// addressed by class rather than id, and updateSectionButtonUI() updates every instance.
 function renderSectionRecordTile() {
   const label = sectionRecording ? (t('endSectionBtn') || 'Stop Recording') : (t('startSectionBtn') || 'Start Section Report');
   const recordingClass = sectionRecording ? ' recording' : '';
@@ -10001,9 +9675,7 @@ function updateGpsModalText(){
   if (el('gpsModalAlt'))   el('gpsModalAlt').innerHTML     = t('gpsAlt');
   if (el('gpsModalBtn'))   el('gpsModalBtn').textContent   = t('gpsBtn');
 }
-// ========================================================================================
-// OVERLAY STACK & GPS MODAL — shared modal open/close + back-button/Escape wiring
-// ========================================================================================
+
 function bringModalToFront(el){
   if (el && el.parentNode) document.body.appendChild(el);
 }
@@ -10017,8 +9689,7 @@ function openOverlay(key, closeFn) {
   const wasEmpty = overlayStack.length === 0;
   overlayStack.push({ key, closeFn });
   history.pushState({ overlayKey: key }, '');
-  // The map is now hidden behind this overlay — pause the GPS re-zoom countdown so it
-  // doesn't fire (and yank the map back to the user's location) while they're not looking at it.
+
   if (wasEmpty) cancelAutoRefollowTimer();
 }
 function closeOverlay(key) {
@@ -10029,8 +9700,7 @@ function closeOverlay(key) {
     closingViaOverlayStack = true;
     history.back();
   }
-  // Back to the map with nothing covering it — resume the countdown (only actually
-  // restarts it if a re-follow was pending before the overlay opened).
+
   if (overlayStack.length === 0) scheduleAutoRefollow();
 }
 window.addEventListener('popstate', () => {
@@ -10049,11 +9719,6 @@ window.addEventListener('popstate', () => {
 });
 history.pushState({ overlayGuard: true }, '');
 
-// Escape closes whichever overlay is currently on top of the stack, the same way its
-// own close button would (goes through the normal closeFn -> closeOverlay -> history.back()
-// path, so history stays in sync with what's actually open). Ignored while a text input,
-// textarea, or contenteditable field is focused so it doesn't fight with "cancel editing"
-// expectations inside forms — those already have their own escape/cancel affordances.
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape' || !overlayStack.length) return;
   const active = document.activeElement;
@@ -10090,8 +9755,10 @@ function enableManualPinMode() {
 let lastAcceptedFix   = null;
 let lastMuniRetryAt = 0;
 const MUNI_RETRY_INTERVAL_MS = 8000;
-let lastFixAccuracy   = null;   // accuracy (meters) of the most recent raw GPS fix, good or bad
-let lastFixAccuracyAt = 0;      // when that reading arrived (device clock via Date.now())
+let lastFixAccuracy   = null;
+
+let lastFixAccuracyAt = 0;
+
 let smoothedHeading   = null;
 let smoothedSpeedKmh  = null;
 let smoothedFixCoords = null;
@@ -10105,12 +9772,7 @@ const SPEED_SMOOTHING_FACTOR       = 0.45;
 const POSITION_SMOOTH_MIN_FACTOR   = 0.5;
 const POSITION_SMOOTH_MAX_FACTOR   = 1.0;
 const POSITION_SMOOTH_FULL_SNAP_M  = 8;
-// Below this accuracy (meters), a fix is trusted almost fully. At/above the "poor" threshold,
-// a fix is heavily distrusted regardless of how far it jumped — this is the piece that was
-// missing before: a single noisy, low-accuracy reading used to get treated exactly like a
-// crisp one as long as the jump itself looked plausible, so it could still yank the dot across
-// the map in one step. Now, the worse the reported accuracy, the more that fix gets eased in
-// gradually instead of snapped to.
+
 const GPS_ACCURACY_TRUSTED_M = 15;
 const GPS_ACCURACY_POOR_M    = 60;
 const GPS_ACCURACY_MIN_TRUST = 0.12;
@@ -10142,13 +9804,6 @@ function smoothHeading(previous, rawHeading, factor) {
 
 const GPS_SIGNAL_LOST_MS = 8000;
 
-// Whether the device currently has a real, trustworthy location fix — as opposed to just
-// "userCoords is set to something". A desktop browser with no GPS hardware typically falls
-// back to IP-based geolocation, which reports itself honestly via a huge accuracy value
-// (commonly tens of kilometers). That fix still satisfies `!!userCoords`, so anything gated
-// only on userCoords existing (not on how good it is) will happily let someone "report" from
-// wherever their ISP is. This checks the accuracy of the most recent raw fix and how fresh it
-// is, regardless of whether that fix was deemed good enough to move the map.
 let _gpsIssuePillHideTimer = null;
 function showGpsIssuePill(msg) {
   const el = document.getElementById('gpsIssuePill');
@@ -10165,10 +9820,6 @@ function hideGpsIssuePill() {
   if (el) el.classList.remove('show');
 }
 
-// Small "Loading reports…" pill shown while syncMarkers() is working through a large
-// batch of pins in the background (see MARKER_SYNC_CHUNK_SIZE below). Unlike the big
-// splash mapLoadingOverlay (initial app load only), this is meant to be lightweight and
-// non-blocking, since it can pop in/out repeatedly while panning around busy areas.
 function showPinsLoadingPill() {
   const el = document.getElementById('pinsLoadingPill');
   const textEl = document.getElementById('pinsLoadingPillText');
@@ -10198,40 +9849,46 @@ function updateDrivingGpsStatus() {
 }
 setInterval(updateDrivingGpsStatus, 2000);
 
-// hasReliableGps() depends on how long ago the last fix arrived (see GPS_STALE_FIX_MS), but
-// nothing else re-checks that over time — it was only ever re-evaluated when a new event
-// happened to fire (a fresh fix, a pin drop, etc). If GPS gets turned off at the OS level
-// without the browser raising a watchPosition error (which happens on plenty of devices),
-// the report button would otherwise just stay enabled forever on the last good fix. Polling
-// here catches that within a couple of seconds either way.
 setInterval(updateReportFabState, 2000);
 
 let speedLimitFetching     = false;
 let lastSpeedLimitFetchAt  = 0;
 let lastSpeedLimitFetchLoc = null;
+let lastSpeedLimitSuccessAt = 0;
 const SPEED_LIMIT_REFRESH_MS      = 15000;
 const SPEED_LIMIT_REFRESH_DRIFT_M = 150;
-const SPEED_LIMIT_SEARCH_RADIUS_M = 45;   // "current limit" reading: nearest tagged way to the driver
-const SPEED_SIGN_DISPLAY_RADIUS_M = 400;  // on-map signs: how far around/ahead we surface upcoming limits
-const SPEED_LIMIT_FETCH_TIMEOUT_MS = 6000;
 
-// One shared query covers both the digital "current limit" readout and the on-map signs —
-// deliberately not two separate Overpass calls, since overpass-api.de is a shared free
-// server and doubling the request rate would only make it more likely to get rate-limited
-// (see the reliability note below).
-//
-// NOTE on why the current-limit readout sometimes shows "--": two different things can
-// cause that, and only one of them is a bug. (1) OpenStreetMap's `maxspeed` tag simply isn't
-// present on every road — coverage is patchy on residential/local streets in particular, so
-// a genuine "not tagged in OSM" result is expected sometimes, not a fetch failure. (2) The
-// overpass-api.de endpoint is a shared free public server that can be slow, rate-limit, or
-// occasionally just hang with no response at all — that WAS a real bug here, because without
-// a client-side timeout a hung request left speedLimitFetching stuck `true` for the rest of
-// the drive, silently blocking every future attempt. The AbortController below fixes that;
-// failures are now also logged instead of disappearing into an empty catch, so a persistent
-// "--" can actually be diagnosed.
+const SPEED_SIGN_LOOKAHEAD_M      = 250; // how far ahead on the route we look for upcoming signs
+const SPEED_SIGN_QUERY_MARGIN_M   = 80;  // padding added around the corridor so we don't miss signs right at its edge
+const SPEED_SIGN_ROUTE_MATCH_M    = 30;  // how far a way can be from the route and still count as "on it"
+
+const SPEED_LIMIT_FETCH_TIMEOUT_MS = 6000;
+const SPEED_LIMIT_STALE_CLEAR_MS   = 45000; // if fetches keep failing this long, stop showing a possibly-wrong readout
+
+function isActivelyNavigatingRoute() {
+  return drivingMode && !!destinationCoords && !!navigationLine && !navigationLine._isFallback;
+}
+
+function speedSignQueryArea(originLat, originLon) {
+  const origin = { lat: originLat, lon: originLon };
+  const routeLatLngs = navigationLine.getLatLngs();
+  const lookahead = pointAheadOnPolyline(origin, routeLatLngs, SPEED_SIGN_LOOKAHEAD_M) || origin;
+  const center = { lat: (origin.lat + lookahead.lat) / 2, lon: (origin.lon + lookahead.lon) / 2 };
+  const radius = Math.round(distMeters(origin, lookahead) / 2 + SPEED_SIGN_QUERY_MARGIN_M);
+  return { center, radius };
+}
+
 function maybeFetchSpeedLimit(lat, lon) {
-  if (!drivingMode || speedLimitFetching || isBikeMode()) return;
+  if (speedLimitFetching || isBikeMode()) return;
+
+  if (!isActivelyNavigatingRoute()) {
+    // Nothing to check speed limits against without a real route — don't keep polling
+    // Overpass in the background, and don't leave a stale readout from a previous leg up.
+    if (currentSpeedLimitKmh !== null) updateSpeedLimitDisplay(null);
+    clearSpeedSignMarkers();
+    return;
+  }
+
   const now = Date.now();
   const driftedFar = !lastSpeedLimitFetchLoc || distMeters(lastSpeedLimitFetchLoc, { lat, lon }) >= SPEED_LIMIT_REFRESH_DRIFT_M;
   const stale = now - lastSpeedLimitFetchAt >= SPEED_LIMIT_REFRESH_MS;
@@ -10241,40 +9898,49 @@ function maybeFetchSpeedLimit(lat, lon) {
   lastSpeedLimitFetchAt = now;
   lastSpeedLimitFetchLoc = { lat, lon };
 
-  const query = `[out:json][timeout:5];way(around:${SPEED_SIGN_DISPLAY_RADIUS_M},${lat},${lon})[highway][maxspeed];out tags center 24;`;
+  const { center, radius } = speedSignQueryArea(lat, lon);
+  const query = `[out:json][timeout:5];way(around:${radius},${center.lat},${center.lon})[highway][maxspeed];out tags center 24;`;
   const url = 'https://overpass-api.de/api/interpreter?data=' + encodeURIComponent(query);
 
   const abortController = new AbortController();
   const timeoutId = setTimeout(() => abortController.abort(), SPEED_LIMIT_FETCH_TIMEOUT_MS);
 
-  fetch(url, { signal: abortController.signal }).then(res => {
-    if (!res.ok) throw new Error(`Speed limit fetch: HTTP ${res.status}`);
-    return res.json();
-  }).then(data => {
-    const candidates = (data.elements || []).filter(el => el.tags && el.tags.maxspeed && el.center);
-    let nearest = null, nearestDist = Infinity;
-    for (const el of candidates) {
-      const d = distMeters({ lat, lon }, { lat: el.center.lat, lon: el.center.lon });
-      if (d < nearestDist) { nearestDist = d; nearest = el; }
-    }
-    updateSpeedLimitDisplay(nearest ? parseSpeedLimitTag(nearest.tags.maxspeed) : null);
-    renderSpeedSignMarkers(candidates, lat, lon);
-  }).catch(err => {
-    const reason = err && err.name === 'AbortError' ? 'timed out' : (err && err.message) || err;
-    console.warn('Speed limit fetch failed:', reason);
-  }).finally(() => {
+  try {
+    fetch(url, { signal: abortController.signal }).then(res => {
+      if (!res.ok) throw new Error(`Speed limit fetch: HTTP ${res.status}`);
+      return res.json();
+    }).then(data => {
+      const routeLatLngs = navigationLine.getLatLngs();
+      const onRoute = (data.elements || [])
+        .filter(el => el.tags && el.tags.maxspeed && el.center)
+        .filter(el => distanceToPolylineMeters({ lat: el.center.lat, lon: el.center.lon }, routeLatLngs) <= SPEED_SIGN_ROUTE_MATCH_M);
+
+      let nearest = null, nearestDist = Infinity;
+      for (const el of onRoute) {
+        const d = distMeters({ lat, lon }, { lat: el.center.lat, lon: el.center.lon });
+        if (d < nearestDist) { nearestDist = d; nearest = el; }
+      }
+      lastSpeedLimitSuccessAt = Date.now();
+      updateSpeedLimitDisplay(nearest ? parseSpeedLimitTag(nearest.tags.maxspeed) : null);
+      renderSpeedSignMarkers(onRoute, lat, lon);
+    }).catch(err => {
+      const reason = err && err.name === 'AbortError' ? 'timed out' : (err && err.message) || err;
+      console.warn('Speed limit fetch failed:', reason);
+      if (Date.now() - lastSpeedLimitSuccessAt > SPEED_LIMIT_STALE_CLEAR_MS) {
+        updateSpeedLimitDisplay(null);
+        clearSpeedSignMarkers();
+      }
+    }).finally(() => {
+      clearTimeout(timeoutId);
+      speedLimitFetching = false;
+    });
+  } catch (err) {
     clearTimeout(timeoutId);
     speedLimitFetching = false;
-  });
+    console.warn('Speed limit fetch failed to start:', err && err.message);
+  }
 }
 
-// ---------------------------------------------------------------------------------------
-// On-map speed-limit signs — approximate placement, by design. OSM doesn't map the physical
-// location of a sign post; `maxspeed` is a tag on a whole road segment (way). We place one
-// marker per way at that way's OSM-reported center point, which is usually somewhere within
-// the tagged stretch rather than exactly at the sign — close enough to see "this zone ahead
-// is 50" before you're in it, not pixel-accurate to where the physical sign stands.
-// ---------------------------------------------------------------------------------------
 let speedSignMarkersLayer = null;
 function ensureSpeedSignLayer() {
   if (!speedSignMarkersLayer) speedSignMarkersLayer = L.layerGroup().addTo(map);
@@ -10284,7 +9950,7 @@ function clearSpeedSignMarkers() {
   if (speedSignMarkersLayer) speedSignMarkersLayer.clearLayers();
 }
 
-const SPEED_SIGN_DEDUPE_RADIUS_M = 80; // collapse adjacent same-value way segments into one sign
+const SPEED_SIGN_DEDUPE_RADIUS_M = 80;
 
 function buildSpeedSignIcon(value) {
   const digits = String(value).length;
@@ -10300,17 +9966,28 @@ function buildSpeedSignIcon(value) {
 function renderSpeedSignMarkers(candidates, originLat, originLon) {
   const layer = ensureSpeedSignLayer();
   clearSpeedSignMarkers();
-  if (!drivingMode) return; // driving mode may have been toggled off while this request was in flight
+  if (!isActivelyNavigatingRoute()) return;
 
-  // Nearest-first so the dedupe pass keeps the sign closest to the driver when two segments
-  // with the same limit sit close together (e.g. a way split partway through a zone).
-  const withDist = candidates
-    .map(el => ({ el, value: parseSpeedLimitTag(el.tags.maxspeed), dist: distMeters({ lat: originLat, lon: originLon }, { lat: el.center.lat, lon: el.center.lon }) }))
-    .filter(c => c.value !== null)
+  const routeLatLngs = navigationLine.getLatLngs();
+  const originSeg = findNearestSegmentOnPolyline({ lat: originLat, lon: originLon }, routeLatLngs);
+  const originIndex = originSeg ? originSeg.index : 0;
+
+  const ahead = candidates
+    .map(el => {
+      const center = { lat: el.center.lat, lon: el.center.lon };
+      const seg = findNearestSegmentOnPolyline(center, routeLatLngs);
+      return {
+        el,
+        value: parseSpeedLimitTag(el.tags.maxspeed),
+        dist: distMeters({ lat: originLat, lon: originLon }, center),
+        routeIndex: seg ? seg.index : -1
+      };
+    })
+    .filter(c => c.value !== null && c.routeIndex >= originIndex)
     .sort((a, b) => a.dist - b.dist);
 
   const placed = [];
-  for (const c of withDist) {
+  for (const c of ahead) {
     const tooClose = placed.some(p => p.value === c.value && distMeters({ lat: p.el.center.lat, lon: p.el.center.lon }, { lat: c.el.center.lat, lon: c.el.center.lon }) < SPEED_SIGN_DEDUPE_RADIUS_M);
     if (tooClose) continue;
     placed.push(c);
@@ -10370,9 +10047,6 @@ function gpsWatchdogTick() {
 }
 setInterval(gpsWatchdogTick, 1000);
 
-// ========================================================================================
-// GPS — position watching, smoothing, speed limit & proximity
-// ========================================================================================
 function startWatching() {
   if (gpsWatchId !== null) return;
   gpsWatchId = navigator.geolocation.watchPosition(
@@ -10385,9 +10059,7 @@ function startWatching() {
       const candidate = { lat: pos.coords.latitude, lon: pos.coords.longitude };
 
       const accuracy = pos.coords.accuracy;
-      // Track raw accuracy independently of the accept/reject logic below — this is what lets
-      // us tell a genuinely-weak/absent GPS signal (desktop IP geolocation routinely reports
-      // ±20000-50000m) apart from a device that simply hasn't warmed up yet.
+
       lastFixAccuracy = (typeof accuracy === 'number' && !isNaN(accuracy)) ? accuracy : null;
       lastFixAccuracyAt = Date.now();
 
@@ -10430,11 +10102,12 @@ function startWatching() {
             iconAnchor: userMarkerNavStyle ? [23, 23] : [17, 17]
           }),
           zIndexOffset: 5000,
-          interactive: false // no popup for the gps dot/arrow — tapping it does nothing
+          interactive: false
+
         }).addTo(map);
         map.setView(getFollowCenter(userCoords.lat, userCoords.lon, 13), 13);
         showMunicipalityBoundaryForPoint(userCoords.lat, userCoords.lon, userMarker, 'gps');
-        // First GPS fix of the session: start out following the user automatically.
+
         setFollowMode(true);
       } else if (drivingMode || isNavigationActive()) {
         snapUserToRoadThenShow(userCoords.lat, userCoords.lon);
@@ -10445,10 +10118,7 @@ function startWatching() {
       } else {
         userMarker.setLatLng([userCoords.lat, userCoords.lon]);
         if (followMode) followMapTo(userCoords.lat, userCoords.lon);
-        // The bottom municipality bar is only ever populated from a successful resolution —
-        // if the very first attempt (when the marker was created) came up empty, e.g. a
-        // transient lookup miss, it would otherwise stay hidden for the rest of the session.
-        // Retry occasionally until it resolves.
+
         if (!currentContactsMunicipality && Date.now() - lastMuniRetryAt > MUNI_RETRY_INTERVAL_MS) {
           lastMuniRetryAt = Date.now();
           showMunicipalityBoundaryForPoint(userCoords.lat, userCoords.lon, userMarker, 'gps');
@@ -10587,10 +10257,7 @@ document.addEventListener('visibilitychange', () => {
     navigator.geolocation.clearWatch(gpsWatchId);
     gpsWatchId = null;
   }
-  // Force the next fix to be treated as a gap (rather than trusting whatever elapsed-time
-  // math falls out of possibly-throttled background timers) so the breadcrumb/driven-path
-  // trail gets routed back onto the road instead of drawing a raw line across whatever
-  // coarse/stale fixes trickled in while backgrounded.
+
   if (sectionRecording) sectionLastAt = 0;
   if (drivenPathLine) drivenPathLastAt = 0;
   startWatching();
@@ -10615,11 +10282,6 @@ new NavigatePanelControl().addTo(map);
 
 let proximityCircle = null;
 
-// Whether the "+" report button should be usable right now: either we have an accurate,
-// live GPS fix (no need to touch the screen at all — GPS position is used automatically),
-// or a pin has been manually placed. Admins can report from any manually-placed pin with
-// no GPS required at all; regular users still need their own GPS fix to be within range of
-// the pin they dropped (see REPORT_PROXIMITY_MAX_M / the proximity circle below).
 function isReportReady() {
   if (!currentSession || !currentProfile) return false;
   if (hasReliableGps()) return true;
@@ -10737,7 +10399,8 @@ map.on('click', function(e) {
         iconSize: [30, 36],
         iconAnchor: [15, 34]
       }),
-      interactive: false // no popup for the dropped pin — tapping it does nothing
+      interactive: false
+
     }).addTo(map);
   }
   manualPinMunicipality = null;
@@ -10751,14 +10414,9 @@ map.on('click', function(e) {
 map.on('moveend', function(){ if (!pinMode) syncMarkers(false); });
 map.on('zoomend', function(){ if (!pinMode) syncMarkers(false); });
 
-// As the person pans or zooms out, fetch more reports only once the view has actually
-// moved outside the padded box we last loaded (see loadPinsByWindow) — small pans within
-// an already-loaded area don't trigger a new network call.
 let viewportReloadTimer = null;
 const VIEWPORT_RELOAD_DEBOUNCE_MS = 400;
-// ========================================================================================
-// VIEWPORT RELOAD, CATEGORY/STATUS FILTERS & HEATMAP
-// ========================================================================================
+
 function scheduleViewportReloadIfNeeded() {
   if (pinMode) return;
   if (viewportReloadTimer) clearTimeout(viewportReloadTimer);
@@ -10791,9 +10449,7 @@ const CATEGORY_COLORS = {
   'FarmersMarket':'#c77d1e',
   'Other':        '#8342a1',
 };
-// Canonical source for every category's icon filename — these live in icons/reports/
-// (never icons/ root). Used both for the report wizard and for map pins / cards,
-// so there is exactly one filename per category instead of two mismatched sets.
+
 const CATEGORY_ICONS = {
   'Water':        'water.png',
   'Electricity':  'electricity.png',
@@ -10906,19 +10562,10 @@ const SUBCATEGORIES = {
   Other: []
 };
 const CATEGORIES_REQUIRING_COMMENT = new Set(['Suggestion']);
-// "Nepropisno parkiranje" reports just need to be reported and later marked fixed —
-// there's no meaningful "in progress" phase for a parking violation, so we skip that
-// status everywhere it would otherwise show up (popups, edit form, timeline).
+
 const CATEGORIES_SKIPPING_IN_PROGRESS = new Set(['Parking']);
 function categorySkipsInProgress(category) { return CATEGORIES_SKIPPING_IN_PROGRESS.has(category); }
 
-// Utility-outage categories are usually a household's own problem, not something a passerby
-// can see or confirm — nobody else can tell whether your water is back on. So for these, the
-// reporter's own status update is trusted directly instead of going through the normal
-// community vote (see reportSkipsVoting / buildPopupHtml). A handful of subcategories inside
-// these categories are actually shared, visible infrastructure damage though (a snapped pole,
-// a burst main in the street, a broken manhole cover), and those still need the normal vote
-// like Road/Streetlight/Waste/etc. always do — listed per category in PUBLIC_SUBCATEGORY_OVERRIDES.
 const PERSONAL_PROBLEM_CATEGORIES = new Set(['Water', 'Electricity', 'Sewage', 'Gas', 'Heating']);
 const PUBLIC_SUBCATEGORY_OVERRIDES = {
   Water:       new Set(['burst_leak']),
@@ -10927,8 +10574,7 @@ const PUBLIC_SUBCATEGORY_OVERRIDES = {
   Gas:         new Set(['leak']),
   Heating:     new Set([]),
 };
-// True if this report is the reporter's own personal utility problem (owner can mark it in
-// progress/fixed directly, no vote needed) rather than shared infrastructure (needs a vote).
+
 function reportIsPersonalProblem(report) {
   if (!PERSONAL_PROBLEM_CATEGORIES.has(report.category)) return false;
   const overrides = PUBLIC_SUBCATEGORY_OVERRIDES[report.category];
@@ -10997,10 +10643,6 @@ function onStatusFilterToggle(status) {
   refreshHeatLayer();
 }
 
-// Status filtering itself still lives on the map legend bar (bottom-right pill) — this just
-// mirrors the same three toggles into Settings so they're reachable from there too. Both
-// controls share the same statusMarkerFilter state / onStatusFilterToggle() code path, so
-// toggling either one keeps the other in sync. The legend bar UI/UX is left as-is for now.
 const STATUS_FILTER_SETTINGS_OPTS = [
   { status: 'reported',    color: '#ff4b4b',         labelKey: 'statusReported' },
   { status: 'in_progress', color: '#f5a623',         labelKey: 'statusInProgress' },
@@ -11068,7 +10710,6 @@ function hideCategoryFilterModal() {
   closeOverlay('categoryFilterModal');
 }
 
-
 let heatmapActive = false;
 let heatLayer = null;
 
@@ -11114,9 +10755,7 @@ function toggleHeatmap() {
     btn.classList.remove('active');
   }
 }
-// ========================================================================================
-// REPORT FORM — category/subcategory selection, photo capture & compression
-// ========================================================================================
+
 function subcategoryLabel(cat, subKey) {
   if (!subKey) return '';
   const list = SUBCATEGORIES[cat] || [];
@@ -11359,13 +10998,6 @@ async function uploadAfterReportPhoto(reportId, blob) {
   }
 }
 
-// Community photo gallery: unlike the single owner/admin "photo" and "after photo" above,
-// ANY signed-in user can drop a photo onto a report — think of it as crowd-sourced proof/
-// context from whoever passes by, not just the original reporter. Requires a Supabase table
-// `report_gallery_photos` (id, report_id, uploader_id, uploader_username, photo_path,
-// created_at) with RLS: insert allowed for any authenticated user, select public/authenticated,
-// delete allowed for the uploader or an admin. Photos reuse the existing 'report-photos'
-// storage bucket, just under a gallery/ prefix.
 const REPORT_GALLERY_TABLE = 'report_gallery_photos';
 
 async function loadReportGalleryPhotos(reportId) {
@@ -11489,9 +11121,6 @@ async function getReportPhotoSignedUrl(path, ttlSeconds) {
   }
 }
 
-// ========================================================================================
-// REPORT WIZARD — multi-step report creation UI
-// ========================================================================================
 function resetReportingForm() {
   document.getElementById('category').selectedIndex = 0;
   document.getElementById('subcategory').innerHTML = '';
@@ -11514,9 +11143,6 @@ function resetReportingForm() {
   closeReportWizard();
 }
 
-// Same filenames as CATEGORY_ICONS (defined earlier, used for map pins/cards) — kept as
-// one alias instead of a second hand-maintained copy, so the wizard and the rest of the
-// app can never drift apart on which file a category uses.
 const WIZ_CATEGORY_ICONS = CATEGORY_ICONS;
 const WIZ_SUBCATEGORY_ICONS = {
   Water: { burst_leak:'water_leak.png', no_supply:'water_no_supply.png', low_pressure:'water_low_pressure.png', discoloration:'water_discoloration.png', other:'ui_other.png' },
@@ -11553,16 +11179,10 @@ function reportFabTap() {
   if (!isAdmin && !isMobileDevice()) { toast(t('mobileOnlyReport'), 'error'); return; }
   if (vpnCheckResult && vpnCheckResult.isVpn) { toast(t('vpnBlockedReport'), 'error'); return; }
 
-  // The button itself stays disabled (see updateReportFabState()) until this is true, so
-  // this is mainly a defensive backstop against races (e.g. GPS dropping out between the
-  // last UI refresh and the tap).
   if (!isReportReady()) { toast(hasReliableGps() ? t('gpsTooWeak') : t('waitGps'), 'error'); return; }
 
   if (hasReliableGps()) {
-    // Accurate live GPS fix: use it directly and automatically — no need to tap the map
-    // first, for admins or regular users. We still freeze it into a manually-placed pin at
-    // tap-time (rather than letting the report location keep following a live GPS dot)
-    // so the location shown in the wizard doesn't drift while it's open.
+
     if (!pinMode) {
       pinMode = true;
       wizOwnsPinDrop = true;
@@ -11586,9 +11206,6 @@ function reportFabTap() {
     return;
   }
 
-  // No accurate GPS fix — isReportReady() above already confirmed a usable pin is down
-  // (dropped via the map-pin button while GPS was off/weak), so continue straight into
-  // the wizard with it.
   wizOwnsPinDrop = true;
   checkFormReady();
   openReportWizard();
@@ -11781,9 +11398,6 @@ const OFFLINE_DB_VERSION = 1;
 const OFFLINE_STORE = 'pending_reports';
 const OFFLINE_SYNC_POLL_MS = 30 * 1000;
 
-// ========================================================================================
-// OFFLINE QUEUE — IndexedDB-backed report queue & sync
-// ========================================================================================
 function openOfflineDb() {
   return new Promise((resolve, reject) => {
     if (!('indexedDB' in window)) { reject(new Error('no-indexeddb')); return; }
@@ -11916,9 +11530,7 @@ async function syncOfflineQueue(manual) {
         syncedCount++;
       } catch (err) {
         if (isNetworkFailure(err)) break;
-        // The DB's tiered rate limit (trg_enforce_report_rate_limit) can reject a burst of
-        // queued reports on reconnect — that's not bad/invalid data, just too-fast submission,
-        // so keep this (and any remaining) queued for a later sync instead of dropping them.
+
         if (err && err.message === 'rate_limit_exceeded') { rateLimitedStop = true; break; }
         console.error('Dropping unsendable offline report:', row.localId, err);
         await deleteQueuedReport(row.localId);
@@ -11965,9 +11577,6 @@ async function ensureFreshSession() {
   }
 }
 
-// ========================================================================================
-// REPORT SUBMISSION — main reportBreak() insert flow
-// ========================================================================================
 async function reportBreak(){
   if (!currentSession || !currentProfile) { updateAuthUI(); return; }
 
@@ -11983,20 +11592,12 @@ async function reportBreak(){
 
   const inOwnDomain = isAdmin && isMunicipalityInAdminDomain(manualPinMunicipality);
   if (!isAdmin) {
-    // Regular users always report from their own live position (or a manually-dropped pin
-    // close to it) — either way that has to be backed by a real GPS fix, not just "some
-    // coordinate happens to be in memory". Devices without real GPS (desktop browsers falling
-    // back to IP geolocation, denied location permission, etc.) report themselves honestly via
-    // a huge accuracy radius, so we check that rather than just checking coords is non-null.
+
     if (!hasReliableGps()) { toast(t('gpsTooWeak'), 'error'); return; }
   }
-  // Admins never need to be within GPS radius of a dropped pin — that's the whole point of
-  // admin pin-drop mode, and it shouldn't depend on `inOwnDomain` resolving correctly (that
-  // value depends on an async reverse-geocode lookup of the dropped pin's municipality, which
-  // may still be in flight when the report is submitted). Non-admins still need to be on-site.
+
   if (!isAdmin && !inOwnDomain && pinMode && manualCoords) {
-    // Admins dropping a pin outside their own municipality/country need to actually be on
-    // site, same as anyone else — so this still needs a real GPS fix to compare against.
+
     if (!userCoords || !hasReliableGps()) { toast(isAdmin ? t('gpsTooWeak') : t('waitGps'), 'error'); return; }
     const dist = distMeters(userCoords, manualCoords);
     if (dist > REPORT_PROXIMITY_MAX_M) {
@@ -12076,9 +11677,7 @@ async function reportBreak(){
     }
   } catch (err) {
     console.error('Report submit error (full):', err);
-    // The DB also enforces the same tiered rate limit as a safety net (trg_enforce_report_rate_limit)
-    // in case the client-side check in shouldBlockReportSubmission() was bypassed. Surface it with the
-    // same friendly copy instead of the raw Postgres error message in that case.
+
     if (err && err.message === 'rate_limit_exceeded') {
       toast(t('reportRateLimitedPrefix') + t('reportRateLimitedServerFallbackSuffix'), 'error');
     } else {
@@ -12093,18 +11692,14 @@ async function reportBreak(){
 
 let municipalityCache = [];
 let municipalityCacheLoaded = false;
-// Every id already merged into municipalityCache, so repeated/overlapping near-point and
-// per-country fetches (see the progressive loader below) can merge without duplicating rows.
+
 const loadedMuniIds = new Set();
-// Country codes we've fetched *in full* — once a country is in here we never re-query it.
+
 const loadedMuniCountries = new Set();
 
 const MUNICIPALITY_CACHE_STORAGE_KEY = 'ttb_municipality_cache_v2';
 const MUNI_SELECT_COLS = 'id,slug,osm_type,osm_id,admin_level,name,name_en,country_code,centroid_lat,centroid_lon,boundary,bbox';
 
-// ========================================================================================
-// MUNICIPALITY RESOLUTION — boundary cache, geocoding, auto-registration
-// ========================================================================================
 function readMunicipalityCacheFromStorage() {
   try {
     const raw = localStorage.getItem(MUNICIPALITY_CACHE_STORAGE_KEY);
@@ -12116,12 +11711,7 @@ function readMunicipalityCacheFromStorage() {
 
 let _muniCacheWriteTimer = null;
 function writeMunicipalityCacheToStorage(rows) {
-  // Serializing the whole cache — including every municipality's boundary polygon — is real
-  // main-thread work once a session has merged in a few countries' worth of data, and this
-  // gets called repeatedly in quick succession while panning around (mergeMunicipalitiesIntoCache
-  // fires on every near-point/country fetch). Coalesce bursts into a single write shortly after
-  // they settle rather than re-stringifying the entire array on every single call — this is
-  // just a warm-start cache for next page load, nothing here needs to land immediately.
+
   if (_muniCacheWriteTimer) clearTimeout(_muniCacheWriteTimer);
   _muniCacheWriteTimer = setTimeout(() => {
     _muniCacheWriteTimer = null;
@@ -12132,22 +11722,7 @@ function writeMunicipalityCacheToStorage(rows) {
   }, 1500);
 }
 let municipalityCacheLoadPromise = null;
-// Full-table load — every municipality, every boundary polygon, in one request. This is
-// deliberately NOT what regular map browsing uses any more (see the progressive loader
-// below, ensureMunicipalitiesNear/ensureCountryMunicipalitiesLoaded): fetching the entire
-// world's boundary data on every page view doesn't scale as more countries get added, and
-// almost nobody needs to see municipalities outside the one country they're standing in or
-// looking at. This full loader is kept for the admin-only tooling that genuinely does need
-// global visibility regardless of where the admin currently is — managing/merging
-// municipalities, repairing boundaries, and the utility-contacts admin panel.
-//
-// `forceRefresh` bypasses the memoized promise below and always re-queries the DB. Without it,
-// this function only ever hits the network on the very first call of the page session — every
-// later call (e.g. reopening the admin panel) just returns that same first result. That's fine
-// for callers that just want "whatever's cached", but it means a municipality or company added
-// from a *different* tool/tab (e.g. the contact-collector) would never show up in this session's
-// admin panel without a full page reload. Admin-facing call sites that need to see newly-added
-// data pass forceRefresh = true.
+
 async function loadMunicipalityCache(forceRefresh) {
   if (municipalityCacheLoadPromise && !forceRefresh) return municipalityCacheLoadPromise;
   municipalityCacheLoadPromise = (async () => {
@@ -12160,13 +11735,7 @@ async function loadMunicipalityCache(forceRefresh) {
       }
     }
     try {
-      // A plain unbounded .select() only ever returns PostgREST's default page (1000 rows).
-      // With 90k+ municipalities worldwide (bulk import + auto-registration), that page was
-      // silently truncating the cache to whatever happened to sort first — which meant entire
-      // countries (Serbia included) never made it into municipalityCache at all, and every
-      // admin-domain check against them (utility contacts, report scoping, etc.) quietly
-      // failed as if those municipalities didn't exist. Page through with .range() until a
-      // page comes back short, so the cache always has everything.
+
       const PAGE_SIZE = 1000;
       let allRows = [];
       let from = 0;
@@ -12193,24 +11762,11 @@ async function loadMunicipalityCache(forceRefresh) {
   return municipalityCacheLoadPromise;
 }
 
-// ---- Progressive municipality loading -------------------------------------------------
-// Used by ordinary map browsing (GPS fix, dropped pin, report lookups) instead of the full
-// loader above. Strategy:
-//   1. Fetch just a small area (MUNI_NEAR_PAD_DEG around the point) immediately — this is
-//      what actually resolves "which municipality is the GPS/pin in", so it has to come
-//      back fast.
-//   2. Once that tells us which country the point is in, quietly widen the cache to the
-//      rest of that country in the background after a short delay ("spread slowly"),
-//      instead of blocking on it or fetching it up front.
-//   3. Never fetch more than one country at a time from a single point resolution — if the
-//      map is zoomed all the way out, we still only load the country under the current
-//      GPS/pin/map-center point, not the whole world.
-//   4. Previously-loaded areas/countries are kept (merged, not replaced), so panning back
-//      to a place already visited this session doesn't re-hit the network. A new point
-//      elsewhere (a pin dropped somewhere else) just adds its own area/country on top.
-const MUNI_NEAR_PAD_DEG = 1.5;            // ~150km — the municipality itself plus its neighbors
-const MUNI_COUNTRY_LOAD_DELAY_MS = 2500;  // let the near-fetch render before widening further
-const muniCountryLoadInFlight = new Map(); // countryCode -> in-flight/queued Promise
+const MUNI_NEAR_PAD_DEG = 1.5;
+
+const MUNI_COUNTRY_LOAD_DELAY_MS = 2500;
+
+const muniCountryLoadInFlight = new Map();
 
 function mergeMunicipalitiesIntoCache(rows) {
   if (!rows || !rows.length) return;
@@ -12236,11 +11792,6 @@ async function fetchMunicipalitiesNearPoint(lat, lon) {
   }
 }
 
-// Loads every municipality for one country, immediately (no artificial delay) — used when
-// we need the full country list *right now* for accurate name-matching (see
-// resolveMunicipalityViaGeocode below), as opposed to the passive background widening in
-// scheduleCountryMunicipalityLoad(). Safe to call repeatedly; only ever hits the network
-// once per country per session.
 async function ensureCountryMunicipalitiesLoaded(countryCode) {
   if (!countryCode) return;
   countryCode = String(countryCode).toUpperCase();
@@ -12263,9 +11814,6 @@ async function ensureCountryMunicipalitiesLoaded(countryCode) {
   return promise;
 }
 
-// The "spread slowly" half: schedules (rather than immediately runs) the full-country
-// widening once we already have a quick nearby hit, so it doesn't compete with rendering
-// the point the person actually cares about right now.
 function scheduleCountryMunicipalityLoad(countryCode) {
   if (!countryCode) return;
   countryCode = String(countryCode).toUpperCase();
@@ -12276,16 +11824,13 @@ function scheduleCountryMunicipalityLoad(countryCode) {
   muniCountryLoadInFlight.set(countryCode, promise);
 }
 
-// Main entry point for ordinary map browsing: makes sure the cache has (at least) the
-// municipality at (lat, lon) loaded, then quietly widens to the rest of that country.
-// This is what GPS updates, dropped pins, and report lookups should call — never the full
-// loader above.
 async function ensureMunicipalitiesNear(lat, lon) {
   if (!isValidLatLng(lat, lon)) return;
 
   const already = findMunicipalityInCache(lat, lon);
   if (already && already.country_code && loadedMuniCountries.has(String(already.country_code).toUpperCase())) {
-    return; // this point's whole country is already loaded — nothing to do
+    return;
+
   }
 
   const rows = await fetchMunicipalitiesNearPoint(lat, lon);
@@ -12385,9 +11930,6 @@ function nominatimFetch(url, options) {
 
 const NOMINATIM_MUNICIPALITY_ZOOM_LEVELS = [10, 8, 12, 6];
 
-// Does the actual Nominatim reverse lookup + zoom-level fallback, but only returns the
-// parsed geometry/name/etc — it never touches the DB or cache. Shared by the original
-// "add municipality from map center" flow and the bulk boundary-repair tool below.
 async function fetchBoundaryGeometryForPoint(lat, lon) {
   for (const zoom of NOMINATIM_MUNICIPALITY_ZOOM_LEVELS) {
     const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=${zoom}&addressdetails=1&polygon_geojson=1&${NOMINATIM_LATIN_LANG}`;
@@ -12556,11 +12098,6 @@ function findMunicipalityByNameMatch(candidateNames, countryCode) {
 
 const _autoRegisterInFlight = new Map();
 
-// A municipality id coming back as e.g. "session:opstina beocin|RS" (see the duplicate-key
-// fallback below) is a session-only placeholder, never a real DB row — every `municipality_id`
-// column downstream (municipalities.id itself, reports.municipality_id, utility_companies
-// queries, stats queries) is a bigint, so sending a placeholder string into any of those
-// silently 400s. Callers that are about to use an id in a query/write must check this first.
 function isRealMunicipalityId(id) {
   return typeof id === 'number' || (typeof id === 'string' && /^\d+$/.test(id));
 }
@@ -12592,12 +12129,7 @@ async function autoRegisterMunicipality(name, countryCode, lat, lon, osmType, os
       writeMunicipalityCacheToStorage(municipalityCache);
       return data;
     } catch (err) {
-      // A duplicate-key error on osm_type/osm_id means the row already exists in the DB —
-      // it just wasn't in our local cache yet (e.g. registered by another session, or its
-      // stored boundary is empty so findMunicipalityInCache/findMunicipalityByNameMatch never
-      // matched it). Fetch the real row instead of minting a fake session-only id for it —
-      // that fake id is what was breaking the contacts button and the stats row, since it
-      // can never be used in a real bigint query.
+
       const isDuplicateKey = err.code === '23505' || /duplicate key/i.test(err.message || '');
       if (isDuplicateKey && osmType && osmId != null) {
         try {
@@ -12629,11 +12161,7 @@ async function resolveMunicipalityViaGeocode(lat, lon) {
   await ensureMunicipalitiesNear(lat, lon);
   const { candidates, countryCode, bestName, osmType, osmId } = await reverseGeocodeMunicipalityCandidates(lat, lon);
   if (!candidates.length) return null;
-  // The near-point fetch above may not have found anything (e.g. a brand-new area with no
-  // cached municipalities nearby yet), so findMunicipalityByNameMatch's country-scoped pool
-  // could still be missing existing municipalities elsewhere in the same country. Now that
-  // geocoding has told us which country we're in, make sure that country is fully loaded
-  // before matching against it — this is scoped to one country, not a global fetch.
+
   if (countryCode) await ensureCountryMunicipalitiesLoaded(countryCode);
   const hit = findMunicipalityByNameMatch(candidates, countryCode);
   if (hit) return hit;
@@ -12663,9 +12191,6 @@ function resolveAndAttachMunicipality(reportId, lat, lon) {
   }).catch(err => console.error('resolveAndAttachMunicipality error:', err.message));
 }
 
-// Always visible now — shows a "-" placeholder for name/stats and disables (rather than
-// hides) the contacts button when no municipality has resolved yet, instead of disappearing
-// entirely. Docked right above the legend row.
 function showMunicipalityLabel(muni) {
   const bar = document.getElementById('bottomMuniBar');
   const nameEl = document.getElementById('bottomMuniBarName');
@@ -12674,10 +12199,6 @@ function showMunicipalityLabel(muni) {
   bar.style.display = 'flex';
 }
 
-// Controls the phone/contacts button plus the reported/in-progress/fixed stats row underneath —
-// both scoped to currentContactsMunicipality (GPS or an active pin drop; see
-// renderMunicipalityBoundary's `source` param), separate from showMunicipalityLabel which just
-// reflects whatever point is currently focused on the map.
 let bottomMuniStatsRequestId = 0;
 
 function updateBottomMunicipalityBar(muni) {
@@ -12712,7 +12233,8 @@ async function loadBottomMuniStats(muni) {
         .eq('municipality_id', muni.id).eq('status', status)
         .then(({ count, error }) => { if (error) throw error; return count || 0; })
     ));
-    if (requestId !== bottomMuniStatsRequestId) return; // a newer municipality was focused meanwhile
+    if (requestId !== bottomMuniStatsRequestId) return;
+
     row.innerHTML = statuses.map((status, i) => `
       <div class="bottom-muni-stat">
         <span class="bottom-muni-stat-dot" style="background:${statusColor(status)}"></span>
@@ -12734,14 +12256,6 @@ async function loadBottomMuniStats(muni) {
   }
 }
 
-// `currentUserMunicipality` reflects whatever point last drew a boundary on the map — GPS
-// position, a manually-dropped report pin, or a report being viewed in the detail sheet. That's
-// fine as a source for the on-map label/shape, which is always about "whatever is focused right
-// now". But the Contacts button means something more specific: "the municipality I actually care
-// about contacting right now" — your real position, or a pin you've deliberately dropped
-// somewhere else to report on. It must NOT be driven by just browsing report details, or it'll
-// show stale/wrong contacts depending on whatever report you last opened. Kept as separate state,
-// updated only from GPS- or pin-sourced calls (see the `source` param below).
 let currentUserMunicipality = null;
 let currentContactsMunicipality = null;
 
@@ -12758,9 +12272,6 @@ const companyGeocodeCache = {};
 
 const utilityCompanyRegistry = new Map();
 
-// ========================================================================================
-// UTILITY COMPANY MARKERS & GEOCODING
-// ========================================================================================
 function buildCompanyMarkerHtml() {
   return '<div class="map-pin-badge company-marker-icon-wrap pin-upright"><span class="map-pin-glyph company-marker-icon"></span></div>';
 }
@@ -12791,12 +12302,7 @@ async function focusUtilityCompanyAddress(id) {
   if (!pos || !isValidLatLng(pos.lat, pos.lon)) return;
   viewLocationOnMap(pos.lat, pos.lon);
 }
-// Loads utility-company markers for the current map viewport (plus a padding margin) instead
-// of every verified company worldwide — mirrors the report-pin loader's approach
-// (currentViewportBBox/viewportBBoxContains, defined further down but hoisted). Companies
-// already placed on the map are tracked in loadedCompanyMarkerIds so re-entering a
-// previously-visited area never re-fetches or re-adds duplicate markers; panning to a new area
-// just adds its companies on top, same "merge, never replace" pattern as the municipality cache.
+
 let lastLoadedCompanyBBox = null;
 const loadedCompanyMarkerIds = new Set();
 
@@ -12824,7 +12330,8 @@ async function loadCompanyMarkersByWindow() {
     if (!isValidLatLng(c.lat, c.lon)) continue;
     if (c.id != null) {
       if (loadedCompanyMarkerIds.has(String(c.id))) {
-        utilityCompanyRegistry.set(String(c.id), c); // keep registry fresh even if marker already exists
+        utilityCompanyRegistry.set(String(c.id), c);
+
         continue;
       }
       utilityCompanyRegistry.set(String(c.id), c);
@@ -12857,10 +12364,6 @@ function scheduleCompanyMarkersReloadIfNeeded() {
 map.on('moveend', scheduleCompanyMarkersReloadIfNeeded);
 map.on('zoomend', scheduleCompanyMarkersReloadIfNeeded);
 
-// Stats used to be preloaded for every municipality worldwide on every page view
-// (loadMunicipalityStatsCache, a full-table select) even though they're only ever looked at
-// one municipality at a time, in the company-detail modal. Fetch per id instead, memoizing so
-// re-opening the same company's detail modal in the same session doesn't re-hit the network.
 const municipalityStatsCache = new Map();
 const municipalityStatsFetchInFlight = new Map();
 async function getMunicipalityStats(municipalityId) {
@@ -12945,16 +12448,6 @@ async function backfillUcCoordinates() {
   loadCompanyMarkersByWindow();
 }
 
-// ---- Municipality boundary repair tool ------------------------------------
-//
-// Two problems this fixes, both caused by autoRegisterMunicipality() saving a
-// placeholder row (boundary: { type:'Polygon', coordinates: [] }) whenever a
-// point falls through cache + name-match:
-//   1. Rows with empty/missing rings that never match any point again.
-//   2. The same real-world municipality getting registered more than once
-//      under different ids (since the placeholder's osm_id is often a random
-//      negative number, so it doesn't collide with a later "real" osm_id).
-
 function boundaryHasRings(boundary) {
   if (!boundary || !boundary.coordinates) return false;
   const rings = boundary.type === 'MultiPolygon'
@@ -12965,9 +12458,7 @@ function boundaryHasRings(boundary) {
 
 function isSessionOnlyMuniId(id) {
   return typeof id === 'string' && id.startsWith('session:');
-// ========================================================================================
-// ADMIN DATA MAINTENANCE — municipality de-duplication & boundary repair
-// ========================================================================================
+
 }
 
 function municipalityMergeKey(m) {
@@ -12987,10 +12478,6 @@ function pickCanonicalMunicipality(group) {
   })[0];
 }
 
-// Groups the cache by normalized name + country, keeps the best record in each
-// group (preferring one with real boundary rings, then the oldest id), and
-// merges the rest into it: reassigns any reports pointing at a duplicate's id,
-// then deletes the duplicate row. Returns the list of merges performed.
 async function mergeDuplicateMunicipalities(onProgress) {
   const groups = new Map();
   for (const m of municipalityCache) {
@@ -13040,10 +12527,6 @@ async function mergeDuplicateMunicipalities(onProgress) {
   return merges;
 }
 
-// Re-fetches boundary geometry (via the same Nominatim lookup used by "Add
-// municipality from map center") for every cached municipality whose rings
-// are empty, and updates the existing DB row in place by id — it does not
-// create a new row, so it can't reintroduce a duplicate.
 async function repairEmptyMunicipalityBoundaries(onProgress) {
   const broken = municipalityCache.filter(m => !boundaryHasRings(m.boundary) && isValidLatLng(m.centroid_lat, m.centroid_lon));
   let fixed = 0;
@@ -13062,8 +12545,7 @@ async function repairEmptyMunicipalityBoundaries(onProgress) {
     };
 
     if (isSessionOnlyMuniId(m.id)) {
-      // Never made it into the DB the first time — nothing to update by id,
-      // so just patch it in memory/localStorage for this session.
+
       Object.assign(m, patch);
       fixed++;
       continue;
@@ -13128,12 +12610,6 @@ async function fixAllMunicipalityBoundaries() {
     .replace('{total}', String(total)), 'success');
 }
 
-// ========================================================================================
-// COMPANY & MUNICIPALITY POPUPS/MODALS
-// ========================================================================================
-// Always render a tags row under a public-service company's name — even if the company
-// has no categories assigned yet, so the layout (and the presence of the row) stays
-// consistent across the POI popup, the detail modal, contact cards, and the admin list.
 function buildCompanyCatsHtml(c, marginBottom) {
   const chips = (c.categories && c.categories.length)
     ? c.categories.map(cat => `<span class="uc-cat-chip" style="background:${categoryColor(cat)};">${escapeHtml(translateCategory(cat))}</span>`).join('')
@@ -13196,14 +12672,7 @@ async function showMunicipalityContactsModal() {
   openOverlay('municipalityContactsModal', hideMunicipalityContactsModal);
 
   try {
-    // Fetch every contact registered for this municipality in one pass, verified or
-    // not — verified first. Previously this checked "does this municipality have *any*
-    // verified contacts at all" and only fell back to unverified ones when that came up
-    // completely empty. That meant an unverified contact for one category (e.g. Sewage)
-    // could get silently hidden here just because a *different* category (e.g. Water)
-    // already had a verified contact — even though the map pin popup, which filters
-    // per-category, would correctly fall back and show it. Fetching everything up front
-    // avoids that mismatch.
+
     const { data, error } = await sb.from(UTILITY_COMPANIES_TABLE)
       .select('*')
       .eq('municipality_id', muni.id)
@@ -13273,7 +12742,8 @@ async function showCompanyDetailModal(id) {
 
   if (c.municipality_id != null) {
     const stats = await getMunicipalityStats(c.municipality_id);
-    if (requestId !== companyDetailStatsRequestId) return; // a different company was opened meanwhile
+    if (requestId !== companyDetailStatsRequestId) return;
+
     const statsHtml = buildMuniStatsGridHtml(stats);
     const statsSectionEl = document.getElementById('companyDetailStatsSection');
     if (statsSectionEl && statsHtml) {
@@ -13338,9 +12808,6 @@ function canManageContactsForMunicipality(municipalityId) {
   return isMunicipalityInAdminDomain(muni);
 }
 
-// ========================================================================================
-// ADMIN MODERATION — utility companies & waiting-list review queue
-// ========================================================================================
 async function loadUtilityCompaniesAdmin() {
   const titleEl = document.getElementById('ucSectionTitle');
   if (titleEl) titleEl.textContent = t('ucSectionTitle');
@@ -13381,13 +12848,7 @@ async function loadUtilityCompaniesAdmin() {
 }
 let ucContactFlagCountsCache = new Map();
 let waitingListCache = [];
-// These used to be the same constant (5), reused for both "how many to fetch per category"
-// and "how many to show in total after merging". That meant the merged queue silently
-// dropped everything past the 5 oldest items overall — with a real backlog (more than a
-// couple of pending photos + flags + stale reports combined), most of the queue was simply
-// invisible, un-searchable, and had no pagination. Separated into two constants: a per-query
-// fetch size, and a much larger display cap that's still bounded (so rendering stays cheap)
-// but is high enough that the admin search box actually has something to search through.
+
 const WAITING_LIST_FETCH_LIMIT = 50;
 const WAITING_LIST_DISPLAY_LIMIT = 150;
 const STALE_REPORT_DAYS = 30;
@@ -13615,9 +13076,7 @@ function filterWaitingListBySearch(cache) {
     ].filter(Boolean).join(' '));
     return haystack.includes(query);
   });
-  // Broader matches from outside the review queue (populated by searchAllReportsAdmin as the
-  // admin types) — these aren't "waiting for review" so they carry no reason badges, just a
-  // Details button to jump straight into the report.
+
   const localIds = new Set(localMatches.map(item => item.report.id));
   const broaderMatches = allReportsSearchCache
     .filter(r => !localIds.has(r.id))
@@ -13654,13 +13113,13 @@ let adminReportSearchTimer = null;
 let adminReportSearchToken = 0;
 
 function onAdminSearchInput() {
-  renderWaitingList(); // instant local filter against the already-loaded review queue
+  renderWaitingList();
+
   const inputEl = document.getElementById('adminSearchInput');
   const q = inputEl ? inputEl.value.trim() : '';
   clearTimeout(adminReportSearchTimer);
   if (!q) { allReportsSearchCache = []; return; }
-  // Widen to the full report table a moment later, so admins can find a report by comment
-  // text, reporter username, or id even if it isn't currently waiting for review.
+
   adminReportSearchTimer = setTimeout(() => searchAllReportsAdmin(q), 350);
 }
 
@@ -13674,14 +13133,13 @@ async function searchAllReportsAdmin(query) {
       sb.from(TABLE).select('*').ilike('comment', pattern).order('created_at', { ascending: false }).limit(WAITING_LIST_FETCH_LIMIT),
       sb.from(TABLE).select('*').ilike('owner_username', pattern).order('created_at', { ascending: false }).limit(WAITING_LIST_FETCH_LIMIT)
     ];
-    // id is a uuid column — ilike on it would error server-side, so only attempt an exact
-    // match, and only when the query actually looks like one.
+
     if (UUID_RE.test(query.trim())) {
       queries.push(sb.from(TABLE).select('*').eq('id', query.trim()).limit(1));
     }
     const results = await Promise.all(queries);
     for (const r of results) if (r.error) throw r.error;
-    if (token !== adminReportSearchToken) return; // a newer keystroke's search superseded this one
+    if (token !== adminReportSearchToken) return;
 
     const merged = new Map();
     results.forEach(r => (r.data || []).forEach(row => merged.set(row.id, row)));
@@ -13696,7 +13154,8 @@ async function searchAllReportsAdmin(query) {
 
 function resetAdminSearch() {
   clearTimeout(adminReportSearchTimer);
-  adminReportSearchToken++; // invalidate any in-flight search response
+  adminReportSearchToken++;
+
   allReportsSearchCache = [];
   const inputEl = document.getElementById('adminSearchInput');
   if (inputEl) inputEl.value = '';
@@ -13788,9 +13247,6 @@ async function clearReportFlag(reportId) {
   }
 }
 
-// ========================================================================================
-// ADMIN — utility company form (create/edit/verify)
-// ========================================================================================
 function applyUcFormTranslations() {
   const fieldMap = {
     ucName: 'ucNamePH', ucPhone: 'ucPhonePH', ucEmail: 'ucEmailPH',
@@ -13857,9 +13313,6 @@ function populateUcCatChecks() {
   ).join('');
 }
 
-// countryCode -> continent name (from the `countries` table's `continent` column). Loaded once
-// per session; used to group the utility-contacts admin panel by continent, above the existing
-// per-country grouping.
 let countryContinentCache = new Map();
 let countryContinentCacheLoaded = false;
 async function loadCountryContinentCache() {
@@ -13925,11 +13378,6 @@ function renderUcList() {
   const rawQuery = searchEl ? searchEl.value.trim() : '';
   const query = rawQuery ? normalizeMuniNameForMatch(rawQuery) : '';
 
-  // Full domain-scoped municipality tree — level 3 (global) sees every municipality, level 2
-  // (country) sees their own country's municipalities, level 1 (municipality) sees just their
-  // one municipality. Built from municipalityCache itself, not from ucCompaniesCache, so a
-  // country or municipality with zero contacts saved yet still shows up as a browsable, empty
-  // entry rather than disappearing until someone adds its first contact.
   const inDomainMunis = currentAdminLevel() >= 3
     ? municipalityCache
     : municipalityCache.filter(m => isMunicipalityInAdminDomain(m));
@@ -13946,7 +13394,8 @@ function renderUcList() {
     companiesByMuni.get(key).push(c);
   });
 
-  const countryGroups = new Map(); // countryCode -> Map(muniId -> { muni, companies })
+  const countryGroups = new Map();
+
   inDomainMunis.forEach(muni => {
     const countryCode = muni.country_code || '';
     if (!countryGroups.has(countryCode)) countryGroups.set(countryCode, new Map());
@@ -13954,10 +13403,6 @@ function renderUcList() {
     countryGroups.get(countryCode).set(muniKey, { muni, companies: companiesByMuni.get(muniKey) || [] });
   });
 
-  // With no search query, show the full tree as-is (including empty municipalities/countries).
-  // With a query, keep a municipality/country whose name matches (contacts and all, even if
-  // zero), or a municipality whose *contacts* match by name/category — but drop anything with
-  // no match at all so search still narrows things down.
   let visibleCountryGroups = countryGroups;
   if (query) {
     visibleCountryGroups = new Map();
@@ -13988,10 +13433,8 @@ function renderUcList() {
   const sortedCountryCodes = Array.from(visibleCountryGroups.keys()).sort((a, b) =>
     countryDisplayName(a).localeCompare(countryDisplayName(b)));
 
-  // Group countries under their continent (from the `countries` table's continent column).
-  // Countries with no continent on record (or no country code at all) fall into their own
-  // "Other" bucket at the end, rather than disappearing.
-  const continentGroups = new Map(); // continent -> [countryCode, ...]
+  const continentGroups = new Map();
+
   sortedCountryCodes.forEach(countryCode => {
     const continent = continentOfCountry(countryCode);
     if (!continentGroups.has(continent)) continentGroups.set(continent, []);
@@ -14151,7 +13594,6 @@ function editUtilityCompany(id) {
   form.style.display = 'flex';
   form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
-
 
 function formatPhoneNumberForSave(rawPhone, countryIso2) {
   const raw = (rawPhone || '').trim();
@@ -14322,9 +13764,6 @@ async function addMunicipalityFromMapCenter() {
   }
 }
 
-// ========================================================================================
-// MARKERS & REPORT DETAIL MODAL
-// ========================================================================================
 function clearMarkers(){
   markerById.forEach(m => removeReportLayer(m));
   markerById.clear();
@@ -14375,9 +13814,7 @@ function buildPopupHtml(report) {
       ${statuses.map(s => `<button class="status-action-btn" style="background:${s.bg};" onclick='updateReportStatus(${groupIdsJson},"${s.key}")'>${s.label}</button>`).join('')}
     </div>`;
   } else if (isPersonalProblem && isOwner && report.status !== 'fixed') {
-    // Your own utility outage — nobody else can confirm your water/power/gas/heat is back,
-    // so you can just mark it yourself instead of waiting on a vote. Forward-only: 'reported'
-    // is deliberately left out below, so once you've moved off it there's no going back.
+
     const statuses = [
       { key: 'in_progress', label: t('markInProgress'), bg: STATUS_COLORS.in_progress },
       { key: 'fixed',       label: t('markFixed'),      bg: STATUS_COLORS.fixed }
@@ -14392,13 +13829,7 @@ function buildPopupHtml(report) {
       { key: 'in_progress', label: t('markInProgress'), bg: STATUS_COLORS.in_progress },
       { key: 'fixed',       label: t('markFixed'),      bg: STATUS_COLORS.fixed }
     ].filter(s => s.key !== report.status && !(s.key === 'in_progress' && categorySkipsInProgress(report.category)));
-    // The reporter can fast-track their own still-'reported' public issue straight to
-    // in_progress, no vote needed — but only that one move, only once, and only from
-    // 'reported': it writes directly via updateReportStatus instead of going through
-    // castStatusVote. Everything else here (including anyone voting 'reported' again later
-    // to flag it as still broken, or voting it 'fixed') stays a normal community vote — the
-    // reporter can't unilaterally undo their own in_progress mark, and can't unilaterally
-    // mark shared infrastructure fixed either.
+
     actionsHtml = `<div class="status-action-row">
       ${statuses.map(s => {
         const isOwnerFastTrack = isOwner && s.key === 'in_progress' && report.status === 'reported';
@@ -14728,9 +14159,6 @@ async function loadReportFlagSection(reportId) {
   }
 }
 
-// ========================================================================================
-// REPORT FLAGGING
-// ========================================================================================
 function renderReportFlagSection(reportId, existingFlag) {
   const contentEl = document.getElementById('reportFlagContent');
   if (!contentEl) return;
@@ -14787,9 +14215,6 @@ async function submitReportFlag(reportId) {
   }
 }
 
-// ========================================================================================
-// REPORT CONTACTS — calling/emailing utility companies, contact flagging
-// ========================================================================================
 async function getReportContacts(report, muni) {
   if (report.contacts && report.contacts.length) return report.contacts;
   if (!muni || muni.id == null) { report.contacts = []; return report.contacts; }
@@ -14942,7 +14367,7 @@ async function submitContactOtherFlag(companyId) {
     await flagUtilityContact(companyId, 'other', cyrillicToLatin(reason));
     toggleContactOtherFlagForm(companyId);
   } catch (err) {
-    // flagUtilityContact already surfaced a toast; just re-enable the form.
+
   } finally {
     if (submitBtn) submitBtn.disabled = false;
   }
@@ -14960,7 +14385,6 @@ async function notifyAdminsOfContactFlag(companyId, contactType, reason) {
     console.error('Failed to notify admins of contact flag:', err.message || err);
   }
 }
-
 
 const CONTACT_FALLBACK_DELAYS_MS = [1200, 3000, 6000];
 function scheduleFallbackContactCheck() {
@@ -15045,8 +14469,6 @@ async function confirmContactAttempt(confirmed) {
   }
 }
 
-// After confirming a phone call went out, offer to also send a follow-up email to the same
-// service for the same report — only makes sense if we actually have an email on file for them.
 async function offerFollowUpEmailAfterCall(reportId, companyId) {
   const company = companyId ? utilityCompanyRegistry.get(String(companyId)) : null;
   if (!company || !company.email) return;
@@ -15071,17 +14493,9 @@ async function offerFollowUpEmailAfterCall(reportId, companyId) {
   const body = encodeURIComponent(`${t('followUpEmailBodyIntro').replace('{category}', headerTitle)}\n\n${url}`);
   window.location.href = `mailto:${company.email}?subject=${subject}&body=${body}`;
 
-  // Same "did this actually go out?" loop as the phone/email taps in the contact card get —
-  // keeps the contact-event log consistent regardless of how the email got triggered.
   recordContactAttempt(reportId, 'email', companyId);
 }
 
-// ---- Post-submit "contact the authorities?" follow-up ----------------------------
-// Fired right after a report is successfully created (normal reporting form only —
-// not the driving-mode quick-tap/section reports, where a modal would be a distraction).
-// Asks a lightweight yes/no question, then — if yes — resolves the municipality/utility
-// contacts for that report the same way the report detail view does, and shows them so
-// the person can call or email right away while they're still on-site.
 async function offerContactFollowUp(reportId, report) {
   if (!reportId || !report) return;
   let wantsToContact;
@@ -15187,18 +14601,12 @@ function refreshReportContactCounts(reportId) {
 }
 
 const NEARBY_CHECKIN_RADIUS_M = 30;
-// Driving at any real speed, 30m gives almost no time to read the prompt and react before
-// passing it — widen the radius specifically while driving so the check-in appears earlier.
+
 const NEARBY_CHECKIN_RADIUS_M_DRIVING = 55;
-// Only ask about a report while driving if it's roughly ahead of us (within this many degrees
-// either side of our current heading) — otherwise a report sitting just off to the side or
-// behind (e.g. on the opposite carriageway of a divided road we're passing) would trigger an
-// irrelevant "is this still there?" prompt for a lane we're not even in.
+
 const NEARBY_CHECKIN_DRIVING_HEADING_TOLERANCE_DEG = 70;
 const NEARBY_CHECKIN_SCAN_THROTTLE_MS = 15000;
-// While driving, only ask about categories a driver can actually notice at a glance
-// from a moving car — potholes/pavement damage/flooding. Everything else (streetlights,
-// waste, sewage, etc.) still gets asked about normally when walking/browsing.
+
 const DRIVING_CHECKIN_CATEGORIES = new Set(['Road']);
 const NEARBY_CHECKIN_STORAGE_KEY = 'ttb_nearby_checkin_freq';
 const NEARBY_CHECKIN_GLOBAL_KEY = 'ttb_nearby_checkin_last_global';
@@ -15211,9 +14619,6 @@ const NEARBY_CHECKIN_COOLDOWNS = {
   high:   { global: 10 * 60 * 1000,      perReport: 1  * 24 * 60 * 60 * 1000 }
 };
 
-// ========================================================================================
-// NEARBY CHECK-IN & CONTACT REMINDERS
-// ========================================================================================
 function getNearbyCheckinFreqPref() {
   try {
     const v = localStorage.getItem(NEARBY_CHECKIN_STORAGE_KEY);
@@ -15239,11 +14644,6 @@ function setNearbyCheckinFreq(freq) {
   updateNearbyCheckinSegmentUI();
 }
 
-// ---- Contact reminders ------------------------------------------------------------
-// Nudges the person about their own still-open reports that nobody has logged a
-// contact attempt (email/phone) for yet — the one-off in-detail-view "contactNudgeText"
-// already covers that when a report happens to be open; this is the proactive version
-// that checks on a timer so it surfaces even if they never reopen the report.
 const CONTACT_REMINDER_FREQ_KEY = 'ttb_contact_reminder_freq';
 const CONTACT_REMINDER_LAST_SHOWN_KEY = 'ttb_contact_reminder_last_shown';
 const CONTACT_REMINDER_FREQ_DAYS = { off: 0, weekly: 7, biweekly: 14, monthly: 30 };
@@ -15339,8 +14739,7 @@ function openReportFromContactReminder(reportId) {
   showReportDetailModal(reportId);
 }
 function snoozeContactReminders() {
-  // Push the next check out by one day regardless of the chosen cadence — a lightweight
-  // "not now" without needing a whole separate snooze-duration setting.
+
   try { localStorage.setItem(CONTACT_REMINDER_LAST_SHOWN_KEY, String(Date.now() - (CONTACT_REMINDER_FREQ_DAYS[contactReminderFreq] - 1) * 24 * 60 * 60 * 1000)); } catch (err) {}
   closeContactReminderModal();
 }
@@ -15359,10 +14758,7 @@ function readNearbyCheckinHistory() {
 
 function maybeShowNearbyCheckin() {
   if (nearbyCheckinModalOpen) return;
-  // Driving mode itself is always on the overlay stack (it covers the map like any
-  // other overlay), so it can't be used as a signal that something else is blocking
-  // the prompt — only bail out if some *other* overlay (a modal, settings, etc.) is
-  // open on top of it.
+
   if (overlayStack.some(o => o.key !== 'drivingMode')) return;
   if (!currentSession || !userCoords) return;
   const cooldown = NEARBY_CHECKIN_COOLDOWNS[nearbyCheckinFreq];
@@ -15383,10 +14779,7 @@ function maybeShowNearbyCheckin() {
     .filter(r => !drivingMode || DRIVING_CHECKIN_CATEGORIES.has(r.category))
     .map(r => ({ r, d: distMeters(userCoords, { lat: r.latitude, lon: r.longitude }) }))
     .filter(x => x.d <= activeRadius && (now - (history[x.r.id] || 0)) >= cooldown.perReport)
-    // While driving, only ask about reports roughly ahead of us in our current lane/direction
-    // of travel — without this, a report on the opposite carriageway of a divided road (which
-    // can sit just as physically close to us as one in our own lane) would trigger the same
-    // prompt even though we have no way to act on it from where we are.
+
     .filter(x => {
       if (!drivingMode || typeof currentHeading !== 'number' || isNaN(currentHeading)) return true;
       const bearingToReport = bearingBetween(userCoords, { lat: x.r.latitude, lon: x.r.longitude });
@@ -15457,8 +14850,7 @@ function renderNearbyCheckinStepContact(report) {
 function nearbyCheckinStillBroken(reportId) {
   const report = globalActiveData.find(r => r.id === reportId);
   castStatusVote(reportId, 'reported');
-  // Don't ask "want to contact the service now?" while driving — deciding on that and
-  // potentially opening a phone/contact modal is not something to hand the driver mid-drive.
+
   if (drivingMode) { hideNearbyCheckinModal(); return; }
   if (report) renderNearbyCheckinStepContact(report);
   else hideNearbyCheckinModal();
@@ -15474,9 +14866,6 @@ function nearbyCheckinOpenContacts(reportId) {
   showReportDetailModal(reportId);
 }
 
-// ========================================================================================
-// REPORT SHARING — share URL & generated image card
-// ========================================================================================
 function hideReportDetailModal() {
   const modal = document.getElementById('reportDetailModal');
   modal.style.display = 'none';
@@ -15565,7 +14954,7 @@ async function drawReportCardMapThumb(ctx, x, y, w, h, lat, lon) {
     ctx.fillRect(x, y, w, h);
   }
   ctx.restore();
-  // pin marker in the center
+
   const cx = x + w / 2, cy = y + h / 2;
   ctx.fillStyle = '#ff4b4b';
   ctx.beginPath();
@@ -15745,9 +15134,6 @@ async function openSharedReportFromUrl() {
   }
 }
 
-// ========================================================================================
-// EMAIL REPORT & PDF EXPORT (company report bundles)
-// ========================================================================================
 async function emailReport(reportId) {
   const report = globalActiveData.find(r => r.id === reportId);
   if (!report) return;
@@ -15825,8 +15211,6 @@ async function imageUrlToDataURL(url) {
   });
 }
 
-
-// Base64 -> Blob, chunked so large PDFs (many embedded photos) don't blow the call stack.
 function base64ToBlob(base64, mimeType) {
   const byteChars = atob(base64);
   const chunkSize = 0x8000;
@@ -15840,12 +15224,6 @@ function base64ToBlob(base64, mimeType) {
   return new Blob(chunks, { type: mimeType });
 }
 
-// Requests this company's reports PDF from the weekly-utility-digest edge function — the same
-// function that builds and emails the automated weekly digest — so the manually-exported PDF's
-// appearance can never drift from the automated one; any future change to that function's
-// layout is picked up here automatically, with nothing to keep in sync on the client. Passing
-// the admin's own session JWT + a single companyId makes the function return just the PDF
-// bytes (no Resend email, no digest-log write) instead of running the full scheduled send.
 async function exportCompanyReportsPdf(companyId) {
   const c = utilityCompanyRegistry.get(String(companyId));
   if (!c) return;
@@ -15889,20 +15267,12 @@ async function exportCompanyReportsPdf(companyId) {
   }
 }
 
-
-// ========================================================================================
-// REPORT DETAIL — inline edit mode
-// ========================================================================================
 function buildDetailStatusReadonlyHtml(report, reporterName) {
   const isAdmin = !!(currentProfile && currentProfile.is_admin);
   const isOwner = !!(currentSession && report.owner_id === currentSession.user.id);
-  // hasFullPowerOverReport() is domain/on-site scoped, which is right for moderating other
-  // people's reports — but an admin should always be able to edit/delete their own report,
-  // even after they've left the location or if it falls outside their admin domain (e.g. a
-  // municipality that resolved incorrectly). Ownership alone is enough for that.
+
   const hasFullPower = hasFullPowerOverReport(report) || (isAdmin && isOwner);
-  // A plain (non-admin) owner can't edit their report's status/category, but they should
-  // still be able to remove it entirely if they filed it by mistake.
+
   const canDelete = hasFullPower || isOwner;
   const canAddPhotoInline = !!currentSession && (
     (isOwner && (!report.photo_path || report.photo_status === 'rejected')) ||
@@ -15917,8 +15287,7 @@ function buildDetailStatusReadonlyHtml(report, reporterName) {
   const personalResolveHtml = (() => {
     if (hasFullPower || !isOwner || report.status === 'fixed') return '';
     if (reportIsPersonalProblem(report)) {
-      // Forward-only: 'reported' is deliberately left out, so once you've moved off it
-      // there's no going back — matches the map popup's owner self-service buttons.
+
       const statuses = [
         { key: 'in_progress', label: t('markInProgress'), bg: STATUS_COLORS.in_progress },
         { key: 'fixed',       label: t('markFixed'),      bg: STATUS_COLORS.fixed }
@@ -15929,9 +15298,7 @@ function buildDetailStatusReadonlyHtml(report, reporterName) {
       </div>
       <div class="popup-personal-note">${t('personalProblemOwnerNote')}</div>`;
     }
-    // Public/shared-infrastructure report: the reporter can self-mark it in_progress — a
-    // one-way move, only while it's still 'reported'. Marking it fixed always needs the
-    // community vote (see the map popup), so there's no self-service button for that here.
+
     if (report.status === 'reported' && !categorySkipsInProgress(report.category)) {
       return `<div class="status-action-row">
         <button class="status-action-btn" style="background:${STATUS_COLORS.in_progress};" onclick="resolvePersonalReportFromDetail('${report.id}','in_progress')">${t('markInProgress')}</button>
@@ -15963,7 +15330,6 @@ function buildDetailStatusReadonlyHtml(report, reporterName) {
     ${noteRowHtml}
   `;
 }
-
 
 function buildDetailEditFieldsHtml(report) {
   const cats = ['Water','Electricity','Sewage','Gas','Heating','Road','Streetlight','Waste','Walkways','BikeLanes','GreenSpaces','Parking','Suggestion','Forest','FarmersMarket','Other'];
@@ -16133,9 +15499,6 @@ function buildStatusPatch(newStatus) {
   return { status: newStatus };
 }
 
-// ========================================================================================
-// REPORT STATUS & COMMUNITY VOTING
-// ========================================================================================
 async function deleteReport(reportId) {
   if (!(await themedConfirm(t('deleteConfirm')))) return;
   try {
@@ -16150,9 +15513,6 @@ async function deleteReport(reportId) {
   }
 }
 
-// Same as updateReportStatus, but also re-renders the report detail modal afterward — used
-// by the owner self-resolve buttons in buildDetailStatusReadonlyHtml, since that view (unlike
-// the map popup) doesn't get automatically rebuilt when the underlying report data reloads.
 async function resolvePersonalReportFromDetail(reportId, newStatus) {
   await updateReportStatus(reportId, newStatus);
   await showReportDetailModal(reportId);
@@ -16164,12 +15524,7 @@ async function updateReportStatus(reportIdOrIds, newStatus) {
   try {
     let anyConflict = false;
     for (const reportId of ids) {
-      // Optimistic concurrency guard: only apply this update if the report's status still
-      // matches what we last loaded it as. Without this, two admins opening the same report
-      // and both clicking a status button (e.g. both hitting "Mark In Progress") would both
-      // succeed — the second silently overwriting/timestamp-resetting the first's change with
-      // no indication anything raced. Scoping the .eq('status', ...) to the previously-known
-      // value turns that into "first write wins, second write is told it lost the race."
+
       const knownReport = globalActiveData.find(r => r.id === reportId);
       const expectedStatus = knownReport ? knownReport.status : null;
 
@@ -16184,9 +15539,7 @@ async function updateReportStatus(reportIdOrIds, newStatus) {
     }
 
     if (anyConflict) {
-      // Zero rows matched on at least one report: someone else changed its status between
-      // us loading it and clicking the button. Don't guess — reload and let the admin see
-      // what actually happened before trying again.
+
       myReportsCache = null;
       await loadPinsByWindow();
       toast(t('updateConflict'), 'error');
@@ -16208,8 +15561,7 @@ async function castStatusVote(reportIdOrIds, suggestedStatus) {
 
   const ids = Array.isArray(reportIdOrIds) ? reportIdOrIds : [reportIdOrIds];
   const isAdmin = !!(currentProfile.is_admin);
-  // All reports in a merged duplicate group sit within DUPLICATE_MERGE_RADIUS_M of one
-  // another, so checking proximity against any one of them is representative of the group.
+
   const primaryReport = globalActiveData.find(r => r.id === ids[0]);
   if (!isAdmin && primaryReport && isValidLatLng(primaryReport.latitude, primaryReport.longitude)) {
     const dist = distMeters(userCoords, { lat: primaryReport.latitude, lon: primaryReport.longitude });
@@ -16248,9 +15600,6 @@ async function castStatusVote(reportIdOrIds, suggestedStatus) {
   }
 }
 
-// ========================================================================================
-// TEXT UTILITIES — HTML escaping, profanity filter, pin icon HTML
-// ========================================================================================
 function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
@@ -16284,34 +15633,29 @@ function cyrillicToLatin(str) {
   return String(str).replace(/[А-Яа-яЂђЈјЉљЊњЋћЏџ]/g, ch => CYRILLIC_TO_LATIN_MAP[ch] ?? ch);
 }
 
-// ---- Profanity filter -----------------------------------------------------
-// Blocks a small, editable list of offensive/vulgar words (English + Serbian) from
-// being typed into any free-text field in the app (report comments, notes, username,
-// direct-message text, report-flag reason). This is a lightweight client-side check —
-// it normalizes accents/Cyrillic/leetspeak/repeated letters before matching, but it is
-// not a substitute for a real moderation pipeline; add words to BLOCKED_WORDS as needed.
 const BLOCKED_WORDS = [
-  // English
+
   'fuck','shit','bitch','asshole','bastard','cunt','dick','pussy','faggot','nigger','whore','slut',
-  // Serbian/Balkan (Latin-normalized forms; Cyrillic input is converted before checking)
+
   'jebem','jebo','jebote','picka','pizda','kurac','kurca','govno','djubre','dzukela','peder',
   'kurvo','kurva','seronja','budalo','idiote','glupane','majmune','svinjo'
 ];
 function normalizeForProfanityCheck(str) {
   return cyrillicToLatin(String(str || ''))
     .toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // strip accents (č->c, š->s, etc.)
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+
     .replace(/0/g, 'o').replace(/1/g, 'i').replace(/3/g, 'e').replace(/4/g, 'a').replace(/5/g, 's').replace(/7/g, 't')
     .replace(/[^a-z]/g, ' ')
-    .replace(/(.)\1{2,}/g, '$1$1'); // collapse 3+ repeated letters (fuuuck -> fuuck)
+    .replace(/(.)\1{2,}/g, '$1$1');
+
 }
 function containsProfanity(str) {
   if (!str) return false;
   const normalized = normalizeForProfanityCheck(str);
   return BLOCKED_WORDS.some(w => normalized.includes(w));
 }
-// Call before saving any user-typed text. Shows a toast and returns true if the text
-// should be blocked; returns false (and shows nothing) if the text is fine to save.
+
 function blockIfProfane(str) {
   if (!containsProfanity(str)) return false;
   toast(t('profanityBlocked'), 'error');
@@ -16339,12 +15683,6 @@ function upsertSectionLine(report) {
     return group;
   }
 
-  // The drawn road line is thin (weight 6), which made it very hard to tap accurately,
-  // especially on mobile. A wide, fully transparent "hit" line sits underneath it just
-  // to catch clicks/taps — the visible line stays thin and non-interactive so it never
-  // steals the click first. Both are wrapped in a featureGroup with a popup bound on
-  // the group itself, so existing code (setPopupContent/bringToFront/bringToBack/
-  // removeLayer via markerById) keeps working exactly as before.
   const hitLine = L.polyline(path, {
     color: '#000', opacity: 0, weight: 26, lineCap: 'round',
     renderer: sectionLineRenderer, interactive: true
@@ -16388,9 +15726,6 @@ function buildPinIconHtml(category, status, priority, confirmCount) {
     `</div>`;
 }
 
-// ========================================================================================
-// MARKER SYNC & REALTIME SUBSCRIPTION
-// ========================================================================================
 function upsertMarker(report) {
   if (isSectionReport(report)) return upsertSectionLine(report);
 
@@ -16433,15 +15768,7 @@ function reportInBounds(report, bounds) {
   if (!isValidLatLng(report.latitude, report.longitude)) return false;
   return bounds.contains(L.latLng(report.latitude, report.longitude));
 }
-// Building/updating a lot of pins in one synchronous pass is what made the map stutter
-// when a viewport had hundreds of reports in it — each upsertMarker() call builds a divIcon
-// and touches the cluster group, and doing that in a single tight loop blocks the main
-// thread until every last one is done. Instead we figure out the full list of adds/updates
-// up front, then trickle them in over several animation frames (small MARKER_SYNC_CHUNK_SIZE
-// batches), so the browser gets to breathe (render, respond to touch/scroll) between
-// batches. A monotonically increasing token lets a newer syncMarkers() call (e.g. from
-// panning again before the previous batch finished) cleanly cancel the older one instead of
-// both fighting over the same markers.
+
 const MARKER_SYNC_CHUNK_SIZE = 40;
 let markerSyncToken = 0;
 
@@ -16456,13 +15783,12 @@ function syncMarkers(refreshExisting) {
     if (!isCategoryVisible(r.category)) return;
     if (!isStatusVisible(r.status)) return;
     const dupGroup = duplicateGroupFor(r.id);
-    if (dupGroup && r.id !== dupGroup.primaryId) return; // merged into another report's pin
+    if (dupGroup && r.id !== dupGroup.primaryId) return;
+
     desiredIds.add(r.id);
     if (refreshExisting || !markerById.has(r.id)) toUpsert.push(r);
   });
 
-  // Removals are cheap (no icon/DOM to build) and keep stale pins from lingering, so those
-  // still happen immediately rather than waiting on the chunked loop below.
   markerById.forEach((marker, id) => {
     if (!desiredIds.has(id)) {
       removeReportLayer(marker);
@@ -16483,13 +15809,12 @@ function syncMarkers(refreshExisting) {
     return;
   }
 
-  // Only bother the person with the pill if there's enough work that it'd actually be
-  // visible for a moment — a handful of pins finishes within a frame or two anyway.
   if (toUpsert.length > MARKER_SYNC_CHUNK_SIZE * 2) showPinsLoadingPill();
 
   let i = 0;
   function processNextChunk() {
-    if (token !== markerSyncToken) return; // superseded by a newer syncMarkers() call
+    if (token !== markerSyncToken) return;
+
     const slice = toUpsert.slice(i, i + MARKER_SYNC_CHUNK_SIZE);
     slice.forEach(r => upsertMarker(r));
     i += MARKER_SYNC_CHUNK_SIZE;
@@ -16526,18 +15851,12 @@ function updateReportCount() {
   setCount('legendCountFixed',      counts.fixed);
 }
 
-// ---- Viewport-bounded loading ---------------------------------------------------
-// Reports are fetched for a padded box around the current map view instead of the
-// whole database. As the person pans/zooms, onViewportMayNeedMoreData() below checks
-// whether the view has moved outside the box we last loaded and, only then, fetches
-// again — merging new reports into what's already in memory rather than replacing it.
-// A hard cap (MAX_LOADED_REPORTS) plus pruneLoadedReportsIfNeeded() keeps memory bounded
-// even after a long session of panning around, by dropping whatever is currently
-// farthest from the view. Net effect: initial load and payload size stay roughly
-// constant as the total number of reports in the database grows over time.
-const VIEWPORT_LOAD_PAD_RATIO = 0.6;  // fetch a bit beyond the visible edges so small pans don't re-trigger a fetch
-const MAX_ALWAYS_ON_FETCH     = 800;  // hard cap on the "not yet fixed" fetch, regardless of viewport size
-const MAX_LOADED_REPORTS      = 4000; // hard cap on reports kept in memory/rendered at once
+const VIEWPORT_LOAD_PAD_RATIO = 0.6;
+
+const MAX_ALWAYS_ON_FETCH     = 800;
+
+const MAX_LOADED_REPORTS      = 4000;
+
 let lastLoadedBBox = null;
 
 function currentViewportBBox() {
@@ -16604,10 +15923,6 @@ async function loadPinsByWindow() {
     const freshInWindow = dateRangeRes.data || [];
     dateRangeOnlyData = freshInWindow;
 
-    // Merge into what's already loaded (rather than replacing it outright) so panning
-    // back to a previously-visited area doesn't need a fresh network round-trip, while
-    // reports that are no longer in the date range but were previously merged in get
-    // dropped so switching the date filter still narrows things down correctly.
     const merged = new Map(globalActiveData.map(r => [r.id, r]));
     freshInWindow.forEach(r => merged.set(r.id, r));
     (alwaysOnRes.data || []).forEach(r => merged.set(r.id, r));
@@ -16626,19 +15941,10 @@ async function loadPinsByWindow() {
   }
 }
 
-// ---- Live sync -----------------------------------------------------------------
-// Without this, a report added/edited/deleted by *another* device only shows up on
-// this map after the next loadPinsByWindow() call (pan/zoom or manual refresh). This
-// subscribes to Postgres changes on the reports table so every connected client's map,
-// counters, and any open detail modal update the moment the row changes anywhere —
-// no page refresh needed. Own-device actions already update immediately via the
-// explicit loadPinsByWindow() calls sprinkled through the submit/edit/delete flows;
-// this only adds the *remote* half of that.
 let reportsRealtimeChannel = null;
 
 function isReportWithinLoadedWindow(report) {
-  // Mirrors the two loadPinsByWindow queries: always show not-yet-fixed reports, and
-  // otherwise only ones inside the currently selected date range (if any is picked yet).
+
   if (!report) return false;
   if (report.status !== 'fixed') return true;
   if (!fp || !fp.selectedDates || fp.selectedDates.length < 2) return false;
@@ -16675,8 +15981,7 @@ function applyRealtimeReportChange(eventType, newRow, oldRow) {
   const inWindow = isReportWithinLoadedWindow(newRow);
 
   if (!inWindow) {
-    // Fell outside what we'd otherwise have loaded (e.g. marked fixed outside the
-    // selected date range) — drop it like loadPinsByWindow would.
+
     if (idx !== -1) {
       globalActiveData.splice(idx, 1);
       markActiveDataChanged();
@@ -16734,9 +16039,6 @@ async function loadVoteProgress(reportIds) {
   }
 }
 
-// ========================================================================================
-// CSV EXPORT, WAKE LOCK, FULLSCREEN & ORIENTATION LOCK
-// ========================================================================================
 function downloadCSV() {
   const bounds = map.getBounds();
   const visible = dateRangeOnlyData.filter(r =>
@@ -16862,19 +16164,13 @@ let themeMode = (function () {
 })();
 const systemDarkModeMQ = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
 
-/* Ambient light sensor is a nice-to-have: only a couple of Chromium-based
-   browsers support it (and only over HTTPS with the right permissions
-   policy), so this quietly does nothing when unavailable or denied — the
-   time-of-day + OS-preference fallback below still applies. */
 let ambientLux = null;
 let ambientSensorActive = false;
 const AMBIENT_DARK_LUX_THRESHOLD = 12;
-const NIGHT_START_HOUR = 20; // 8pm
-const NIGHT_END_HOUR   = 7;  // 7am
+const NIGHT_START_HOUR = 20;
 
-// ========================================================================================
-// THEME — day/night resolution & smart/ambient mode
-// ========================================================================================
+const NIGHT_END_HOUR   = 7;
+
 function isNightByLocalClock() {
   const h = new Date().getHours();
   return h >= NIGHT_START_HOUR || h < NIGHT_END_HOUR;
@@ -16882,14 +16178,11 @@ function isNightByLocalClock() {
 
 function resolveThemeMode(mode) {
   if (mode === 'auto') {
-    // Plain system-preference auto — mirrors the OS light/dark setting only.
+
     return (systemDarkModeMQ && systemDarkModeMQ.matches) ? 'dark' : 'light';
   }
   if (mode === 'smart') {
-    // Ambient-light reading where the browser supports it, falls back to local time
-    // (dark 20:00–07:00, light otherwise). Smart mode intentionally ignores the OS's
-    // own light/dark preference — it should track real daylight/ambient conditions,
-    // not whatever theme the phone happens to be set to.
+
     if (ambientSensorActive && ambientLux != null) {
       return ambientLux < AMBIENT_DARK_LUX_THRESHOLD ? 'dark' : 'light';
     }
@@ -16909,7 +16202,8 @@ function initAmbientLightSensor() {
     });
     sensor.addEventListener('error', () => { ambientSensorActive = false; });
     sensor.start();
-  } catch (e) { /* unsupported or permission denied — silently fall back */ }
+  } catch (e) {
+ }
 }
 
 function updateThemeSegmentUI() {
@@ -16939,27 +16233,12 @@ function initTheme() {
     else if (systemDarkModeMQ.addListener) systemDarkModeMQ.addListener(onSystemThemeChange);
   }
   initAmbientLightSensor();
-  // Catch hour-boundary crossings (e.g. clock ticking past 20:00) while smart mode is active.
+
   setInterval(() => { if (themeMode === 'smart') applyTheme('smart'); }, 15 * 60 * 1000);
 }
 
-// Icon packs: every icon in the app is referenced as 'icons/whatever.png' (in static HTML
-// and in hundreds of dynamically-built template strings). Rather than touch every call site,
-// we keep a registry of available packs (each just a sibling folder next to icons/, e.g.
-// icons-8bit/) and, when a non-default pack is active, retarget every 'icons/...' image src
-// to '<pack>/...' — once for what's already in the DOM, then continuously via a
-// MutationObserver for anything rendered afterward (popups, modals, markers, etc).
-// Icon pack discovery: the default folder is 'icons' (kept named "Modern"). Any sibling
-// folder named 'icons-something' is treated as an extra pack — its display name is derived
-// from the folder name itself (icons-modern-styled -> "Modern Styled"), so adding a new pack
-// is just "drop a folder next to icons/, list it in icons/packs.json". Browsers can't read a
-// server's directory listing on their own, so packs.json (a plain array of folder names, e.g.
-// ["icons-8bit","icons-modern-styled"]) is what makes a new folder "discoverable" — it's not
-// a name registry (no display names hardcoded there), just the list of folders to look at.
 const ICON_PACK_DEFAULT = 'icons';
-// ========================================================================================
-// ICON PACKS — discovery, fallback rewriting
-// ========================================================================================
+
 function iconPackNameFromId(id) {
   if (id === ICON_PACK_DEFAULT) return { en:'Modern', sr:'Moderni' };
   const words = id.replace(/^icons-/, '').split(/[-_]+/).filter(Boolean)
@@ -16981,20 +16260,15 @@ async function discoverIconPacks() {
       .map(id => { const n = iconPackNameFromId(id); return { id, nameEn:n.en, nameSr:n.sr }; });
     ICON_PACKS = [ICON_PACKS[0], ...discovered];
   } catch (e) {
-    // No manifest found (or offline) — just the default pack is available.
+
   } finally {
     if (!ICON_PACKS.some(p => p.id === iconPack)) iconPack = ICON_PACK_DEFAULT;
     renderIconPackSegment();
   }
 }
 
-// Icon packs are frequently incomplete mirrors of icons/ (e.g. a pack added later is missing
-// a subfolder like icons/reports/ or a handful of root files). Blindly swapping 'icons/x.png'
-// -> '<pack>/x.png' then leaves a 404'd, invisible icon for anything the pack doesn't have.
-// probeIconExists() actually tries to load each swapped path once (cached) and reports back
-// whether it's real, so callers can fall back to the guaranteed-complete default pack per-icon
-// instead of silently breaking.
-const iconExistsCache = new Map(); // path -> Promise<boolean>
+const iconExistsCache = new Map();
+
 function probeIconExists(path) {
   if (!iconExistsCache.has(path)) {
     iconExistsCache.set(path, new Promise(resolve => {
@@ -17015,19 +16289,11 @@ function rewriteIconSrc(img) {
   img.setAttribute('src', packSrc);
   probeIconExists(packSrc).then(ok => {
     if (ok) return;
-    // This pack doesn't have this icon — fall back to the default pack rather than a
-    // broken image. Only revert if nothing else has since changed the src (e.g. re-render).
+
     if (img.getAttribute('src') === packSrc) img.setAttribute('src', raw);
   });
 }
 
-// Most icons in this app aren't <img> tags at all — they're tinted via CSS
-// mask-image/-webkit-mask-image on a div/span (driving tiles, wizard tiles, badges,
-// dashboard glyphs, category markers, etc.), set inline via style="...url('icons/x.png')...".
-// The old rewrite only ever touched <img src>, so switching packs updated a small handful
-// of header/button icons and left everything CSS-mask-based on the default pack. This
-// rewrites any inline style referencing 'icons/...' the same way, then verifies each
-// resulting pack path and reverts that one occurrence to the default icon if it 404s.
 const ICON_STYLE_URL_RE = /(url\(['"]?)(?:\.\/)?icons\//g;
 function rewriteIconStyle(el) {
   if (iconPack === ICON_PACK_DEFAULT || !el || !el.getAttribute) return;
@@ -17086,11 +16352,8 @@ function setIconPack(packId) {
   location.reload();
 }
 
-
 const MAP_LOADING_OVERLAY_MIN_TOTAL_MS = 2000;
-// ========================================================================================
-// APP BOOT SEQUENCE — loading overlay, initial GPS fix, startup order
-// ========================================================================================
+
 function hideMapLoadingOverlay() {
   const shownAt = window.__ttbSplashShownAt || Date.now();
   const elapsed = Date.now() - shownAt;
@@ -17101,23 +16364,12 @@ function hideMapLoadingOverlay() {
   }, remaining);
 }
 
-// NOTE: discoverIconPacks() must resolve (and correct `iconPack` if the persisted
-// pack turns out invalid/missing) BEFORE initIconPackRewrite() runs its first pass
-// and attaches the MutationObserver. Running them in parallel used to mean the
-// observer could start with a not-yet-validated pack, get silently reset to
-// ICON_PACK_DEFAULT once the fetch resolved, and then stop rewriting anything
-// rendered afterwards (badges, report/subcategory icons, wizard tiles, markers) —
-// leaving only whatever handful of icons were already in the DOM at that instant.
 discoverIconPacks().finally(initIconPackRewrite);
 initTheme();
 initCalendarFilter();
 initLang();
 applyLang();
-// On a person's very first-ever visit (no remembered map view yet) we'd otherwise make
-// our first fetch against the wide, zoomed-out Europe default view — pulling in reports
-// from a huge area. Instead, give geolocation a brief window to resolve a rough fix and
-// recenter/zoom onto it first, so the first thing loaded is the person's own area; if it
-// doesn't resolve in time we just fall back to the default view as before.
+
 const INITIAL_LOCATION_ZOOM = 13;
 const INITIAL_LOCATION_FIX_TIMEOUT_MS = 2500;
 function getQuickInitialFix(timeoutMs) {
@@ -17154,8 +16406,7 @@ async function runInitialLoadSequence() {
     initialLat = c.lat;
     initialLon = c.lng;
   }
-  // Don't block pin loading on this — it fetches a small area around the point first, then
-  // widens to that point's country in the background (see ensureMunicipalitiesNear above).
+
   ensureMunicipalitiesNear(initialLat, initialLon);
   await loadPinsByWindow();
 }
@@ -17164,11 +16415,7 @@ updateBottomMunicipalityBar(null);
 setupReportsRealtimeSync();
 openSharedReportFromUrl();
 loadCompanyMarkersByWindow();
-// NOTE: currentProfile/currentSession are only populated once initAuth() resolves. Admin-only
-// UI (the admin panel button, "My Admin Role" dashboard section) is gated on that alone now —
-// it used to also wait on a full municipality-table load finishing first, but that table load
-// no longer happens eagerly on every page view (see the progressive loader above); admins who
-// actually need the full set get it inside renderAdminDashboard() itself (line ~5301).
+
 const authReady = initAuth();
 authReady.then(() => {
   if (currentProfile && currentProfile.is_admin) {
