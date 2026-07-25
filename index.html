@@ -1325,38 +1325,6 @@ body.bike-mode-active .driving-speed-value{ margin-top:0; }
   align-items:flex-end;
   justify-content:space-between;
 }
-.nav-free-look-pill{
-  display:flex;
-  align-items:center;
-  gap:var(--space-8);
-  position:fixed;
-  left:50%;
-  bottom:calc(var(--driving-sheet-height, 160px) + 64px + env(safe-area-inset-bottom, 0px));
-  z-index:2620;
-  background:var(--floating-bg);
-  backdrop-filter:blur(16px);
-  -webkit-backdrop-filter:blur(16px);
-  border:1px solid var(--floating-border);
-  color:var(--text-primary);
-  padding:10px 16px;
-  border-radius:var(--radius-pill);
-  font-size:var(--fs-13);
-  font-weight:var(--fw-semibold);
-  box-shadow:0 10px 30px var(--floating-shadow);
-  cursor:pointer;
-  user-select:none;
-  opacity:0;
-  pointer-events:none;
-  transform:translateX(-50%) translateY(10px) scale(.96);
-  transition:opacity .22s cubic-bezier(.2,.8,.2,1), transform .22s cubic-bezier(.2,.8,.2,1);
-}
-.nav-free-look-pill img{ width:16px; height:16px; filter:var(--icon-tint-filter); }
-.nav-free-look-pill.pill-visible{
-  opacity:1;
-  pointer-events:auto;
-  transform:translateX(-50%) translateY(0) scale(1);
-}
-
 /* Upcoming speed-limit signs, placed on the map ahead of the driver at the location of each
    OSM way segment carrying a maxspeed tag. Styled like a real EU/Vienna-convention circular
    speed-limit sign (white face, red ring, black number) so it reads as "the real sign" at a
@@ -3028,10 +2996,6 @@ span.flatpickr-weekday {
   <img src="icons/reports/report_new.png" alt="">
 </button>
 <div id="drivingTopFade"></div>
-<div id="navFreeLookPill" class="nav-free-look-pill" role="button" tabindex="0" onclick="resumeNavFollowNow()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();resumeNavFollowNow();}">
-  <img class="icon-img icon-img-inline" src="icons/target.png" alt="">
-  <span id="navFreeLookPillText"></span>
-</div>
 
 <!-- ========== NAVIGATION / DRIVING-MODE UI (route panel, turn-by-turn card, nav action row) ========== -->
 <div id="navigatePanel" class="navigate-panel">
@@ -5929,7 +5893,6 @@ const T = {
   detailContactsError:   { en:'Could not load contacts.',                  sr:'Kontakti nisu učitani.' },
 
   contactCountsTitle:      { en:'Contact activity',                            sr:'Aktivnost kontaktiranja' },
-  navFreeLookResumeText:   { en:'Free look — tap to resume navigation',        sr:'Slobodan pregled — dodirnite za nastavak navigacije' },
   contactNudgeText:        { en:'You haven\'t contacted the responsible service about this yet. Use the contacts below.', sr:'Još niste kontaktirali nadležnu službu povodom ovoga. Koristite kontakte ispod.' },
   duplicateNoticeTitle:    { en:'{n} similar report(s) already nearby', sr:'{n} sličnih prijava već postoji u blizini' },
   duplicateNoticeHint:     { en:'Check the map before submitting: this issue may already be logged.', sr:'Proverite mapu pre slanja: ovaj problem je možda već prijavljen.' },
@@ -5994,10 +5957,8 @@ const T = {
   companyPdfFailed:        { en:'Could not create the PDF. Try again.',                sr:'PDF nije mogao biti napravljen. Pokušajte ponovo.' },
   companyPdfDownloaded:    { en:'PDF downloaded.',                                     sr:'PDF preuzet.' },
   companyPdfShared:        { en:'PDF ready to send.',                                  sr:'PDF je spreman za slanje.' },
-  companyPdfAttachReminder:{ en:'PDF downloaded. Attach it to the email before sending.', sr:'PDF je preuzet. Dodajte ga kao prilog pre slanja mejla.' },
   companyPdfTotalReports:  { en:'Total reports',                                       sr:'Ukupno prijava' },
   companyPdfDescription:   { en:'Description',                                         sr:'Opis' },
-  companyPdfEmailSubject:  { en:'Reports overview – {name}',                           sr:'Pregled prijava – {name}' },
   companyPdfEmailIntro:    { en:'Attached is an overview of {count} reported issue(s) relevant to your service ({name}).', sr:'U prilogu se nalazi pregled od {count} prijavljenih problema koji se odnose na vašu službu ({name}).' },
   companyPdfEmailAsk:      { en:'Please review the reports below and take the appropriate action.', sr:'Molimo vas da razmotrite navedene prijave i preduzmete odgovarajuće mere.' },
   emailWrongRecipientNote: { en:"Did this email land in the wrong inbox? Please let us know by replying.", sr:'Da li je ovaj mejl slučajno stigao do vas? Molimo obavestite nas odgovorom na ovu poruku.' },
@@ -8153,7 +8114,6 @@ function onNavStateChange(prev, next) {
     setFollowMode(false);
     pendingAutoRefollow = false;
     cancelAutoRefollowTimer();
-    hideFreeLookPill();
   }
 }
 
@@ -9043,21 +9003,6 @@ function setFollowMode(enabled) {
   if (generalBtn) { generalBtn.classList.toggle('active', enabled); generalBtn.setAttribute('aria-pressed', String(enabled)); }
 }
 
-// Floating "you're in free-look" pill — shown while pendingAutoRefollow is true (i.e. the
-// user panned/rotated away from an active follow) so it's obvious how to get back, instead
-// of silently waiting out the auto-refollow delay with no feedback.
-function showFreeLookPill() {
-  const pill = document.getElementById('navFreeLookPill');
-  if (!pill) return;
-  const textEl = document.getElementById('navFreeLookPillText');
-  if (textEl) textEl.textContent = t('navFreeLookResumeText');
-  pill.classList.add('pill-visible');
-}
-function hideFreeLookPill() {
-  const pill = document.getElementById('navFreeLookPill');
-  if (pill) pill.classList.remove('pill-visible');
-}
-
 function toggleFollowMode() {
   setFollowMode(!followMode);
   if (followMode && userCoords) {
@@ -9065,25 +9010,15 @@ function toggleFollowMode() {
     pendingAutoRefollow = false;
     cancelAutoRefollowTimer();
     reenableAutoHeadingIfManuallyRotated();
-    hideFreeLookPill();
   }
 }
 
-// Fixed delays felt wrong at both ends: 10s is way too long to be off-course at highway
-// speed (you can cover 250+m before the map snaps back), but also too short when stopped
-// or moving slowly, where there's no urgency and it just interrupts someone reading the map.
-// Scales with current smoothed speed instead. Falls back to the old 10s default when speed
-// isn't known yet (e.g. right after a manual rotation before the first GPS fix lands).
-const AUTO_REFOLLOW_DELAY_DEFAULT_MS = 10000;
-function autoRefollowDelayMs() {
-  const speed = smoothedSpeedKmh;
-  if (speed === null || speed === undefined) return AUTO_REFOLLOW_DELAY_DEFAULT_MS;
-  if (speed >= 80) return 4000;
-  if (speed >= 50) return 6000;
-  if (speed >= 15) return 8000;
-  if (speed >= 3)  return 10000;
-  return 15000; // stopped or walking pace — no rush
-}
+// Flat 10s delay before follow-mode auto-resumes once the user stops interacting with the
+// map. Restarted (not just left running) on every interaction, so it always counts 10s of
+// actual quiet before snapping back. While an overlay (settings, etc.) is open over the map
+// the timer is paused entirely (see openOverlay/closeOverlay) and starts fresh at 10s again
+// once the user is back on the map/navigation.
+const AUTO_REFOLLOW_DELAY_MS = 10000;
 let autoRefollowTimer = null;
 let pendingAutoRefollow = false;
 
@@ -9095,27 +9030,16 @@ function onUserMapInteractionStart() {
   if (followMode) {
     pendingAutoRefollow = true;
     setFollowMode(false);
-    showFreeLookPill();
   }
   cancelAutoRefollowTimer();
 }
 
-// Shared by both the auto-refollow timer and the "tap to resume" pill so the two paths
-// can't drift out of sync.
 function performAutoRefollow() {
   if (!(pendingAutoRefollow && userCoords)) return;
   pendingAutoRefollow = false;
   setFollowMode(true);
   followMapTo(userCoords.lat, userCoords.lon);
   reenableAutoHeadingIfManuallyRotated();
-  hideFreeLookPill();
-}
-
-// Lets the user tap the free-look pill to jump straight back into navigation instead of
-// waiting out the remainder of the auto-refollow delay.
-function resumeNavFollowNow() {
-  cancelAutoRefollowTimer();
-  performAutoRefollow();
 }
 
 function scheduleAutoRefollow() {
@@ -9124,7 +9048,7 @@ function scheduleAutoRefollow() {
   autoRefollowTimer = setTimeout(() => {
     autoRefollowTimer = null;
     performAutoRefollow();
-  }, autoRefollowDelayMs());
+  }, AUTO_REFOLLOW_DELAY_MS);
 }
 
 map.on('dragstart', onUserMapInteractionStart);
@@ -13139,7 +13063,7 @@ function buildCompanyPopupHtml(c, lat, lon) {
     c.website ? `<a class="poi-contact-icon-btn" href="${escapeHtml(c.website)}" target="_blank" rel="noopener" title="${escapeHtml(c.website)}"><img src="icons/link.png" alt="website"></a>` : ''
   ].filter(Boolean).join('');
   const iconRowHtml = iconBtnsHtml ? `<div class="poi-contact-icons">${iconBtnsHtml}</div>` : '';
-  const pdfExportRowBtn = (c.id != null)
+  const pdfExportRowBtn = (c.id != null && currentProfile && currentProfile.is_admin)
     ? `<button type="button" class="settings-btn contact-pdf-export-row-btn" id="companyPdfBtn-${escapeHtml(String(c.id))}" title="${t('companyPdfBtnTitle')}" onclick="exportCompanyReportsPdf('${escapeHtml(String(c.id))}')"><img class="icon-img icon-img-inline" src="icons/pdf.png" alt="pdf"> ${t('companyPdfBtnLabel')}</button>` : '';
   return `<div class="popup-inner popup-card">
     <div class="popup-header" style="background:${headerColor};">
@@ -14830,7 +14754,7 @@ function renderContactRows(c, reportId) {
   const emailClickAttr = reportId ? ` onclick="recordContactAttempt('${escapeHtml(reportId)}','email','${companyIdAttr}')"` : '';
   const otherFlagBtn = c.id != null
     ? `<button type="button" class="contact-flag-btn contact-flag-other-btn" onclick="toggleContactOtherFlagForm('${companyIdAttr}')">${t('contactFlagOtherBtn')}</button>` : '';
-  const pdfExportRowBtn = c.id != null
+  const pdfExportRowBtn = (c.id != null && currentProfile && currentProfile.is_admin)
     ? `<button type="button" class="settings-btn contact-pdf-export-row-btn" id="companyPdfBtn-${companyIdAttr}" title="${t('companyPdfBtnTitle')}" onclick="exportCompanyReportsPdf('${companyIdAttr}')"><img class="icon-img icon-img-inline" src="icons/pdf.png" alt="pdf"> ${t('companyPdfBtnLabel')}</button>` : '';
   return `
       ${pdfExportRowBtn}
@@ -16147,23 +16071,8 @@ async function exportCompanyReportsPdf(companyId) {
     const a = document.createElement('a');
     a.href = url; a.download = fileName;
     document.body.appendChild(a); a.click(); a.remove();
-
-    // Give the browser a moment to actually kick off the download before we navigate away
-    // to open the mail app — firing the mailto: link in the same tick as the download click
-    // can interrupt the download on some browsers.
-    await new Promise(resolve => setTimeout(resolve, 1200));
     setTimeout(() => URL.revokeObjectURL(url), 10000);
     toast(t('companyPdfDownloaded'), 'success');
-
-    // mailto: links can never carry an attachment, so this can't be uploaded automatically —
-    // make sure the user actually sees and acknowledges that reminder now, while they're still
-    // on this screen, instead of a toast that may well have faded before they even switch to
-    // their mail app.
-    await themedConfirm(t('companyPdfAttachReminder'), { cancelLabel: null });
-
-    const subject = encodeURIComponent(t('companyPdfEmailSubject').replace('{name}', c.name || ''));
-    const body = encodeURIComponent(emailBody);
-    window.location.href = `mailto:${c.email || ''}?subject=${subject}&body=${body}`;
   } catch (err) {
     console.error('exportCompanyReportsPdf error:', err.message || err);
     toast(t('companyPdfFailed'), 'error');
