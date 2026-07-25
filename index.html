@@ -693,7 +693,7 @@ body.driving-active .report-fab-btn{ display:none !important; }
   background:var(--bg-surface);
   border:1px solid var(--border-color);
   border-radius:14px;
-  aspect-ratio:1;
+  aspect-ratio:1.5;
   width:100%;
   padding:0;
   display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
@@ -1441,7 +1441,7 @@ body.bike-mode-active .bike-quick-grid{ display:grid; }
   border:none;
   border-radius:14px;
   color:#fff;
-  aspect-ratio:1;
+  aspect-ratio:1.5;
   width:100%;
   display:flex;
   flex-direction:column;
@@ -12981,6 +12981,15 @@ function reportSummaryTitle(r) {
     : translateCategory(r.category);
 }
 
+function looksLikeEmailAddress(str) {
+  return typeof str === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(str.trim());
+}
+
+function reporterDisplayName(report) {
+  const name = report && report.owner_username;
+  return (name && !looksLikeEmailAddress(name)) ? name : t('detailUnknown');
+}
+
 const WAITING_REASON_LABEL = { photo: 'queueTypePhoto', after_photo: 'queueTypeAfterPhoto', rejected_photo: 'flagReasonRejectedPhoto', user_flag: 'reportFlagsSectionTitle', stale: 'queueTypeStale' };
 
 const WAITING_LIST_CONTAINER_IDS = ['notificationWaitingList'];
@@ -13035,7 +13044,7 @@ function renderWaitingListInto(containerId) {
       ${thumbHtml}
       <div class="photo-review-meta">
         <div class="photo-review-title">${escapeHtml(reportSummaryTitle(r))} ${badgesHtml}</div>
-        <div class="photo-review-sub">${escapeHtml(r.owner_username || t('detailUnknown'))} · ${formatDate(item.waitingSince)}</div>
+        <div class="photo-review-sub">${escapeHtml(reporterDisplayName(r))} · ${formatDate(item.waitingSince)}</div>
         ${historyHtml}
       </div>
       <div class="photo-review-actions">${actionsHtml}</div>
@@ -13793,7 +13802,7 @@ function buildPopupHtml(report) {
   const sCol   = statusColor(report.status);
   const isOwner = !!(currentSession && report.owner_id === currentSession.user.id);
   const isAdmin = !!(currentProfile && currentProfile.is_admin);
-  const reporterName = report.owner_username || (lang === 'sr' ? 'Nepoznato' : 'Unknown');
+  const reporterName = reporterDisplayName(report);
   const dupGroup = duplicateGroupFor(report.id);
   const groupIdsJson = escapeHtml(JSON.stringify(dupGroup ? dupGroup.ids : [report.id]));
   const headerTitle = report.subcategory
@@ -13926,8 +13935,24 @@ async function fetchAddressForPoint(lat, lon) {
   }
 }
 
+async function fetchAndCacheReportById(reportId) {
+  try {
+    const { data, error } = await sb.from(TABLE).select('*').eq('id', reportId).maybeSingle();
+    if (error || !data) return null;
+    const existingIndex = globalActiveData.findIndex(r => r.id === reportId);
+    if (existingIndex === -1) globalActiveData.push(data);
+    else globalActiveData[existingIndex] = data;
+    markActiveDataChanged();
+    pruneLoadedReportsIfNeeded();
+    return data;
+  } catch (err) {
+    console.error('Failed to load report for detail view:', err.message);
+    return null;
+  }
+}
+
 async function showReportDetailModal(reportId) {
-  const report = globalActiveData.find(r => r.id === reportId);
+  const report = globalActiveData.find(r => r.id === reportId) || await fetchAndCacheReportById(reportId);
   if (!report || !isValidLatLng(report.latitude, report.longitude)) return;
 
   const modal = document.getElementById('reportDetailModal');
@@ -13943,7 +13968,7 @@ async function showReportDetailModal(reportId) {
     headerEl.style.background = statusColor(report.status);
     headerEl.classList.add('status-colored');
   }
-  const reporterName = report.owner_username || (lang === 'sr' ? 'Nepoznato' : 'Unknown');
+  const reporterName = reporterDisplayName(report);
 
   const isOwner = !!(currentSession && report.owner_id === currentSession.user.id);
   const isAdmin = !!(currentProfile && currentProfile.is_admin);
@@ -15409,7 +15434,7 @@ function cancelReportDetailEdit(reportId) {
   const report = globalActiveData.find(r => r.id === reportId);
   const section = document.getElementById('reportDetailStatusSection');
   if (!report || !section) return;
-  const reporterName = report.owner_username || (lang === 'sr' ? 'Nepoznato' : 'Unknown');
+  const reporterName = reporterDisplayName(report);
   section.innerHTML = buildDetailStatusReadonlyHtml(report, reporterName);
 }
 
