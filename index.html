@@ -1125,6 +1125,43 @@ body.driving-active .user-location-icon{ transition:none; }
   50%{ box-shadow:0 0 0 6px rgba(255,176,32,0); }
 }
 
+#pinsLoadingPill{
+  position:fixed;
+  top:calc(70px + env(safe-area-inset-top, 0px));
+  left:50%;
+  transform:translateX(-50%) translateY(-8px);
+  z-index:9998;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  background:var(--floating-bg);
+  backdrop-filter:blur(16px);
+  -webkit-backdrop-filter:blur(16px);
+  border:1px solid var(--floating-border);
+  color:var(--text-primary);
+  padding:8px 14px;
+  border-radius:999px;
+  font-size:var(--fs-12);
+  font-weight:var(--fw-semibold);
+  box-shadow:0 6px 20px var(--floating-shadow);
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .25s ease, transform .25s ease;
+  max-width:80%;
+  text-align:center;
+}
+#pinsLoadingPill.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+.pins-loading-dot{
+  width:8px; height:8px; border-radius:50%;
+  background:var(--accent);
+  flex:0 0 auto;
+  animation:pinsLoadingPulse 1s ease-in-out infinite;
+}
+@keyframes pinsLoadingPulse{
+  0%,100%{ opacity:.35; }
+  50%{ opacity:1; }
+}
+
 #toastContainer{
   position:fixed;
   top:calc(10px + env(safe-area-inset-top, 0px));
@@ -3073,6 +3110,7 @@ span.flatpickr-weekday {
 
 <div id="toastContainer"></div>
 <div id="gpsIssuePill"><span class="gps-issue-dot"></span><span id="gpsIssuePillText"></span></div>
+<div id="pinsLoadingPill"><span class="pins-loading-dot"></span><span id="pinsLoadingPillText"></span></div>
 
 
 <!-- ========== MODALS (GPS, help, badges, settings, report detail, admin, analytics, notifications...) ========== -->
@@ -5638,6 +5676,7 @@ const T = {
   gpsTooWeak:   { en:"Your location signal is too weak or inaccurate to submit a report from here. Move to an open area and try again.", sr:'Signal lokacije je preslab ili netačan da bi se prijava poslala odavde. Pomerite se na otvoren prostor i pokušajte ponovo.' },
   gpsIssuePillWeak: { en:'Weak GPS signal (±{acc}m)',      sr:'Slab GPS signal (±{acc}m)' },
   gpsIssuePillJump: { en:'GPS signal unstable, waiting for a steadier fix', sr:'GPS signal nestabilan, čekam stabilniji signal' },
+  pinsLoadingPill:  { en:'Loading reports…',                sr:'Učitavanje prijava…' },
   tapMapToPlacePin: { en:'Tap the map to place the pin.', sr:'Dodirnite mapu da postavite pin.' },
   wizStepLabel:       { en:'Step',                       sr:'Korak' },
   wizCategoryTitle:   { en:"What's the issue?",          sr:'O kakvom kvaru se radi?' },
@@ -5969,6 +6008,7 @@ const T = {
   ucGeocodeBackfillNone:     { en:'Every contact with an address already has coordinates.', sr:'Svi kontakti sa adresom već imaju koordinate.' },
   ucNoContacts:      { en:'No utility companies added yet.',     sr:'Još uvek nema unetih javnih preduzeća.' },
   ucMuniCountLabel:  { en:'{n} municipalities',                  sr:'{n} opština' },
+  ucCountryCountLabel: { en:'{n} countries',                     sr:'{n} zemalja' },
   continentEurope:        { en:'Europe',        sr:'Evropa' },
   continentAsia:           { en:'Asia',          sr:'Azija' },
   continentAfrica:         { en:'Africa',        sr:'Afrika' },
@@ -6286,6 +6326,8 @@ function initLang(){
 function applyLang(){
   const mapLoadingTextEl = document.getElementById('mapLoadingText');
   if (mapLoadingTextEl) mapLoadingTextEl.textContent = t('loadingMap');
+  const pinsLoadingPillTextEl = document.getElementById('pinsLoadingPillText');
+  if (pinsLoadingPillTextEl) pinsLoadingPillTextEl.textContent = t('pinsLoadingPill');
   document.getElementById('reportBtnLabel').textContent   = t('reportBtn');
   document.getElementById('reportPhotoAddBtn').title       = t('reportPhotoAddBtn');
   document.getElementById('reportPhotoAddBtn').setAttribute('aria-label', t('reportPhotoAddBtn'));
@@ -10108,6 +10150,22 @@ function showGpsIssuePill(msg) {
 function hideGpsIssuePill() {
   clearTimeout(_gpsIssuePillHideTimer);
   const el = document.getElementById('gpsIssuePill');
+  if (el) el.classList.remove('show');
+}
+
+// Small "Loading reports…" pill shown while syncMarkers() is working through a large
+// batch of pins in the background (see MARKER_SYNC_CHUNK_SIZE below). Unlike the big
+// splash mapLoadingOverlay (initial app load only), this is meant to be lightweight and
+// non-blocking, since it can pop in/out repeatedly while panning around busy areas.
+function showPinsLoadingPill() {
+  const el = document.getElementById('pinsLoadingPill');
+  const textEl = document.getElementById('pinsLoadingPillText');
+  if (!el || !textEl) return;
+  textEl.textContent = t('pinsLoadingPill');
+  el.classList.add('show');
+}
+function hidePinsLoadingPill() {
+  const el = document.getElementById('pinsLoadingPill');
   if (el) el.classList.remove('show');
 }
 
@@ -13963,8 +14021,10 @@ function renderUcList() {
     const codes = continentGroups.get(continent);
     const continentTotal = codes.reduce((n, code) =>
       n + Array.from(visibleCountryGroups.get(code).values()).reduce((m, g) => m + g.companies.length, 0), 0);
+    const countryCountLabel = t('ucCountryCountLabel').replace('{n}', String(codes.length));
     return '<details class="uc-continent-group" id="uc-continent-group-' + (continent ? continent.replace(/\s+/g, '-') : 'other') + '">' +
       '<summary><span class="uc-group-chevron"><img src="icons/arrow.png" alt=""></span> ' + escapeHtml(continentDisplayName(continent)) +
+        ' <span class="uc-muni-count-label">' + escapeHtml(countryCountLabel) + '</span>' +
         ' <span class="uc-country-count">(' + continentTotal + ')</span></summary>' +
       '<div class="uc-group-list">' + codes.map(countryGroupHtml).join('') + '</div>' +
     '</details>';
@@ -16334,10 +16394,23 @@ function reportInBounds(report, bounds) {
   if (!isValidLatLng(report.latitude, report.longitude)) return false;
   return bounds.contains(L.latLng(report.latitude, report.longitude));
 }
+// Building/updating a lot of pins in one synchronous pass is what made the map stutter
+// when a viewport had hundreds of reports in it — each upsertMarker() call builds a divIcon
+// and touches the cluster group, and doing that in a single tight loop blocks the main
+// thread until every last one is done. Instead we figure out the full list of adds/updates
+// up front, then trickle them in over several animation frames (small MARKER_SYNC_CHUNK_SIZE
+// batches), so the browser gets to breathe (render, respond to touch/scroll) between
+// batches. A monotonically increasing token lets a newer syncMarkers() call (e.g. from
+// panning again before the previous batch finished) cleanly cancel the older one instead of
+// both fighting over the same markers.
+const MARKER_SYNC_CHUNK_SIZE = 40;
+let markerSyncToken = 0;
+
 function syncMarkers(refreshExisting) {
   recomputeDuplicateGroups();
   const bounds = map.getBounds().pad(0.2);
   const desiredIds = new Set();
+  const toUpsert = [];
 
   globalActiveData.forEach(r => {
     if (!reportInBounds(r, bounds)) return;
@@ -16346,9 +16419,11 @@ function syncMarkers(refreshExisting) {
     const dupGroup = duplicateGroupFor(r.id);
     if (dupGroup && r.id !== dupGroup.primaryId) return; // merged into another report's pin
     desiredIds.add(r.id);
-    if (refreshExisting || !markerById.has(r.id)) upsertMarker(r);
+    if (refreshExisting || !markerById.has(r.id)) toUpsert.push(r);
   });
 
+  // Removals are cheap (no icon/DOM to build) and keep stale pins from lingering, so those
+  // still happen immediately rather than waiting on the chunked loop below.
   markerById.forEach((marker, id) => {
     if (!desiredIds.has(id)) {
       removeReportLayer(marker);
@@ -16362,6 +16437,30 @@ function syncMarkers(refreshExisting) {
       sectionPinById.delete(id);
     }
   });
+
+  const token = ++markerSyncToken;
+  if (!toUpsert.length) {
+    hidePinsLoadingPill();
+    return;
+  }
+
+  // Only bother the person with the pill if there's enough work that it'd actually be
+  // visible for a moment — a handful of pins finishes within a frame or two anyway.
+  if (toUpsert.length > MARKER_SYNC_CHUNK_SIZE * 2) showPinsLoadingPill();
+
+  let i = 0;
+  function processNextChunk() {
+    if (token !== markerSyncToken) return; // superseded by a newer syncMarkers() call
+    const slice = toUpsert.slice(i, i + MARKER_SYNC_CHUNK_SIZE);
+    slice.forEach(r => upsertMarker(r));
+    i += MARKER_SYNC_CHUNK_SIZE;
+    if (i < toUpsert.length) {
+      requestAnimationFrame(processNextChunk);
+    } else {
+      hidePinsLoadingPill();
+    }
+  }
+  requestAnimationFrame(processNextChunk);
 }
 
 function refreshRenderedPopups() {
