@@ -693,7 +693,7 @@ body.driving-active .report-fab-btn{ display:none !important; }
   background:var(--bg-surface);
   border:1px solid var(--border-color);
   border-radius:14px;
-  aspect-ratio:1.5;
+  aspect-ratio:1;
   width:100%;
   padding:0;
   display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
@@ -1441,7 +1441,7 @@ body.bike-mode-active .bike-quick-grid{ display:grid; }
   border:none;
   border-radius:14px;
   color:#fff;
-  aspect-ratio:1.5;
+  aspect-ratio:1;
   width:100%;
   display:flex;
   flex-direction:column;
@@ -5327,7 +5327,7 @@ function buildMyReportCardHtml(report) {
   const title = report.subcategory
     ? `${translateCategory(report.category)} / ${subcategoryLabel(report.category, report.subcategory)}`
     : translateCategory(report.category);
-  return `<div class="my-report-card" onclick="showReportDetailModal('${report.id}')">
+  return `<div class="my-report-card" onclick="openMyReportDetail('${report.id}')">
     <div class="my-report-card-icon" style="background:${catCol};">
       <span class="my-report-card-glyph" style="-webkit-mask-image:url('${iconSrc}');mask-image:url('${iconSrc}');-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center;"></span>
     </div>
@@ -5337,6 +5337,34 @@ function buildMyReportCardHtml(report) {
     </div>
     <span class="my-report-card-status" style="background:${sCol};">${statusLabel(report.status)}</span>
   </div>`;
+}
+
+// Shared helper: showReportDetailModal() only reads from globalActiveData (the map's
+// currently-loaded dataset). Several UI surfaces (dashboard "My Reports" list, the contact
+// reminder popup, etc.) load their own report data independently and can reference a report
+// that isn't in globalActiveData yet (e.g. an older or already-fixed report not currently
+// visible on the map). This helper fetches it into globalActiveData first when needed, then
+// opens the modal. Returns true on success, false if the report couldn't be loaded.
+async function ensureReportLoadedThenShow(reportId, failMessageKey) {
+  if (!globalActiveData.some(r => r.id === reportId)) {
+    try {
+      const { data, error } = await sb.from(TABLE).select('*').eq('id', reportId).single();
+      if (error || !data) throw (error || new Error('Report not found'));
+      if (!globalActiveData.some(r => r.id === data.id)) { globalActiveData.push(data); markActiveDataChanged(); }
+    } catch (err) {
+      console.error('Failed to load report detail:', err.message || err);
+      toast(t(failMessageKey || 'myReportOpenFailed'), 'error');
+      return false;
+    }
+  }
+  showReportDetailModal(reportId);
+  return true;
+}
+
+// Opens the report detail modal from the dashboard's "My Reports" list (used by both
+// regular users and admins). See ensureReportLoadedThenShow() above for why this is needed.
+async function openMyReportDetail(reportId) {
+  await ensureReportLoadedThenShow(reportId);
 }
 
 function setMyReportsFilter(filter) {
@@ -5890,6 +5918,7 @@ const T = {
   shareText:             { en:'Take a look at this reported issue: {category}', sr:'Pogledajte prijavljeni problem: {category}' },
   shareLinkCopied:       { en:'Link copied to clipboard.',                 sr:'Link je kopiran.' },
   shareReportNotFound:   { en:'That shared report could not be found.',    sr:'Deljena prijava nije pronađena.' },
+  myReportOpenFailed:    { en:'Could not open that report. Try again.',    sr:'Prijava nije mogla biti otvorena. Pokušajte ponovo.' },
   shareImageBtn:         { en:'Share as image',                           sr:'Podeli kao sliku' },
   shareImageGenerating:  { en:'Preparing image…',                         sr:'Priprema slike…' },
   shareImageFailed:      { en:'Could not create the image. Try again.',   sr:'Slika nije mogla biti napravljena. Pokušajte ponovo.' },
@@ -7559,7 +7588,7 @@ function updateUserMarkerRotation() {
   if (isHeadingUpActive()) {
     angle = -mapBearing;
   } else {
-    const target = currentHeading || 0;
+    const target = (drivingMode && animatedDrivingHeading !== null) ? animatedDrivingHeading : (currentHeading || 0);
     arrowContinuousAngle += shortestAngleDelta(arrowContinuousAngle % 360, target);
     angle = arrowContinuousAngle;
   }
@@ -8074,7 +8103,10 @@ function showDrivingPosition(lat, lon, fixToken) {
   if (!userMarker) return;
   if (lastAcceptedFix && lastAcceptedFix.t !== fixToken) return;
   userMarker.setLatLng([lat, lon]);
-  if (followMode) followMapTo(lat, lon);
+  // While driving, markerAnimTick() recenters the map every animation frame using a
+  // dead-reckoned position, so the viewport glides continuously instead of jumping once
+  // per GPS/road-snap fix. Only pan directly here outside of that continuous loop.
+  if (followMode && !drivingMode) followMapTo(lat, lon);
 }
 
 function snapUserToRoadThenShow(lat, lon) {
@@ -9213,18 +9245,59 @@ function snapToRouteIfClose(pos) {
 }
 
 let markerAnimFrameId = null;
-function markerAnimTick() {
-  if (!drivingMode || !userMarker) { markerAnimFrameId = null; return; }
+let markerAnimLastTs = null;
+let animatedDrivingHeading = null;
+const DRIVING_BEARING_EASE_TAU_MS = 350; // lower = snappier, higher = smoother/laggier
+
+function markerAnimTick(ts) {
+  if (!drivingMode || !userMarker) { markerAnimFrameId = null; markerAnimLastTs = null; animatedDrivingHeading = null; return; }
+
+  const dt = markerAnimLastTs === null ? 16 : Math.max(1, ts - markerAnimLastTs);
+  markerAnimLastTs = ts;
+
   const pos = estimateCurrentPosition();
-  if (pos) userMarker.setLatLng([pos.lat, pos.lon]);
+  if (pos) {
+    userMarker.setLatLng([pos.lat, pos.lon]);
+    // Recenter the map every frame (instead of once per GPS fix) so it glides continuously
+    // with the vehicle rather than jumping in discrete steps.
+    if (followMode) {
+      const zoom = Math.max(map.getZoom(), 17);
+      map.setView([pos.lat, pos.lon], zoom, { animate: false });
+    }
+  }
+
+  if (currentHeading !== null) {
+    if (animatedDrivingHeading === null) animatedDrivingHeading = currentHeading;
+    const delta = shortestAngleDelta(animatedDrivingHeading, currentHeading);
+    if (Math.abs(delta) > 0.05) {
+      const alpha = 1 - Math.exp(-dt / DRIVING_BEARING_EASE_TAU_MS);
+      animatedDrivingHeading = ((animatedDrivingHeading + delta * alpha) % 360 + 360) % 360;
+    } else {
+      animatedDrivingHeading = currentHeading;
+    }
+    // Ease the map's rotation continuously toward the latest heading, rather than snapping
+    // it once per GPS fix. applyMapBearing() already updates the arrow rotation internally.
+    if (headingUpMode) {
+      applyMapBearing(-animatedDrivingHeading);
+    } else {
+      updateUserMarkerRotation();
+    }
+  } else {
+    updateUserMarkerRotation();
+  }
+
   markerAnimFrameId = requestAnimationFrame(markerAnimTick);
 }
 function startMarkerAnimLoop() {
   if (markerAnimFrameId !== null) return;
+  markerAnimLastTs = null;
+  animatedDrivingHeading = null;
   markerAnimFrameId = requestAnimationFrame(markerAnimTick);
 }
 function stopMarkerAnimLoop() {
   if (markerAnimFrameId !== null) { cancelAnimationFrame(markerAnimFrameId); markerAnimFrameId = null; }
+  markerAnimLastTs = null;
+  animatedDrivingHeading = null;
 }
 
 function projectPoint(lat, lon, bearingDeg, distanceM) {
@@ -10134,8 +10207,13 @@ function startWatching() {
         lastGpsHeadingAt = Date.now();
         smoothedHeading = smoothHeading(smoothedHeading, pos.coords.heading, HEADING_SMOOTHING_FACTOR);
         currentHeading = smoothedHeading;
-        if (isHeadingUpActive()) applyMapBearing(-currentHeading);
-        updateUserMarkerRotation();
+        // While driving, the per-frame nav animation loop (markerAnimTick) eases the map
+        // bearing and arrow continuously toward currentHeading instead of snapping it here
+        // on every GPS fix, so the map doesn't visibly jump/rotate each update.
+        if (!drivingMode) {
+          if (isHeadingUpActive()) applyMapBearing(-currentHeading);
+          updateUserMarkerRotation();
+        }
       }
 
       const SPEED_DISPLAY_DEADZONE_KMH = 1.5;
@@ -12981,15 +13059,6 @@ function reportSummaryTitle(r) {
     : translateCategory(r.category);
 }
 
-function looksLikeEmailAddress(str) {
-  return typeof str === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(str.trim());
-}
-
-function reporterDisplayName(report) {
-  const name = report && report.owner_username;
-  return (name && !looksLikeEmailAddress(name)) ? name : t('detailUnknown');
-}
-
 const WAITING_REASON_LABEL = { photo: 'queueTypePhoto', after_photo: 'queueTypeAfterPhoto', rejected_photo: 'flagReasonRejectedPhoto', user_flag: 'reportFlagsSectionTitle', stale: 'queueTypeStale' };
 
 const WAITING_LIST_CONTAINER_IDS = ['notificationWaitingList'];
@@ -13044,7 +13113,7 @@ function renderWaitingListInto(containerId) {
       ${thumbHtml}
       <div class="photo-review-meta">
         <div class="photo-review-title">${escapeHtml(reportSummaryTitle(r))} ${badgesHtml}</div>
-        <div class="photo-review-sub">${escapeHtml(reporterDisplayName(r))} · ${formatDate(item.waitingSince)}</div>
+        <div class="photo-review-sub">${escapeHtml(r.owner_username || t('detailUnknown'))} · ${formatDate(item.waitingSince)}</div>
         ${historyHtml}
       </div>
       <div class="photo-review-actions">${actionsHtml}</div>
@@ -13802,7 +13871,7 @@ function buildPopupHtml(report) {
   const sCol   = statusColor(report.status);
   const isOwner = !!(currentSession && report.owner_id === currentSession.user.id);
   const isAdmin = !!(currentProfile && currentProfile.is_admin);
-  const reporterName = reporterDisplayName(report);
+  const reporterName = report.owner_username || (lang === 'sr' ? 'Nepoznato' : 'Unknown');
   const dupGroup = duplicateGroupFor(report.id);
   const groupIdsJson = escapeHtml(JSON.stringify(dupGroup ? dupGroup.ids : [report.id]));
   const headerTitle = report.subcategory
@@ -13935,24 +14004,8 @@ async function fetchAddressForPoint(lat, lon) {
   }
 }
 
-async function fetchAndCacheReportById(reportId) {
-  try {
-    const { data, error } = await sb.from(TABLE).select('*').eq('id', reportId).maybeSingle();
-    if (error || !data) return null;
-    const existingIndex = globalActiveData.findIndex(r => r.id === reportId);
-    if (existingIndex === -1) globalActiveData.push(data);
-    else globalActiveData[existingIndex] = data;
-    markActiveDataChanged();
-    pruneLoadedReportsIfNeeded();
-    return data;
-  } catch (err) {
-    console.error('Failed to load report for detail view:', err.message);
-    return null;
-  }
-}
-
 async function showReportDetailModal(reportId) {
-  const report = globalActiveData.find(r => r.id === reportId) || await fetchAndCacheReportById(reportId);
+  const report = globalActiveData.find(r => r.id === reportId);
   if (!report || !isValidLatLng(report.latitude, report.longitude)) return;
 
   const modal = document.getElementById('reportDetailModal');
@@ -13968,7 +14021,7 @@ async function showReportDetailModal(reportId) {
     headerEl.style.background = statusColor(report.status);
     headerEl.classList.add('status-colored');
   }
-  const reporterName = reporterDisplayName(report);
+  const reporterName = report.owner_username || (lang === 'sr' ? 'Nepoznato' : 'Unknown');
 
   const isOwner = !!(currentSession && report.owner_id === currentSession.user.id);
   const isAdmin = !!(currentProfile && currentProfile.is_admin);
@@ -14761,7 +14814,7 @@ function closeContactReminderModal() {
 }
 function openReportFromContactReminder(reportId) {
   closeContactReminderModal();
-  showReportDetailModal(reportId);
+  ensureReportLoadedThenShow(reportId);
 }
 function snoozeContactReminders() {
 
@@ -15434,7 +15487,7 @@ function cancelReportDetailEdit(reportId) {
   const report = globalActiveData.find(r => r.id === reportId);
   const section = document.getElementById('reportDetailStatusSection');
   if (!report || !section) return;
-  const reporterName = reporterDisplayName(report);
+  const reporterName = report.owner_username || (lang === 'sr' ? 'Nepoznato' : 'Unknown');
   section.innerHTML = buildDetailStatusReadonlyHtml(report, reporterName);
 }
 
