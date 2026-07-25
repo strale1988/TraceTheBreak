@@ -5956,11 +5956,6 @@ const T = {
   companyPdfNoReports:     { en:'No reports found for this service yet.',              sr:'Za ovu službu još nema prijava.' },
   companyPdfFailed:        { en:'Could not create the PDF. Try again.',                sr:'PDF nije mogao biti napravljen. Pokušajte ponovo.' },
   companyPdfDownloaded:    { en:'PDF downloaded.',                                     sr:'PDF preuzet.' },
-  companyPdfShared:        { en:'PDF ready to send.',                                  sr:'PDF je spreman za slanje.' },
-  companyPdfTotalReports:  { en:'Total reports',                                       sr:'Ukupno prijava' },
-  companyPdfDescription:   { en:'Description',                                         sr:'Opis' },
-  companyPdfEmailIntro:    { en:'Attached is an overview of {count} reported issue(s) relevant to your service ({name}).', sr:'U prilogu se nalazi pregled od {count} prijavljenih problema koji se odnose na vašu službu ({name}).' },
-  companyPdfEmailAsk:      { en:'Please review the reports below and take the appropriate action.', sr:'Molimo vas da razmotrite navedene prijave i preduzmete odgovarajuće mere.' },
   emailWrongRecipientNote: { en:"Did this email land in the wrong inbox? Please let us know by replying.", sr:'Da li je ovaj mejl slučajno stigao do vas? Molimo obavestite nas odgovorom na ovu poruku.' },
   municipalityContactsUnverifiedNote: { en:"These contacts haven't been verified yet. Please double-check before relying on them.", sr:'Ovi kontakti još nisu provereni. Molimo proverite ih pre nego što ih iskoristite.' },
 
@@ -15731,299 +15726,31 @@ async function imageUrlToDataURL(url) {
   });
 }
 
-// jsPDF's built-in fonts (helvetica/etc.) only support WinAnsi-style Latin — Serbian Latin
-// letters like č/ć/š/ž/đ fall outside that and render as garbled/missing glyphs. Rather than
-// embed a whole extra font just for the PDF, we transliterate to a safe ASCII fallback so the
-// text is always legible.
-function pdfSafeText(str) {
-  if (str == null) return '';
-  return String(str)
-    .replace(/đ/g, 'dj').replace(/Đ/g, 'Dj')
-    .normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
+
+// Base64 -> Blob, chunked so large PDFs (many embedded photos) don't blow the call stack.
+function base64ToBlob(base64, mimeType) {
+  const byteChars = atob(base64);
+  const chunkSize = 0x8000;
+  const chunks = [];
+  for (let i = 0; i < byteChars.length; i += chunkSize) {
+    const slice = byteChars.slice(i, i + chunkSize);
+    const bytes = new Uint8Array(slice.length);
+    for (let j = 0; j < slice.length; j++) bytes[j] = slice.charCodeAt(j);
+    chunks.push(bytes);
+  }
+  return new Blob(chunks, { type: mimeType });
 }
 
-function hexToRgb(hex) {
-  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex || '');
-  return m ? [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)] : [150, 150, 150];
-}
-
-// Renders the same small map thumbnail (OSM tile + pin) used for the "share as image" card,
-// onto an offscreen canvas, so it can be embedded as a PNG in the PDF.
-async function reportMapThumbDataUrl(lat, lon, w, h) {
-  if (!isValidLatLng(lat, lon)) return null;
-  try {
-    const canvas = document.createElement('canvas');
-    canvas.width = w; canvas.height = h;
-    const ctx = canvas.getContext('2d');
-    await drawReportCardMapThumb(ctx, 0, 0, w, h, lat, lon);
-    return canvas.toDataURL('image/png');
-  } catch (err) {
-    console.warn('Map thumbnail failed:', err.message || err);
-    return null;
-  }
-}
-
-// Builds an A4 PDF (via jsPDF) listing every report relevant to a given utility company/public
-// service: a cover section with the company's own contact info and a status breakdown, then a
-// continuously-flowing (no forced page-per-report) list of reports — each with category/status
-// colors, priority, reporter, municipality, coordinates, description, a link back to the report
-// on TraceTheBreak, the report photo, and a small map screenshot — and a closing thank-you page.
-async function buildCompanyReportsPdfBlob(company, reports) {
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-  const pageW = doc.internal.pageSize.getWidth();
-  const pageH = doc.internal.pageSize.getHeight();
-  const margin = 42;
-  const INK = [26, 26, 26];
-  let y = margin;
-
-  function resetInk() { doc.setTextColor(INK[0], INK[1], INK[2]); }
-  function ensureSpace(h) {
-    if (y + h > pageH - margin) { doc.addPage(); y = margin; }
-  }
-  function addField(label, value, size) {
-    size = size || 11;
-    const text = value == null || value === '' ? '—' : pdfSafeText(String(value));
-    const labelText = pdfSafeText(`${label}: `);
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(size);
-    const labelW = doc.getTextWidth(labelText);
-    doc.setFont('helvetica', 'normal');
-    const lines = doc.splitTextToSize(text, pageW - margin * 2 - labelW - 2);
-    ensureSpace(lines.length * (size + 3));
-    resetInk();
-    doc.setFont('helvetica', 'bold');
-    doc.text(labelText, margin, y);
-    doc.setFont('helvetica', 'normal');
-    doc.text(lines, margin + labelW + 2, y);
-    y += lines.length * (size + 3);
-  }
-  function addDivider() {
-    ensureSpace(14);
-    doc.setDrawColor(215, 215, 215);
-    doc.line(margin, y, pageW - margin, y);
-    y += 14;
-  }
-  function addStatusBreakdown(counts) {
-    const items = [
-      { key: 'reported',    label: statusLabel('reported'),    color: STATUS_COLORS.reported },
-      { key: 'in_progress', label: statusLabel('in_progress'), color: STATUS_COLORS.in_progress },
-      { key: 'fixed',       label: statusLabel('fixed'),       color: STATUS_COLORS.fixed }
-    ];
-    const gap = 8;
-    const boxW = (pageW - margin * 2 - gap * 2) / 3;
-    const boxH = 36;
-    ensureSpace(boxH + 10);
-    items.forEach((it, idx) => {
-      const x = margin + idx * (boxW + gap);
-      const [r, g, b] = hexToRgb(it.color);
-      doc.setFillColor(r, g, b);
-      doc.roundedRect(x, y, boxW, boxH, 6, 6, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(16);
-      doc.text(String(counts[it.key] || 0), x + 10, y + 17);
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
-      doc.text(pdfSafeText(it.label), x + 10, y + 29);
-    });
-    resetInk();
-    y += boxH + 14;
-  }
-
-  // ---- Cover: company header + contact info + status breakdown ----
-  const headerBarH = 62;
-  doc.setFillColor(38, 38, 38);
-  doc.rect(0, 0, pageW, headerBarH, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(19);
-  doc.text(pdfSafeText(company.name || '—'), margin, 36);
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-  doc.text(pdfSafeText(lang === 'sr' ? 'Pregled prijava: TraceTheBreak' : 'Reports overview: TraceTheBreak'), margin, 51);
-  resetInk();
-  y = headerBarH + 24;
-
-  if (company.categories && company.categories.length) addField(lang === 'sr' ? 'Kategorija' : 'Category', company.categories.map(translateCategory).join(', '));
-  if (company.phone) addField(lang === 'sr' ? 'Telefon' : 'Phone', company.phone);
-  if (company.email) addField('Email', company.email);
-  if (company.address) addField(lang === 'sr' ? 'Adresa' : 'Address', company.address);
-  y += 4;
-  addField(t('companyPdfTotalReports'), String(reports.length));
-
-  const statusCounts = { reported: 0, in_progress: 0, fixed: 0 };
-  reports.forEach(r => { statusCounts[r.status] = (statusCounts[r.status] || 0) + 1; });
-  addStatusBreakdown(statusCounts);
-  addDivider();
-
-  // ---- Reports: flow continuously, don't force a page break per report ----
-  for (let i = 0; i < reports.length; i++) {
-    const r = reports[i];
-    const headerTitle = r.subcategory
-      ? `${translateCategory(r.category)} / ${subcategoryLabel(r.category, r.subcategory)}`
-      : translateCategory(r.category);
-    const catRgb = hexToRgb(categoryColor(r.category));
-    const statusRgb = hexToRgb(statusColor(r.status));
-    const titleText = pdfSafeText(`${i + 1}. ${headerTitle}`);
-
-    ensureSpace(24);
-    doc.setFillColor(catRgb[0], catRgb[1], catRgb[2]);
-    doc.rect(margin, y - 11, 4, 18, 'F');
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(13);
-    resetInk();
-    doc.text(titleText, margin + 10, y);
-
-    const statusText = pdfSafeText(statusLabel(r.status));
-    doc.setFontSize(9);
-    const pillW = doc.getTextWidth(statusText) + 14;
-    doc.setFillColor(statusRgb[0], statusRgb[1], statusRgb[2]);
-    doc.roundedRect(pageW - margin - pillW, y - 11, pillW, 16, 4, 4, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.text(statusText, pageW - margin - pillW + 7, y);
-    resetInk();
-    y += 18;
-
-    addField(t('priorityLabel'), priorityLabelText(r.priority), 10);
-    addField(lang === 'sr' ? 'Prijavljeno' : 'Reported on', formatDate(r.created_at), 10);
-    addField(t('reportedByLabel'), r.owner_username || t('detailUnknown'), 10);
-    const muni = r.municipality_id != null ? getMunicipalityById(r.municipality_id) : null;
-    addField(t('detailMunicipalityLabel'), muni ? municipalityDisplayName(muni) : t('detailUnknown'), 10);
-    if (isValidLatLng(r.latitude, r.longitude)) {
-      addField(t('detailCoordsLabel'), `${r.latitude.toFixed(6)}, ${r.longitude.toFixed(6)}`, 10);
-    }
-    if (r.comment) addField(t('companyPdfDescription'), r.comment, 10);
-
-    ensureSpace(14);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-    doc.setTextColor(30, 110, 190);
-    doc.textWithLink(pdfSafeText(lang === 'sr' ? 'Pogledaj na TraceTheBreak ↗' : 'View on TraceTheBreak ↗'), margin, y, { url: reportShareUrl(r.id) });
-    resetInk();
-    y += 14;
-
-    // Gather up to 4 photos for this report: the primary photo, an "after" photo if it has one,
-    // and any gallery photos — deduped, capped so a big gallery doesn't blow up the PDF.
-    const photoPaths = [];
-    if (r.photo_path) photoPaths.push(r.photo_path);
-    if (r.after_photo_path) photoPaths.push(r.after_photo_path);
-    try {
-      const gallery = await loadReportGalleryPhotos(r.id);
-      (gallery || []).forEach(p => { if (p.photo_path) photoPaths.push(p.photo_path); });
-    } catch (err) { /* gallery is best-effort for the PDF */ }
-    const uniquePhotoPaths = [...new Set(photoPaths)].slice(0, 4);
-
-    const photoDataUrls = [];
-    for (const p of uniquePhotoPaths) {
-      try {
-        const purl = await getReportPhotoSignedUrl(p);
-        if (purl) {
-          const d = await imageUrlToDataURL(purl);
-          if (d) photoDataUrls.push(d);
-        }
-      } catch (err) { console.warn('Could not embed a photo for report', r.id, ':', err.message || err); }
-    }
-
-    // Draws an image "contain"-fit (never stretched/cropped) inside a box, centered on both axes.
-    function drawContainFit(dataUrl, x, boxY, w, h) {
-      try {
-        const props = doc.getImageProperties(dataUrl);
-        let dw = w, dh = (props.height / props.width) * dw;
-        if (dh > h) { dh = h; dw = (props.width / props.height) * dh; }
-        doc.addImage(dataUrl, x + (w - dw) / 2, boxY + (h - dh) / 2, dw, dh, undefined, 'FAST');
-      } catch (err) { console.warn('Could not draw an image for report', r.id, ':', err.message || err); }
-    }
-
-    const fullW = pageW - margin * 2;
-    const rowH = 110;
-    const hasCoords = isValidLatLng(r.latitude, r.longitude);
-
-    if (photoDataUrls.length <= 1) {
-      // Zero or one photo: same compact side-by-side layout as before. The map used to be drawn
-      // from a fixed 300x200 render forced into a differently-shaped box — that mismatch is what
-      // caused the stretching (worst with no photo, where the box was the *full* page width).
-      // Rendering the map fresh at the exact target box size fixes it in every case.
-      const hasPhoto = photoDataUrls.length === 1;
-      if (hasPhoto || hasCoords) {
-        const colGap = 10;
-        const colW = (hasPhoto && hasCoords) ? (fullW - colGap) / 2 : fullW;
-        ensureSpace(rowH + 12);
-        let cx = margin;
-        if (hasPhoto) {
-          drawContainFit(photoDataUrls[0], cx, y, colW, rowH);
-          cx += colW + colGap;
-        }
-        if (hasCoords) {
-          const mapUrl = await reportMapThumbDataUrl(r.latitude, r.longitude, Math.round(colW), rowH);
-          if (mapUrl) doc.addImage(mapUrl, cx, y, colW, rowH, undefined, 'FAST');
-        }
-        y += rowH + 12;
-      }
-    } else {
-      // Multiple photos: lay them out as an auto-wrapping 2-column grid (contain-fit, so nothing
-      // gets squashed), then give the map its own full-width row underneath.
-      const cols = 2;
-      const cellGap = 8;
-      const cellW = (fullW - cellGap * (cols - 1)) / cols;
-      const cellH = 95;
-      const rows = Math.ceil(photoDataUrls.length / cols);
-      ensureSpace(rows * cellH + (rows - 1) * cellGap);
-      photoDataUrls.forEach((dataUrl, idx) => {
-        const col = idx % cols, row = Math.floor(idx / cols);
-        drawContainFit(dataUrl, margin + col * (cellW + cellGap), y + row * (cellH + cellGap), cellW, cellH);
-      });
-      y += rows * cellH + (rows - 1) * cellGap + 12;
-
-      if (hasCoords) {
-        const mapH = 130;
-        ensureSpace(mapH + 12);
-        const mapUrl = await reportMapThumbDataUrl(r.latitude, r.longitude, Math.round(fullW), mapH);
-        if (mapUrl) doc.addImage(mapUrl, margin, y, fullW, mapH, undefined, 'FAST');
-        y += mapH + 12;
-      }
-    }
-
-    if (i < reports.length - 1) addDivider();
-  }
-
-  // ---- Closing page ----
-  doc.addPage();
-  doc.setFillColor(38, 38, 38);
-  doc.rect(0, 0, pageW, pageH, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(24);
-  doc.text(pdfSafeText(lang === 'sr' ? 'Hvala Vam!' : 'Thank you!'), pageW / 2, pageH / 2 - 16, { align: 'center' });
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(14);
-  doc.text(pdfSafeText(lang === 'sr' ? 'Korisnici vaših usluga' : 'Users of your services'), pageW / 2, pageH / 2 + 14, { align: 'center' });
-  resetInk();
-
-  return doc.output('blob');
-}
-
-function buildCompanyEmailBodyText(company, reports) {
-  const lines = [
-    lang === 'sr' ? 'Poštovani,' : 'Hello,',
-    '',
-    t('companyPdfEmailIntro').replace('{count}', String(reports.length)).replace('{name}', company.name || ''),
-    '',
-    t('companyPdfEmailAsk'),
-    '',
-    lang === 'sr' ? 'Hvala unapred,' : 'Thank you,',
-    lang === 'sr' ? 'Korisnici vaših usluga' : 'Users of your services',
-    '',
-    t('emailWrongRecipientNote'),
-  ];
-  return lines.join('\n');
-}
-
-// Builds a PDF of every report tied to this utility company/public service (same municipality +
-// matching category) and hands it off. Prefers the native share sheet — one motion where the
-// person picks Mail, Files, WhatsApp, whatever — since mailto links can't carry attachments at
-// all. Only falls back to a plain download + prefilled mailto (with a reminder to attach the
-// file manually) when the browser doesn't support sharing files, or the person's device rejects
-// the share for some reason. Previously this *always* downloaded first and only shared/emailed
-// after, which meant even successful shares forced an extra, confusing download step.
+// Requests this company's reports PDF from the weekly-utility-digest edge function — the same
+// function that builds and emails the automated weekly digest — so the manually-exported PDF's
+// appearance can never drift from the automated one; any future change to that function's
+// layout is picked up here automatically, with nothing to keep in sync on the client. Passing
+// the admin's own session JWT + a single companyId makes the function return just the PDF
+// bytes (no Resend email, no digest-log write) instead of running the full scheduled send.
 async function exportCompanyReportsPdf(companyId) {
   const c = utilityCompanyRegistry.get(String(companyId));
   if (!c) return;
 
-  // Tell the user up front, in plain language, exactly what this is about to export —
-  // which municipality's reports, and which public service they're going to — before any
-  // work starts, rather than only showing a generic "Preparing PDF…" toast.
   const muni = c.municipality_id != null ? getMunicipalityById(c.municipality_id) : null;
   const muniName = muni ? municipalityDisplayName(muni) : (lang === 'sr' ? 'nepoznatu opštinu' : 'an unknown municipality');
   const confirmed = await themedConfirm(
@@ -16036,37 +15763,19 @@ async function exportCompanyReportsPdf(companyId) {
   toast(t('companyPdfGenerating'), 'success');
 
   try {
-    let reports = [];
-    if (c.municipality_id != null && c.categories && c.categories.length) {
-      const { data, error } = await sb.from(TABLE).select('*')
-        .eq('municipality_id', c.municipality_id)
-        .in('category', c.categories)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      reports = data || [];
-    }
-    if (!reports.length) { toast(t('companyPdfNoReports'), 'error'); return; }
+    const { data, error } = await sb.functions.invoke('weekly-utility-digest', {
+      body: { companyId: String(companyId) }
+    });
+    if (error) throw error;
 
-    const blob = await buildCompanyReportsPdfBlob(c, reports);
+    const result = (data.results || [])[0];
+    if (!result || result.status === 'skipped' || !result.pdfBase64) {
+      toast(t('companyPdfNoReports'), 'error');
+      return;
+    }
+
+    const blob = base64ToBlob(result.pdfBase64, 'application/pdf');
     const fileName = `${slugifyForFilename(c.name)}-reports.pdf`;
-    const file = new File([blob], fileName, { type: 'application/pdf' });
-    const emailBody = buildCompanyEmailBodyText(c, reports);
-
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      try {
-        // The share sheet lets the user hand the PDF straight to Mail (or whatever they
-        // pick) with the file already attached — no separate download/attach step needed.
-        await navigator.share({ files: [file], title: c.name, text: emailBody });
-        toast(t('companyPdfShared'), 'success');
-        return;
-      } catch (err) {
-        // User backed out of the share sheet on purpose — respect that, don't force a download
-        // on them as a consolation prize.
-        if (err && err.name === 'AbortError') return;
-        console.warn('navigator.share (company PDF) failed, falling back to download:', err.message);
-      }
-    }
-
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = fileName;
