@@ -10198,6 +10198,14 @@ function updateDrivingGpsStatus() {
 }
 setInterval(updateDrivingGpsStatus, 2000);
 
+// hasReliableGps() depends on how long ago the last fix arrived (see GPS_STALE_FIX_MS), but
+// nothing else re-checks that over time — it was only ever re-evaluated when a new event
+// happened to fire (a fresh fix, a pin drop, etc). If GPS gets turned off at the OS level
+// without the browser raising a watchPosition error (which happens on plenty of devices),
+// the report button would otherwise just stay enabled forever on the last good fix. Polling
+// here catches that within a couple of seconds either way.
+setInterval(updateReportFabState, 2000);
+
 let speedLimitFetching     = false;
 let lastSpeedLimitFetchAt  = 0;
 let lastSpeedLimitFetchLoc = null;
@@ -10520,6 +10528,9 @@ function startWatching() {
     },
     err => {
       if (err.code === err.PERMISSION_DENIED) {
+        lastFixAccuracy = null;
+        lastFixAccuracyAt = 0;
+        updateReportFabState();
         showGpsModal();
         if (gpsWatchId !== null) {
           navigator.geolocation.clearWatch(gpsWatchId);
@@ -10527,6 +10538,9 @@ function startWatching() {
         }
         startGpsRetryLoop();
       } else if (err.code === err.POSITION_UNAVAILABLE) {
+        lastFixAccuracy = null;
+        lastFixAccuracyAt = 0;
+        updateReportFabState();
         showGpsModal();
         if (gpsWatchId !== null) {
           navigator.geolocation.clearWatch(gpsWatchId);
