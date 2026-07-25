@@ -664,6 +664,7 @@ body.driving-active .bottomright-stack{ display:none !important; }
 }
 .report-fab-btn:active{ transform:translateX(-50%) scale(.9); box-shadow:0 2px 8px rgba(0,0,0,.3); }
 .report-fab-btn img{ width:32px; height:32px; filter:brightness(0) invert(1); }
+.report-fab-btn:disabled{ opacity:.4; cursor:not-allowed; pointer-events:none; }
 body.driving-active .report-fab-btn{ display:none !important; }
 
 #reportFormPanel{ display:none !important; }
@@ -3029,7 +3030,7 @@ span.flatpickr-weekday {
   </div>
 </div>
 <button type="button" id="navigateClearBtn" class="driving-nav-close-btn" onclick="clearNavigation()" title="Close" style="display:none">✕</button>
-<button type="button" class="report-fab-btn" id="reportFabBtn" style="display:none" title="Report a break" aria-label="Report a break" onclick="reportFabTap()">
+<button type="button" class="report-fab-btn" id="reportFabBtn" style="display:none" disabled title="Report a break" aria-label="Report a break" onclick="reportFabTap()">
   <img src="icons/reports/report_new.png" alt="">
 </button>
 <div id="drivingTopFade"></div>
@@ -4031,6 +4032,7 @@ function updateAuthUI() {
   }
   if (reportFabBtn && reportFabBtn.style.display === 'none') closeReportWizard();
   checkFormReady();
+  updateReportFabState();
   refreshRenderedPopups();
   if (document.getElementById('leaderboardModal').style.display !== 'none') {
     renderDashboardTab();
@@ -6976,7 +6978,16 @@ function saveMapView() {
 }
 
 const savedMapView = loadSavedMapView();
-const map = L.map('map', { zoomControl: false, markerZoomAnimation: true }).setView(
+const WORLD_BOUNDS = L.latLngBounds([-90, -180], [90, 180]);
+const map = L.map('map', {
+  zoomControl: false,
+  markerZoomAnimation: true,
+  worldCopyJump: false,
+  maxBounds: WORLD_BOUNDS,
+  maxBoundsViscosity: 1.0,
+  minZoom: 2 // below this, a single world copy is narrower than most viewports and Leaflet
+             // would otherwise tile it side-by-side to fill the screen
+}).setView(
   savedMapView ? [savedMapView.lat, savedMapView.lng] : EUROPE_DEFAULT_CENTER,
   savedMapView ? savedMapView.zoom : EUROPE_DEFAULT_ZOOM
 );
@@ -7061,7 +7072,8 @@ new CachedTileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
   maxZoom: 22,
   maxNativeZoom: 19,
   keepBuffer: 8,
-  updateWhenZooming: false
+  updateWhenZooming: false,
+  noWrap: true
 }).addTo(map);
 
 // ---- Offline tile pre-caching ----------------------------------------------------
@@ -10589,7 +10601,25 @@ new NavigatePanelControl().addTo(map);
 
 let proximityCircle = null;
 
+// Whether the "+" report button should be usable right now: either we have an accurate,
+// live GPS fix (no need to touch the screen at all — GPS position is used automatically),
+// or a pin has been manually placed. Admins can report from any manually-placed pin with
+// no GPS required at all; regular users still need their own GPS fix to be within range of
+// the pin they dropped (see REPORT_PROXIMITY_MAX_M / the proximity circle below).
+function isReportReady() {
+  if (!currentSession || !currentProfile) return false;
+  if (hasReliableGps()) return true;
+  if (!pinMode || !manualCoords) return false;
+  if (currentProfile.is_admin) return true;
+  return !!userCoords && distMeters(userCoords, manualCoords) <= REPORT_PROXIMITY_MAX_M;
+}
+function updateReportFabState() {
+  const btn = document.getElementById('reportFabBtn');
+  if (btn) btn.disabled = !isReportReady();
+}
+
 function updateProximityUi() {
+  updateReportFabState();
   renderWizDuplicateNotice();
   const isAdmin = !!(currentProfile && currentProfile.is_admin);
   const inOwnDomain = isAdmin && isMunicipalityInAdminDomain(manualPinMunicipality);
@@ -10648,11 +10678,11 @@ function togglePinMode() {
 
   if (pinMode) {
     clearMarkers();
+    toast(t('tapMapToPlacePin'), 'success');
   } else {
     if (manualMarker) { map.removeLayer(manualMarker); manualMarker = null; }
     manualCoords = null;
     manualPinMunicipality = null;
-    wizAwaitingPinDrop = false;
     loadPinsByWindow();
     if (userCoords) showMunicipalityBoundaryForPoint(userCoords.lat, userCoords.lon, userMarker, 'gps');
     else renderMunicipalityBoundary(null, 'gps');
@@ -10702,10 +10732,6 @@ map.on('click', function(e) {
     .catch(() => {});
   updateProximityUi();
   checkFormReady();
-  if (wizAwaitingPinDrop) {
-    wizAwaitingPinDrop = false;
-    openReportWizard();
-  }
 });
 
 map.on('moveend', function(){ if (!pinMode) syncMarkers(false); });
@@ -11498,7 +11524,6 @@ const WIZ_STATUS_ICONS = { reported:'status_reported.png', in_progress:'status_i
 
 let wizState = { steps: wizStepsFor(null), step: 0, category: null, subcategory: null, priority: null, status: null };
 let wizOwnsPinDrop = false;
-let wizAwaitingPinDrop = false; // true while an admin (with no GPS fix) is choosing where to drop a pin
 
 function wizStepsFor(cat) {
   const steps = ['category'];
@@ -11514,44 +11539,44 @@ function reportFabTap() {
   if (!isAdmin && !isMobileDevice()) { toast(t('mobileOnlyReport'), 'error'); return; }
   if (vpnCheckResult && vpnCheckResult.isVpn) { toast(t('vpnBlockedReport'), 'error'); return; }
 
-  if (isAdmin) {
-    // Admins always choose the report location by tapping the map, rather than it
-    // silently defaulting to their live GPS position — previously that default was set
-    // the instant the wizard opened, and since the wizard is a fullscreen overlay that
-    // covers the map, there was no way left to tap the map and override it afterwards.
-    // Requiring the tap up front means the manually-placed pin always wins.
+  // The button itself stays disabled (see updateReportFabState()) until this is true, so
+  // this is mainly a defensive backstop against races (e.g. GPS dropping out between the
+  // last UI refresh and the tap).
+  if (!isReportReady()) { toast(hasReliableGps() ? t('gpsTooWeak') : t('waitGps'), 'error'); return; }
+
+  if (hasReliableGps()) {
+    // Accurate live GPS fix: use it directly and automatically — no need to tap the map
+    // first, for admins or regular users. We still freeze it into a manually-placed pin at
+    // tap-time (rather than letting the report location keep following a live GPS dot)
+    // so the location shown in the wizard doesn't drift while it's open.
     if (!pinMode) {
       pinMode = true;
+      wizOwnsPinDrop = true;
       document.getElementById('pinMapBtn').classList.add('active');
     }
-    wizOwnsPinDrop = true;
-    wizAwaitingPinDrop = true;
-    toast(t('tapMapToPlacePin'), 'success');
+    manualCoords = { lat: userCoords.lat, lon: userCoords.lon };
+    if (manualMarker) {
+      manualMarker.setLatLng([manualCoords.lat, manualCoords.lon]);
+    } else {
+      manualMarker = L.marker([manualCoords.lat, manualCoords.lon], {
+        icon: L.divIcon({ className: '', html: buildDroppedPinHtml(), iconSize: [30, 36], iconAnchor: [15, 34] })
+      }).addTo(map);
+    }
+    manualPinMunicipality = null;
+    showMunicipalityBoundaryForPoint(manualCoords.lat, manualCoords.lon, manualMarker, 'pin')
+      .then(muni => { manualPinMunicipality = muni; updateProximityUi(); })
+      .catch(() => {});
+    updateProximityUi();
+    checkFormReady();
+    openReportWizard();
     return;
   }
-  if (!userCoords || !isValidCoordObj(userCoords)) { toast(t('waitGps'), 'error'); return; }
-  if (!hasReliableGps()) { toast(t('gpsTooWeak'), 'error'); return; }
 
-  if (!pinMode) {
-    pinMode = true;
-    wizOwnsPinDrop = true;
-    document.getElementById('pinMapBtn').classList.add('active');
-  }
-  manualCoords = { lat: userCoords.lat, lon: userCoords.lon };
-  if (manualMarker) {
-    manualMarker.setLatLng([manualCoords.lat, manualCoords.lon]);
-  } else {
-    manualMarker = L.marker([manualCoords.lat, manualCoords.lon], {
-      icon: L.divIcon({ className: '', html: buildDroppedPinHtml(), iconSize: [30, 36], iconAnchor: [15, 34] })
-    }).addTo(map);
-  }
-  manualPinMunicipality = null;
-  showMunicipalityBoundaryForPoint(manualCoords.lat, manualCoords.lon, manualMarker, 'pin')
-    .then(muni => { manualPinMunicipality = muni; updateProximityUi(); })
-    .catch(() => {});
-  updateProximityUi();
+  // No accurate GPS fix — isReportReady() above already confirmed a usable pin is down
+  // (dropped via the map-pin button while GPS was off/weak), so continue straight into
+  // the wizard with it.
+  wizOwnsPinDrop = true;
   checkFormReady();
-
   openReportWizard();
 }
 
