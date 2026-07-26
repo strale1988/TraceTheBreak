@@ -825,6 +825,14 @@ body.driving-active .report-fab-btn{ display:none !important; }
   font-size:var(--fs-13); font-weight:var(--fw-semibold); color:var(--text-primary);
   cursor:pointer; -webkit-tap-highlight-color:transparent; touch-action:manipulation;
 }
+.settings-select-row{
+  display:flex; align-items:center; justify-content:space-between; gap:var(--space-10);
+  background:var(--bg-surface-alt); border-radius:var(--radius-xl);
+  padding:12px 14px; margin-top:8px;
+  font-size:var(--fs-13); font-weight:var(--fw-semibold); color:var(--text-primary);
+}
+.settings-select-row span{ flex:1; min-width:0; }
+.settings-select-row select{ flex:0 0 auto; width:auto; max-width:52%; }
 .toggle-switch{ position:relative; display:inline-block; width:42px; height:24px; flex-shrink:0; }
 .toggle-switch input{ position:absolute; inset:0; opacity:0; margin:0; cursor:pointer; }
 .toggle-switch-track{
@@ -3247,12 +3255,13 @@ span.flatpickr-weekday {
           <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
         </span>
       </label>
-      <label class="settings-toggle-row" id="quickRoadDefaultToggleRow">
-        <span id="quickRoadDefaultToggleLabel">Default quick-report menu to road issues</span>
-        <span class="toggle-switch">
-          <input type="checkbox" id="quickRoadDefaultToggleInput" checked onchange="setQuickRoadDefaultEnabled(this.checked)">
-          <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
-        </span>
+      <label class="settings-select-row" id="quickDefaultCarRow">
+        <span id="quickDefaultCarLabel">Default quick-report category (driving)</span>
+        <select id="quickDefaultCarSelect" onchange="setQuickDefaultCategoryPref('car', this.value)"></select>
+      </label>
+      <label class="settings-select-row" id="quickDefaultBikeRow">
+        <span id="quickDefaultBikeLabel">Default quick-report category (biking)</span>
+        <select id="quickDefaultBikeSelect" onchange="setQuickDefaultCategoryPref('bike', this.value)"></select>
       </label>
     </div>
 
@@ -6108,7 +6117,9 @@ const T = {
   drivingSafetyDontShowAgain:{ en:'Do not show this again',                                    sr:'Ne prikazuj ponovo' },
   overspeedAlertToggleLabel: { en:'Warn me when I\'m 5+ km/h over the speed limit',           sr:'Upozori me kada pređem ograničenje za 5+ km/h' },
   bumpDetectionToggleLabel:  { en:'Detect potholes/bumps automatically while driving',           sr:'Automatski otkrivaj rupe/udarce na putu tokom vožnje' },
-  quickRoadDefaultToggleLabel: { en:'Default quick-report menu to road issues',                  sr:'Podrazumevano prikaži probleme na putu u brzoj prijavi' },
+  quickDefaultCarLabel: { en:'Default quick-report category (driving)',           sr:'Podrazumevana kategorija brze prijave (vožnja)' },
+  quickDefaultBikeLabel: { en:'Default quick-report category (biking)',            sr:'Podrazumevana kategorija brze prijave (biciklo)' },
+  quickDefaultNoneOption: { en:'None (show all categories)',                       sr:'Ništa (prikaži sve kategorije)' },
 
   leaderboardBtnTitle:     { en:'Rankings',                           sr:'Rang lista' },
 
@@ -6335,8 +6346,12 @@ function applyLang(){
   if (overspeedAlertToggleLabelEl) overspeedAlertToggleLabelEl.textContent = t('overspeedAlertToggleLabel');
   const bumpDetectionToggleLabelEl = document.getElementById('bumpDetectionToggleLabel');
   if (bumpDetectionToggleLabelEl) bumpDetectionToggleLabelEl.textContent = t('bumpDetectionToggleLabel');
-  const quickRoadDefaultToggleLabelEl = document.getElementById('quickRoadDefaultToggleLabel');
-  if (quickRoadDefaultToggleLabelEl) quickRoadDefaultToggleLabelEl.textContent = t('quickRoadDefaultToggleLabel');
+  const quickDefaultCarLabelEl = document.getElementById('quickDefaultCarLabel');
+  if (quickDefaultCarLabelEl) quickDefaultCarLabelEl.textContent = t('quickDefaultCarLabel');
+  const quickDefaultBikeLabelEl = document.getElementById('quickDefaultBikeLabel');
+  if (quickDefaultBikeLabelEl) quickDefaultBikeLabelEl.textContent = t('quickDefaultBikeLabel');
+  populateQuickDefaultSelect('car');
+  populateQuickDefaultSelect('bike');
   const nearbyCheckinTitleEl = document.getElementById('nearbyCheckinSectionTitle');
   if (nearbyCheckinTitleEl) nearbyCheckinTitleEl.textContent = t('nearbyCheckinSectionTitle');
   const nearbyCheckinHintEl = document.getElementById('nearbyCheckinSectionHint');
@@ -6547,7 +6562,7 @@ function showSettingsModal() {
   initDrivingSafetySettingsUi();
   initOverspeedAlertSettingsUi();
   initBumpDetectionSettingsUi();
-  initQuickRoadDefaultSettingsUi();
+  initQuickDefaultCategorySettingsUi();
   initMapButtonToggleUi();
   updateNearbyCheckinSegmentUI();
   updateContactReminderSegmentUI();
@@ -9475,33 +9490,72 @@ function shouldBlockReportSubmission() {
 const CAR_QUICK_CATEGORIES = ['Road', 'Streetlight', 'SECTION_RECORD', 'Waste', 'Parking', 'Electricity'];
 const BIKE_QUICK_CATEGORIES = ['BikeLanes', 'Road', 'SECTION_RECORD', 'Streetlight', 'Waste', 'Parking'];
 
-const QUICK_DEFAULT_CATEGORY = 'Road';
-const QUICK_ROAD_DEFAULT_KEY = 'ttb_quick_road_default';
-function getQuickRoadDefaultPref() {
-  try {
-    const v = localStorage.getItem(QUICK_ROAD_DEFAULT_KEY);
-    return v === null ? true : v === '1';
-  } catch (err) { return true; }
+const QUICK_DEFAULT_CATEGORY_KEYS = { car: 'ttb_quick_default_car', bike: 'ttb_quick_default_bike' };
+const QUICK_DEFAULT_CATEGORY_FALLBACK = { car: 'Road', bike: 'Road' };
+
+// Categories that are valid choices for "default quick-report category" in a given mode:
+// real categories with at least one subcategory (SECTION_RECORD isn't a category to report into).
+function quickDefaultCategoryOptions(modeKey) {
+  const { categories } = quickGridConfig(modeKey);
+  return categories.filter(cat => cat !== 'SECTION_RECORD' && quickSubcategoryList(modeKey, cat).length > 0);
 }
-let quickRoadDefaultEnabled = getQuickRoadDefaultPref();
-function setQuickRoadDefaultEnabled(enabled) {
-  quickRoadDefaultEnabled = !!enabled;
-  try { localStorage.setItem(QUICK_ROAD_DEFAULT_KEY, quickRoadDefaultEnabled ? '1' : '0'); } catch (err) {}
+
+// Cheaper validity check (mode's category list only) usable at script-load time, before
+// SUBCATEGORIES (defined further down the file) exists yet.
+function isQuickCategoryChoice(modeKey, cat) {
+  if (!cat || cat === 'SECTION_RECORD') return false;
+  const { categories } = quickGridConfig(modeKey);
+  return categories.includes(cat);
+}
+
+function getQuickDefaultCategoryPref(modeKey) {
+  const key = QUICK_DEFAULT_CATEGORY_KEYS[modeKey];
+  const fallback = QUICK_DEFAULT_CATEGORY_FALLBACK[modeKey];
+  try {
+    const v = localStorage.getItem(key);
+    if (v === null) return isQuickCategoryChoice(modeKey, fallback) ? fallback : '';
+    if (v === '') return '';
+    return isQuickCategoryChoice(modeKey, v) ? v : '';
+  } catch (err) {
+    return isQuickCategoryChoice(modeKey, fallback) ? fallback : '';
+  }
+}
+
+let carQuickDefaultCategoryPref = getQuickDefaultCategoryPref('car');
+let bikeQuickDefaultCategoryPref = getQuickDefaultCategoryPref('bike');
+
+function setQuickDefaultCategoryPref(modeKey, cat) {
+  const key = QUICK_DEFAULT_CATEGORY_KEYS[modeKey];
+  const value = cat || '';
+  if (modeKey === 'car') carQuickDefaultCategoryPref = value; else bikeQuickDefaultCategoryPref = value;
+  try { localStorage.setItem(key, value); } catch (err) {}
   // Re-apply immediately: whichever grid is currently showing its resting (top-level or
   // already-default) state should reflect the new preference right away.
   resetQuickGrids();
 }
-function initQuickRoadDefaultSettingsUi() {
-  const input = document.getElementById('quickRoadDefaultToggleInput');
-  if (input) input.checked = quickRoadDefaultEnabled;
+
+function populateQuickDefaultSelect(modeKey) {
+  const select = document.getElementById(modeKey === 'car' ? 'quickDefaultCarSelect' : 'quickDefaultBikeSelect');
+  if (!select) return;
+  const options = quickDefaultCategoryOptions(modeKey);
+  const current = modeKey === 'car' ? carQuickDefaultCategoryPref : bikeQuickDefaultCategoryPref;
+  const noneLabel = t('quickDefaultNoneOption') || 'None (show all categories)';
+  select.innerHTML = `<option value="">${noneLabel}</option>` +
+    options.map(cat => `<option value="${cat}">${translateCategory(cat)}</option>`).join('');
+  select.value = current || '';
 }
-// The category the quick-report grid should rest on for a given mode: 'Road' subcategories
-// when the preference is enabled and that mode actually offers a Road category, otherwise
-// the plain top-level category grid (null).
+function initQuickDefaultCategorySettingsUi() {
+  populateQuickDefaultSelect('car');
+  populateQuickDefaultSelect('bike');
+}
+// The category the quick-report grid should rest on for a given mode: the user's chosen
+// default (if it's a valid category for that mode), otherwise the plain top-level category
+// grid (null).
 function defaultQuickCategoryFor(modeKey) {
-  if (!quickRoadDefaultEnabled) return null;
+  const pref = modeKey === 'car' ? carQuickDefaultCategoryPref : bikeQuickDefaultCategoryPref;
+  if (!pref) return null;
   const { categories } = quickGridConfig(modeKey);
-  return categories.includes(QUICK_DEFAULT_CATEGORY) ? QUICK_DEFAULT_CATEGORY : null;
+  return categories.includes(pref) ? pref : null;
 }
 
 const QUICK_SUBCATEGORY_OVERRIDES = {
