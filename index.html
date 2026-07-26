@@ -9178,7 +9178,7 @@ function switchToManualTwoFingerGesture(mid, distance) {
   // handoff.
   g.mode = 'manual';
   g.lastMid = mid;
-  g.lastDistance = distance;
+  g.zoomStepDistance = distance;
   if (map.dragging && map.dragging.enabled()) map.dragging.disable();
   if (map.touchZoom && map.touchZoom.enabled()) map.touchZoom.disable();
   map.getContainer().style.touchAction = 'none';
@@ -9271,19 +9271,29 @@ function applyTwoFingerGestureFrame() {
       map.panBy([-d.dx, -d.dy], { animate: false });
     }
   }
-  if (g.lastDistance > 0 && distance > 0) {
-    const zoomDelta = Math.log2(distance / g.lastDistance);
-    if (Math.abs(zoomDelta) > 0.0008) {
+  if (g.zoomStepDistance > 0 && distance > 0) {
+    // Zoom in discrete steps — the same step size the +/- zoom control uses
+    // (map.options.zoomDelta) — instead of continuously. While the map is
+    // rotated, Leaflet can't animate the zoom (see
+    // updateZoomAnimationForRotation), so a continuous fractional zoom here
+    // meant a full, instant redraw on almost every frame of the pinch. That
+    // rapid-fire redrawing was the "chopping" feel. Stepping means one clean
+    // redraw per zoomDelta increment instead, exactly like tapping +/-
+    // repeatedly.
+    const zoomStep = map.options.zoomDelta || 0.25;
+    const stepRatio = Math.log2(distance / g.zoomStepDistance);
+    if (Math.abs(stepRatio) >= zoomStep) {
       // Rotation-correct the zoom center too, so the zoom stays anchored
       // between the two fingers instead of drifting once the map is
       // rotated.
       const rawPoint = map.mouseEventToContainerPoint({ clientX: mid.x, clientY: mid.y });
       const correctedPoint = unrotateContainerPoint(rawPoint);
-      map.setZoomAround(correctedPoint, map.getZoom() + zoomDelta, { animate: false });
+      const targetZoom = map.getZoom() + (stepRatio > 0 ? zoomStep : -zoomStep);
+      map.setZoomAround(correctedPoint, targetZoom, { animate: false });
+      g.zoomStepDistance = distance;
     }
   }
 
-  g.lastDistance = distance;
   g.lastMid = mid;
 }
 
