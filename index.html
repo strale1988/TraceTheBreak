@@ -1420,7 +1420,15 @@ body.driving-active .driving-float-action-row{ display:flex; }
   display:none;
   flex-direction:column;
   gap:var(--space-10);
+  /* mask-image only fades how this box is painted — it does NOT stop the box
+     from capturing touches, so the visually "see-through" edges were still
+     eating pinch-zoom and report taps meant for the map underneath. Making
+     the sheet itself click-through and re-enabling hit-testing only on its
+     actual interactive children fixes that without changing how anything
+     looks. */
+  pointer-events:none;
 }
+.driving-report-sheet > *{ pointer-events:auto; }
 body.driving-active .driving-report-sheet{ display:flex; }
 
 .section-awaiting-bar{
@@ -7526,6 +7534,7 @@ let sectionGapFilling  = false;
 let currentHeading            = null;
 let compassActive             = false;
 let mapBearing                 = 0;
+let currentPinchPreviewScale    = 1;
 let headingUpMode             = true;
 let walkingHeadingMode        = false;
 
@@ -7552,7 +7561,7 @@ window.addEventListener('resize', updateRotationOrigin);
 function applyMapBearing(targetHeadingDeg) {
   const delta = shortestAngleDelta(mapBearing % 360, targetHeadingDeg);
   mapBearing += delta;
-  const cssRotation = `rotate(${mapBearing}deg)`;
+  const cssRotation = `rotate(${mapBearing}deg) scale(${currentPinchPreviewScale})`;
   if (rotWrapper) rotWrapper.style.transform = cssRotation;
   document.querySelectorAll('.compass-needle').forEach(needle => { needle.style.transform = cssRotation; });
   if (typeof setNativeDraggingEnabled === 'function') setNativeDraggingEnabled(!rotationActive());
@@ -9199,6 +9208,12 @@ function switchToManualTwoFingerGesture(mid, distance) {
   if (map.dragging && map.dragging.enabled()) map.dragging.disable();
   if (map.touchZoom && map.touchZoom.enabled()) map.touchZoom.disable();
   map.getContainer().style.touchAction = 'none';
+  // rotWrapper normally transitions its transform over .25s (for smooth
+  // heading-up rotation), but that same transition was fighting our
+  // per-frame preview-scale updates below — each pinch frame's transform
+  // change got smeared out over a quarter second instead of applying
+  // immediately, which is its own source of laggy, rubber-bandy zoom.
+  if (rotWrapper) rotWrapper.style.transition = 'none';
   onUserMapInteractionStart();
 }
 
@@ -9226,6 +9241,11 @@ function beginTwoFingerGesture(t0, t1) {
 function endTwoFingerGesture() {
   twoFingerGesture = null;
   twoFingerRafScheduled = false;
+  currentPinchPreviewScale = 1;
+  if (rotWrapper) {
+    rotWrapper.style.transition = '';
+    rotWrapper.style.transform = `rotate(${mapBearing}deg)`;
+  }
   setNativeDraggingEnabled(!rotationActive());
   scheduleAutoRefollow();
 }
@@ -9289,16 +9309,29 @@ function applyTwoFingerGestureFrame() {
     }
   }
   if (g.zoomStepDistance > 0 && distance > 0) {
-    // Zoom in discrete steps — the same step size the +/- zoom control uses
-    // (map.options.zoomDelta) — instead of continuously. While the map is
-    // rotated, Leaflet can't animate the zoom (see
-    // updateZoomAnimationForRotation), so a continuous fractional zoom here
-    // meant a full, instant redraw on almost every frame of the pinch. That
-    // rapid-fire redrawing was the "chopping" feel. Stepping means one clean
-    // redraw per zoomDelta increment instead, exactly like tapping +/-
-    // repeatedly.
+    // The map still commits real zoom in discrete zoomDelta steps — Leaflet
+    // can't animate its own zoom while rotated (see
+    // updateZoomAnimationForRotation), so calling setZoomAround continuously
+    // would force a full instant re-render on almost every touch frame,
+    // which is what made this feel "choppy" before.
+    //
+    // To get a smooth feel back without a real Leaflet animation, every
+    // frame we preview the *continuous* pinch ratio as a plain CSS scale on
+    // rotWrapper (the same element the rotation itself is applied to, with
+    // its transition disabled for the duration of the gesture above). Once
+    // the preview scale reaches a full zoomDelta step, we commit that step
+    // with setZoomAround (rotation-corrected, anchored at the pinch
+    // midpoint) and reset the preview back to 1 — so the very next frame's
+    // CSS scale picks up right where the real zoom left off, with no visible
+    // jump. The net effect: continuous visual feedback during the pinch,
+    // exactly one discrete Leaflet redraw per zoomDelta, instead of one
+    // redraw (and one jump) per touch event.
     const zoomStep = map.options.zoomDelta || 0.25;
     const stepRatio = Math.log2(distance / g.zoomStepDistance);
+
+    currentPinchPreviewScale = Math.pow(2, stepRatio);
+    if (rotWrapper) rotWrapper.style.transform = `rotate(${mapBearing}deg) scale(${currentPinchPreviewScale})`;
+
     if (Math.abs(stepRatio) >= zoomStep) {
       // Rotation-correct the zoom center too, so the zoom stays anchored
       // between the two fingers instead of drifting once the map is
@@ -9308,6 +9341,8 @@ function applyTwoFingerGestureFrame() {
       const targetZoom = map.getZoom() + (stepRatio > 0 ? zoomStep : -zoomStep);
       map.setZoomAround(correctedPoint, targetZoom, { animate: false });
       g.zoomStepDistance = distance;
+      currentPinchPreviewScale = 1;
+      if (rotWrapper) rotWrapper.style.transform = `rotate(${mapBearing}deg) scale(1)`;
     }
   }
 
