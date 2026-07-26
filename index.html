@@ -3047,7 +3047,7 @@ span.flatpickr-weekday {
     </div>
   </div>
 </div>
-<button type="button" id="navigateClearBtn" class="driving-nav-close-btn" onclick="clearNavigation()" title="Close" style="display:none">✕</button>
+<button type="button" id="navigateClearBtn" class="driving-nav-close-btn" onclick="closeNavigationAndExit()" title="Close" style="display:none">✕</button>
 <button type="button" class="report-fab-btn" id="reportFabBtn" style="display:none" disabled title="Report a break" aria-label="Report a break" onclick="reportFabTap()">
   <img src="icons/reports/report_new.png" alt="">
 </button>
@@ -8945,6 +8945,11 @@ function clearNavigation() {
   setNavState(NavState.IDLE);
 }
 
+function closeNavigationAndExit() {
+  clearNavigation();
+  if (typeof drivingMode !== 'undefined' && drivingMode) toggleDrivingMode();
+}
+
 function setFollowMode(enabled) {
   followMode = enabled;
   const btn = document.getElementById('drivingCenterBtn');
@@ -9003,6 +9008,7 @@ map.on('zoomend', scheduleAutoRefollow);
 
 let customDragActive = false;
 let customDragLast   = null;
+const activeTouchPointerIds = new Set();
 
 function rotationActive() {
 
@@ -9013,14 +9019,32 @@ function setNativeDraggingEnabled(enabled) {
   if (!map.dragging) return;
   if (enabled) {
     if (!map.dragging.enabled()) map.dragging.enable();
+    if (map.touchZoom && !map.touchZoom.enabled()) map.touchZoom.enable();
     map.getContainer().style.touchAction = '';
   } else {
     if (map.dragging.enabled()) map.dragging.disable();
+    // Leaflet's native pinch-zoom/pan handler moves the map in screen-space
+    // coordinates and has no idea the map is visually rotated via CSS on
+    // rotWrapper, so it drags/zooms in the wrong direction once rotated.
+    // We disable it here and drive two-finger pan/zoom ourselves (rotation-
+    // corrected) in onMapTouchMove below.
+    if (map.touchZoom && map.touchZoom.enabled()) map.touchZoom.disable();
     map.getContainer().style.touchAction = 'none';
   }
 }
 
 function customDragPointerDown(e) {
+  if (e.pointerType === 'touch') {
+    activeTouchPointerIds.add(e.pointerId);
+    // A second finger just touched down — this is now a multi-touch gesture,
+    // hand it off entirely to the two-finger handler below and stop any
+    // single-finger drag in progress so the two systems don't fight.
+    if (activeTouchPointerIds.size > 1) {
+      customDragActive = false;
+      customDragLast = null;
+      return;
+    }
+  }
   if (!rotationActive()) return;
   customDragActive = true;
   customDragLast = { x: e.clientX, y: e.clientY };
@@ -9029,6 +9053,7 @@ function customDragPointerDown(e) {
 }
 
 function customDragPointerMove(e) {
+  if (e.pointerType === 'touch' && activeTouchPointerIds.size > 1) return;
   if (!customDragActive) return;
   const dx = e.clientX - customDragLast.x;
   const dy = e.clientY - customDragLast.y;
@@ -9040,7 +9065,8 @@ function customDragPointerMove(e) {
   map.panBy([-mapDx, -mapDy], { animate: false });
 }
 
-function customDragPointerUp() {
+function customDragPointerUp(e) {
+  if (e && e.pointerType === 'touch') activeTouchPointerIds.delete(e.pointerId);
   customDragActive = false;
   customDragLast = null;
   scheduleAutoRefollow();
@@ -9058,16 +9084,22 @@ let twoFingerRotateActive     = false;
 let twoFingerRotateStartAngle = 0;
 let twoFingerRotateStartBearing = 0;
 let twoFingerStartDistance    = 0;
+let twoFingerLastDistance     = 0;
+let twoFingerLastMid          = null;
 let twoFingerGestureLock      = null;
 
 const TWO_FINGER_ROTATE_DEADZONE_DEG = 8;
 const TWO_FINGER_ZOOM_LOCK_RATIO     = 0.06;
+const TWO_FINGER_PAN_LOCK_PX         = 10;
 
 function angleBetweenTouches(t0, t1) {
   return Math.atan2(t1.clientY - t0.clientY, t1.clientX - t0.clientX) * 180 / Math.PI;
 }
 function distanceBetweenTouches(t0, t1) {
   return Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+}
+function midpointOfTouches(t0, t1) {
+  return { x: (t0.clientX + t1.clientX) / 2, y: (t0.clientY + t1.clientY) / 2 };
 }
 
 let headingUpDisabledByManualRotation = false;
@@ -9111,6 +9143,8 @@ function onMapTouchStart(e) {
     twoFingerRotateStartAngle = angleBetweenTouches(e.touches[0], e.touches[1]);
     twoFingerRotateStartBearing = mapBearing;
     twoFingerStartDistance = distanceBetweenTouches(e.touches[0], e.touches[1]);
+    twoFingerLastDistance = twoFingerStartDistance;
+    twoFingerLastMid = midpointOfTouches(e.touches[0], e.touches[1]);
     onUserMapInteractionStart();
   }
 }
@@ -9126,25 +9160,60 @@ function onMapTouchMove(e) {
     ? Math.abs(distance - twoFingerStartDistance) / twoFingerStartDistance
     : 0;
 
+  const mid = midpointOfTouches(e.touches[0], e.touches[1]);
+  const midMovedPx = twoFingerLastMid
+    ? Math.hypot(mid.x - twoFingerLastMid.x, mid.y - twoFingerLastMid.y)
+    : 0;
+
   if (twoFingerGestureLock === null) {
     if (Math.abs(delta) >= TWO_FINGER_ROTATE_DEADZONE_DEG) {
       twoFingerGestureLock = 'rotate';
-    } else if (distanceRatio >= TWO_FINGER_ZOOM_LOCK_RATIO) {
-      twoFingerGestureLock = 'zoom';
+    } else if (distanceRatio >= TWO_FINGER_ZOOM_LOCK_RATIO || midMovedPx >= TWO_FINGER_PAN_LOCK_PX) {
+      // Either a deliberate pinch or a two-finger drag — both are handled
+      // together below as "move" (pan + zoom combined, like a normal pinch).
+      twoFingerGestureLock = 'move';
     } else {
       return;
-
     }
   }
 
-  if (twoFingerGestureLock !== 'rotate') return;
-  disableAutoHeadingForManualRotation();
-  applyMapBearing(twoFingerRotateStartBearing + delta);
+  if (twoFingerGestureLock === 'rotate') {
+    disableAutoHeadingForManualRotation();
+    applyMapBearing(twoFingerRotateStartBearing + delta);
+    twoFingerLastDistance = distance;
+    twoFingerLastMid = mid;
+    return;
+  }
+
+  // 'move' lock: rotation-corrected two-finger pan, plus pinch-zoom around
+  // the touch midpoint. Applied incrementally frame-to-frame so pan and
+  // zoom can happen together, same as a normal native pinch gesture.
+  if (twoFingerLastMid) {
+    const dx = mid.x - twoFingerLastMid.x;
+    const dy = mid.y - twoFingerLastMid.y;
+    if (dx !== 0 || dy !== 0) {
+      const rad = (-mapBearing * Math.PI) / 180;
+      const cos = Math.cos(rad), sin = Math.sin(rad);
+      const mapDx = dx * cos - dy * sin;
+      const mapDy = dx * sin + dy * cos;
+      map.panBy([-mapDx, -mapDy], { animate: false });
+    }
+  }
+  if (twoFingerLastDistance > 0 && distance > 0) {
+    const zoomDelta = Math.log2(distance / twoFingerLastDistance);
+    if (Math.abs(zoomDelta) > 0.0008) {
+      const containerPoint = map.mouseEventToContainerPoint({ clientX: mid.x, clientY: mid.y });
+      map.setZoomAround(containerPoint, map.getZoom() + zoomDelta, { animate: false });
+    }
+  }
+  twoFingerLastDistance = distance;
+  twoFingerLastMid = mid;
 }
 function onMapTouchEnd(e) {
   if (e.touches.length < 2 && twoFingerRotateActive) {
     twoFingerRotateActive = false;
     twoFingerGestureLock = null;
+    twoFingerLastMid = null;
     scheduleAutoRefollow();
   }
 }
