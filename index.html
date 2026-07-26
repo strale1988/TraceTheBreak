@@ -2612,6 +2612,21 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   padding:1px 6px; border-radius:var(--radius-lg); background:transparent;
   border:1px solid var(--border-color-strong); color:var(--text-secondary);
 }
+/* These chips are now buttons (each opens the add-contact form pre-filled
+   with that municipality + category), so they need button-reset styles on
+   top of the visual chip look, plus a hover/focus state so it's clear
+   they're clickable. */
+.uc-cat-chip-add{
+  font-family:inherit; cursor:pointer; -webkit-tap-highlight-color:transparent;
+  transition:transform .1s ease, opacity .1s ease;
+}
+.uc-cat-chip-add:hover, .uc-cat-chip-add:focus-visible{ opacity:.8; transform:translateY(-1px); }
+.uc-cat-chip-add:active{ transform:translateY(0); opacity:.65; }
+.uc-cat-chip-add.uc-cat-chip-covered{
+  font-size:var(--fs-9-5); font-weight:var(--fw-bold); text-transform:uppercase; letter-spacing:.2px;
+  padding:1px 6px; border-radius:var(--radius-lg); background:transparent;
+  border:1px dashed var(--border-color-strong); color:var(--text-muted);
+}
 .uc-item-actions{ display:flex; gap:var(--space-6); flex-shrink:0; }
 
 .admin-action-btn, .uc-item-actions button, .photo-review-actions button{
@@ -6100,6 +6115,7 @@ const T = {
   ucUnverifiedChip:  { en:'Unverified',                           sr:'Nije provereno' },
   ucUncategorizedChip: { en:'Uncategorized',                      sr:'Nekategorisano' },
   ucMissingTagsLabel:  { en:'No contact for:',                     sr:'Nema kontakta za:' },
+  ucQuickAddTagsLabel: { en:'Add contact by category:',             sr:'Dodaj kontakt po kategoriji:' },
 
   reportPhotoAddBtn:      { en:'Take photo',                                  sr:'Uslikaj' },
   reportPhotoGalleryBtn:  { en:'Choose from gallery',                         sr:'Izaberi iz galerije' },
@@ -13404,7 +13420,7 @@ async function showMunicipalityBoundaryForPoint(lat, lon, marker, source) {
   return muni;
 }
 
-const UC_CATEGORIES = ['Water','Electricity','Sewage','Gas','Heating','Road','Streetlight','Waste','Walkways','BikeLanes','GreenSpaces','Parking','Suggestion','Other'];
+const UC_CATEGORIES = ['Water','Electricity','Sewage','Gas','Heating','Road','Streetlight','Waste','Walkways','BikeLanes','GreenSpaces','Parking','Suggestion','Forest','FarmersMarket','Other'];
 let ucCompaniesCache = [];
 let ucEditingId = null;
 let ucEditingVerified = false;
@@ -14071,17 +14087,27 @@ function renderUcList() {
         ? escapeHtml(municipalityDisplayName(muni)) + (muni.country_code ? ' (' + escapeHtml(muni.country_code) + ')' : '')
         : t('detailUnknown');
 
-      // Missing-tag overview is computed from every contact in this municipality
-      // (not the possibly search-filtered `companies` above), so it stays accurate
-      // even while the admin is filtering the list by a company name.
+      // Quick-add row is computed from every contact in this municipality
+      // (not the possibly search-filtered `companies` above), so it stays
+      // accurate even while the admin is filtering the list by a company
+      // name. Every category gets its own "+" button here — previously this
+      // only rendered a static (non-clickable) list of *missing* categories,
+      // so adding a contact for a given tag meant opening a blank form and
+      // manually re-picking the municipality and category from scratch.
       const allMuniCompanies = companiesByMuni.get(muniKey) || [];
       const coveredCats = new Set();
       allMuniCompanies.forEach(c => (c.categories || []).forEach(cat => coveredCats.add(cat)));
       const missingCats = UC_CATEGORIES.filter(cat => !coveredCats.has(cat));
-      const missingTagsHtml = missingCats.length
+      const quickAddTagsHtml = muni
         ? '<div class="uc-muni-missing-tags">' +
-            '<span class="uc-muni-missing-label">' + escapeHtml(t('ucMissingTagsLabel')) + '</span>' +
-            missingCats.map(cat => '<span class="uc-cat-chip uc-cat-chip-missing">' + escapeHtml(translateCategory(cat)) + '</span>').join('') +
+            '<span class="uc-muni-missing-label">' + escapeHtml(t('ucQuickAddTagsLabel')) + '</span>' +
+            UC_CATEGORIES.map(cat => {
+              const isMissing = missingCats.includes(cat);
+              return '<button type="button" class="uc-cat-chip uc-cat-chip-add' + (isMissing ? ' uc-cat-chip-missing' : ' uc-cat-chip-covered') + '" ' +
+                'onclick="quickAddUcContact(\'' + muni.id + '\', \'' + cat + '\')">' +
+                '+ ' + escapeHtml(translateCategory(cat)) +
+              '</button>';
+            }).join('') +
           '</div>'
         : '';
 
@@ -14113,7 +14139,7 @@ function renderUcList() {
       return '<details class="uc-muni-group" id="uc-muni-group-' + (muni ? muni.id : 'unknown') + '">' +
         '<summary><span class="uc-group-chevron"><img src="icons/arrow.png" alt=""></span> ' + muniLabel +
           ' <span class="uc-country-count">(' + companies.length + ')</span></summary>' +
-        missingTagsHtml +
+        quickAddTagsHtml +
         '<div class="uc-muni-items">' + itemsHtml + '</div>' +
       '</details>';
     }).join('');
@@ -14222,6 +14248,31 @@ function editUtilityCompany(id) {
   if (itemEl) itemEl.insertAdjacentElement('afterend', form);
   form.style.display = 'flex';
   form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function quickAddUcContact(municipalityId, category) {
+  if (!canManageContactsForMunicipality(municipalityId)) {
+    toast(t('ucOutOfDomainError'), 'error');
+    return;
+  }
+  resetUcForm();
+  setUcMuniPickerVisible(true);
+  const sel = document.getElementById('ucMunicipalitySelect');
+  if (sel) sel.value = municipalityId;
+  const cb = document.querySelector('#ucCatChecks input[value="' + category + '"]');
+  if (cb) cb.checked = true;
+  renderUcVerifyStatus();
+  const form = document.getElementById('ucForm');
+  // Anchor the form right under the municipality group that was clicked so
+  // it's obvious which municipality it'll be saved under, same as editing
+  // an existing contact anchors the form right under that contact.
+  const groupEl = document.getElementById('uc-muni-group-' + municipalityId);
+  if (groupEl) groupEl.insertAdjacentElement('afterend', form);
+  else moveUcFormToAnchor();
+  form.style.display = 'flex';
+  form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  const nameInput = document.getElementById('ucName');
+  if (nameInput) nameInput.focus();
 }
 
 function formatPhoneNumberForSave(rawPhone, countryIso2) {
