@@ -12328,6 +12328,11 @@ const loadedMuniCountries = new Set();
 
 const MUNICIPALITY_CACHE_STORAGE_KEY = 'ttb_municipality_cache_v2';
 const MUNI_SELECT_COLS = 'id,slug,osm_type,osm_id,admin_level,name,name_en,country_code,centroid_lat,centroid_lon,boundary,bbox';
+// Same rows, minus `boundary`/`bbox` — those two columns hold full GeoJSON
+// polygons and are what actually makes the municipalities table (97k+ rows)
+// heavy. Screens that only need names/ids (like the utility-company admin
+// list) never touch those columns, so there's no reason to pull them.
+const MUNI_SELECT_COLS_LITE = 'id,slug,osm_type,osm_id,admin_level,name,name_en,country_code,centroid_lat,centroid_lon';
 
 function readMunicipalityCacheFromStorage() {
   try {
@@ -12389,6 +12394,56 @@ async function loadMunicipalityCache(forceRefresh) {
     }
   })();
   return municipalityCacheLoadPromise;
+}
+
+let municipalityCacheLiteLoadPromise = null;
+let municipalityCacheLiteLoaded = false;
+// Used by admin screens (like the utility-company panel) that only ever
+// read m.name/m.name_en/m.country_code/m.id — never m.boundary/m.bbox — so
+// they can skip the multi-megabyte geometry payload entirely instead of
+// waiting on the same full, heavy fetch loadMunicipalityCache() does for
+// map-boundary rendering. Writes into the exact same municipalityCache /
+// loadedMuniIds structures via mergeMunicipalitiesIntoCache(), so every
+// other helper (getMunicipalityById, municipalityDisplayName,
+// isMunicipalityInAdminDomain, ...) keeps working unchanged.
+async function loadMunicipalityCacheLite() {
+  // A full load (already done, or already in flight elsewhere) covers
+  // everything a lite load would and is de-duped by loadMunicipalityCache()
+  // itself once resolved — piggyback on that instead of racing it.
+  if (municipalityCacheLoadPromise) return loadMunicipalityCache(false);
+  // Otherwise de-dupe the lite load the same way: once done, later callers
+  // (e.g. re-opening the admin panel) get an instant no-op instead of
+  // re-fetching all 90k+ rows again.
+  if (municipalityCacheLiteLoaded) return;
+  if (municipalityCacheLiteLoadPromise) return municipalityCacheLiteLoadPromise;
+  municipalityCacheLiteLoadPromise = (async () => {
+    try {
+      const PAGE_SIZE = 1000;
+      const { count, error: countErr } = await sb
+        .from(MUNICIPALITIES_TABLE)
+        .select('id', { count: 'exact', head: true });
+      if (countErr) throw countErr;
+      const pageCount = Math.max(1, Math.ceil((count || 0) / PAGE_SIZE));
+      // Firing every page at once instead of awaiting them one-by-one is
+      // the other half of the fix: ~90k rows is ~90 pages, and awaiting
+      // those sequentially means ~90 round trips back-to-back even once
+      // each individual page is small and fast.
+      const pages = await Promise.all(
+        Array.from({ length: pageCount }, (_, i) => {
+          const from = i * PAGE_SIZE;
+          return sb.from(MUNICIPALITIES_TABLE).select(MUNI_SELECT_COLS_LITE).range(from, from + PAGE_SIZE - 1);
+        })
+      );
+      for (const { data, error } of pages) {
+        if (error) throw error;
+        mergeMunicipalitiesIntoCache(data || []);
+      }
+      municipalityCacheLiteLoaded = true;
+    } catch (err) {
+      console.error('Failed to load lightweight municipality cache:', err.message);
+    }
+  })();
+  return municipalityCacheLiteLoadPromise;
 }
 
 const MUNI_NEAR_PAD_DEG = 1.5;
@@ -13447,7 +13502,7 @@ async function loadUtilityCompaniesAdmin() {
   const listEl = document.getElementById('ucList');
   if (listEl) listEl.innerHTML = '<div class="detail-loading">' + t('ucLoadingList') + '</div>';
 
-  await Promise.all([loadMunicipalityCache(true), loadCountryContinentCache()]);
+  await Promise.all([loadMunicipalityCacheLite(), loadCountryContinentCache()]);
   populateUcMunicipalitySelect();
   populateUcCatChecks();
   applyUcFormTranslations();
