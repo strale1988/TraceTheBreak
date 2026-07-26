@@ -3035,7 +3035,7 @@ span.flatpickr-weekday {
 <div id="bottomRightStack" class="bottomright-stack">
   <div id="followLocationBtn" class="pin-map-btn" style="display:none" title="Follow my location" onclick="toggleFollowMode()" role="button" tabindex="0" aria-label="Follow my location" aria-pressed="false" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleFollowMode();}"><img class="icon-img" src="icons/target.png" alt=""></div>
   <div id="pinMapBtn" class="pin-map-btn" style="display:none" title="Set location manually" onclick="togglePinMode()"><img class="icon-img" src="icons/pin.png" alt="Pin"></div>
-  <div id="navigateModeBtn" class="pin-map-btn" style="display:none" title="Navigate" onclick="toggleNavigatePanel()"><img class="icon-img" src="icons/search.png" alt="Navigate"></div>
+  <div id="navigateModeBtn" class="pin-map-btn" style="display:none" title="Navigate" onclick="enterNavigationMode()"><svg class="icon-img nav-arrow-btn-icon" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 2.2 L19.3 20 L12 15.6 L4.7 20 Z" fill="currentColor"/></svg></div>
   <div id="heatmapBtn" class="pin-map-btn heatmap-btn" style="display:none" title="Heatmap" onclick="toggleHeatmap()">
     <img class="icon-img" src="icons/heatmap.png" alt="Heatmap">
   </div>
@@ -6978,7 +6978,9 @@ const map = L.map('map', {
   worldCopyJump: false,
   maxBounds: WORLD_BOUNDS,
   maxBoundsViscosity: 1.0,
-  minZoom: 2
+  minZoom: 2,
+  zoomSnap: 0.25,
+  zoomDelta: 0.25
 
 }).setView(
   savedMapView ? [savedMapView.lat, savedMapView.lng] : EUROPE_DEFAULT_CENTER,
@@ -8233,6 +8235,11 @@ function snapUserToRoadThenShow(lat, lon) {
     .finally(() => { roadSnapFetching = false; });
 }
 
+function enterNavigationMode() {
+  if (drivingMode) return;
+  toggleDrivingMode(travelMode);
+}
+
 function toggleNavigatePanel() {
   navPanelOpen = !navPanelOpen;
   document.getElementById('navigatePanel').style.display = navPanelOpen ? 'flex' : 'none';
@@ -9145,6 +9152,15 @@ function onMapTouchStart(e) {
     twoFingerStartDistance = distanceBetweenTouches(e.touches[0], e.touches[1]);
     twoFingerLastDistance = twoFingerStartDistance;
     twoFingerLastMid = midpointOfTouches(e.touches[0], e.touches[1]);
+    // Take full manual control for the whole two-finger gesture, whether or
+    // not the map happens to be rotated right now. Native Leaflet handling
+    // uses screen-space coordinates that don't account for our CSS bearing
+    // rotation, and bearing can change mid-gesture (if this turns into a
+    // rotate), so native handling is kept off for the entire gesture rather
+    // than toggled frame-by-frame.
+    if (map.dragging && map.dragging.enabled()) map.dragging.disable();
+    if (map.touchZoom && map.touchZoom.enabled()) map.touchZoom.disable();
+    map.getContainer().style.touchAction = 'none';
     onUserMapInteractionStart();
   }
 }
@@ -9187,7 +9203,9 @@ function onMapTouchMove(e) {
 
   // 'move' lock: rotation-corrected two-finger pan, plus pinch-zoom around
   // the touch midpoint. Applied incrementally frame-to-frame so pan and
-  // zoom can happen together, same as a normal native pinch gesture.
+  // zoom can happen together, same as a normal native pinch gesture. The
+  // rotation correction is a no-op when mapBearing is 0, so this behaves
+  // exactly like a plain two-finger pan/pinch when the map isn't rotated.
   if (twoFingerLastMid) {
     const dx = mid.x - twoFingerLastMid.x;
     const dy = mid.y - twoFingerLastMid.y;
@@ -9214,6 +9232,7 @@ function onMapTouchEnd(e) {
     twoFingerRotateActive = false;
     twoFingerGestureLock = null;
     twoFingerLastMid = null;
+    setNativeDraggingEnabled(!rotationActive());
     scheduleAutoRefollow();
   }
 }
