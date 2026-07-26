@@ -1393,11 +1393,17 @@ body.driving-active .driving-float-action-row{ display:flex; }
   display:none;
   flex-direction:column;
   gap:var(--space-6);
-  background:color-mix(in srgb, var(--bg-surface-alt) 68%, #000 32%);
-  border:1px solid var(--border-color-strong);
+  /* Always a dark dashboard tile regardless of app theme — in the light theme
+     var(--bg-surface-alt) is itself light, so mixing in only 32% black used to
+     leave a medium-gray card that washed out the muted stat labels. Anchoring
+     to a fixed dark base (with a small theme tint) keeps the remaining/distance/
+     arrival text legible in both themes without changing the dark-theme look. */
+  background:color-mix(in srgb, #1c1c1c 88%, var(--bg-surface-alt) 12%);
+  border:1px solid rgba(255,255,255,.14);
   border-radius:14px;
   padding:7px 12px;
 }
+.driving-nav-card .driving-nav-dest{ color:#fff; }
 .driving-report-sheet{
   position:fixed;
   left:0; right:0; bottom:0;
@@ -1579,7 +1585,7 @@ body.walk-mode-active .walk-quick-grid{ display:flex; }
 .driving-nav-stat-label{
   font-size:var(--fs-9-5);
   font-weight:var(--fw-semibold);
-  color:var(--text-muted);
+  color:rgba(255,255,255,.62);
   text-transform:uppercase;
   letter-spacing:.03em;
 }
@@ -1602,7 +1608,7 @@ body.walk-mode-active .walk-quick-grid{ display:flex; }
    nav/route accent, walking uses the success green. Keeps the remaining/distance/
    arrival stats, the card background and the close button in sync with the active mode. */
 body.bike-mode-active .driving-nav-card{
-  background:color-mix(in srgb, var(--nav-accent) 20%, var(--bg-surface-alt) 80%);
+  background:color-mix(in srgb, var(--nav-accent) 20%, #1c1c1c 80%);
   border-color:var(--nav-accent);
 }
 body.bike-mode-active .driving-nav-status-text,
@@ -1611,7 +1617,7 @@ body.bike-mode-active .driving-nav-close-btn{ background:var(--nav-accent); bord
 body.bike-mode-active .driving-nav-close-btn:active{ background:var(--nav-accent); filter:brightness(.9); }
 
 body.walk-mode-active .driving-nav-card{
-  background:color-mix(in srgb, var(--success) 20%, var(--bg-surface-alt) 80%);
+  background:color-mix(in srgb, var(--success) 20%, #1c1c1c 80%);
   border-color:var(--success);
 }
 body.walk-mode-active .driving-nav-status-text,
@@ -2574,6 +2580,16 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   padding:2px 6px; border-radius:var(--radius-lg); color:white;
 }
 .uc-cat-chip-empty{ background:var(--text-muted) !important; }
+.uc-muni-missing-tags{
+  display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-4);
+  padding:0 10px 8px 22px; margin-top:-2px;
+}
+.uc-muni-missing-label{ font-size:var(--fs-9-5); color:var(--text-muted); font-weight:var(--fw-semibold); }
+.uc-cat-chip-missing{
+  font-size:var(--fs-9-5); font-weight:var(--fw-bold); text-transform:uppercase; letter-spacing:.2px;
+  padding:1px 6px; border-radius:var(--radius-lg); background:transparent;
+  border:1px solid var(--border-color-strong); color:var(--text-secondary);
+}
 .uc-item-actions{ display:flex; gap:var(--space-6); flex-shrink:0; }
 
 .admin-action-btn, .uc-item-actions button, .photo-review-actions button{
@@ -6061,6 +6077,7 @@ const T = {
   ucVerifiedChip:    { en:'Verified',                             sr:'Provereno' },
   ucUnverifiedChip:  { en:'Unverified',                           sr:'Nije provereno' },
   ucUncategorizedChip: { en:'Uncategorized',                      sr:'Nekategorisano' },
+  ucMissingTagsLabel:  { en:'No contact for:',                     sr:'Nema kontakta za:' },
 
   reportPhotoAddBtn:      { en:'Take photo',                                  sr:'Uslikaj' },
   reportPhotoGalleryBtn:  { en:'Choose from gallery',                         sr:'Izaberi iz galerije' },
@@ -13903,6 +13920,21 @@ function renderUcList() {
       const muniLabel = muni
         ? escapeHtml(municipalityDisplayName(muni)) + (muni.country_code ? ' (' + escapeHtml(muni.country_code) + ')' : '')
         : t('detailUnknown');
+
+      // Missing-tag overview is computed from every contact in this municipality
+      // (not the possibly search-filtered `companies` above), so it stays accurate
+      // even while the admin is filtering the list by a company name.
+      const allMuniCompanies = companiesByMuni.get(muniKey) || [];
+      const coveredCats = new Set();
+      allMuniCompanies.forEach(c => (c.categories || []).forEach(cat => coveredCats.add(cat)));
+      const missingCats = UC_CATEGORIES.filter(cat => !coveredCats.has(cat));
+      const missingTagsHtml = missingCats.length
+        ? '<div class="uc-muni-missing-tags">' +
+            '<span class="uc-muni-missing-label">' + escapeHtml(t('ucMissingTagsLabel')) + '</span>' +
+            missingCats.map(cat => '<span class="uc-cat-chip uc-cat-chip-missing">' + escapeHtml(translateCategory(cat)) + '</span>').join('') +
+          '</div>'
+        : '';
+
       const itemsHtml = companies.length ? companies.map(c => {
         const catsHtml = (c.categories && c.categories.length)
           ? c.categories.map(cat => '<span class="uc-cat-chip" style="background:' + categoryColor(cat) + ';">' + translateCategory(cat) + '</span>').join('')
@@ -13931,6 +13963,7 @@ function renderUcList() {
       return '<details class="uc-muni-group" id="uc-muni-group-' + (muni ? muni.id : 'unknown') + '">' +
         '<summary><span class="uc-group-chevron"><img src="icons/arrow.png" alt=""></span> ' + muniLabel +
           ' <span class="uc-country-count">(' + companies.length + ')</span></summary>' +
+        missingTagsHtml +
         '<div class="uc-muni-items">' + itemsHtml + '</div>' +
       '</details>';
     }).join('');
