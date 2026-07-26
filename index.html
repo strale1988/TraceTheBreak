@@ -11040,8 +11040,28 @@ map.on('click', function(e) {
   checkFormReady();
 });
 
-map.on('moveend', function(){ if (!pinMode) syncMarkers(false); });
-map.on('zoomend', function(){ if (!pinMode) syncMarkers(false); });
+// During a pinch-zoom (and pan+zoom) gesture, Leaflet commits real zoom/pan
+// steps with {animate:false} multiple times per second (see
+// applyTwoFingerGestureFrame's zoomStepDistance/panBy calls) — each commit
+// fires its own synchronous moveend/zoomend. Wiring syncMarkers() straight to
+// those events meant it ran a dozen+ times *during* a single gesture,
+// repeatedly adding/removing markers from the cluster group and forcing
+// Leaflet.markercluster to regroup mid-zoom — that's the flashing/"reports
+// disappear then reappear" glitch. Debouncing means we wait for the map to
+// actually go quiet (gesture finished, or a plain single zoomend/moveend)
+// before touching markers at all.
+let markerSyncSettleTimer = null;
+const MARKER_SYNC_SETTLE_MS = 200;
+function scheduleMarkerSyncOnSettle() {
+  if (pinMode) return;
+  if (markerSyncSettleTimer) clearTimeout(markerSyncSettleTimer);
+  markerSyncSettleTimer = setTimeout(() => {
+    markerSyncSettleTimer = null;
+    syncMarkers(false);
+  }, MARKER_SYNC_SETTLE_MS);
+}
+map.on('moveend', scheduleMarkerSyncOnSettle);
+map.on('zoomend', scheduleMarkerSyncOnSettle);
 
 let viewportReloadTimer = null;
 const VIEWPORT_RELOAD_DEBOUNCE_MS = 400;
@@ -16658,6 +16678,10 @@ async function loadPinsByWindow() {
     const freshInWindow = dateRangeRes.data || [];
     dateRangeOnlyData = freshInWindow;
 
+    const newlyMergedIds = new Set();
+    freshInWindow.forEach(r => newlyMergedIds.add(r.id));
+    (alwaysOnRes.data || []).forEach(r => newlyMergedIds.add(r.id));
+
     const merged = new Map(globalActiveData.map(r => [r.id, r]));
     freshInWindow.forEach(r => merged.set(r.id, r));
     (alwaysOnRes.data || []).forEach(r => merged.set(r.id, r));
@@ -16665,11 +16689,21 @@ async function loadPinsByWindow() {
     markActiveDataChanged();
     pruneLoadedReportsIfNeeded();
 
-    await loadVoteProgress(globalActiveData.map(r => r.id));
-
+    // Pins never need vote-progress data to be placed on the map — it's only
+    // read inside the popup detail (buildVoteProgressHtml). Previously this
+    // was awaited *before* syncMarkers, and re-fetched for every report ever
+    // accumulated in globalActiveData (up to 4000 ids) on every single
+    // pan/zoom/date change — a huge `report_id=in.(...)` query that made the
+    // whole map appear stuck until it finished. Render pins immediately, and
+    // fetch vote progress in the background for just the reports that were
+    // newly merged this round; refresh any open popups once it lands.
     syncMarkers(true);
     updateReportCount();
     refreshHeatLayer();
+
+    loadVoteProgress(Array.from(newlyMergedIds)).then(() => {
+      refreshRenderedPopups();
+    });
   } catch (err) {
     console.error('Failed to load reports:', err.message);
     toast(t('loadFailed'), 'error');
@@ -16757,18 +16791,21 @@ function setupReportsRealtimeSync() {
 }
 
 async function loadVoteProgress(reportIds) {
-  if (!currentSession || !reportIds.length) { voteProgressByReport = new Map(); return; }
+  if (!currentSession) { voteProgressByReport = new Map(); return; }
+  if (!reportIds.length) return;
   try {
     const { data, error } = await sb.from('report_status_vote_progress')
       .select('*')
       .in('report_id', reportIds);
     if (error) throw error;
-    const next = new Map();
+    // Clear only the ids we just re-fetched, then repopulate from the fresh
+    // rows — this keeps vote data for every other already-loaded report
+    // intact instead of wiping the whole cache on every partial fetch.
+    reportIds.forEach(id => voteProgressByReport.delete(id));
     (data || []).forEach(row => {
-      if (!next.has(row.report_id)) next.set(row.report_id, {});
-      next.get(row.report_id)[row.suggested_status] = row.points;
+      if (!voteProgressByReport.has(row.report_id)) voteProgressByReport.set(row.report_id, {});
+      voteProgressByReport.get(row.report_id)[row.suggested_status] = row.points;
     });
-    voteProgressByReport = next;
   } catch (err) {
     console.error('Failed to load vote progress:', err.message);
   }
