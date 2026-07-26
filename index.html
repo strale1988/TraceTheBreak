@@ -1380,11 +1380,11 @@ body.driving-active .driving-float-action-row{ display:flex; }
 .driving-nav-card{
   display:none;
   flex-direction:column;
-  gap:var(--space-8);
-  background:var(--bg-surface-alt);
+  gap:var(--space-6);
+  background:color-mix(in srgb, var(--bg-surface-alt) 68%, #000 32%);
   border:1px solid var(--border-color-strong);
   border-radius:14px;
-  padding:10px 12px;
+  padding:7px 12px;
 }
 .driving-report-sheet{
   position:fixed;
@@ -1441,7 +1441,7 @@ body.bike-mode-active .bike-quick-grid{ display:grid; }
   border:none;
   border-radius:14px;
   color:#fff;
-  aspect-ratio:1;
+  aspect-ratio:3/2;
   width:100%;
   display:flex;
   flex-direction:column;
@@ -1522,9 +1522,7 @@ body.bike-mode-active .bike-quick-grid{ display:grid; }
   flex-direction:column;
   align-items:center;
   gap:2px;
-  background:var(--bg-surface);
-  border-radius:10px;
-  padding:6px 4px;
+  padding:2px 4px;
 }
 .driving-nav-stat-value{
   font-size:var(--fs-14);
@@ -3246,6 +3244,13 @@ span.flatpickr-weekday {
         <span id="bumpDetectionToggleLabel">Detect potholes/bumps automatically while driving</span>
         <span class="toggle-switch">
           <input type="checkbox" id="bumpDetectionToggleInput" checked onchange="setBumpDetectionEnabled(this.checked)">
+          <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+        </span>
+      </label>
+      <label class="settings-toggle-row" id="quickRoadDefaultToggleRow">
+        <span id="quickRoadDefaultToggleLabel">Default quick-report menu to road issues</span>
+        <span class="toggle-switch">
+          <input type="checkbox" id="quickRoadDefaultToggleInput" checked onchange="setQuickRoadDefaultEnabled(this.checked)">
           <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
         </span>
       </label>
@@ -6103,6 +6108,7 @@ const T = {
   drivingSafetyDontShowAgain:{ en:'Do not show this again',                                    sr:'Ne prikazuj ponovo' },
   overspeedAlertToggleLabel: { en:'Warn me when I\'m 5+ km/h over the speed limit',           sr:'Upozori me kada pređem ograničenje za 5+ km/h' },
   bumpDetectionToggleLabel:  { en:'Detect potholes/bumps automatically while driving',           sr:'Automatski otkrivaj rupe/udarce na putu tokom vožnje' },
+  quickRoadDefaultToggleLabel: { en:'Default quick-report menu to road issues',                  sr:'Podrazumevano prikaži probleme na putu u brzoj prijavi' },
 
   leaderboardBtnTitle:     { en:'Rankings',                           sr:'Rang lista' },
 
@@ -6329,6 +6335,8 @@ function applyLang(){
   if (overspeedAlertToggleLabelEl) overspeedAlertToggleLabelEl.textContent = t('overspeedAlertToggleLabel');
   const bumpDetectionToggleLabelEl = document.getElementById('bumpDetectionToggleLabel');
   if (bumpDetectionToggleLabelEl) bumpDetectionToggleLabelEl.textContent = t('bumpDetectionToggleLabel');
+  const quickRoadDefaultToggleLabelEl = document.getElementById('quickRoadDefaultToggleLabel');
+  if (quickRoadDefaultToggleLabelEl) quickRoadDefaultToggleLabelEl.textContent = t('quickRoadDefaultToggleLabel');
   const nearbyCheckinTitleEl = document.getElementById('nearbyCheckinSectionTitle');
   if (nearbyCheckinTitleEl) nearbyCheckinTitleEl.textContent = t('nearbyCheckinSectionTitle');
   const nearbyCheckinHintEl = document.getElementById('nearbyCheckinSectionHint');
@@ -6539,6 +6547,7 @@ function showSettingsModal() {
   initDrivingSafetySettingsUi();
   initOverspeedAlertSettingsUi();
   initBumpDetectionSettingsUi();
+  initQuickRoadDefaultSettingsUi();
   initMapButtonToggleUi();
   updateNearbyCheckinSegmentUI();
   updateContactReminderSegmentUI();
@@ -9505,8 +9514,8 @@ function quickSubcategoryList(modeKey, cat) {
   return overrideKeys.map(key => full.find(s => s.key === key)).filter(Boolean);
 }
 
-let carQuickCategory = null;
-let bikeQuickCategory = null;
+let carQuickCategory = defaultQuickCategoryFor('car');
+let bikeQuickCategory = defaultQuickCategoryFor('bike');
 
 function quickGridConfig(modeKey) {
   return modeKey === 'car'
@@ -9558,7 +9567,8 @@ function renderQuickSubcategoryTiles(grid, cat, modeKey) {
     const iconHtml = iconFile ? `<div class="quick-tile-icon" style="-webkit-mask-image:url('icons/reports/${iconFile}');mask-image:url('icons/reports/${iconFile}');"></div>` : '';
     return `<div class="quick-tile" style="background:${categoryColor(cat)};" onclick="handleQuickSubcategoryTap('${modeKey}','${cat}','${s.key}')" title="${subLabel}" aria-label="${subLabel}">${iconHtml}<span class="quick-tile-label">${subLabel}</span></div>`;
   }).join('');
-  grid.innerHTML = backTile + subTiles;
+  // Back tile goes last, after the subcategory tiles.
+  grid.innerHTML = subTiles + backTile;
 }
 
 function handleQuickCategoryTap(modeKey, cat) {
@@ -9570,18 +9580,22 @@ function handleQuickCategoryTap(modeKey, cat) {
 
 function handleQuickSubcategoryTap(modeKey, cat, subKey) {
   handleTileTap(cat, subKey);
-  setQuickCategory(modeKey, null);
+  // Whatever category was just reported, rest back on the default (Road subcategories,
+  // when enabled) rather than always dropping back to the top-level category grid.
+  setQuickCategory(modeKey, defaultQuickCategoryFor(modeKey));
   renderQuickGrid(modeKey);
 }
 
 function quickGridGoBack(modeKey) {
+  // Explicit back navigation always goes to the top-level category grid, so the user can
+  // pick a different category — the default only re-applies after a report is submitted.
   setQuickCategory(modeKey, null);
   renderQuickGrid(modeKey);
 }
 
 function resetQuickGrids() {
-  carQuickCategory = null;
-  bikeQuickCategory = null;
+  carQuickCategory = defaultQuickCategoryFor('car');
+  bikeQuickCategory = defaultQuickCategoryFor('bike');
   renderQuickGrid('car');
   renderQuickGrid('bike');
 }
