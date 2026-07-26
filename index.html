@@ -12376,9 +12376,11 @@ function writeMunicipalityCacheToStorage(rows) {
   }, 1500);
 }
 let municipalityCacheLoadPromise = null;
+let municipalityCacheFullSettled = false;
 
 async function loadMunicipalityCache(forceRefresh) {
   if (municipalityCacheLoadPromise && !forceRefresh) return municipalityCacheLoadPromise;
+  municipalityCacheFullSettled = false;
   municipalityCacheLoadPromise = (async () => {
     if (!forceRefresh) {
       const cached = readMunicipalityCacheFromStorage();
@@ -12413,6 +12415,7 @@ async function loadMunicipalityCache(forceRefresh) {
       console.error('Failed to load municipality cache:', err.message);
     }
   })();
+  municipalityCacheLoadPromise.finally(() => { municipalityCacheFullSettled = true; });
   return municipalityCacheLoadPromise;
 }
 
@@ -12427,10 +12430,15 @@ let municipalityCacheLiteLoaded = false;
 // other helper (getMunicipalityById, municipalityDisplayName,
 // isMunicipalityInAdminDomain, ...) keeps working unchanged.
 async function loadMunicipalityCacheLite() {
-  // A full load (already done, or already in flight elsewhere) covers
-  // everything a lite load would and is de-duped by loadMunicipalityCache()
-  // itself once resolved — piggyback on that instead of racing it.
-  if (municipalityCacheLoadPromise) return loadMunicipalityCache(false);
+  // Only piggyback on a full load that has ALREADY finished — reusing that
+  // result is free. Don't wait on one that's still in flight: a full load
+  // fetches every column (including multi-megabyte boundary/bbox geometry)
+  // for 90k+ municipalities, sequentially, one page at a time, and can take
+  // a long time on a slow connection. This panel only needs
+  // id/name/name_en/country_code, so if the full load hasn't settled yet,
+  // run our own fast parallel-paged fetch instead of getting stuck waiting
+  // behind that unrelated heavy load.
+  if (municipalityCacheLoadPromise && municipalityCacheFullSettled) return loadMunicipalityCache(false);
   // Otherwise de-dupe the lite load the same way: once done, later callers
   // (e.g. re-opening the admin panel) get an instant no-op instead of
   // re-fetching all 90k+ rows again.
