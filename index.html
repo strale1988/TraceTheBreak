@@ -12369,10 +12369,30 @@ function writeMunicipalityCacheToStorage(rows) {
   if (_muniCacheWriteTimer) clearTimeout(_muniCacheWriteTimer);
   _muniCacheWriteTimer = setTimeout(() => {
     _muniCacheWriteTimer = null;
-    try {
-      localStorage.setItem(MUNICIPALITY_CACHE_STORAGE_KEY, JSON.stringify(rows));
-    } catch (e) {
-    }
+    const doWrite = () => {
+      try {
+        // boundary/bbox are full GeoJSON polygons — across 90k+ municipalities
+        // that's easily tens of MB. Stringifying that much blocks the main
+        // thread for a very long time (a real page freeze, not just a slow
+        // network wait) and typically exceeds the ~5-10MB localStorage quota
+        // anyway, failing silently in the catch below. This cache is only
+        // ever a warm-start optimization — loadMunicipalityCache() always
+        // re-fetches the full data (boundary included) from network right
+        // after reading it — so persisting the lightweight columns only
+        // loses nothing real and keeps this fast and safe.
+        const lite = rows.map(r => ({
+          id: r.id, slug: r.slug, osm_type: r.osm_type, osm_id: r.osm_id,
+          admin_level: r.admin_level, name: r.name, name_en: r.name_en,
+          country_code: r.country_code, centroid_lat: r.centroid_lat, centroid_lon: r.centroid_lon
+        }));
+        localStorage.setItem(MUNICIPALITY_CACHE_STORAGE_KEY, JSON.stringify(lite));
+      } catch (e) {
+      }
+    };
+    // Push even this smaller write off to an idle moment where possible, so
+    // it never lands mid-interaction (e.g. right as the admin panel opens).
+    if ('requestIdleCallback' in window) requestIdleCallback(doWrite, { timeout: 2000 });
+    else doWrite();
   }, 1500);
 }
 let municipalityCacheLoadPromise = null;
@@ -13508,6 +13528,7 @@ let ucCompaniesCache = [];
 let ucEditingId = null;
 let ucEditingVerified = false;
 let ucEditingVerifiedAt = null;
+let ucMuniSelectPopulateToken = 0;
 
 function municipalityDisplayName(m) {
   if (!m) return '';
@@ -14001,19 +14022,58 @@ function populateUcMunicipalitySelect() {
   const selectable = currentAdminLevel() >= 3
     ? municipalityCache
     : municipalityCache.filter(m => isMunicipalityInAdminDomain(m));
-  const sorted = [...selectable].sort((a, b) =>
-    municipalityDisplayName(a).localeCompare(municipalityDisplayName(b)));
+
+  // Precompute each display name once instead of recomputing it on every
+  // comparison inside sort() (previously up to ~2 calls per comparison
+  // across O(n log n) comparisons — for the full 90k+ municipality cache
+  // that's millions of calls). A single reusable Intl.Collator is also far
+  // faster than calling String.localeCompare() repeatedly, since
+  // localeCompare() rebuilds locale-aware collation state on every call.
+  const collator = new Intl.Collator(lang === 'sr' ? 'sr' : 'en');
+  const decorated = selectable.map(m => ({ m, name: municipalityDisplayName(m) }));
+  decorated.sort((a, b) => collator.compare(a.name, b.name));
+
   const placeholder = '<option value="" disabled>' + t('ucSelectMunicipality') + '</option>';
-  sel.innerHTML = placeholder + sorted.map(m =>
-    '<option value="' + m.id + '">' + escapeHtml(municipalityDisplayName(m)) + (m.country_code ? ' (' + escapeHtml(m.country_code) + ')' : '') + '</option>'
-  ).join('');
-  if (sorted.some(m => String(m.id) === prevValue)) {
-    sel.value = prevValue;
-  } else {
-    sel.selectedIndex = 0;
+  sel.innerHTML = placeholder;
+
+  // The real freeze was here: building tens of thousands of <option>
+  // elements and assigning them via one synchronous innerHTML forces the
+  // browser to parse/construct the whole list (and lay out the <select>) in
+  // a single tick — a genuine tab freeze, not a network wait. Append them in
+  // small chunks across animation frames instead, same principle as the
+  // marker-rendering chunking used elsewhere (MARKER_SYNC_CHUNK_SIZE). Using
+  // createElement/textContent here also means no HTML-escaping is needed —
+  // the browser never parses these values as markup.
+  const UC_SELECT_CHUNK_SIZE = 500;
+  const token = ++ucMuniSelectPopulateToken;
+  let i = 0;
+  function appendNextChunk() {
+    if (token !== ucMuniSelectPopulateToken) return; // a newer call superseded this one
+    const slice = decorated.slice(i, i + UC_SELECT_CHUNK_SIZE);
+    if (slice.length) {
+      const frag = document.createDocumentFragment();
+      slice.forEach(({ m, name }) => {
+        const opt = document.createElement('option');
+        opt.value = m.id;
+        opt.textContent = name + (m.country_code ? ' (' + m.country_code + ')' : '');
+        frag.appendChild(opt);
+      });
+      sel.appendChild(frag);
+    }
+    i += UC_SELECT_CHUNK_SIZE;
+    if (i < decorated.length) {
+      requestAnimationFrame(appendNextChunk);
+      return;
+    }
+    if (decorated.some(({ m }) => String(m.id) === prevValue)) {
+      sel.value = prevValue;
+    } else {
+      sel.selectedIndex = 0;
+    }
+    const hint = document.getElementById('ucNoMunicipalitiesHint');
+    if (hint) hint.style.display = decorated.length ? 'none' : 'block';
   }
-  const hint = document.getElementById('ucNoMunicipalitiesHint');
-  if (hint) hint.style.display = sorted.length ? 'none' : 'block';
+  requestAnimationFrame(appendNextChunk);
 }
 
 function populateUcCatChecks() {
