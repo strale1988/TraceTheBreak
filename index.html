@@ -277,6 +277,7 @@ header p{ font-size:var(--fs-11); opacity:.7; margin-top:2px; }
 .navigate-search-btn, .navigate-close-btn,
 .section-awaiting-cancel,
 .icon-only-btn,
+.travel-mode-switch-btn, .walk-quick-fab,
 .poi-contact-icon-btn{
   display:flex;
   align-items:center;
@@ -293,6 +294,7 @@ header p{ font-size:var(--fs-11); opacity:.7; margin-top:2px; }
 .driving-back-btn, .driving-search-btn,
 .driving-nav-close-btn,
 .section-awaiting-cancel,
+.travel-mode-switch-btn, .walk-quick-fab,
 .poi-contact-icon-btn{
   border-radius:50%;
 }
@@ -1273,6 +1275,7 @@ body.driving-active .driving-speed-widget{ display:flex; }
 body.bike-mode-active .driving-speed-limit{ display:none; }
 body.bike-mode-active .driving-speed-capsule{ min-height:0; padding:10px 6px; gap:2px; }
 body.bike-mode-active .driving-speed-value{ margin-top:0; }
+body.walk-mode-active .driving-speed-widget{ display:none !important; }
 
 @keyframes overspeedFlash {
   0%   { background: var(--speed-capsule-bg); }
@@ -1441,10 +1444,45 @@ body.driving-active .driving-report-sheet{ display:flex; }
   gap:var(--space-10);
   width:100%;
 }
-body.driving-active:not(.bike-mode-active) .car-quick-grid{ display:grid; }
+body.driving-active:not(.bike-mode-active):not(.walk-mode-active) .car-quick-grid{ display:grid; }
 body.bike-mode-active .bike-quick-grid{ display:grid; }
 .car-quick-grid.submitting,
 .bike-quick-grid.submitting{ opacity:.5; pointer-events:none; }
+
+.walk-quick-grid{
+  display:none;
+  align-items:center;
+  justify-content:center;
+  width:100%;
+  padding:4px 0 2px;
+}
+body.walk-mode-active .walk-quick-grid{ display:flex; }
+.walk-quick-fab{
+  width:60px; height:60px;
+  border-radius:50%;
+  background:#ff4b4b;
+  color:#fff;
+  border:none;
+  box-shadow:0 4px 14px rgba(0,0,0,.3);
+  transition:transform .12s ease, box-shadow .12s ease;
+  display:flex; align-items:center; justify-content:center;
+}
+.walk-quick-fab:active{ transform:scale(.9); box-shadow:0 2px 8px rgba(0,0,0,.3); }
+.walk-quick-fab img{ width:30px; height:30px; filter:brightness(0) invert(1); }
+.walk-quick-fab:disabled{ opacity:.4; cursor:not-allowed; pointer-events:none; }
+
+.travel-mode-switch-btn{
+  background:var(--bg-surface-alt);
+  border:1px solid var(--accent);
+  color:var(--accent);
+  width:40px; height:40px;
+  font-size:var(--fs-16);
+  box-shadow:0 3px 10px var(--floating-shadow);
+  transition:background .15s;
+}
+.travel-mode-switch-btn:active{ background:var(--border-color-strong); }
+.travel-mode-switch-btn .icon-img{ filter:var(--icon-tint-filter); width:20px; height:20px; }
+.travel-mode-switch-btn .walk-icon-svg{ width:20px; height:20px; }
 .quick-tile{
   border:none;
   border-radius:14px;
@@ -1569,8 +1607,7 @@ body.driving-active #reportFormPanel,
 body.driving-active #lockedFormPanel,
 body.driving-active #followLocationBtn,
 body.driving-active #pinMapBtn,
-body.driving-active #drivingModeBtn,
-body.driving-active #bikeModeBtn,
+body.driving-active #navigateModeBtn,
 body.driving-active #heatmapBtn,
 body.driving-active #mainMapCompass{
   display:none !important;
@@ -2981,8 +3018,7 @@ span.flatpickr-weekday {
 <div id="bottomRightStack" class="bottomright-stack">
   <div id="followLocationBtn" class="pin-map-btn" style="display:none" title="Follow my location" onclick="toggleFollowMode()" role="button" tabindex="0" aria-label="Follow my location" aria-pressed="false" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleFollowMode();}"><img class="icon-img" src="icons/target.png" alt=""></div>
   <div id="pinMapBtn" class="pin-map-btn" style="display:none" title="Set location manually" onclick="togglePinMode()"><img class="icon-img" src="icons/pin.png" alt="Pin"></div>
-  <div id="drivingModeBtn" class="pin-map-btn" style="display:none" title="Driving mode" onclick="toggleDrivingMode('car')"><img class="icon-img" src="icons/car.png" alt="Driving mode"></div>
-  <div id="bikeModeBtn" class="pin-map-btn" style="display:none" title="Bike mode" onclick="toggleDrivingMode('bike')"><img class="icon-img" src="icons/bicycle.png" alt="Bike mode"></div>
+  <div id="navigateModeBtn" class="pin-map-btn" style="display:none" title="Navigate" onclick="toggleNavigatePanel()"><img class="icon-img" src="icons/search.png" alt="Navigate"></div>
   <div id="heatmapBtn" class="pin-map-btn heatmap-btn" style="display:none" title="Heatmap" onclick="toggleHeatmap()">
     <img class="icon-img" src="icons/heatmap.png" alt="Heatmap">
   </div>
@@ -3035,6 +3071,7 @@ span.flatpickr-weekday {
   </button>
   <div class="driving-action-row-right">
     <button class="driving-search-btn" id="drivingSearchBtn" onclick="toggleNavigatePanel()" title="Search destination"><img class="icon-img" src="icons/search.png" alt="Search"></button>
+    <button class="travel-mode-switch-btn" id="travelModeSwitchBtn" onclick="cycleTravelMode()" title="Switch travel mode" aria-label="Switch travel mode"></button>
     <div id="mapCompass" class="map-compass" title="Heading: tap to toggle map rotation" onclick="toggleHeadingUpMode()" role="button" tabindex="0" aria-label="Heading-up navigation" aria-pressed="true" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleHeadingUpMode();}">
       <div class="compass-face">
         <div class="compass-needle" id="compassNeedle">
@@ -3071,6 +3108,11 @@ span.flatpickr-weekday {
   </div>
   <div class="car-quick-grid" id="carQuickGrid"></div>
   <div class="bike-quick-grid" id="bikeQuickGrid"></div>
+  <div class="walk-quick-grid" id="walkQuickGrid">
+    <button type="button" class="walk-quick-fab" id="walkQuickFabBtn" title="Report a break" aria-label="Report a break" onclick="reportFabTap()">
+      <img src="icons/reports/report_new.png" alt="">
+    </button>
+  </div>
 </div>
 
 <div id="toastContainer"></div>
@@ -3945,7 +3987,7 @@ function updateAuthUI() {
   const reportFabBtn = document.getElementById('reportFabBtn');
 
   const hasAccount = !!currentSession;
-  [document.getElementById('leaderboardBtn'), document.getElementById('drivingModeBtn'), document.getElementById('bikeModeBtn'), document.getElementById('heatmapBtn'), document.getElementById('notificationBtn')]
+  [document.getElementById('leaderboardBtn'), document.getElementById('navigateModeBtn'), document.getElementById('heatmapBtn'), document.getElementById('notificationBtn')]
     .forEach(btn => { if (btn) btn.classList.toggle('map-btn-locked', !hasAccount); });
 
   if (currentSession && currentProfile && currentProfile.username) {
@@ -4001,7 +4043,7 @@ function getOnboardingSteps() {
   return [
     { id: 'reportFabBtn',   titleKey: 'onboardingStepReportTitle',      textKey: 'onboardingStepReportText' },
     { id: 'pinMapBtn',      titleKey: 'onboardingStepPinTitle',         textKey: 'onboardingStepPinText' },
-    { id: 'drivingModeBtn', titleKey: 'onboardingStepDrivingTitle',     textKey: 'onboardingStepDrivingText' },
+    { id: 'navigateModeBtn', titleKey: 'onboardingStepDrivingTitle',     textKey: 'onboardingStepDrivingText' },
     { id: 'leaderboardBtn', titleKey: 'onboardingStepLeaderboardTitle', textKey: 'onboardingStepLeaderboardText' }
   ];
 }
@@ -5613,6 +5655,8 @@ const T = {
   followTitle:       { en:'Follow my location',          sr:'Prati moju lokaciju' },
   drivingBtnTitle:   { en:'Driving mode',                sr:'Režim vožnje' },
   bikeBtnTitle:      { en:'Bike mode',                   sr:'Režim bicikla' },
+  walkBtnTitle:      { en:'Walking mode',                sr:'Režim hodanja' },
+  navigateBtnTitle:  { en:'Navigate',                    sr:'Navigacija' },
   reportCount1: { en:'Report',                           sr:'Prijava' },
   reportBtn:    { en:'REPORT BREAK',                     sr:'PRIJAVI KVAR' },
   csvLabel:     { en:'CSV',                              sr:'CSV' },
@@ -6447,8 +6491,8 @@ function applyLang(){
   updateDrivingGpsStatus();
   updateSectionButtonUI();
   document.getElementById('drivingCenterBtn').title = t('followTitle');
-  document.getElementById('drivingModeBtn').title = t('drivingBtnTitle');
-  document.getElementById('bikeModeBtn').title = t('bikeBtnTitle');
+  document.getElementById('navigateModeBtn').title = t('navigateBtnTitle');
+  updateTravelModeSwitchBtn();
 
   document.getElementById('navigateSearchInput').placeholder = t('navigateSearchPH');
   document.getElementById('navigateClearBtn').title = t('navigateCloseTitle');
@@ -6810,14 +6854,14 @@ function buildHelpModalContent() {
 
       <div style="display:flex; flex-direction:column; gap:8px;">
         ${(() => {
-          const drivingBtn = document.getElementById('drivingModeBtn');
-          const drivingModeVisible = !!drivingBtn && drivingBtn.style.display !== 'none';
-          return acc('icons/car.png',
-            'Driving mode',
-            'Režim vožnje',
-            'Driving mode adds two rows of big tap-to-report buttons along the bottom of the screen. It does not report anything on its own, you still tap a button each time. Tap one to instantly log a problem at your current location. One of the tiles is a record button instead of a category: tap it, drive over a bad stretch of road, then tap it again to stop recording, and tapping any category tile afterward saves that stretch with the type you picked. Because it is built for a single quick tap rather than filling in a form, it is faster to use while moving than the regular report screen, but you should still only tap it at a stop or let a passenger handle it.',
-            'Režim vožnje dodaje dva reda velikih dugmadi za prijavu na dnu ekrana. On ne prijavljuje ništa sam od sebe, i dalje morate dodirnuti dugme svaki put. Dodirnite jedno da odmah prijavite problem na trenutnoj lokaciji. Jedna od pločica je dugme za snimanje umesto kategorije: dodirnite je, provozite se preko lošeg dela puta, pa je ponovo dodirnite da zaustavite snimanje, a zatim dodirom bilo koje kategorije sačuvajte tu deonicu sa izabranim tipom. Pošto je napravljen za jedan brz dodir umesto popunjavanja obrasca, brži je za korišćenje u vožnji od običnog ekrana za prijavu, ali ga je najbolje koristiti samo dok stojite ili prepustiti saputniku.',
-            drivingModeVisible
+          const navBtn = document.getElementById('navigateModeBtn');
+          const navModeVisible = !!navBtn && navBtn.style.display !== 'none';
+          return acc('icons/search.png',
+            'Navigation mode',
+            'Režim navigacije',
+            'Tap the search button on the main screen to look up a destination. Once you pick a result, navigation starts in driving mode by default, adding two rows of big tap-to-report buttons along the bottom of the screen (it does not report anything on its own, you still tap a button each time). One of the tiles is a record button instead of a category: tap it, drive over a bad stretch of road, then tap it again to stop recording, and tapping any category tile afterward saves that stretch with the type you picked. A small mode switch button next to the compass lets you swap between driving, biking, and walking at any time during navigation; walking mode drops the tap-to-report grid in favor of the regular report button, since there is no need to snap your position to a road while on foot. Because the quick-tap grids are built for a single tap rather than filling in a form, they are faster to use while moving than the regular report screen, but you should still only tap them at a stop or let a passenger handle it.',
+            'Dodirnite dugme za pretragu na glavnom ekranu da pronađete odredište. Kada izaberete rezultat, navigacija počinje u režimu vožnje, koji dodaje dva reda velikih dugmadi za prijavu na dnu ekrana (ništa se ne prijavljuje samo od sebe, i dalje morate dodirnuti dugme svaki put). Jedna od pločica je dugme za snimanje umesto kategorije: dodirnite je, provozite se preko lošeg dela puta, pa je ponovo dodirnite da zaustavite snimanje, a zatim dodirom bilo koje kategorije sačuvajte tu deonicu sa izabranim tipom. Malo dugme pored kompasa omogućava promenu između vožnje, bicikla i hodanja u bilo kom trenutku tokom navigacije; režim hodanja uklanja mrežu za brzu prijavu i vraća običan dugme za prijavu, jer nema potrebe da se vaša pozicija lepi za put dok hodate. Pošto su mreže za brzu prijavu napravljene za jedan brz dodir umesto popunjavanja obrasca, brže su za korišćenje u pokretu od običnog ekrana za prijavu, ali ih je najbolje koristiti samo dok stojite ili prepustiti saputniku.',
+            navModeVisible
           );
         })()}
         ${acc('icons/close.png',
@@ -7428,6 +7472,7 @@ let drivingMode        = false;
 
 let travelMode         = 'car';
 function isBikeMode() { return drivingMode && travelMode === 'bike'; }
+function isCarMode()  { return drivingMode && travelMode === 'car'; }
 let sectionRecording   = false;
 let sectionAwaitingCategory = false;
 let sectionPoints      = [];
@@ -8066,9 +8111,9 @@ function updateNavStatusText() {
   el.style.display = text ? 'block' : 'none';
 }
 
-function navArrivalRadiusM()          { return travelMode === 'bike' ? 20    : 25; }
-function navOffRouteThresholdM()      { return travelMode === 'bike' ? 25    : 40; }
-function navOnRouteRecoverThresholdM(){ return travelMode === 'bike' ? 15    : 25; }
+function navArrivalRadiusM()          { return travelMode === 'bike' ? 20    : travelMode === 'foot' ? 15 : 25; }
+function navOffRouteThresholdM()      { return travelMode === 'bike' ? 25    : travelMode === 'foot' ? 20 : 40; }
+function navOnRouteRecoverThresholdM(){ return travelMode === 'bike' ? 15    : travelMode === 'foot' ? 12 : 25; }
 let destinationCoords  = null;
 let destinationMarker  = null;
 let navigationLine     = null;
@@ -8086,16 +8131,18 @@ let navRouteFetching   = false;
 let navLastRouteAt     = 0;
 let navLastRouteFrom   = null;
 
-function navRerouteIntervalMs() { return travelMode === 'bike' ? 20000 : 15000; }
-function navRerouteDriftM()     { return travelMode === 'bike' ? 25    : 40; }
+function navRerouteIntervalMs() { return travelMode === 'bike' ? 20000 : travelMode === 'foot' ? 12000 : 15000; }
+function navRerouteDriftM()     { return travelMode === 'bike' ? 25    : travelMode === 'foot' ? 15 : 40; }
 
 const OSRM_ROUTE_ENDPOINTS = {
   car:  'https://routing.openstreetmap.de/routed-car/route/v1/driving/',
-  bike: 'https://routing.openstreetmap.de/routed-bike/route/v1/bike/'
+  bike: 'https://routing.openstreetmap.de/routed-bike/route/v1/bike/',
+  foot: 'https://routing.openstreetmap.de/routed-foot/route/v1/foot/'
 };
 const OSRM_NEAREST_ENDPOINTS = {
   car:  'https://routing.openstreetmap.de/routed-car/nearest/v1/driving/',
-  bike: 'https://routing.openstreetmap.de/routed-bike/nearest/v1/bike/'
+  bike: 'https://routing.openstreetmap.de/routed-bike/nearest/v1/bike/',
+  foot: 'https://routing.openstreetmap.de/routed-foot/nearest/v1/foot/'
 };
 function currentRouteEndpoint()  { return OSRM_ROUTE_ENDPOINTS[travelMode] || OSRM_ROUTE_ENDPOINTS.car; }
 function currentSnapEndpoint()   { return OSRM_NEAREST_ENDPOINTS[travelMode] || OSRM_NEAREST_ENDPOINTS.car; }
@@ -8178,6 +8225,8 @@ function toggleNavigatePanel() {
   document.body.classList.toggle('nav-panel-open', navPanelOpen);
   const sBtn = document.getElementById('drivingSearchBtn');
   if (sBtn) sBtn.classList.toggle('active', navPanelOpen);
+  const mainNavBtn = document.getElementById('navigateModeBtn');
+  if (mainNavBtn) mainNavBtn.classList.toggle('active', navPanelOpen);
   if (navPanelOpen) {
     setTimeout(() => document.getElementById('navigateSearchInput').focus(), 50);
     if (navState === NavState.IDLE) setNavState(NavState.SEARCHING);
@@ -8206,6 +8255,8 @@ function closeNavigatePanel() {
   document.body.classList.remove('nav-panel-open');
   const sBtn = document.getElementById('drivingSearchBtn');
   if (sBtn) sBtn.classList.remove('active');
+  const mainNavBtn = document.getElementById('navigateModeBtn');
+  if (mainNavBtn) mainNavBtn.classList.remove('active');
   navPinMode = false;
   const pinBtn = document.getElementById('navigatePinBtn');
   const pinHint = document.getElementById('navigatePinHint');
@@ -8277,10 +8328,11 @@ async function selectDestination(lat, lon, label) {
     toast(t('invalidLocation'), 'error');
     return;
   }
+  if (!drivingMode) toggleDrivingMode('car');
   if (navState === NavState.IDLE) setNavState(NavState.SEARCHING);
   setNavState(NavState.CALCULATING);
 
-  const snapped = await snapToNearestRoad(lat, lon, DEST_SNAP_MAX_ACCEPT_M);
+  const snapped = travelMode === 'foot' ? null : await snapToNearestRoad(lat, lon, DEST_SNAP_MAX_ACCEPT_M);
   const destLat = snapped ? snapped.lat : lat;
   const destLon = snapped ? snapped.lon : lon;
 
@@ -8470,10 +8522,8 @@ let showHeatmapBtnPref = getBoolPref(HEATMAP_BTN_PREF_KEY, false);
 function setNavBtnVisible(enabled) {
   showNavBtnPref = !!enabled;
   setBoolPref(NAV_BTN_PREF_KEY, showNavBtnPref);
-  const btn = document.getElementById('drivingModeBtn');
+  const btn = document.getElementById('navigateModeBtn');
   if (btn) btn.style.display = showNavBtnPref ? 'flex' : 'none';
-  const bikeBtn = document.getElementById('bikeModeBtn');
-  if (bikeBtn) bikeBtn.style.display = showNavBtnPref ? 'flex' : 'none';
   if (!showNavBtnPref && typeof drivingMode !== 'undefined' && drivingMode) toggleDrivingMode();
 }
 function setHeatmapBtnVisible(enabled) {
@@ -8611,7 +8661,7 @@ let overspeedArmed        = true;
 let lastOverspeedAlertAt  = 0;
 
 function checkOverspeed() {
-  if (!drivingMode || !overspeedAlertEnabled || isBikeMode()) return;
+  if (!isCarMode() || !overspeedAlertEnabled) return;
   if (currentSpeedLimitKmh === null || smoothedSpeedKmh === null) return;
 
   const over = smoothedSpeedKmh - currentSpeedLimitKmh;
@@ -9092,20 +9142,18 @@ function onMapTouchEnd(e) {
   el.addEventListener('touchcancel', onMapTouchEnd, { passive: true });
 })();
 
+const TRAVEL_MODE_CYCLE = ['car', 'bike', 'foot'];
 function toggleDrivingMode(mode) {
-  const requestedMode = mode === 'bike' ? 'bike' : 'car';
+  const requestedMode = TRAVEL_MODE_CYCLE.includes(mode) ? mode : 'car';
   drivingMode = !drivingMode;
-  const btn = document.getElementById('drivingModeBtn');
-  const bikeBtn = document.getElementById('bikeModeBtn');
   const compassBtn = document.getElementById('mapCompass');
 
   document.body.classList.toggle('driving-active', drivingMode);
 
   if (drivingMode) travelMode = requestedMode;
   document.body.classList.toggle('bike-mode-active', drivingMode && travelMode === 'bike');
-
-  if (btn) btn.classList.toggle('active', drivingMode && travelMode === 'car');
-  if (bikeBtn) bikeBtn.classList.toggle('active', drivingMode && travelMode === 'bike');
+  document.body.classList.toggle('walk-mode-active', drivingMode && travelMode === 'foot');
+  updateTravelModeSwitchBtn();
 
   if (map.invalidateSize) map.invalidateSize({ animate: false, pan: false });
   updateRotationOrigin();
@@ -9122,12 +9170,12 @@ function toggleDrivingMode(mode) {
     if (userCoords) followMapTo(userCoords.lat, userCoords.lon);
     if (compassBtn) compassBtn.style.display = 'flex';
     requestOrientationPermission();
-    requestMotionPermission();
+    if (travelMode !== 'foot') requestMotionPermission();
     if (userCoords) maybeReloadBumpsNear(userCoords.lat, userCoords.lon);
     if (headingUpMode && currentHeading !== null) applyMapBearing(-currentHeading);
     if (destinationCoords && userCoords) updateTurnByTurnDisplay(userCoords);
     openOverlay('drivingMode', () => { if (drivingMode) toggleDrivingMode(); });
-    if (drivingSafetyReminderEnabled) showDrivingSafetyModal();
+    if (drivingSafetyReminderEnabled && travelMode !== 'foot') showDrivingSafetyModal();
     startMarkerAnimLoop();
   } else {
     closeOverlay('drivingMode');
@@ -9157,6 +9205,47 @@ function toggleDrivingMode(mode) {
   }
 
   setTimeout(() => { if (typeof map !== 'undefined' && map.invalidateSize) { map.invalidateSize(); updateRotationOrigin(); } }, 60);
+}
+
+const WALK_ICON_SVG = '<svg class="walk-icon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><circle cx="13.5" cy="4" r="2"/><path d="M10.9 8.02c-.7.13-1.3.6-1.6 1.25l-1.7 3.7c-.28.6-.02 1.32.58 1.6.6.27 1.31 0 1.59-.6l1.2-2.6.9 1.2-2.1 2.6c-.24.3-.35.68-.3 1.06l.6 4.5c.09.65.7 1.1 1.35 1.02.65-.09 1.1-.7 1.02-1.35l-.5-3.9 2-2.5 1 3.7c.1.4.4.72.8.85l3 1c.6.2 1.26-.12 1.46-.72.2-.6-.12-1.26-.72-1.46l-2.55-.85-1.35-5.05c-.28-1.05-1.15-1.83-2.22-2l-3.36-.51z"/></svg>';
+const TRAVEL_MODE_ICON = {
+  car:  { type: 'img', src: 'icons/car.png' },
+  bike: { type: 'img', src: 'icons/bicycle.png' },
+  foot: { type: 'svg', markup: WALK_ICON_SVG }
+};
+function travelModeIconHtml(mode) {
+  const cfg = TRAVEL_MODE_ICON[mode] || TRAVEL_MODE_ICON.car;
+  return cfg.type === 'svg' ? cfg.markup : `<img class="icon-img" src="${cfg.src}" alt="">`;
+}
+function updateTravelModeSwitchBtn() {
+  const btn = document.getElementById('travelModeSwitchBtn');
+  if (!btn) return;
+  btn.innerHTML = travelModeIconHtml(travelMode);
+  const titles = { car: t('drivingBtnTitle'), bike: t('bikeBtnTitle'), foot: t('walkBtnTitle') };
+  btn.title = titles[travelMode] || '';
+}
+function cycleTravelMode() {
+  if (!drivingMode) return;
+  const idx = TRAVEL_MODE_CYCLE.indexOf(travelMode);
+  const next = TRAVEL_MODE_CYCLE[(idx + 1) % TRAVEL_MODE_CYCLE.length];
+  switchTravelMode(next);
+}
+function switchTravelMode(nextMode) {
+  if (!TRAVEL_MODE_CYCLE.includes(nextMode) || nextMode === travelMode || !drivingMode) return;
+  travelMode = nextMode;
+  document.body.classList.toggle('bike-mode-active', travelMode === 'bike');
+  document.body.classList.toggle('walk-mode-active', travelMode === 'foot');
+  updateTravelModeSwitchBtn();
+  resetQuickGrids();
+  snappedUserCoords = null;
+  navLastRouteAt = 0;
+  navLastRouteFrom = null;
+  currentSpeedLimitKmh = null;
+  overspeedArmed = true;
+  clearSpeedSignMarkers();
+  if (travelMode !== 'foot') requestMotionPermission();
+  if (userCoords) maybeReloadBumpsNear(userCoords.lat, userCoords.lon);
+  if (destinationCoords) drawNavigationLine(true);
 }
 
 let motionPermissionAsked = false;
@@ -9205,7 +9294,7 @@ function attachMotionListener() {
 }
 
 function handleDeviceMotion(event) {
-  if (!drivingMode || !bumpDetectionEnabled) return;
+  if (!drivingMode || !bumpDetectionEnabled || travelMode === 'foot') return;
 
   let ax, ay, az;
   const lin = event.acceleration;
@@ -10049,7 +10138,7 @@ function speedSignQueryArea(originLat, originLon) {
 }
 
 function maybeFetchSpeedLimit(lat, lon) {
-  if (speedLimitFetching || isBikeMode()) return;
+  if (speedLimitFetching || !isCarMode()) return;
 
   if (!isActivelyNavigatingRoute()) {
     // Nothing to check speed limits against without a real route — don't keep polling
@@ -10280,7 +10369,12 @@ function startWatching() {
 
         setFollowMode(true);
       } else if (drivingMode || isNavigationActive()) {
-        snapUserToRoadThenShow(userCoords.lat, userCoords.lon);
+        if (travelMode === 'foot') {
+          userMarker.setLatLng([userCoords.lat, userCoords.lon]);
+          if (followMode) followMapTo(userCoords.lat, userCoords.lon);
+        } else {
+          snapUserToRoadThenShow(userCoords.lat, userCoords.lon);
+        }
         if (!drivingMode && !currentContactsMunicipality && Date.now() - lastMuniRetryAt > MUNI_RETRY_INTERVAL_MS) {
           lastMuniRetryAt = Date.now();
           showMunicipalityBoundaryForPoint(userCoords.lat, userCoords.lon, userMarker, 'gps');
@@ -10440,8 +10534,7 @@ document.addEventListener('visibilitychange', () => {
 
 document.getElementById('followLocationBtn').style.display = 'flex';
 document.getElementById('pinMapBtn').style.display = 'flex';
-document.getElementById('drivingModeBtn').style.display = showNavBtnPref ? 'flex' : 'none';
-document.getElementById('bikeModeBtn').style.display = showNavBtnPref ? 'flex' : 'none';
+document.getElementById('navigateModeBtn').style.display = showNavBtnPref ? 'flex' : 'none';
 document.getElementById('heatmapBtn').style.display = showHeatmapBtnPref ? 'flex' : 'none';
 document.getElementById('mainMapCompass').style.display = 'flex';
 
@@ -10465,8 +10558,11 @@ function isReportReady() {
   return !!userCoords && distMeters(userCoords, manualCoords) <= REPORT_PROXIMITY_MAX_M;
 }
 function updateReportFabState() {
+  const notReady = !isReportReady();
   const btn = document.getElementById('reportFabBtn');
-  if (btn) btn.disabled = !isReportReady();
+  if (btn) btn.disabled = notReady;
+  const walkBtn = document.getElementById('walkQuickFabBtn');
+  if (walkBtn) walkBtn.disabled = notReady;
 }
 
 function updateProximityUi() {
