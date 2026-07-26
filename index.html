@@ -1428,7 +1428,21 @@ body.driving-active .driving-float-action-row{ display:flex; }
      looks. */
   pointer-events:none;
 }
-.driving-report-sheet > *{ pointer-events:auto; }
+/* Re-enabling pointer-events on the *direct children* (the grid/card
+   containers) instead of only on the real interactive leaves was still a
+   bug: .car-quick-grid/.bike-quick-grid/.driving-nav-card are full-size grid
+   containers, so the empty gaps between tiles (and the whole nav-card area,
+   which has no buttons at all) were themselves capturing every touch. A tap
+   or pinch landing in one of those gaps hit a plain <div> with default
+   touch-action, so it did nothing (no tile under the finger) and the browser
+   fell back to native page pinch-zoom instead of reaching the map/Leaflet
+   underneath — this is what showed up as "the bottom half of the screen not
+   reacting" and "zooming the whole page instead of the map". Only the actual
+   tappable leaves get pointer-events back; every gap is click-through to the
+   map below. */
+.driving-report-sheet .quick-tile,
+.driving-report-sheet .walk-quick-fab,
+.driving-report-sheet .section-awaiting-cancel{ pointer-events:auto; }
 body.driving-active .driving-report-sheet{ display:flex; }
 
 .section-awaiting-bar{
@@ -7035,11 +7049,52 @@ requestAnimationFrame(() => map.invalidateSize());
 window.addEventListener('load', () => map.invalidateSize());
 
 const mapContainerEl = map.getContainer();
+// Leaflet can't run its own smooth zoom animation while the map is rotated
+// (its zoom-anim math assumes bearing 0), so updateZoomAnimationForRotation()
+// forces map._zoomAnimated = false whenever rotated. Without any animation,
+// every zoom (double-tap, scroll wheel, a committed pinch step, or any
+// programmatic setView/flyTo) falls back to Leaflet's instant _resetView:
+// the whole map snaps to the new position/scale in one frame. That instant
+// cut is what read as "choppy"/"going away and back" — the previous frame's
+// content disappears and the new one pops in with no motion between them.
+// zoomRotatedFromZoom below bridges that with our own CSS transform
+// animation on rotWrapper, the same wrapper element the rotation itself is
+// applied to.
+let zoomRotatedFromZoom = null;
 map.on('zoomstart', () => {
   mapContainerEl.classList.add('map-zooming');
-  if (Math.abs(((mapBearing % 360) + 360) % 360) > ROTATION_EPSILON_DEG) {
+  if (rotationActive()) {
     mapContainerEl.classList.add('map-zooming-rotated');
+    // zoomstart fires before Leaflet applies the new zoom, so this is still
+    // the pre-zoom value.
+    zoomRotatedFromZoom = map.getZoom();
+  } else {
+    zoomRotatedFromZoom = null;
   }
+});
+map.on('zoom', () => {
+  if (zoomRotatedFromZoom == null || !rotWrapper) return;
+  // A manual two-finger gesture already drives its own smooth, per-frame
+  // preview scale — don't fight it with a second animation here.
+  if (twoFingerGesture && twoFingerGesture.mode === 'manual') { zoomRotatedFromZoom = null; return; }
+  const startZoom = zoomRotatedFromZoom;
+  const newZoom = map.getZoom();
+  zoomRotatedFromZoom = null;
+  if (startZoom === newZoom) return;
+  // By the 'zoom' event, Leaflet has already committed the new zoom and
+  // repositioned everything — but synchronously, in the same tick, before
+  // the browser paints. So we can instantly (no transition) scale rotWrapper
+  // up/down so the very first paint still *looks* like the old zoom level,
+  // then on the next frame transition that scale back to 1 — a manual
+  // stand-in for the zoom animation Leaflet can't do itself while rotated.
+  const scaleRatio = Math.pow(2, startZoom - newZoom);
+  rotWrapper.style.transition = 'none';
+  rotWrapper.style.transform = `rotate(${mapBearing}deg) scale(${scaleRatio})`;
+  void rotWrapper.offsetHeight; // force the "old look" frame to commit
+  requestAnimationFrame(() => {
+    rotWrapper.style.transition = 'transform .25s ease';
+    rotWrapper.style.transform = `rotate(${mapBearing}deg) scale(1)`;
+  });
 });
 map.on('zoomend',   () => {
   mapContainerEl.classList.remove('map-zooming');
@@ -9133,6 +9188,14 @@ function distanceBetweenTouches(t0, t1) {
 function midpointOfTouches(t0, t1) {
   return { x: (t0.clientX + t1.clientX) / 2, y: (t0.clientY + t1.clientY) / 2 };
 }
+function angleBetweenTouches(t0, t1) {
+  return Math.atan2(t1.clientY - t0.clientY, t1.clientX - t0.clientX) * 180 / Math.PI;
+}
+// Below how much cumulative two-finger twist (degrees) we treat the gesture
+// as an intentional rotate rather than incidental finger wobble during a
+// plain pinch-zoom or pan — avoids the map drifting off-bearing from a
+// slightly uneven pinch.
+const MANUAL_ROTATE_START_THRESHOLD_DEG = 6;
 function findTouchById(touchList, id) {
   for (let i = 0; i < touchList.length; i++) {
     if (touchList[i].identifier === id) return touchList[i];
@@ -9195,7 +9258,7 @@ function reenableAutoHeadingIfManuallyRotated() {
   }
 }
 
-function switchToManualTwoFingerGesture(mid, distance) {
+function switchToManualTwoFingerGesture(mid, distance, angle, startRotating) {
   const g = twoFingerGesture;
   // Native Leaflet touch handling works in screen-space and has no idea the
   // map is visually rotated via CSS on rotWrapper, so it pans/zooms in the
@@ -9205,6 +9268,17 @@ function switchToManualTwoFingerGesture(mid, distance) {
   g.mode = 'manual';
   g.lastMid = mid;
   g.zoomStepDistance = distance;
+  if (typeof angle === 'number' && g.rotateStartAngle == null) {
+    g.rotateStartAngle = angle;
+    g.rotateStartBearing = mapBearing;
+    // When we're handing off specifically because a twist past the
+    // dead-zone was already detected in native mode, start rotating right
+    // away instead of re-arming the same dead-zone against this fresh
+    // baseline — otherwise the user would have to twist twice as far before
+    // anything visibly happened.
+    g.rotating = !!startRotating;
+    if (g.rotating) disableAutoHeadingForManualRotation();
+  }
   if (map.dragging && map.dragging.enabled()) map.dragging.disable();
   if (map.touchZoom && map.touchZoom.enabled()) map.touchZoom.disable();
   map.getContainer().style.touchAction = 'none';
@@ -9224,27 +9298,40 @@ function beginTwoFingerGesture(t0, t1) {
     mode: 'native',
     lastDistance: distanceBetweenTouches(t0, t1),
     lastMid: midpointOfTouches(t0, t1),
+    startAngle: angleBetweenTouches(t0, t1),
     pendingMid: null,
-    pendingDistance: null
+    pendingDistance: null,
+    pendingAngle: null
   };
   if (rotationActive()) {
     // Map is already rotated: native handling would pan/zoom in the wrong
     // direction from the very first pixel, so take manual control right
     // away instead of starting native and switching over later.
-    switchToManualTwoFingerGesture(twoFingerGesture.lastMid, twoFingerGesture.lastDistance);
+    switchToManualTwoFingerGesture(twoFingerGesture.lastMid, twoFingerGesture.lastDistance, angleBetweenTouches(t0, t1));
   }
   // Otherwise: let Leaflet's own dragging/touchZoom drive the pinch entirely
-  // — at bearing 0 screen-space is map-space, so there's nothing to correct
-  // and native handling is simpler and better-tested than anything custom.
+  // at first — at bearing 0 screen-space is map-space, so there's nothing to
+  // correct and native handling is simpler and better-tested than anything
+  // custom. onMapTouchMove watches for an intentional two-finger twist and
+  // hands control over to manual rotation if/when that happens.
 }
 
 function endTwoFingerGesture() {
+  const wasRotating = !!(twoFingerGesture && twoFingerGesture.rotating);
   twoFingerGesture = null;
   twoFingerRafScheduled = false;
   currentPinchPreviewScale = 1;
   if (rotWrapper) {
     rotWrapper.style.transition = '';
     rotWrapper.style.transform = `rotate(${mapBearing}deg)`;
+  }
+  if (wasRotating) {
+    updateZoomAnimationForRotation();
+    // A gentle magnetic snap back to north, the way most map apps behave —
+    // only close to due-north, so it never fights a deliberate rotation.
+    const normalized = ((mapBearing % 360) + 360) % 360;
+    const distToNorth = Math.min(normalized, 360 - normalized);
+    if (distToNorth <= 8) resetMapBearing();
   }
   setNativeDraggingEnabled(!rotationActive());
   scheduleAutoRefollow();
@@ -9263,12 +9350,19 @@ function onMapTouchMove(e) {
   if (!t0 || !t1) { endTwoFingerGesture(); return; }
 
   if (g.mode === 'native') {
-    if (rotationActive()) {
-      // Bearing changed mid-gesture (e.g. driving mode's auto heading-up
-      // rotated the map while the user was still pinching) — native
-      // handling is now wrong, so take over immediately rather than
-      // finishing the gesture in the wrong direction.
-      switchToManualTwoFingerGesture(midpointOfTouches(t0, t1), distanceBetweenTouches(t0, t1));
+    const angleNow = angleBetweenTouches(t0, t1);
+    let twist = angleNow - g.startAngle;
+    while (twist > 180) twist -= 360;
+    while (twist < -180) twist += 360;
+    const twistPastThreshold = Math.abs(twist) >= MANUAL_ROTATE_START_THRESHOLD_DEG;
+    if (rotationActive() || twistPastThreshold) {
+      // Either the bearing changed mid-gesture (e.g. driving mode's auto
+      // heading-up rotated the map while the user was still pinching), or
+      // the user is intentionally twisting two fingers to rotate the map
+      // manually — native handling doesn't know about rotation at all, so
+      // take over immediately rather than finishing the gesture in the
+      // wrong direction (or ignoring the twist entirely).
+      switchToManualTwoFingerGesture(midpointOfTouches(t0, t1), distanceBetweenTouches(t0, t1), angleNow, twistPastThreshold);
     }
     return; // native Leaflet drives pan+zoom entirely on its own otherwise
   }
@@ -9280,6 +9374,7 @@ function onMapTouchMove(e) {
   // update per frame is what keeps this smooth.
   g.pendingMid = midpointOfTouches(t0, t1);
   g.pendingDistance = distanceBetweenTouches(t0, t1);
+  g.pendingAngle = angleBetweenTouches(t0, t1);
 
   if (twoFingerRafScheduled) return;
   twoFingerRafScheduled = true;
@@ -9293,6 +9388,26 @@ function applyTwoFingerGestureFrame() {
 
   const mid = g.pendingMid;
   const distance = g.pendingDistance;
+  const angle = g.pendingAngle;
+
+  // Two-finger rotate: apply cumulative twist from the point manual control
+  // started. g.rotating gates this so an ordinary pinch/pan (fingers that
+  // stay roughly parallel) never nudges the map off-bearing by accident.
+  if (typeof angle === 'number' && g.rotateStartAngle != null) {
+    let rawDelta = angle - g.rotateStartAngle;
+    while (rawDelta > 180) rawDelta -= 360;
+    while (rawDelta < -180) rawDelta += 360;
+    if (!g.rotating && Math.abs(rawDelta) >= MANUAL_ROTATE_START_THRESHOLD_DEG) {
+      g.rotating = true;
+      disableAutoHeadingForManualRotation();
+    }
+    if (g.rotating) {
+      mapBearing = g.rotateStartBearing + rawDelta;
+      document.documentElement.style.setProperty('--pin-counter-rotate', `${-mapBearing}deg`);
+      updateAllPopupRotations();
+      updateUserMarkerRotation();
+    }
+  }
 
   // Rotation-corrected two-finger pan, plus pinch-zoom around the touch
   // midpoint — computed once per frame from a single snapshot of the touch
