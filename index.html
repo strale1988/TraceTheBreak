@@ -273,7 +273,7 @@ header p{ font-size:var(--fs-11); opacity:.7; margin-top:2px; }
 .pin-map-btn,
 .report-fab-btn,
 .wiz-back-btn, .wiz-close-btn,
-.driving-search-btn,
+.driving-back-btn, .driving-search-btn,
 .driving-nav-close-btn,
 .navigate-search-btn, .navigate-close-btn,
 .section-awaiting-cancel,
@@ -292,7 +292,7 @@ header p{ font-size:var(--fs-11); opacity:.7; margin-top:2px; }
 .pin-map-btn,
 .report-fab-btn,
 .wiz-back-btn, .wiz-close-btn,
-.driving-search-btn,
+.driving-back-btn, .driving-search-btn,
 .driving-nav-close-btn,
 .section-awaiting-cancel,
 .travel-mode-switch-btn, .walk-quick-fab,
@@ -1351,7 +1351,7 @@ body.walk-mode-active .driving-speed-widget{ display:none !important; }
   z-index:2600;
   bottom:calc(var(--driving-sheet-height, 160px) + 12px + env(safe-area-inset-bottom, 0px));
   align-items:flex-end;
-  justify-content:flex-end;
+  justify-content:space-between;
 }
 
 .speed-sign-marker{
@@ -1371,7 +1371,7 @@ body.walk-mode-active .driving-speed-widget{ display:none !important; }
 }
 body.driving-active .driving-float-action-row{ display:flex; }
 .driving-action-row-right{ display:flex; flex-direction:column; align-items:center; gap:var(--space-8); }
-.driving-search-btn{
+.driving-back-btn, .driving-search-btn{
   background:var(--bg-surface-alt);
   border:1px solid var(--accent);
   color:var(--accent);
@@ -1380,8 +1380,12 @@ body.driving-active .driving-float-action-row{ display:flex; }
   box-shadow:0 3px 10px var(--floating-shadow);
   transition:background .15s;
 }
+.driving-back-btn img{ transform: rotate(-90deg); }
 .driving-search-btn.active{ background:var(--accent); border-color:var(--accent); color:var(--bg-surface); }
 .driving-search-btn:active{ background:var(--border-color-strong); }
+.driving-back-btn{ background:var(--bg-surface-alt); border-color:var(--border-color-strong); color:var(--text-primary); }
+.driving-back-btn:active{ background:var(--border-color-strong); }
+.driving-back-btn .icon-img,
 .driving-search-btn .icon-img{ filter:var(--icon-tint-filter); }
 .driving-search-btn.active .icon-img{ filter:none; }
 
@@ -3047,7 +3051,7 @@ span.flatpickr-weekday {
     </div>
   </div>
 </div>
-<button type="button" id="navigateClearBtn" class="driving-nav-close-btn" onclick="closeNavigationAndExit()" title="Close" style="display:none">✕</button>
+<button type="button" id="navigateClearBtn" class="driving-nav-close-btn" onclick="clearNavigation()" title="Close" style="display:none">✕</button>
 <button type="button" class="report-fab-btn" id="reportFabBtn" style="display:none" disabled title="Report a break" aria-label="Report a break" onclick="reportFabTap()">
   <img src="icons/reports/report_new.png" alt="">
 </button>
@@ -3083,6 +3087,9 @@ span.flatpickr-weekday {
 </div>
 
 <div id="drivingFloatActionRow" class="driving-float-action-row">
+  <button class="driving-back-btn" onclick="closeNavigationAndExit()" title="Back">
+    <img class="icon-img" src="icons/arrow.png" alt="Back">
+  </button>
   <div class="driving-action-row-right">
     <button class="driving-search-btn" id="drivingSearchBtn" onclick="toggleNavigatePanel()" title="Search destination"><img class="icon-img" src="icons/search.png" alt="Search"></button>
     <button class="travel-mode-switch-btn" id="travelModeSwitchBtn" onclick="cycleTravelMode()" title="Switch travel mode" aria-label="Switch travel mode"></button>
@@ -7744,7 +7751,7 @@ function isDeviceNearlyFlat(beta) {
 const ORIENTATION_MAX_JUMP_DEG = 120;
 
 function handleOrientationEvent(event) {
-  if (drivingMode) return;
+  if (drivingMode && travelMode !== 'foot') return;
 
   if ((Date.now() - lastGpsHeadingAt) < GPS_HEADING_FRESH_MS) {
     return;
@@ -10491,7 +10498,9 @@ function startWatching() {
       }
 
       const GPS_HEADING_MIN_SPEED_MPS = 1.0;
+      const useGpsCourseHeading = !(drivingMode && travelMode === 'foot');
       if (
+        useGpsCourseHeading &&
         typeof pos.coords.heading === 'number' && !isNaN(pos.coords.heading) &&
         typeof pos.coords.speed === 'number' && !isNaN(pos.coords.speed) &&
         pos.coords.speed >= GPS_HEADING_MIN_SPEED_MPS
