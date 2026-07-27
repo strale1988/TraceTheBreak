@@ -9615,15 +9615,28 @@ function onMapTouchMove(e) {
   if (g.mode === 'native') {
     const distNow = distanceBetweenTouches(t0, t1);
     const angleNow = angleBetweenTouches(t0, t1);
+    // A pinch-to-zoom-out starts with fingers already spread apart, so the
+    // very first angle reading is trustworthy as a baseline. A spread-to-
+    // zoom-in starts with fingers close together (often nearly touching) —
+    // an unreliable angle reading — so locking that in as the baseline and
+    // comparing against it later (once the fingers *are* spread enough to
+    // read reliably) compares a good reading against a noisy one, and that
+    // mismatch is a consistent offset rather than random per-frame jitter,
+    // so it isn't caught by requiring several consecutive frames below.
+    // Continuously re-basing the baseline while spacing is untrustworthy
+    // means that the instant it becomes trustworthy, we start comparing from
+    // a fresh, clean reading — which is what made zoom-out already feel
+    // smooth while zoom-in didn't.
+    const spacingTrustworthy = distNow >= MANUAL_ROTATE_MIN_SPACING_PX;
+    if (!spacingTrustworthy) {
+      g.startAngle = angleNow;
+      g.twistStreak = 0;
+      return;
+    }
     let twist = angleNow - g.startAngle;
     while (twist > 180) twist -= 360;
     while (twist < -180) twist += 360;
-    // Ignore the twist reading entirely while the fingers are still close
-    // together — that's when angle noise from ordinary hand tremor is worst,
-    // and it's also the common start of a pinch-to-zoom-out gesture, so
-    // without this gate a plain zoom-out could misfire into rotate mode.
-    const spacingTrustworthy = distNow >= MANUAL_ROTATE_MIN_SPACING_PX;
-    const twistExceedsNow = spacingTrustworthy && Math.abs(twist) >= MANUAL_ROTATE_START_THRESHOLD_DEG;
+    const twistExceedsNow = Math.abs(twist) >= MANUAL_ROTATE_START_THRESHOLD_DEG;
     g.twistStreak = twistExceedsNow ? g.twistStreak + 1 : 0;
     const twistPastThreshold = g.twistStreak >= MANUAL_ROTATE_CONFIRM_FRAMES;
     if (rotationActive() || twistPastThreshold) {
