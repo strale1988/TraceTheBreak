@@ -1346,13 +1346,20 @@ body.walk-mode-active .driving-speed-widget{ display:none !important; }
 .driving-float-action-row{
   display:none;
   position:fixed;
-  left:12px;
   right:12px;
   z-index:2600;
   bottom:calc(var(--driving-sheet-height, 160px) + 12px + env(safe-area-inset-bottom, 0px));
   align-items:flex-end;
-  justify-content:space-between;
+  justify-content:flex-end;
 }
+.driving-back-btn-wrap{
+  display:none;
+  position:fixed;
+  left:12px;
+  z-index:2600;
+  bottom:calc(var(--driving-sheet-height, 160px) + 12px + env(safe-area-inset-bottom, 0px));
+}
+body.driving-active .driving-back-btn-wrap{ display:flex; }
 
 .speed-sign-marker{
   width:34px; height:34px;
@@ -3139,10 +3146,13 @@ span.flatpickr-weekday {
   </div>
 </div>
 
-<div id="drivingFloatActionRow" class="driving-float-action-row">
+<div id="drivingBackBtnWrap" class="driving-back-btn-wrap">
   <button class="driving-back-btn" onclick="closeNavigationAndExit()" title="Back">
     <img class="icon-img" src="icons/arrow.png" alt="Back">
   </button>
+</div>
+
+<div id="drivingFloatActionRow" class="driving-float-action-row">
   <div class="driving-action-row-right">
     <button class="driving-search-btn" id="drivingSearchBtn" onclick="toggleNavigatePanel()" title="Search destination"><img class="icon-img" src="icons/search.png" alt="Search"></button>
     <button class="travel-mode-switch-btn" id="travelModeSwitchBtn" onclick="cycleTravelMode()" title="Switch travel mode" aria-label="Switch travel mode"></button>
