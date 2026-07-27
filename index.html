@@ -7827,17 +7827,6 @@ function updateRotationOrigin() {
 }
 window.addEventListener('resize', updateRotationOrigin);
 
-// Keeps every compass needle (main-screen compass, driving compass) pointing
-// at true north on screen. Cheap enough to call on every rotation frame —
-// a manual two-finger twist updates mapBearing continuously without going
-// through applyMapBearing(), so without this the needle used to freeze at
-// whatever it last showed and only catch up once the gesture ended (or not
-// at all if the gesture ended far from north).
-function updateCompassNeedles() {
-  const cssRotation = `rotate(${mapBearing}deg)`;
-  document.querySelectorAll('.compass-needle').forEach(needle => { needle.style.transform = cssRotation; });
-}
-
 function applyMapBearing(targetHeadingDeg) {
   const delta = shortestAngleDelta(mapBearing % 360, targetHeadingDeg);
   mapBearing += delta;
@@ -9356,7 +9345,6 @@ function toggleFollowMode() {
     followMapTo(userCoords.lat, userCoords.lon);
     pendingAutoRefollow = false;
     cancelAutoRefollowTimer();
-    reenableAutoHeadingIfManuallyRotated();
   }
 }
 
@@ -9381,7 +9369,6 @@ function performAutoRefollow() {
   pendingAutoRefollow = false;
   setFollowMode(true);
   followMapTo(userCoords.lat, userCoords.lon);
-  reenableAutoHeadingIfManuallyRotated();
 }
 
 function scheduleAutoRefollow() {
@@ -9565,26 +9552,6 @@ function distanceBetweenTouches(t0, t1) {
 function midpointOfTouches(t0, t1) {
   return { x: (t0.clientX + t1.clientX) / 2, y: (t0.clientY + t1.clientY) / 2 };
 }
-function angleBetweenTouches(t0, t1) {
-  return Math.atan2(t1.clientY - t0.clientY, t1.clientX - t0.clientX) * 180 / Math.PI;
-}
-// Below how much cumulative two-finger twist (degrees) we treat the gesture
-// as an intentional rotate rather than incidental finger wobble during a
-// plain pinch-zoom or pan — avoids the map drifting off-bearing from a
-// slightly uneven pinch.
-const MANUAL_ROTATE_START_THRESHOLD_DEG = 6;
-// The closer the two touches are together, the more a millimeter of natural
-// hand tremor swings the angle between them — atan2 amplifies small position
-// noise into a large apparent twist when the touch points are close. Below
-// this separation we don't trust the angle reading enough to evaluate twist
-// at all, which stops an ordinary pinch (which often starts with fingers
-// close together) from misreading tremor as a rotate.
-const MANUAL_ROTATE_MIN_SPACING_PX = 40;
-// Require the twist to stay past the threshold for this many consecutive
-// touchmove samples before committing to a rotate — a single noisy frame
-// used to be enough to trip this, which is what caused a plain mobile pinch
-// to occasionally jerk into "rotate" mode and jump.
-const MANUAL_ROTATE_CONFIRM_FRAMES = 3;
 function findTouchById(touchList, id) {
   for (let i = 0; i < touchList.length; i++) {
     if (touchList[i].identifier === id) return touchList[i];
@@ -9613,61 +9580,17 @@ function unrotateDelta(dx, dy) {
   return { dx: dx * cos - dy * sin, dy: dx * sin + dy * cos };
 }
 
-let headingUpDisabledByManualRotation = false;
-
-function disableAutoHeadingForManualRotation() {
-  if (drivingMode) {
-    if (headingUpMode) {
-      headingUpMode = false;
-      headingUpDisabledByManualRotation = true;
-      const btn = document.getElementById('mapCompass');
-      if (btn) { btn.classList.add('heading-up-disabled'); btn.setAttribute('aria-pressed', 'false'); }
-    }
-  } else if (walkingHeadingMode) {
-    walkingHeadingMode = false;
-    headingUpDisabledByManualRotation = true;
-    const btn = document.getElementById('mainMapCompass');
-    if (btn) { btn.classList.add('heading-up-disabled'); btn.setAttribute('aria-pressed', 'false'); }
-  }
-}
-
-function reenableAutoHeadingIfManuallyRotated() {
-  if (!headingUpDisabledByManualRotation) return;
-  headingUpDisabledByManualRotation = false;
-  if (drivingMode) {
-    headingUpMode = true;
-    const btn = document.getElementById('mapCompass');
-    if (btn) { btn.classList.remove('heading-up-disabled'); btn.setAttribute('aria-pressed', 'true'); }
-    if (currentHeading !== null) applyMapBearing(-currentHeading);
-  } else {
-    walkingHeadingMode = true;
-    const btn = document.getElementById('mainMapCompass');
-    if (btn) { btn.classList.remove('heading-up-disabled'); btn.setAttribute('aria-pressed', 'true'); }
-    if (currentHeading !== null) applyMapBearing(-currentHeading);
-  }
-}
-
-function switchToManualTwoFingerGesture(mid, distance, angle, startRotating) {
+function switchToManualTwoFingerGesture(mid, distance) {
   const g = twoFingerGesture;
   // Native Leaflet touch handling works in screen-space and has no idea the
   // map is visually rotated via CSS on rotWrapper, so it pans/zooms in the
-  // wrong direction once rotated. Take full manual control, re-basing the
-  // reference values off the current touch state so there's no jump at the
-  // handoff.
+  // wrong direction once rotated (which can only happen here via compass
+  // heading-up mode now — there's no gesture that rotates the map anymore).
+  // Take full manual control, re-basing the reference values off the current
+  // touch state so there's no jump at the handoff.
   g.mode = 'manual';
   g.lastMid = mid;
   g.zoomStepDistance = distance;
-  if (typeof angle === 'number' && g.rotateStartAngle == null) {
-    g.rotateStartAngle = angle;
-    g.rotateStartBearing = mapBearing;
-    // When we're handing off specifically because a twist past the
-    // dead-zone was already detected in native mode, start rotating right
-    // away instead of re-arming the same dead-zone against this fresh
-    // baseline — otherwise the user would have to twist twice as far before
-    // anything visibly happened.
-    g.rotating = !!startRotating;
-    if (g.rotating) disableAutoHeadingForManualRotation();
-  }
   if (map.dragging && map.dragging.enabled()) map.dragging.disable();
   if (map.touchZoom && map.touchZoom.enabled()) map.touchZoom.disable();
   // Native dragging/touchZoom apply their own live CSS preview transform to
@@ -9698,41 +9621,30 @@ function beginTwoFingerGesture(t0, t1) {
     mode: 'native',
     lastDistance: distanceBetweenTouches(t0, t1),
     lastMid: midpointOfTouches(t0, t1),
-    startAngle: angleBetweenTouches(t0, t1),
-    twistStreak: 0,
     pendingMid: null,
-    pendingDistance: null,
-    pendingAngle: null
+    pendingDistance: null
   };
   if (rotationActive()) {
-    // Map is already rotated: native handling would pan/zoom in the wrong
-    // direction from the very first pixel, so take manual control right
-    // away instead of starting native and switching over later.
-    switchToManualTwoFingerGesture(twoFingerGesture.lastMid, twoFingerGesture.lastDistance, angleBetweenTouches(t0, t1));
+    // Map is already rotated (via compass heading-up mode): native handling
+    // would pan/zoom in the wrong direction from the very first pixel, so
+    // take manual control right away instead of starting native and
+    // switching over later.
+    switchToManualTwoFingerGesture(twoFingerGesture.lastMid, twoFingerGesture.lastDistance);
   }
   // Otherwise: let Leaflet's own dragging/touchZoom drive the pinch entirely
-  // at first — at bearing 0 screen-space is map-space, so there's nothing to
-  // correct and native handling is simpler and better-tested than anything
-  // custom. onMapTouchMove watches for an intentional two-finger twist and
-  // hands control over to manual rotation if/when that happens.
+  // — at bearing 0 screen-space is map-space, so there's nothing to correct
+  // and native handling is simpler and better-tested than anything custom.
+  // onMapTouchMove watches for the bearing changing mid-gesture (e.g. driving
+  // mode's auto heading-up kicking in) and hands control over if that happens.
 }
 
 function endTwoFingerGesture() {
-  const wasRotating = !!(twoFingerGesture && twoFingerGesture.rotating);
   twoFingerGesture = null;
   twoFingerRafScheduled = false;
   currentPinchPreviewScale = 1;
   if (rotWrapper) {
     rotWrapper.style.transition = '';
     rotWrapper.style.transform = `rotate(${mapBearing}deg)`;
-  }
-  if (wasRotating) {
-    updateZoomAnimationForRotation();
-    // A gentle magnetic snap back to north, the way most map apps behave —
-    // only close to due-north, so it never fights a deliberate rotation.
-    const normalized = ((mapBearing % 360) + 360) % 360;
-    const distToNorth = Math.min(normalized, 360 - normalized);
-    if (distToNorth <= 8) resetMapBearing();
   }
   setNativeDraggingEnabled(!rotationActive());
   setNativeZoomEnabled(!rotationActive());
@@ -9752,40 +9664,12 @@ function onMapTouchMove(e) {
   if (!t0 || !t1) { endTwoFingerGesture(); return; }
 
   if (g.mode === 'native') {
-    const distNow = distanceBetweenTouches(t0, t1);
-    const angleNow = angleBetweenTouches(t0, t1);
-    // A pinch-to-zoom-out starts with fingers already spread apart, so the
-    // very first angle reading is trustworthy as a baseline. A spread-to-
-    // zoom-in starts with fingers close together (often nearly touching) —
-    // an unreliable angle reading — so locking that in as the baseline and
-    // comparing against it later (once the fingers *are* spread enough to
-    // read reliably) compares a good reading against a noisy one, and that
-    // mismatch is a consistent offset rather than random per-frame jitter,
-    // so it isn't caught by requiring several consecutive frames below.
-    // Continuously re-basing the baseline while spacing is untrustworthy
-    // means that the instant it becomes trustworthy, we start comparing from
-    // a fresh, clean reading — which is what made zoom-out already feel
-    // smooth while zoom-in didn't.
-    const spacingTrustworthy = distNow >= MANUAL_ROTATE_MIN_SPACING_PX;
-    if (!spacingTrustworthy) {
-      g.startAngle = angleNow;
-      g.twistStreak = 0;
-      return;
-    }
-    let twist = angleNow - g.startAngle;
-    while (twist > 180) twist -= 360;
-    while (twist < -180) twist += 360;
-    const twistExceedsNow = Math.abs(twist) >= MANUAL_ROTATE_START_THRESHOLD_DEG;
-    g.twistStreak = twistExceedsNow ? g.twistStreak + 1 : 0;
-    const twistPastThreshold = g.twistStreak >= MANUAL_ROTATE_CONFIRM_FRAMES;
-    if (rotationActive() || twistPastThreshold) {
-      // Either the bearing changed mid-gesture (e.g. driving mode's auto
-      // heading-up rotated the map while the user was still pinching), or
-      // the user is intentionally twisting two fingers to rotate the map
-      // manually — native handling doesn't know about rotation at all, so
-      // take over immediately rather than finishing the gesture in the
-      // wrong direction (or ignoring the twist entirely).
-      switchToManualTwoFingerGesture(midpointOfTouches(t0, t1), distNow, angleNow, twistPastThreshold);
+    if (rotationActive()) {
+      // The bearing changed mid-gesture (e.g. driving mode's auto heading-up
+      // rotated the map while the user was still pinching) — native handling
+      // doesn't know about rotation at all, so take over immediately rather
+      // than finishing the gesture in the wrong direction.
+      switchToManualTwoFingerGesture(midpointOfTouches(t0, t1), distanceBetweenTouches(t0, t1));
     }
     return; // native Leaflet drives pan+zoom entirely on its own otherwise
   }
@@ -9797,7 +9681,6 @@ function onMapTouchMove(e) {
   // update per frame is what keeps this smooth.
   g.pendingMid = midpointOfTouches(t0, t1);
   g.pendingDistance = distanceBetweenTouches(t0, t1);
-  g.pendingAngle = angleBetweenTouches(t0, t1);
 
   if (twoFingerRafScheduled) return;
   twoFingerRafScheduled = true;
@@ -9811,27 +9694,6 @@ function applyTwoFingerGestureFrame() {
 
   const mid = g.pendingMid;
   const distance = g.pendingDistance;
-  const angle = g.pendingAngle;
-
-  // Two-finger rotate: apply cumulative twist from the point manual control
-  // started. g.rotating gates this so an ordinary pinch/pan (fingers that
-  // stay roughly parallel) never nudges the map off-bearing by accident.
-  if (typeof angle === 'number' && g.rotateStartAngle != null) {
-    let rawDelta = angle - g.rotateStartAngle;
-    while (rawDelta > 180) rawDelta -= 360;
-    while (rawDelta < -180) rawDelta += 360;
-    if (!g.rotating && Math.abs(rawDelta) >= MANUAL_ROTATE_START_THRESHOLD_DEG) {
-      g.rotating = true;
-      disableAutoHeadingForManualRotation();
-    }
-    if (g.rotating) {
-      mapBearing = g.rotateStartBearing + rawDelta;
-      document.documentElement.style.setProperty('--pin-counter-rotate', `${-mapBearing}deg`);
-      updateAllPopupRotations();
-      updateUserMarkerRotation();
-      updateCompassNeedles();
-    }
-  }
 
   // Rotation-corrected two-finger pan, plus pinch-zoom around the touch
   // midpoint — computed once per frame from a single snapshot of the touch
