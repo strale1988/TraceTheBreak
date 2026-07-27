@@ -1508,6 +1508,7 @@ body.walk-mode-active .walk-quick-grid{ display:flex; }
 .walk-quick-fab:disabled{ opacity:.4; cursor:not-allowed; pointer-events:none; }
 
 .travel-mode-switch-btn{
+  position:relative;
   background:var(--bg-surface-alt);
   border:1px solid var(--accent);
   color:var(--accent);
@@ -1518,6 +1519,27 @@ body.walk-mode-active .walk-quick-grid{ display:flex; }
 }
 .travel-mode-switch-btn:active{ background:var(--border-color-strong); }
 .travel-mode-switch-btn .icon-img{ filter:var(--icon-tint-filter); width:20px; height:20px; }
+/* Small always-on badge marking this as a cycle/switch control (car -> bike ->
+   walk -> ...), not just a status readout of the current mode. Lives on
+   ::after so it survives updateTravelModeSwitchBtn() overwriting the
+   button's innerHTML on every mode change. */
+.travel-mode-switch-btn::after{
+  content:'⇄';
+  position:absolute;
+  right:-4px;
+  bottom:-4px;
+  width:16px;
+  height:16px;
+  border-radius:50%;
+  background:var(--accent);
+  color:var(--bg-surface-alt);
+  font-size:10px;
+  font-weight:700;
+  line-height:16px;
+  text-align:center;
+  border:1.5px solid var(--bg-surface-alt);
+  pointer-events:none;
+}
 .quick-tile{
   border:none;
   border-radius:14px;
@@ -7129,9 +7151,26 @@ const mapContainerEl = map.getContainer();
 // animation on rotWrapper, the same wrapper element the rotation itself is
 // applied to.
 let zoomRotatedFromZoom = null;
+// While rotated, Leaflet can't animate zoom at all (see above), so a single
+// "zoom" gesture — a scroll-wheel session, a pinch, a double-tap — actually
+// lands as a rapid burst of separate, instant zoomstart/zoomend pairs, one
+// per committed step, rather than the one smooth animated zoom an unrotated
+// map gets. Removing map-zooming-rotated on every individual zoomend used to
+// flip the overlay pane's opacity (and re-run marker/viewport sync) back on
+// between each of those steps, then hide it again a moment later for the
+// next one — that on/off/on/off is the "flashes a lot" / "constantly
+// reloads" glitch when zooming a rotated map. Debouncing the class removal
+// coalesces a whole burst into a single hide, with one reveal (and one
+// marker/viewport refresh) once the burst genuinely stops.
+let rotatedZoomEndTimer = null;
+const ROTATED_ZOOM_END_DELAY_MS = 250;
+function isRotatedZoomBursting() {
+  return mapContainerEl.classList.contains('map-zooming-rotated');
+}
 map.on('zoomstart', () => {
   mapContainerEl.classList.add('map-zooming');
   if (rotationActive()) {
+    if (rotatedZoomEndTimer) { clearTimeout(rotatedZoomEndTimer); rotatedZoomEndTimer = null; }
     mapContainerEl.classList.add('map-zooming-rotated');
     // zoomstart fires before Leaflet applies the new zoom, so this is still
     // the pre-zoom value.
@@ -7166,7 +7205,19 @@ map.on('zoom', () => {
 });
 map.on('zoomend',   () => {
   mapContainerEl.classList.remove('map-zooming');
-  mapContainerEl.classList.remove('map-zooming-rotated');
+  if (!mapContainerEl.classList.contains('map-zooming-rotated')) return;
+  if (rotatedZoomEndTimer) clearTimeout(rotatedZoomEndTimer);
+  rotatedZoomEndTimer = setTimeout(() => {
+    rotatedZoomEndTimer = null;
+    mapContainerEl.classList.remove('map-zooming-rotated');
+    // The burst is genuinely over now — run the marker/viewport refreshes
+    // that were being held off during it (see scheduleMarkerSyncOnSettle,
+    // scheduleViewportReloadIfNeeded, scheduleCompanyMarkersReload below),
+    // so the map still ends up up to date, just without the mid-burst churn.
+    if (typeof scheduleMarkerSyncOnSettle === 'function') scheduleMarkerSyncOnSettle();
+    if (typeof scheduleViewportReloadIfNeeded === 'function') scheduleViewportReloadIfNeeded();
+    if (typeof scheduleCompanyMarkersReload === 'function') scheduleCompanyMarkersReload();
+  }, ROTATED_ZOOM_END_DELAY_MS);
 });
 
 const TILE_CACHE_NAME = 'ttb-osm-tiles-v1';
@@ -11171,6 +11222,7 @@ const MARKER_SYNC_MAX_WAIT_MS = 3000;
 const runMarkerSyncOnSettle = debounceWithMaxWait(() => syncMarkers(false), MARKER_SYNC_SETTLE_MS, MARKER_SYNC_MAX_WAIT_MS);
 function scheduleMarkerSyncOnSettle() {
   if (pinMode) return;
+  if (isRotatedZoomBursting()) return;
   runMarkerSyncOnSettle();
 }
 map.on('moveend', scheduleMarkerSyncOnSettle);
@@ -11187,6 +11239,7 @@ const runViewportReloadIfNeeded = debounceWithMaxWait(() => {
 }, VIEWPORT_RELOAD_DEBOUNCE_MS, VIEWPORT_RELOAD_MAX_WAIT_MS);
 function scheduleViewportReloadIfNeeded() {
   if (pinMode) return;
+  if (isRotatedZoomBursting()) return;
   runViewportReloadIfNeeded();
 }
 map.on('moveend', scheduleViewportReloadIfNeeded);
@@ -13210,8 +13263,12 @@ const scheduleCompanyMarkersReloadIfNeeded = debounceWithMaxWait(() => {
   const visible = { minLat: b.getSouthWest().lat, maxLat: b.getNorthEast().lat, minLon: b.getSouthWest().lng, maxLon: b.getNorthEast().lng };
   if (!viewportBBoxContains(lastLoadedCompanyBBox, visible)) loadCompanyMarkersByWindow();
 }, VIEWPORT_RELOAD_DEBOUNCE_MS, VIEWPORT_RELOAD_MAX_WAIT_MS);
-map.on('moveend', scheduleCompanyMarkersReloadIfNeeded);
-map.on('zoomend', scheduleCompanyMarkersReloadIfNeeded);
+function scheduleCompanyMarkersReload() {
+  if (isRotatedZoomBursting()) return;
+  scheduleCompanyMarkersReloadIfNeeded();
+}
+map.on('moveend', scheduleCompanyMarkersReload);
+map.on('zoomend', scheduleCompanyMarkersReload);
 
 const municipalityStatsCache = new Map();
 const municipalityStatsFetchInFlight = new Map();
