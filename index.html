@@ -9435,6 +9435,18 @@ function angleBetweenTouches(t0, t1) {
 // plain pinch-zoom or pan — avoids the map drifting off-bearing from a
 // slightly uneven pinch.
 const MANUAL_ROTATE_START_THRESHOLD_DEG = 6;
+// The closer the two touches are together, the more a millimeter of natural
+// hand tremor swings the angle between them — atan2 amplifies small position
+// noise into a large apparent twist when the touch points are close. Below
+// this separation we don't trust the angle reading enough to evaluate twist
+// at all, which stops an ordinary pinch (which often starts with fingers
+// close together) from misreading tremor as a rotate.
+const MANUAL_ROTATE_MIN_SPACING_PX = 40;
+// Require the twist to stay past the threshold for this many consecutive
+// touchmove samples before committing to a rotate — a single noisy frame
+// used to be enough to trip this, which is what caused a plain mobile pinch
+// to occasionally jerk into "rotate" mode and jump.
+const MANUAL_ROTATE_CONFIRM_FRAMES = 3;
 function findTouchById(touchList, id) {
   for (let i = 0; i < touchList.length; i++) {
     if (touchList[i].identifier === id) return touchList[i];
@@ -9520,6 +9532,17 @@ function switchToManualTwoFingerGesture(mid, distance, angle, startRotating) {
   }
   if (map.dragging && map.dragging.enabled()) map.dragging.disable();
   if (map.touchZoom && map.touchZoom.enabled()) map.touchZoom.disable();
+  // Native dragging/touchZoom apply their own live CSS preview transform to
+  // the map pane while a gesture is in progress (that's how they give
+  // visual feedback before committing). disable() only stops them from
+  // handling future events — it doesn't clean up that in-flight preview —
+  // so without this, mid-gesture handoffs left the pane visually offset or
+  // scaled from Leaflet's last preview frame for an instant, which is what
+  // showed up as a jump/"trip" right when manual control kicked in. Snapping
+  // back to the last *committed* center/zoom (unchanged, so this fires no
+  // zoomstart/zoomend of its own) discards that stray transform before our
+  // own rotWrapper-based preview below takes over.
+  map.setView(map.getCenter(), map.getZoom(), { animate: false });
   map.getContainer().style.touchAction = 'none';
   // rotWrapper normally transitions its transform over .25s (for smooth
   // heading-up rotation), but that same transition was fighting our
@@ -9538,6 +9561,7 @@ function beginTwoFingerGesture(t0, t1) {
     lastDistance: distanceBetweenTouches(t0, t1),
     lastMid: midpointOfTouches(t0, t1),
     startAngle: angleBetweenTouches(t0, t1),
+    twistStreak: 0,
     pendingMid: null,
     pendingDistance: null,
     pendingAngle: null
@@ -9589,11 +9613,19 @@ function onMapTouchMove(e) {
   if (!t0 || !t1) { endTwoFingerGesture(); return; }
 
   if (g.mode === 'native') {
+    const distNow = distanceBetweenTouches(t0, t1);
     const angleNow = angleBetweenTouches(t0, t1);
     let twist = angleNow - g.startAngle;
     while (twist > 180) twist -= 360;
     while (twist < -180) twist += 360;
-    const twistPastThreshold = Math.abs(twist) >= MANUAL_ROTATE_START_THRESHOLD_DEG;
+    // Ignore the twist reading entirely while the fingers are still close
+    // together — that's when angle noise from ordinary hand tremor is worst,
+    // and it's also the common start of a pinch-to-zoom-out gesture, so
+    // without this gate a plain zoom-out could misfire into rotate mode.
+    const spacingTrustworthy = distNow >= MANUAL_ROTATE_MIN_SPACING_PX;
+    const twistExceedsNow = spacingTrustworthy && Math.abs(twist) >= MANUAL_ROTATE_START_THRESHOLD_DEG;
+    g.twistStreak = twistExceedsNow ? g.twistStreak + 1 : 0;
+    const twistPastThreshold = g.twistStreak >= MANUAL_ROTATE_CONFIRM_FRAMES;
     if (rotationActive() || twistPastThreshold) {
       // Either the bearing changed mid-gesture (e.g. driving mode's auto
       // heading-up rotated the map while the user was still pinching), or
@@ -9601,7 +9633,7 @@ function onMapTouchMove(e) {
       // manually — native handling doesn't know about rotation at all, so
       // take over immediately rather than finishing the gesture in the
       // wrong direction (or ignoring the twist entirely).
-      switchToManualTwoFingerGesture(midpointOfTouches(t0, t1), distanceBetweenTouches(t0, t1), angleNow, twistPastThreshold);
+      switchToManualTwoFingerGesture(midpointOfTouches(t0, t1), distNow, angleNow, twistPastThreshold);
     }
     return; // native Leaflet drives pan+zoom entirely on its own otherwise
   }
