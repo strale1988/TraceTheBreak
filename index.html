@@ -6113,6 +6113,7 @@ const T = {
   ucNoContacts:      { en:'No utility companies added yet.',     sr:'Još uvek nema unetih javnih preduzeća.' },
   ucMuniCountLabel:  { en:'{n} municipalities',                  sr:'{n} opština' },
   ucCountryCountLabel: { en:'{n} countries',                     sr:'{n} zemalja' },
+  ucCountryNoContactsYet: { en:'No contacts yet in this country. Use the municipality picker above to add one.', sr:'Još uvek nema kontakata u ovoj zemlji. Koristite birač opštine iznad da dodate kontakt.' },
   continentEurope:        { en:'Europe',        sr:'Evropa' },
   continentAsia:           { en:'Asia',          sr:'Azija' },
   continentAfrica:         { en:'Africa',        sr:'Afrika' },
@@ -14224,6 +14225,16 @@ function renderUcList() {
   // up front for every request.
   const domainMuniById = new Map(domainMunis.map(m => [String(m.id), m]));
   const countryGroups = new Map();
+  // Seed every country present in the admin's domain first — cheap (one pass
+  // over domainMunis, no DOM/string work) — so a level-3 (continent) admin
+  // sees the full list of countries in their continent by default, even ones
+  // that don't have any utility contacts yet. Per-municipality rows are still
+  // only built below for municipalities that actually have contacts, so this
+  // does not reintroduce the ~97k-node freeze the earlier fix avoided.
+  domainMunis.forEach(m => {
+    const countryCode = m.country_code || '';
+    if (!countryGroups.has(countryCode)) countryGroups.set(countryCode, new Map());
+  });
   companiesByMuni.forEach((companies, muniKey) => {
     const muni = domainMuniById.get(muniKey) || null;
     const countryCode = (muni && muni.country_code) || '';
@@ -14249,7 +14260,7 @@ function renderUcList() {
         });
         if (matchingCompanies.length) keptMuniGroups.set(muniKey, { muni: group.muni, companies: matchingCompanies });
       });
-      if (keptMuniGroups.size) visibleCountryGroups.set(countryCode, keptMuniGroups);
+      if (keptMuniGroups.size || countryNameMatches) visibleCountryGroups.set(countryCode, keptMuniGroups);
     });
 
     // Also surface contact-free municipalities whose name/country matches
@@ -14377,12 +14388,15 @@ function renderUcList() {
     }).join('');
 
     const muniCountLabel = t('ucMuniCountLabel').replace('{n}', String(muniGroups.size));
+    const bodyHtml = muniGroups.size
+      ? muniHtml
+      : '<div class="detail-empty uc-muni-empty">' + t('ucCountryNoContactsYet') + '</div>';
     return '<details class="uc-country-group" id="uc-country-group-' + (countryCode || 'unknown') + '">' +
       '<summary><span class="uc-group-chevron"><img src="icons/arrow.png" alt=""></span> ' + escapeHtml(countryDisplayName(countryCode)) +
         (countryCode ? ' (' + escapeHtml(countryCode) + ')' : '') +
         ' <span class="uc-muni-count-label">' + escapeHtml(muniCountLabel) + '</span>' +
         ' <span class="uc-country-count">(' + countryTotal + ')</span></summary>' +
-      muniHtml +
+      bodyHtml +
     '</details>';
   };
 
