@@ -6103,8 +6103,10 @@ const T = {
   municipalityContactsUnverifiedNote: { en:"These contacts haven't been verified yet. Please double-check before relying on them.", sr:'Ovi kontakti još nisu provereni. Molimo proverite ih pre nego što ih iskoristite.' },
 
   ucSectionTitle:    { en:'Utility company contacts',            sr:'Kontakti javnih preduzeća' },
-  ucSearchPH:        { en:'Search contacts (name, municipality, category)…', sr:'Pretraga kontakata (naziv, opština, kategorija)…' },
+  ucSearchPH:        { en:'Search countries…', sr:'Pretraga zemalja…' },
+  ucCountrySearchPH: { en:'Search within this country (municipality, contact, category)…', sr:'Pretraga unutar ove zemlje (opština, kontakt, kategorija)…' },
   ucNoSearchResults: { en:'No contacts match your search.',      sr:'Nema kontakata koji odgovaraju pretrazi.' },
+  ucNoCountrySearchResults: { en:'No countries match your search.', sr:'Nema zemalja koje odgovaraju pretrazi.' },
   ucGeocodeBackfillBtn:      { en:'Geocode missing addresses',    sr:'Geokodiraj adrese bez koordinata' },
   contactFlagAdminNotifyMsg: { en:'{name} was flagged: the {type} contact info may be wrong.', sr:'{name} je prijavljen: {type} kontakt podatak je možda pogrešan.' },
   ucGeocodeBackfillRunning:  { en:'Geocoding {current}/{total}…', sr:'Geokodiranje {current}/{total}…' },
@@ -6114,6 +6116,8 @@ const T = {
   ucMuniCountLabel:  { en:'{n} municipalities',                  sr:'{n} opština' },
   ucCountryCountLabel: { en:'{n} countries',                     sr:'{n} zemalja' },
   ucCountryNoContactsYet: { en:'No contacts yet in this country. Use the municipality picker above to add one.', sr:'Još uvek nema kontakata u ovoj zemlji. Koristite birač opštine iznad da dodate kontakt.' },
+  ucCountryLoading:  { en:'Loading this country…',               sr:'Učitavanje ove zemlje…' },
+  ucSelectCountryHint: { en:'Open a country above to add a contact there.', sr:'Otvorite zemlju iznad da biste dodali kontakt.' },
   continentEurope:        { en:'Europe',        sr:'Evropa' },
   continentAsia:           { en:'Asia',          sr:'Azija' },
   continentAfrica:         { en:'Africa',        sr:'Afrika' },
@@ -13195,13 +13199,36 @@ function buildMuniStatsGridHtml(stats) {
 async function backfillUcCoordinates() {
   if (!currentProfile || !currentProfile.is_admin) return;
   const btn = document.getElementById('ucGeocodeBackfillBtn');
-  const candidates = ucCompaniesCache.filter(c => c.address && !isValidLatLng(c.lat, c.lon));
+  if (btn) { btn.disabled = true; btn.textContent = t('ucGeocodeBackfillScanning'); }
+
+  // This is a deliberate, opt-in sweep across the admin's whole domain (a
+  // whole continent, for a level-3 admin) — unlike the lightweight per-
+  // country browsing cache, so it fetches its own municipality/contact data
+  // for every domain country here rather than relying on whatever happens to
+  // be loaded for the currently open country.
+  let candidates = [];
+  try {
+    for (const { code } of ucCountryIndex) {
+      await ensureCountryMunicipalitiesLoaded(code);
+      const muniIds = municipalityCache
+        .filter(m => m.country_code === code && isMunicipalityInAdminDomain(m))
+        .map(m => m.id);
+      if (!muniIds.length) continue;
+      const companies = await fetchCompaniesForMuniIds(muniIds);
+      candidates.push(...companies.filter(c => c.address && !isValidLatLng(c.lat, c.lon)));
+    }
+  } catch (err) {
+    console.error('Failed to gather geocode-backfill candidates:', err.message);
+  }
+
   if (!candidates.length) {
-    if (btn) btn.textContent = t('ucGeocodeBackfillNone');
+    if (btn) {
+      btn.textContent = t('ucGeocodeBackfillNone');
+      btn.disabled = false;
+    }
     setTimeout(() => { if (btn) btn.textContent = t('ucGeocodeBackfillBtn'); }, 3000);
     return;
   }
-  if (btn) btn.disabled = true;
   let found = 0;
   for (let i = 0; i < candidates.length; i++) {
     const c = candidates[i];
@@ -13212,8 +13239,6 @@ async function backfillUcCoordinates() {
       try {
         const { error } = await sb.from(UTILITY_COMPANIES_TABLE).update({ lat: pos.lat, lon: pos.lon }).eq('id', c.id);
         if (error) throw error;
-        c.lat = pos.lat;
-        c.lon = pos.lon;
         found++;
       } catch (err) {
         console.error('Failed to save backfilled coordinates for', c.name, ':', err.message);
@@ -13226,6 +13251,7 @@ async function backfillUcCoordinates() {
     setTimeout(() => { btn.textContent = t('ucGeocodeBackfillBtn'); }, 4000);
   }
   loadCompanyMarkersByWindow();
+  await refreshUcOpenCountry();
 }
 
 function boundaryHasRings(boundary) {
@@ -13577,6 +13603,12 @@ let ucEditingId = null;
 let ucEditingVerified = false;
 let ucEditingVerifiedAt = null;
 let ucMuniSelectPopulateToken = 0;
+let ucCountryIndex = [];      // [{code, continent}] — countries in the admin's domain, lightweight
+let ucOpenCountryCode = null; // the single country currently expanded/loaded in the browse tree
+let ucCountryLoadToken = 0;   // guards against a stale async load winning a race when switching countries fast
+let ucCountryDataLoading = false;
+let ucCountrySearchQuery = ''; // secondary, in-country search (municipality/contact/category)
+let ucHomeCountryCode = null;
 
 function municipalityDisplayName(m) {
   if (!m) return '';
@@ -13589,6 +13621,158 @@ function canManageContactsForMunicipality(municipalityId) {
   return isMunicipalityInAdminDomain(muni);
 }
 
+async function resolveAdminHomeCountryCode() {
+  const lvl = currentAdminLevel();
+  if (lvl === 2 || lvl === 3) return currentProfile.admin_country_code || null;
+  if (lvl === 1) {
+    if (currentProfile.admin_municipality_id == null) return null;
+    let muni = getMunicipalityForAdminAssignment(currentProfile.admin_municipality_id);
+    if (!muni) {
+      // Don't fall back to loading the whole municipality cache just to find
+      // one row — fetch this single municipality directly.
+      try {
+        const { data, error } = await sb.from(MUNICIPALITIES_TABLE)
+          .select(MUNI_SELECT_COLS_LITE)
+          .eq('id', currentProfile.admin_municipality_id)
+          .maybeSingle();
+        if (error) throw error;
+        if (data) { mergeMunicipalitiesIntoCache([data]); muni = data; }
+      } catch (err) {
+        console.error('Failed to resolve admin municipality country:', err.message);
+      }
+    }
+    return muni ? muni.country_code : null;
+  }
+  return null; // level 4 (global) has no single "home" country
+}
+
+function isCountryInAdminDomain(countryCode) {
+  const lvl = currentAdminLevel();
+  if (!lvl || !countryCode) return false;
+  if (lvl >= 4) return true;
+  if (lvl === 3) {
+    const continent = resolveAdminContinent(currentProfile);
+    return !!(continent && continentOfCountry(countryCode) === continent);
+  }
+  if (lvl === 2) return countryCode === currentProfile.admin_country_code;
+  return !!ucHomeCountryCode && countryCode === ucHomeCountryCode;
+}
+
+// Builds just the country list for the admin's domain from the small,
+// already-loaded country/continent table — no municipality or contact rows
+// are touched here. A given country's municipalities and utility contacts
+// are only fetched once that country is opened (see openUcCountry), so a
+// level-3 (continent) admin no longer pays for every municipality and
+// contact worldwide just to open this panel.
+function buildUcCountryIndex() {
+  ucCountryIndex = Array.from(countryContinentCache.keys())
+    .filter(isCountryInAdminDomain)
+    .map(code => ({ code, continent: continentOfCountry(code) }));
+}
+
+async function fetchCompaniesForMuniIds(muniIds) {
+  const CHUNK = 500;
+  const rows = [];
+  for (let i = 0; i < muniIds.length; i += CHUNK) {
+    const slice = muniIds.slice(i, i + CHUNK);
+    const { data, error } = await sb.from(UTILITY_COMPANIES_TABLE)
+      .select('*').in('municipality_id', slice).order('name');
+    if (error) throw error;
+    rows.push(...(data || []));
+  }
+  return rows;
+}
+
+async function fetchFlagCountsForCompanyIds(companyIds) {
+  const counts = new Map();
+  const CHUNK = 500;
+  for (let i = 0; i < companyIds.length; i += CHUNK) {
+    const slice = companyIds.slice(i, i + CHUNK);
+    const { data, error } = await sb.from('utility_contact_flags')
+      .select('company_id').eq('resolved', false).in('company_id', slice);
+    if (error) throw error;
+    (data || []).forEach(row => {
+      const key = String(row.company_id);
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+  }
+  return counts;
+}
+
+// Loads (or switches to) a single country in the browse tree: its
+// municipalities and utility contacts. Only one country's contacts are kept
+// in memory at a time — opening a new country drops the previous one's
+// instead of accumulating data for every country the admin has visited.
+async function openUcCountry(countryCode, preserveSearch) {
+  if (!countryCode || !isCountryInAdminDomain(countryCode)) return;
+  const token = ++ucCountryLoadToken;
+  ucOpenCountryCode = countryCode;
+  if (!preserveSearch) ucCountrySearchQuery = '';
+  ucCompaniesCache = [];
+  ucContactFlagCountsCache = new Map();
+  ucCountryDataLoading = true;
+  renderUcList();
+  try {
+    await ensureCountryMunicipalitiesLoaded(countryCode);
+    if (token !== ucCountryLoadToken) return; // superseded by a newer selection
+    const muniIds = municipalityCache
+      .filter(m => m.country_code === countryCode && isMunicipalityInAdminDomain(m))
+      .map(m => m.id);
+    if (muniIds.length) {
+      const companies = await fetchCompaniesForMuniIds(muniIds);
+      if (token !== ucCountryLoadToken) return;
+      ucCompaniesCache = companies;
+      const companyIds = companies.map(c => c.id);
+      if (companyIds.length) {
+        const flagCounts = await fetchFlagCountsForCompanyIds(companyIds);
+        if (token !== ucCountryLoadToken) return;
+        ucContactFlagCountsCache = flagCounts;
+      }
+    }
+  } catch (err) {
+    console.error(`Failed to load contacts for country ${countryCode}:`, err.message);
+  } finally {
+    if (token === ucCountryLoadToken) ucCountryDataLoading = false;
+  }
+  if (token === ucCountryLoadToken) {
+    populateUcMunicipalitySelect();
+    renderUcList();
+  }
+}
+
+function closeUcCountry() {
+  ucCountryLoadToken++; // cancel any in-flight load for the country being closed
+  ucOpenCountryCode = null;
+  ucCountrySearchQuery = '';
+  ucCompaniesCache = [];
+  ucContactFlagCountsCache = new Map();
+  ucCountryDataLoading = false;
+  populateUcMunicipalitySelect();
+  renderUcList();
+}
+
+function toggleUcCountry(countryCode) {
+  if (ucOpenCountryCode === countryCode) closeUcCountry();
+  else openUcCountry(countryCode);
+}
+
+// Used after a contact is saved/deleted/unflagged: refreshes whichever
+// country is currently open in place, instead of resetting the whole panel
+// back to the admin's home country the way a full loadUtilityCompaniesAdmin()
+// reload would.
+async function refreshUcOpenCountry() {
+  if (ucOpenCountryCode) {
+    await openUcCountry(ucOpenCountryCode, true);
+  } else {
+    await loadUtilityCompaniesAdmin();
+  }
+}
+
+function onUcCountrySearchInput(value) {
+  ucCountrySearchQuery = (value || '').trim();
+  renderUcList();
+}
+
 async function loadUtilityCompaniesAdmin() {
   const titleEl = document.getElementById('ucSectionTitle');
   if (titleEl) titleEl.textContent = t('ucSectionTitle');
@@ -13599,33 +13783,24 @@ async function loadUtilityCompaniesAdmin() {
   const listEl = document.getElementById('ucList');
   if (listEl) listEl.innerHTML = '<div class="detail-loading">' + t('ucLoadingList') + '</div>';
 
-  await Promise.all([loadMunicipalityCacheLite(), loadCountryContinentCache()]);
+  await loadCountryContinentCache();
+  ucHomeCountryCode = await resolveAdminHomeCountryCode();
+  buildUcCountryIndex();
+
+  ucOpenCountryCode = null;
+  ucCompaniesCache = [];
+  ucContactFlagCountsCache = new Map();
   populateUcMunicipalitySelect();
   populateUcCatChecks();
   applyUcFormTranslations();
-
-  try {
-    const { data, error } = await sb.from(UTILITY_COMPANIES_TABLE).select('*').order('name');
-    if (error) throw error;
-    ucCompaniesCache = (data || []).filter(c => canManageContactsForMunicipality(c.municipality_id));
-  } catch (err) {
-    console.error('Failed to load utility companies:', err.message);
-    ucCompaniesCache = [];
-  }
-
-  ucContactFlagCountsCache = new Map();
-  try {
-    const { data, error } = await sb.from('utility_contact_flags').select('company_id').eq('resolved', false);
-    if (error) throw error;
-    (data || []).forEach(row => {
-      const key = String(row.company_id);
-      ucContactFlagCountsCache.set(key, (ucContactFlagCountsCache.get(key) || 0) + 1);
-    });
-  } catch (err) {
-    console.error('Failed to load utility contact flag counts:', err.message);
-  }
-
   renderUcList();
+
+  // Preload just the admin's own country so the panel opens with something
+  // useful visible, without loading every other country in their domain
+  // (their whole continent, for a level-3 admin) up front.
+  if (ucHomeCountryCode && isCountryInAdminDomain(ucHomeCountryCode)) {
+    await openUcCountry(ucHomeCountryCode);
+  }
 }
 let ucContactFlagCountsCache = new Map();
 let waitingListCache = [];
@@ -14044,7 +14219,7 @@ function applyUcFormTranslations() {
   const addMuniBtn = document.getElementById('ucAddMuniBtn');
   if (addMuniBtn) addMuniBtn.textContent = t('ucAddMuniBtn');
   const hint = document.getElementById('ucNoMunicipalitiesHint');
-  if (hint) hint.textContent = t('ucNoMunicipalitiesHint');
+  if (hint) hint.textContent = ucOpenCountryCode ? t('ucNoMunicipalitiesHint') : t('ucSelectCountryHint');
   const verifyBtn = document.getElementById('ucVerifyBtn');
   if (verifyBtn) verifyBtn.textContent = t('ucVerifyBtn');
   renderUcVerifyStatus();
@@ -14067,31 +14242,23 @@ function populateUcMunicipalitySelect() {
   if (!sel) return;
   const prevValue = sel.value;
 
-  const selectable = currentAdminLevel() >= 4
-    ? municipalityCache
-    : municipalityCache.filter(m => isMunicipalityInAdminDomain(m));
+  // Cascades from the browse tree below: the picker only ever needs to offer
+  // municipalities from the one country currently open there, which is also
+  // the only country whose municipalities are loaded at all — so this never
+  // has to pull in the admin's whole domain (a whole continent, for a
+  // level-3 admin) just to populate a dropdown.
+  const selectable = ucOpenCountryCode
+    ? municipalityCache.filter(m => m.country_code === ucOpenCountryCode && isMunicipalityInAdminDomain(m))
+    : [];
 
-  // Precompute each display name once instead of recomputing it on every
-  // comparison inside sort() (previously up to ~2 calls per comparison
-  // across O(n log n) comparisons — for the full 90k+ municipality cache
-  // that's millions of calls). A single reusable Intl.Collator is also far
-  // faster than calling String.localeCompare() repeatedly, since
-  // localeCompare() rebuilds locale-aware collation state on every call.
   const collator = new Intl.Collator(lang === 'sr' ? 'sr' : 'en');
   const decorated = selectable.map(m => ({ m, name: municipalityDisplayName(m) }));
   decorated.sort((a, b) => collator.compare(a.name, b.name));
 
   const placeholder = '<option value="" disabled>' + t('ucSelectMunicipality') + '</option>';
   sel.innerHTML = placeholder;
+  sel.disabled = !ucOpenCountryCode;
 
-  // The real freeze was here: building tens of thousands of <option>
-  // elements and assigning them via one synchronous innerHTML forces the
-  // browser to parse/construct the whole list (and lay out the <select>) in
-  // a single tick — a genuine tab freeze, not a network wait. Append them in
-  // small chunks across animation frames instead, same principle as the
-  // marker-rendering chunking used elsewhere (MARKER_SYNC_CHUNK_SIZE). Using
-  // createElement/textContent here also means no HTML-escaping is needed —
-  // the browser never parses these values as markup.
   const UC_SELECT_CHUNK_SIZE = 500;
   const token = ++ucMuniSelectPopulateToken;
   let i = 0;
@@ -14119,7 +14286,15 @@ function populateUcMunicipalitySelect() {
       sel.selectedIndex = 0;
     }
     const hint = document.getElementById('ucNoMunicipalitiesHint');
-    if (hint) hint.style.display = decorated.length ? 'none' : 'block';
+    if (hint) {
+      if (!ucOpenCountryCode) {
+        hint.textContent = t('ucSelectCountryHint');
+        hint.style.display = 'block';
+      } else {
+        hint.textContent = t('ucNoMunicipalitiesHint');
+        hint.style.display = decorated.length ? 'none' : 'block';
+      }
+    }
   }
   requestAnimationFrame(appendNextChunk);
 }
@@ -14189,22 +14364,18 @@ function restoreOpenUcGroupIds(ids) {
   });
 }
 
-function renderUcList() {
-  const listEl = document.getElementById('ucList');
-  if (!listEl) return;
-  const openIds = getOpenUcGroupIds();
+function renderOpenCountryBody(countryCode) {
+  if (ucCountryDataLoading) {
+    return '<div class="detail-loading">' + t('ucCountryLoading') + '</div>';
+  }
 
-  const searchEl = document.getElementById('ucSearchInput');
-  const rawQuery = searchEl ? searchEl.value.trim() : '';
-  const query = rawQuery ? normalizeMuniNameForMatch(rawQuery) : '';
+  const searchInputHtml = '<input type="text" id="ucCountrySearchInput" oninput="onUcCountrySearchInput(this.value)" ' +
+    'value="' + escapeHtml(ucCountrySearchQuery) + '" placeholder="' + escapeHtml(t('ucCountrySearchPH')) + '" ' +
+    'style="width:100%;box-sizing:border-box;margin:8px 0;">';
 
-  const domainMunis = currentAdminLevel() >= 4
-    ? municipalityCache
-    : municipalityCache.filter(m => isMunicipalityInAdminDomain(m));
-
+  const domainMunis = municipalityCache.filter(m => m.country_code === countryCode && isMunicipalityInAdminDomain(m));
   if (!domainMunis.length) {
-    listEl.innerHTML = '<div class="detail-empty">' + t('ucNoContacts') + '</div>';
-    return;
+    return searchInputHtml + '<div class="detail-empty uc-muni-empty">' + t('ucCountryNoContactsYet') + '</div>';
   }
 
   const companiesByMuni = new Map();
@@ -14214,202 +14385,191 @@ function renderUcList() {
     companiesByMuni.get(key).push(c);
   });
 
-  // Previously this built a group entry — including a 16-button quick-add
-  // row — for *every* municipality in the admin's domain (for a level-3
-  // admin, every municipality worldwide, ~97k). That's what actually froze
-  // the tab: constructing and parsing hundreds of thousands of DOM nodes in
-  // one synchronous pass, not a network wait. This panel's actual purpose is
-  // to show existing contacts, so build the default list from only
-  // municipalities that already have at least one — a name search below can
-  // still reach an empty municipality by id/name without paying that cost
-  // up front for every request.
-  const domainMuniById = new Map(domainMunis.map(m => [String(m.id), m]));
-  const countryGroups = new Map();
-  // Seed every country present in the admin's domain first — cheap (one pass
-  // over domainMunis, no DOM/string work) — so a level-3 (continent) admin
-  // sees the full list of countries in their continent by default, even ones
-  // that don't have any utility contacts yet. Per-municipality rows are still
-  // only built below for municipalities that actually have contacts, so this
-  // does not reintroduce the ~97k-node freeze the earlier fix avoided.
+  // Default (no in-country search): only build a row for municipalities that
+  // already have at least one contact — some countries run into the
+  // thousands of municipalities, and most won't have anything to show, so
+  // building a full quick-add row for every one of them up front is needless
+  // DOM work. Typing a name below still reaches an empty municipality.
+  let muniGroups = new Map();
   domainMunis.forEach(m => {
-    const countryCode = m.country_code || '';
-    if (!countryGroups.has(countryCode)) countryGroups.set(countryCode, new Map());
-  });
-  companiesByMuni.forEach((companies, muniKey) => {
-    const muni = domainMuniById.get(muniKey) || null;
-    const countryCode = (muni && muni.country_code) || '';
-    if (!countryGroups.has(countryCode)) countryGroups.set(countryCode, new Map());
-    countryGroups.get(countryCode).set(muniKey, { muni, companies });
+    const key = String(m.id);
+    const companies = companiesByMuni.get(key);
+    if (companies && companies.length) muniGroups.set(key, { muni: m, companies });
   });
 
-  let visibleCountryGroups = countryGroups;
+  const query = ucCountrySearchQuery ? normalizeMuniNameForMatch(ucCountrySearchQuery) : '';
   if (query) {
-    visibleCountryGroups = new Map();
-    countryGroups.forEach((muniGroups, countryCode) => {
-      const countryNameMatches = normalizeMuniNameForMatch(countryDisplayName(countryCode)).includes(query);
-      const keptMuniGroups = new Map();
-      muniGroups.forEach((group, muniKey) => {
-        const muniNameMatches = group.muni ? normalizeMuniNameForMatch(municipalityDisplayName(group.muni)).includes(query) : false;
-        if (countryNameMatches || muniNameMatches) {
-          keptMuniGroups.set(muniKey, group);
-          return;
-        }
-        const matchingCompanies = group.companies.filter(c => {
-          const haystack = normalizeMuniNameForMatch([c.name, ...(c.categories || []).map(categorySearchText)].filter(Boolean).join(' '));
-          return haystack.includes(query);
-        });
-        if (matchingCompanies.length) keptMuniGroups.set(muniKey, { muni: group.muni, companies: matchingCompanies });
+    const filtered = new Map();
+    muniGroups.forEach((group, key) => {
+      const muniNameMatches = normalizeMuniNameForMatch(municipalityDisplayName(group.muni)).includes(query);
+      if (muniNameMatches) { filtered.set(key, group); return; }
+      const matchingCompanies = group.companies.filter(c => {
+        const haystack = normalizeMuniNameForMatch([c.name, ...(c.categories || []).map(categorySearchText)].filter(Boolean).join(' '));
+        return haystack.includes(query);
       });
-      if (keptMuniGroups.size || countryNameMatches) visibleCountryGroups.set(countryCode, keptMuniGroups);
+      if (matchingCompanies.length) filtered.set(key, { muni: group.muni, companies: matchingCompanies });
     });
-
-    // Also surface contact-free municipalities whose name/country matches
-    // the search, so an admin can still find and quick-add to a brand-new
-    // municipality by typing its name, without ever building a group for all
-    // ~97k of them up front.
+    // Also surface contact-free municipalities whose name matches, so the
+    // admin can find and quick-add to a brand-new municipality by name.
     domainMunis.forEach(m => {
-      const muniKey = String(m.id);
-      if (companiesByMuni.has(muniKey)) return; // already covered above
-      const countryCode = m.country_code || '';
-      const countryNameMatches = normalizeMuniNameForMatch(countryDisplayName(countryCode)).includes(query);
-      const muniNameMatches = normalizeMuniNameForMatch(municipalityDisplayName(m)).includes(query);
-      if (!countryNameMatches && !muniNameMatches) return;
-      if (!visibleCountryGroups.has(countryCode)) visibleCountryGroups.set(countryCode, new Map());
-      visibleCountryGroups.get(countryCode).set(muniKey, { muni: m, companies: [] });
+      const key = String(m.id);
+      if (filtered.has(key)) return;
+      const existing = companiesByMuni.get(key);
+      if (existing && existing.length) return; // already handled above
+      if (normalizeMuniNameForMatch(municipalityDisplayName(m)).includes(query)) {
+        filtered.set(key, { muni: m, companies: [] });
+      }
     });
+    muniGroups = filtered;
   }
 
-  if (!visibleCountryGroups.size) {
-    listEl.innerHTML = '<div class="detail-empty">' + t(query ? 'ucNoSearchResults' : 'ucNoContacts') + '</div>';
+  if (!muniGroups.size) {
+    return searchInputHtml + '<div class="detail-empty">' + t(query ? 'ucNoSearchResults' : 'ucCountryNoContactsYet') + '</div>';
+  }
+
+  const sortedMuniKeys = Array.from(muniGroups.keys()).sort((a, b) =>
+    municipalityDisplayName(muniGroups.get(a).muni).localeCompare(municipalityDisplayName(muniGroups.get(b).muni)));
+
+  const muniHtml = sortedMuniKeys.map(muniKey => {
+    const { muni, companies } = muniGroups.get(muniKey);
+    const muniLabel = muni
+      ? escapeHtml(municipalityDisplayName(muni)) + (muni.country_code ? ' (' + escapeHtml(muni.country_code) + ')' : '')
+      : t('detailUnknown');
+
+    // Quick-add row is computed from every contact in this municipality (not
+    // the possibly search-filtered `companies` above), so it stays accurate
+    // even while the admin is filtering the in-country list.
+    const allMuniCompanies = companiesByMuni.get(muniKey) || [];
+    const coveredCats = new Set();
+    allMuniCompanies.forEach(c => (c.categories || []).forEach(cat => coveredCats.add(cat)));
+    const missingCats = UC_CATEGORIES.filter(cat => !coveredCats.has(cat));
+
+    const quickAddTagsHtml = muni && missingCats.length
+      ? '<div class="uc-muni-missing-tags">' +
+          '<span class="uc-muni-missing-label">' + escapeHtml(t('ucQuickAddTagsLabel')) + '</span>' +
+          missingCats.map(cat =>
+            '<button type="button" class="uc-cat-chip uc-cat-chip-add uc-cat-chip-missing" ' +
+              'onclick="quickAddUcContact(\'' + muni.id + '\', \'' + cat + '\')">' +
+              '+ ' + escapeHtml(translateCategory(cat)) +
+            '</button>'
+          ).join('') +
+        '</div>'
+      : '';
+
+    // Coverage dot: red = no contacts yet, orange = some tags covered,
+    // yellow = most tags covered, green = every tag has a contact.
+    const coverageRatio = UC_CATEGORIES.length ? coveredCats.size / UC_CATEGORIES.length : 0;
+    const coverageDotColor = coveredCats.size === 0 ? STATUS_COLORS.reported
+      : coveredCats.size === UC_CATEGORIES.length ? STATUS_COLORS.fixed
+      : coverageRatio >= 0.5 ? '#f1c40f'
+      : STATUS_COLORS.in_progress;
+    const coverageDotTitle = coveredCats.size === 0 ? t('ucCoverageNone')
+      : coveredCats.size === UC_CATEGORIES.length ? t('ucCoverageFull')
+      : coverageRatio >= 0.5 ? t('ucCoverageMost')
+      : t('ucCoverageSome');
+    const coverageDotHtml = muni
+      ? '<span class="bottom-muni-stat-dot" style="background:' + coverageDotColor + ';" title="' + escapeHtml(coverageDotTitle) + '"></span> '
+      : '';
+
+    const itemsHtml = companies.length ? companies.map(c => {
+      const catsHtml = (c.categories && c.categories.length)
+        ? c.categories.map(cat => '<span class="uc-cat-chip" style="background:' + categoryColor(cat) + ';">' + translateCategory(cat) + '</span>').join('')
+        : '<span class="uc-cat-chip uc-cat-chip-empty">' + t('ucUncategorizedChip') + '</span>';
+      const verifiedChip = c.verified
+        ? '<span class="uc-verified-chip">' + t('ucVerifiedChip') + '</span>'
+        : '<span class="uc-unverified-chip">' + t('ucUnverifiedChip') + '</span>';
+      const flagCount = ucContactFlagCountsCache.get(String(c.id)) || 0;
+      const flagWarningHtml = flagCount > 0
+        ? '<div class="uc-flag-warning">⚠ ' + escapeHtml(t('ucFlagWarning').replace('{n}', flagCount)) +
+          ' <button type="button" class="settings-btn" style="display:inline;padding:2px 8px;" onclick="clearUtilityContactFlags(\'' + c.id + '\')">' + t('ucFlagClearBtn') + '</button></div>'
+        : '';
+      return '<div class="uc-item" id="uc-item-' + c.id + '">' +
+        '<div class="uc-item-top" onclick="toggleUtilityCompanyEdit(\'' + c.id + '\')">' +
+          '<div>' +
+            '<div class="uc-item-name">' + escapeHtml(c.name) + '</div>' +
+          '</div>' +
+          '<div class="uc-item-actions">' +
+            '<button type="button" style="background:var(--danger-strong);color:#fff;" onclick="event.stopPropagation(); deleteUtilityCompany(\'' + c.id + '\')">' + t('deleteBtn') + '</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="uc-item-cats">' + verifiedChip + catsHtml + '</div>' +
+        flagWarningHtml +
+      '</div>';
+    }).join('') : '<div class="detail-empty uc-muni-empty">' + t('ucMuniNoContacts') + '</div>';
+    return '<details class="uc-muni-group" id="uc-muni-group-' + (muni ? muni.id : 'unknown') + '">' +
+      '<summary><span class="uc-group-chevron"><img src="icons/arrow.png" alt=""></span> ' + coverageDotHtml + muniLabel +
+        ' <span class="uc-country-count">(' + companies.length + ')</span></summary>' +
+      quickAddTagsHtml +
+      '<div class="uc-muni-items">' + itemsHtml + '</div>' +
+    '</details>';
+  }).join('');
+
+  return searchInputHtml + muniHtml;
+}
+
+function renderUcList() {
+  const listEl = document.getElementById('ucList');
+  if (!listEl) return;
+  const currentOpenCountryId = 'uc-country-group-' + (ucOpenCountryCode || 'unknown');
+  // Country open/close is driven entirely by ucOpenCountryCode now, so don't
+  // let a stale "this id was open before the re-render" snapshot force a
+  // previously-open (now switched-away-from) country back open with no body.
+  const openIds = getOpenUcGroupIds().filter(id => !id.startsWith('uc-country-group-') || id === currentOpenCountryId);
+
+  const searchEl = document.getElementById('ucSearchInput');
+  const rawQuery = searchEl ? searchEl.value.trim() : '';
+  const query = rawQuery ? normalizeMuniNameForMatch(rawQuery) : '';
+
+  if (!ucCountryIndex.length) {
+    listEl.innerHTML = '<div class="detail-empty">' + t('ucNoContacts') + '</div>';
     return;
   }
 
-  const sortedCountryCodes = Array.from(visibleCountryGroups.keys()).sort((a, b) =>
-    countryDisplayName(a).localeCompare(countryDisplayName(b)));
+  // The top search only ever looks at country names — it's the cheap,
+  // always-available part of the index. Municipality/contact-level search
+  // happens separately, scoped to whichever country is currently open (see
+  // renderOpenCountryBody), since those are the only rows actually loaded.
+  const visibleCountries = query
+    ? ucCountryIndex.filter(c => normalizeMuniNameForMatch(countryDisplayName(c.code)).includes(query))
+    : ucCountryIndex;
+
+  if (!visibleCountries.length) {
+    listEl.innerHTML = '<div class="detail-empty">' + t('ucNoCountrySearchResults') + '</div>';
+    return;
+  }
 
   const continentGroups = new Map();
-
-  sortedCountryCodes.forEach(countryCode => {
-    const continent = continentOfCountry(countryCode);
-    if (!continentGroups.has(continent)) continentGroups.set(continent, []);
-    continentGroups.get(continent).push(countryCode);
+  visibleCountries.forEach(c => {
+    if (!continentGroups.has(c.continent)) continentGroups.set(c.continent, []);
+    continentGroups.get(c.continent).push(c.code);
   });
+  continentGroups.forEach(codes => codes.sort((a, b) => countryDisplayName(a).localeCompare(countryDisplayName(b))));
   const sortedContinents = Array.from(continentGroups.keys()).sort((a, b) => {
     if (!a && b) return 1;
     if (a && !b) return -1;
     return continentDisplayName(a).localeCompare(continentDisplayName(b));
   });
 
-  const countryGroupHtml = (countryCode) => {
-    const muniGroups = visibleCountryGroups.get(countryCode);
-    const countryTotal = Array.from(muniGroups.values()).reduce((n, g) => n + g.companies.length, 0);
-    const sortedMuniKeys = Array.from(muniGroups.keys()).sort((a, b) =>
-      municipalityDisplayName(muniGroups.get(a).muni).localeCompare(municipalityDisplayName(muniGroups.get(b).muni)));
-
-    const muniHtml = sortedMuniKeys.map(muniKey => {
-      const { muni, companies } = muniGroups.get(muniKey);
-      const muniLabel = muni
-        ? escapeHtml(municipalityDisplayName(muni)) + (muni.country_code ? ' (' + escapeHtml(muni.country_code) + ')' : '')
-        : t('detailUnknown');
-
-      // Quick-add row is computed from every contact in this municipality
-      // (not the possibly search-filtered `companies` above), so it stays
-      // accurate even while the admin is filtering the list by a company
-      // name.
-      const allMuniCompanies = companiesByMuni.get(muniKey) || [];
-      const coveredCats = new Set();
-      allMuniCompanies.forEach(c => (c.categories || []).forEach(cat => coveredCats.add(cat)));
-      const missingCats = UC_CATEGORIES.filter(cat => !coveredCats.has(cat));
-
-      // Each tag can only belong to one contact per municipality, so a "+"
-      // button for an already-covered category can never do anything useful
-      // — only render buttons for the tags that are actually still open.
-      const quickAddTagsHtml = muni && missingCats.length
-        ? '<div class="uc-muni-missing-tags">' +
-            '<span class="uc-muni-missing-label">' + escapeHtml(t('ucQuickAddTagsLabel')) + '</span>' +
-            missingCats.map(cat =>
-              '<button type="button" class="uc-cat-chip uc-cat-chip-add uc-cat-chip-missing" ' +
-                'onclick="quickAddUcContact(\'' + muni.id + '\', \'' + cat + '\')">' +
-                '+ ' + escapeHtml(translateCategory(cat)) +
-              '</button>'
-            ).join('') +
-          '</div>'
-        : '';
-
-      // Coverage dot: red = no contacts yet, orange = some tags covered,
-      // yellow = most tags covered, green = every tag has a contact. Reuses
-      // the app's existing status color palette (STATUS_COLORS) and the
-      // same small-dot class already used for municipality status
-      // indicators elsewhere (bottom-muni-stat-dot).
-      const coverageRatio = UC_CATEGORIES.length ? coveredCats.size / UC_CATEGORIES.length : 0;
-      const coverageDotColor = coveredCats.size === 0 ? STATUS_COLORS.reported
-        : coveredCats.size === UC_CATEGORIES.length ? STATUS_COLORS.fixed
-        : coverageRatio >= 0.5 ? '#f1c40f'
-        : STATUS_COLORS.in_progress;
-      const coverageDotTitle = coveredCats.size === 0 ? t('ucCoverageNone')
-        : coveredCats.size === UC_CATEGORIES.length ? t('ucCoverageFull')
-        : coverageRatio >= 0.5 ? t('ucCoverageMost')
-        : t('ucCoverageSome');
-      const coverageDotHtml = muni
-        ? '<span class="bottom-muni-stat-dot" style="background:' + coverageDotColor + ';" title="' + escapeHtml(coverageDotTitle) + '"></span> '
-        : '';
-
-      const itemsHtml = companies.length ? companies.map(c => {
-        const catsHtml = (c.categories && c.categories.length)
-          ? c.categories.map(cat => '<span class="uc-cat-chip" style="background:' + categoryColor(cat) + ';">' + translateCategory(cat) + '</span>').join('')
-          : '<span class="uc-cat-chip uc-cat-chip-empty">' + t('ucUncategorizedChip') + '</span>';
-        const verifiedChip = c.verified
-          ? '<span class="uc-verified-chip">' + t('ucVerifiedChip') + '</span>'
-          : '<span class="uc-unverified-chip">' + t('ucUnverifiedChip') + '</span>';
-        const flagCount = ucContactFlagCountsCache.get(String(c.id)) || 0;
-        const flagWarningHtml = flagCount > 0
-          ? '<div class="uc-flag-warning">⚠ ' + escapeHtml(t('ucFlagWarning').replace('{n}', flagCount)) +
-            ' <button type="button" class="settings-btn" style="display:inline;padding:2px 8px;" onclick="clearUtilityContactFlags(\'' + c.id + '\')">' + t('ucFlagClearBtn') + '</button></div>'
-          : '';
-        return '<div class="uc-item" id="uc-item-' + c.id + '">' +
-          '<div class="uc-item-top" onclick="toggleUtilityCompanyEdit(\'' + c.id + '\')">' +
-            '<div>' +
-              '<div class="uc-item-name">' + escapeHtml(c.name) + '</div>' +
-            '</div>' +
-            '<div class="uc-item-actions">' +
-              '<button type="button" style="background:var(--danger-strong);color:#fff;" onclick="event.stopPropagation(); deleteUtilityCompany(\'' + c.id + '\')">' + t('deleteBtn') + '</button>' +
-            '</div>' +
-          '</div>' +
-          '<div class="uc-item-cats">' + verifiedChip + catsHtml + '</div>' +
-          flagWarningHtml +
-        '</div>';
-      }).join('') : '<div class="detail-empty uc-muni-empty">' + t('ucMuniNoContacts') + '</div>';
-      return '<details class="uc-muni-group" id="uc-muni-group-' + (muni ? muni.id : 'unknown') + '">' +
-        '<summary><span class="uc-group-chevron"><img src="icons/arrow.png" alt=""></span> ' + coverageDotHtml + muniLabel +
-          ' <span class="uc-country-count">(' + companies.length + ')</span></summary>' +
-        quickAddTagsHtml +
-        '<div class="uc-muni-items">' + itemsHtml + '</div>' +
-      '</details>';
-    }).join('');
-
-    const muniCountLabel = t('ucMuniCountLabel').replace('{n}', String(muniGroups.size));
-    const bodyHtml = muniGroups.size
-      ? muniHtml
-      : '<div class="detail-empty uc-muni-empty">' + t('ucCountryNoContactsYet') + '</div>';
-    return '<details class="uc-country-group" id="uc-country-group-' + (countryCode || 'unknown') + '">' +
-      '<summary><span class="uc-group-chevron"><img src="icons/arrow.png" alt=""></span> ' + escapeHtml(countryDisplayName(countryCode)) +
-        (countryCode ? ' (' + escapeHtml(countryCode) + ')' : '') +
-        ' <span class="uc-muni-count-label">' + escapeHtml(muniCountLabel) + '</span>' +
-        ' <span class="uc-country-count">(' + countryTotal + ')</span></summary>' +
-      bodyHtml +
+  const countryRowHtml = (countryCode) => {
+    const isOpen = countryCode === ucOpenCountryCode;
+    const summaryHtml = '<summary onclick="event.preventDefault(); toggleUcCountry(\'' + countryCode + '\')">' +
+      '<span class="uc-group-chevron"><img src="icons/arrow.png" alt=""></span> ' +
+      escapeHtml(countryDisplayName(countryCode)) +
+      (countryCode ? ' (' + escapeHtml(countryCode) + ')' : '') +
+      '</summary>';
+    return '<details class="uc-country-group" id="uc-country-group-' + (countryCode || 'unknown') + '"' + (isOpen ? ' open' : '') + '>' +
+      summaryHtml +
+      (isOpen ? renderOpenCountryBody(countryCode) : '') +
     '</details>';
   };
 
   listEl.innerHTML = '<div class="uc-continent-list">' + sortedContinents.map(continent => {
     const codes = continentGroups.get(continent);
-    const continentTotal = codes.reduce((n, code) =>
-      n + Array.from(visibleCountryGroups.get(code).values()).reduce((m, g) => m + g.companies.length, 0), 0);
     const countryCountLabel = t('ucCountryCountLabel').replace('{n}', String(codes.length));
     return '<details class="uc-continent-group" id="uc-continent-group-' + (continent ? continent.replace(/\s+/g, '-') : 'other') + '">' +
       '<summary><span class="uc-group-chevron"><img src="icons/arrow.png" alt=""></span> ' + escapeHtml(continentDisplayName(continent)) +
-        ' <span class="uc-muni-count-label">' + escapeHtml(countryCountLabel) + '</span>' +
-        ' <span class="uc-country-count">(' + continentTotal + ')</span></summary>' +
-      '<div class="uc-group-list">' + codes.map(countryGroupHtml).join('') + '</div>' +
+        ' <span class="uc-muni-count-label">' + escapeHtml(countryCountLabel) + '</span></summary>' +
+      '<div class="uc-group-list">' + codes.map(countryRowHtml).join('') + '</div>' +
     '</details>';
   }).join('') + '</div>';
 
@@ -14605,7 +14765,7 @@ async function persistUcRow(verified) {
     const wasEditingId = ucEditingId;
 
     moveUcFormToAnchor();
-    await loadUtilityCompaniesAdmin();
+    await refreshUcOpenCountry();
     if (wasEditingId) {
 
       editUtilityCompany(wasEditingId);
@@ -14641,7 +14801,7 @@ async function clearUtilityContactFlags(companyId) {
     }).eq('company_id', companyId).eq('resolved', false);
     if (error) throw error;
     toast(t('ucFlagCleared'), 'success');
-    await loadUtilityCompaniesAdmin();
+    await refreshUcOpenCountry();
   } catch (err) {
     console.error('Failed to clear utility contact flags:', err.message);
     toast(t('photoActionFailed'), 'error');
@@ -14658,7 +14818,7 @@ async function deleteUtilityCompany(id) {
   try {
     const { error } = await sb.from(UTILITY_COMPANIES_TABLE).delete().eq('id', id);
     if (error) throw error;
-    await loadUtilityCompaniesAdmin();
+    await refreshUcOpenCountry();
   } catch (err) {
     console.error('Failed to delete utility company:', err.message);
     toast(t('ucSaveError'), 'error');
@@ -14679,7 +14839,11 @@ async function addMunicipalityFromMapCenter() {
       toast(t('ucAddMuniFail'), 'error');
       return;
     }
-    populateUcMunicipalitySelect();
+    if (muni.country_code && isCountryInAdminDomain(muni.country_code) && muni.country_code !== ucOpenCountryCode) {
+      await openUcCountry(muni.country_code);
+    } else {
+      populateUcMunicipalitySelect();
+    }
     const sel = document.getElementById('ucMunicipalitySelect');
     if (sel) sel.value = muni.id;
   } catch (err) {
