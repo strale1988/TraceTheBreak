@@ -7214,25 +7214,62 @@ let zoomRotatedFromZoom = null;
 // zooming genuinely stops.
 let zoomEndTimer = null;
 const ZOOM_END_DELAY_MS = 250;
-function isRotatedZoomBursting() {
-  return mapContainerEl.classList.contains('map-zooming-rotated');
-}
-// Broader guard than isRotatedZoomBursting: true for ANY in-progress zoom
-// gesture (rotated or not), not just while rotated. The marker-sync /
-// viewport-reload / company-marker schedulers below used to only skip work
-// during rotated bursts, so a plain (unrotated) continuous zoom — e.g.
-// holding the scroll wheel, or a slow pinch — could still hit its
-// debounceWithMaxWait cap and reload reports mid-zoom. Gating on this
-// instead means nothing loads until the zoomend handler above declares the
-// burst truly over and re-runs these schedulers itself.
+// Broader guard than the old isRotatedZoomBursting(): true for ANY in-progress
+// zoom gesture (rotated or not). The marker-sync / viewport-reload / company-
+// marker schedulers below skip work while this is true.
 function isMapZooming() {
   return mapContainerEl.classList.contains('map-zooming');
 }
-map.on('zoomstart', () => {
-  if (zoomEndTimer) { clearTimeout(zoomEndTimer); zoomEndTimer = null; }
+// --- Why rotated zoom used to flicker/reload differently from north-up ---
+// North-up zooming (scroll wheel, pinch, double-tap) goes through Leaflet's
+// own native handlers, which run ONE continuous, CSS-animated zoom transition
+// per gesture — Leaflet fires a single zoomstart at the start and holds off
+// zoomend until that ~250ms animation actually finishes. Our old code only
+// cleared map-zooming on a debounced timer AFTER zoomend, so north-up got two
+// stacked buffers (Leaflet's own animation + our debounce) and pins/reports
+// stayed hidden smoothly for the whole gesture.
+//
+// Rotated zooming can't use that path at all — Leaflet has no idea the map is
+// visually rotated via CSS, so rotation-corrected zoom is done by hand
+// (onRotatedWheelZoom, applyTwoFingerGestureFrame): each committed step calls
+// setZoomAround with animation disabled, which fires zoomstart+zoomend back
+// to back, INSTANTLY, with no built-in animation buffer at all. For a
+// physical mouse wheel or a slower pinch, the real gap between one committed
+// step and the next can easily exceed our 250ms debounce, so our own timer
+// fired in between commits — flipping pins back on and re-running marker/
+// viewport sync mid-gesture, then hiding everything again a moment later for
+// the next step. That on/off/on/off, only while rotated, is exactly what
+// looked like "constantly reloading" and flickering.
+//
+// Fix: stop treating each discrete Leaflet zoomstart/zoomend pair as the
+// thing that defines "still zooming". Instead, noteZoomActivity() is called
+// on every sign of the user actively working the zoom — not just each
+// committed Leaflet step — including every raw wheel tick and every animation
+// frame of a manual pinch, whether or not that particular tick/frame actually
+// crossed a full committed zoom step. That keeps the hidden window continuous
+// for the whole real-world gesture, independent of how choppy Leaflet's own
+// commit cadence happens to be underneath it.
+function noteZoomActivity(rotated) {
   mapContainerEl.classList.add('map-zooming');
+  if (rotated) mapContainerEl.classList.add('map-zooming-rotated');
+  if (zoomEndTimer) clearTimeout(zoomEndTimer);
+  zoomEndTimer = setTimeout(endZoomBurst, ZOOM_END_DELAY_MS);
+}
+function endZoomBurst() {
+  zoomEndTimer = null;
+  mapContainerEl.classList.remove('map-zooming');
+  mapContainerEl.classList.remove('map-zooming-rotated');
+  // The burst is genuinely over now — run the marker/viewport refreshes that
+  // were being held off during it (see scheduleMarkerSyncOnSettle,
+  // scheduleViewportReloadIfNeeded, scheduleCompanyMarkersReload below), so
+  // the map still ends up up to date, just without the mid-burst churn.
+  if (typeof scheduleMarkerSyncOnSettle === 'function') scheduleMarkerSyncOnSettle();
+  if (typeof scheduleViewportReloadIfNeeded === 'function') scheduleViewportReloadIfNeeded();
+  if (typeof scheduleCompanyMarkersReload === 'function') scheduleCompanyMarkersReload();
+}
+map.on('zoomstart', () => {
+  noteZoomActivity(rotationActive());
   if (rotationActive()) {
-    mapContainerEl.classList.add('map-zooming-rotated');
     // zoomstart fires before Leaflet applies the new zoom, so this is still
     // the pre-zoom value.
     zoomRotatedFromZoom = map.getZoom();
@@ -7241,6 +7278,7 @@ map.on('zoomstart', () => {
   }
 });
 map.on('zoom', () => {
+  noteZoomActivity(rotationActive());
   if (zoomRotatedFromZoom == null || !rotWrapper) return;
   // A manual two-finger gesture already drives its own smooth, per-frame
   // preview scale — don't fight it with a second animation here.
@@ -7264,21 +7302,12 @@ map.on('zoom', () => {
     rotWrapper.style.transform = `rotate(${mapBearing}deg) scale(1)`;
   });
 });
-map.on('zoomend',   () => {
-  if (zoomEndTimer) clearTimeout(zoomEndTimer);
-  zoomEndTimer = setTimeout(() => {
-    zoomEndTimer = null;
-    mapContainerEl.classList.remove('map-zooming');
-    mapContainerEl.classList.remove('map-zooming-rotated');
-    // The burst is genuinely over now — run the marker/viewport refreshes
-    // that were being held off during it (see scheduleMarkerSyncOnSettle,
-    // scheduleViewportReloadIfNeeded, scheduleCompanyMarkersReload below),
-    // so the map still ends up up to date, just without the mid-burst churn.
-    if (typeof scheduleMarkerSyncOnSettle === 'function') scheduleMarkerSyncOnSettle();
-    if (typeof scheduleViewportReloadIfNeeded === 'function') scheduleViewportReloadIfNeeded();
-    if (typeof scheduleCompanyMarkersReload === 'function') scheduleCompanyMarkersReload();
-  }, ZOOM_END_DELAY_MS);
+map.on('zoomend', () => {
+  // Just extends the window; the actual class removal + resync only happens
+  // once this fires uninterrupted, in endZoomBurst().
+  noteZoomActivity(rotationActive());
 });
+
 
 const TILE_CACHE_NAME = 'ttb-osm-tiles-v1';
 
@@ -9500,6 +9529,13 @@ function commitRotatedWheelZoom() {
 function onRotatedWheelZoom(e) {
   if (!rotationActive()) return;
   e.preventDefault();
+  // Every raw tick counts as zoom activity, not just the ticks that happen to
+  // cross a full committed 0.25 step below — this is what keeps pins/reports
+  // hidden continuously for a real-world scroll session made of many small,
+  // irregularly-spaced wheel notches, instead of gapping open between commits
+  // (see the big comment above map.on('zoomstart', ...) for why this matters
+  // specifically while rotated).
+  noteZoomActivity(true);
   const rawPoint = map.mouseEventToContainerPoint(e);
   // Re-derive the anchor point every tick (not just on the first one of a
   // burst) so a scroll that drifts across the map while rotated still zooms
@@ -9812,6 +9848,11 @@ function applyTwoFingerGestureFrame() {
     }
   }
   if (g.zoomStepDistance > 0 && distance > 0) {
+    // Every frame of active pinching counts as zoom activity, independent of
+    // whether this particular frame crosses a full committed zoomDelta step
+    // below — same reasoning as the rotated wheel-zoom handler (see the big
+    // comment above map.on('zoomstart', ...)).
+    noteZoomActivity(true);
     // The map still commits real zoom in discrete zoomDelta steps — Leaflet
     // can't animate its own zoom while rotated (see
     // updateZoomAnimationForRotation), so calling setZoomAround continuously
