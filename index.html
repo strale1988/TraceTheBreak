@@ -14385,16 +14385,13 @@ function renderOpenCountryBody(countryCode) {
     companiesByMuni.get(key).push(c);
   });
 
-  // Default (no in-country search): only build a row for municipalities that
-  // already have at least one contact — some countries run into the
-  // thousands of municipalities, and most won't have anything to show, so
-  // building a full quick-add row for every one of them up front is needless
-  // DOM work. Typing a name below still reaches an empty municipality.
+  // Every municipality in this country gets a row, contacts or not — the
+  // admin needs to see (and quick-add to) empty municipalities without
+  // having to search for them by name first.
   let muniGroups = new Map();
   domainMunis.forEach(m => {
     const key = String(m.id);
-    const companies = companiesByMuni.get(key);
-    if (companies && companies.length) muniGroups.set(key, { muni: m, companies });
+    muniGroups.set(key, { muni: m, companies: companiesByMuni.get(key) || [] });
   });
 
   const query = ucCountrySearchQuery ? normalizeMuniNameForMatch(ucCountrySearchQuery) : '';
@@ -14408,17 +14405,6 @@ function renderOpenCountryBody(countryCode) {
         return haystack.includes(query);
       });
       if (matchingCompanies.length) filtered.set(key, { muni: group.muni, companies: matchingCompanies });
-    });
-    // Also surface contact-free municipalities whose name matches, so the
-    // admin can find and quick-add to a brand-new municipality by name.
-    domainMunis.forEach(m => {
-      const key = String(m.id);
-      if (filtered.has(key)) return;
-      const existing = companiesByMuni.get(key);
-      if (existing && existing.length) return; // already handled above
-      if (normalizeMuniNameForMatch(municipalityDisplayName(m)).includes(query)) {
-        filtered.set(key, { muni: m, companies: [] });
-      }
     });
     muniGroups = filtered;
   }
