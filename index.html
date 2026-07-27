@@ -7217,6 +7217,17 @@ const ZOOM_END_DELAY_MS = 250;
 function isRotatedZoomBursting() {
   return mapContainerEl.classList.contains('map-zooming-rotated');
 }
+// Broader guard than isRotatedZoomBursting: true for ANY in-progress zoom
+// gesture (rotated or not), not just while rotated. The marker-sync /
+// viewport-reload / company-marker schedulers below used to only skip work
+// during rotated bursts, so a plain (unrotated) continuous zoom — e.g.
+// holding the scroll wheel, or a slow pinch — could still hit its
+// debounceWithMaxWait cap and reload reports mid-zoom. Gating on this
+// instead means nothing loads until the zoomend handler above declares the
+// burst truly over and re-runs these schedulers itself.
+function isMapZooming() {
+  return mapContainerEl.classList.contains('map-zooming');
+}
 map.on('zoomstart', () => {
   if (zoomEndTimer) { clearTimeout(zoomEndTimer); zoomEndTimer = null; }
   mapContainerEl.classList.add('map-zooming');
@@ -7644,6 +7655,10 @@ const pinCluster = L.markerClusterGroup({
   disableClusteringAtZoom: 17,
   spiderfyOnMaxZoom: true,
   showCoverageOnHover: false,
+  // Leaflet.markercluster defaults to animating markers flying into/out of
+  // clusters as you zoom (and cluster bubbles splitting apart). Turned off
+  // per request — pins should just regroup instantly at the new zoom level.
+  animate: false,
   iconCreateFunction: makeClusterIcon
 });
 
@@ -7671,6 +7686,8 @@ const companyMarkersLayer = L.markerClusterGroup({
   disableClusteringAtZoom: 17,
   spiderfyOnMaxZoom: true,
   showCoverageOnHover: false,
+  // Same as pinCluster above — no fly/split animation on regroup.
+  animate: false,
   iconCreateFunction: makePublicClusterIcon
 }).addTo(map);
 
@@ -11456,7 +11473,7 @@ const MARKER_SYNC_MAX_WAIT_MS = 3000;
 const runMarkerSyncOnSettle = debounceWithMaxWait(() => syncMarkers(false), MARKER_SYNC_SETTLE_MS, MARKER_SYNC_MAX_WAIT_MS);
 function scheduleMarkerSyncOnSettle() {
   if (pinMode) return;
-  if (isRotatedZoomBursting()) return;
+  if (isMapZooming()) return;
   runMarkerSyncOnSettle();
 }
 map.on('moveend', scheduleMarkerSyncOnSettle);
@@ -11473,7 +11490,7 @@ const runViewportReloadIfNeeded = debounceWithMaxWait(() => {
 }, VIEWPORT_RELOAD_DEBOUNCE_MS, VIEWPORT_RELOAD_MAX_WAIT_MS);
 function scheduleViewportReloadIfNeeded() {
   if (pinMode) return;
-  if (isRotatedZoomBursting()) return;
+  if (isMapZooming()) return;
   runViewportReloadIfNeeded();
 }
 map.on('moveend', scheduleViewportReloadIfNeeded);
@@ -13498,7 +13515,7 @@ const scheduleCompanyMarkersReloadIfNeeded = debounceWithMaxWait(() => {
   if (!viewportBBoxContains(lastLoadedCompanyBBox, visible)) loadCompanyMarkersByWindow();
 }, VIEWPORT_RELOAD_DEBOUNCE_MS, VIEWPORT_RELOAD_MAX_WAIT_MS);
 function scheduleCompanyMarkersReload() {
-  if (isRotatedZoomBursting()) return;
+  if (isMapZooming()) return;
   scheduleCompanyMarkersReloadIfNeeded();
 }
 map.on('moveend', scheduleCompanyMarkersReload);
