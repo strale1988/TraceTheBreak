@@ -3311,6 +3311,21 @@ span.flatpickr-weekday {
       <p class="detail-export-hint" id="langAutoHint">We'll set the language based on your location.</p>
     </div>
 
+    <div class="detail-section locked-panel" id="settingsSignInGate" style="display:none">
+      <p id="settingsSignInGateMsgText">Sign in to customize theme, map, and driving settings.</p>
+      <button type="button" class="oauth-btn oauth-google" onclick="signInWithProvider('google')">
+        <img class="icon-img" src="icons/google.png" alt=""><span>Continue with Google</span>
+      </button>
+      <button type="button" class="oauth-btn oauth-github" onclick="signInWithProvider('github')">
+        <img class="icon-img" src="icons/github.png" alt=""><span>Continue with GitHub</span>
+      </button>
+      <button type="button" class="oauth-btn oauth-osm" onclick="signInWithOsm()">
+        <img class="icon-img" src="icons/osm.png" alt=""><span>Continue with OpenStreetMap</span>
+      </button>
+    </div>
+
+    <div id="settingsAccountGatedGroup">
+
     <div class="detail-section" id="themeSettingsSection">
       <div class="detail-section-title" id="themeSectionTitle">Theme</div>
       <div class="theme-segment" id="themeSegment">
@@ -3382,6 +3397,13 @@ span.flatpickr-weekday {
           <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
         </span>
       </label>
+      <label class="settings-toggle-row" id="voiceNavToggleRow">
+        <span id="voiceNavToggleLabel">Voice-guided turn directions</span>
+        <span class="toggle-switch">
+          <input type="checkbox" id="voiceNavToggleInput" onchange="setVoiceNavEnabled(this.checked)">
+          <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+        </span>
+      </label>
       <label class="settings-toggle-row" id="drivingSafetyToggleRow">
         <span id="drivingSafetyToggleLabel">Show safe-driving reminder when starting driving mode</span>
         <span class="toggle-switch">
@@ -3435,7 +3457,7 @@ span.flatpickr-weekday {
       </div>
     </div>
 
-    <div class="detail-section" style="padding:0;overflow:hidden;">
+    <div class="detail-section" id="timeWindowFilterSection" style="padding:0;overflow:hidden;">
       <div class="filter-label-row" style="border-radius:0;">
         <span class="filter-title" id="filterTitleLabel">Time Window Filter</span>
       </div>
@@ -3449,6 +3471,8 @@ span.flatpickr-weekday {
           <span id="csvLabel">CSV</span>
         </button>
       </div>
+    </div>
+
     </div>
 
   </div>
@@ -4084,6 +4108,17 @@ async function loadProfile() {
   }
 }
 
+// Theme/map/driving/notification settings only make sense (and are only
+// worth the visual clutter) once someone actually has an account — a signed-
+// out visitor gets a single sign-in prompt in their place instead of a wall
+// of controls that don't apply to them yet.
+function updateSettingsAccountGate() {
+  const hasAccount = !!currentSession;
+  const gate = document.getElementById('settingsSignInGate');
+  const group = document.getElementById('settingsAccountGatedGroup');
+  if (gate) gate.style.display = hasAccount ? 'none' : 'flex';
+  if (group) group.style.display = hasAccount ? '' : 'none';
+}
 function updateAuthUI() {
   const reportFormPanel = document.getElementById('reportFormPanel');
   const desktopBlockedPanel = document.getElementById('desktopBlockedPanel');
@@ -4095,6 +4130,7 @@ function updateAuthUI() {
   const hasAccount = !!currentSession;
   [document.getElementById('leaderboardBtn'), document.getElementById('navigateModeBtn'), document.getElementById('heatmapBtn'), document.getElementById('notificationBtn')]
     .forEach(btn => { if (btn) btn.classList.toggle('map-btn-locked', !hasAccount); });
+  updateSettingsAccountGate();
 
   if (currentSession && currentProfile && currentProfile.username) {
     updateAdminPanelButtonVisibility();
@@ -5845,6 +5881,7 @@ const T = {
   analyticsUnknownArea:   { en:'Unknown area',                     sr:'Nepoznata oblast' },
   analyticsWeekAbbrev:    { en:'W',                                 sr:'N' },
   themeSectionTitle: { en:'Theme',                       sr:'Tema' },
+  settingsSignInGateMsgText: { en:'Sign in to customize theme, map, and driving settings.', sr:'Prijavite se da biste prilagodili temu, mapu i podešavanja vožnje.' },
   themeLight:        { en:'Light',                       sr:'Svetla' },
   themeDark:         { en:'Dark',                        sr:'Tamna' },
   themeAuto:         { en:'Auto',                        sr:'Automatski' },
@@ -6036,6 +6073,9 @@ const T = {
   turnRoundabout:    { en:'Enter the roundabout',                      sr:'Uđite u kružni tok' },
   turnExit:          { en:'exit',                                      sr:'izlaz' },
   turnArrive:        { en:'Arrive at destination',                     sr:'Stigli ste na odredište' },
+  voiceLeadIn:       { en:'In {dist}, ',                                sr:'Za {dist}, ' },
+  voiceMeters:       { en:'meters',                                     sr:'metara' },
+  voiceKilometers:   { en:'kilometers',                                 sr:'kilometara' },
 
   myReportsTitle:        { en:'My Reports',                                 sr:'Moje prijave' },
   myReportsFilterAll:    { en:'All',                                        sr:'Sve' },
@@ -6300,6 +6340,7 @@ const T = {
   queueTypeStale:         { en:'Aging, no activity',                  sr:'Zastarelo, bez aktivnosti' },
   soundSectionTitle:      { en:'Sound',                               sr:'Zvuk' },
   soundToggleLabel:       { en:'Navigation & alert sounds',           sr:'Zvukovi za navigaciju i upozorenja' },
+  voiceNavToggleLabel:    { en:'Voice-guided turn directions',        sr:'Glasovno navođenje skretanja' },
   drivingSafetySectionTitle: { en:'Driving mode',                                            sr:'Režim vožnje' },
   drivingSafetyToggleLabel:  { en:'Show safe-driving reminder when starting driving mode',    sr:'Prikaži podsetnik o bezbednoj vožnji pri pokretanju režima vožnje' },
   drivingSafetyTitle:        { en:'Drive safe',                                               sr:'Vozite bezbedno' },
@@ -6491,6 +6532,8 @@ function applyLang(){
   const municipalityContactsBtnEl = document.getElementById('municipalityContactsBtn');
   if (municipalityContactsBtnEl) municipalityContactsBtnEl.title = t('municipalityContactsBtnTitle');
   document.getElementById('settingsModalTitle').textContent = t('settingsModalTitle');
+  const settingsSignInGateMsgTextEl = document.getElementById('settingsSignInGateMsgText');
+  if (settingsSignInGateMsgTextEl) settingsSignInGateMsgTextEl.textContent = t('settingsSignInGateMsgText');
   document.getElementById('themeSectionTitle').textContent = t('themeSectionTitle');
   document.getElementById('themeBtnLight').textContent = t('themeLight');
   document.getElementById('themeBtnDark').textContent = t('themeDark');
@@ -6532,6 +6575,8 @@ function applyLang(){
   if (soundSectionTitleEl) soundSectionTitleEl.textContent = t('soundSectionTitle');
   const soundToggleLabelEl = document.getElementById('soundToggleLabel');
   if (soundToggleLabelEl) soundToggleLabelEl.textContent = t('soundToggleLabel');
+  const voiceNavToggleLabelEl = document.getElementById('voiceNavToggleLabel');
+  if (voiceNavToggleLabelEl) voiceNavToggleLabelEl.textContent = t('voiceNavToggleLabel');
   const drivingSafetySectionTitleEl = document.getElementById('drivingSafetySectionTitle');
   if (drivingSafetySectionTitleEl) drivingSafetySectionTitleEl.textContent = t('drivingSafetySectionTitle');
   const drivingSafetyToggleLabelEl = document.getElementById('drivingSafetyToggleLabel');
@@ -6749,10 +6794,12 @@ function showSettingsModal() {
   const modal = document.getElementById('settingsModal');
   bringModalToFront(modal);
   modal.style.display = 'flex';
+  updateSettingsAccountGate();
   const pulseToggleEl = document.getElementById('pulseToggleInput');
   if (pulseToggleEl) pulseToggleEl.checked = statusPulseEnabled;
   renderStatusFilterSettings();
   initSoundSettingsUi();
+  initVoiceNavSettingsUi();
   initDrivingSafetySettingsUi();
   initOverspeedAlertSettingsUi();
   initBumpDetectionSettingsUi();
@@ -8848,6 +8895,53 @@ function initSoundSettingsUi() {
   if (input) input.checked = soundEnabled;
 }
 
+const VOICE_NAV_PREF_KEY = 'ttb_voice_nav_enabled';
+function getVoiceNavPref() {
+  try {
+    const v = localStorage.getItem(VOICE_NAV_PREF_KEY);
+    return v === null ? false : v === '1';
+  } catch (err) { return false; }
+}
+let voiceNavEnabled = getVoiceNavPref();
+function setVoiceNavEnabled(enabled) {
+  voiceNavEnabled = !!enabled;
+  try { localStorage.setItem(VOICE_NAV_PREF_KEY, voiceNavEnabled ? '1' : '0'); } catch (err) {}
+  if (!voiceNavEnabled) cancelVoiceNav();
+}
+function initVoiceNavSettingsUi() {
+  const input = document.getElementById('voiceNavToggleInput');
+  if (input) input.checked = voiceNavEnabled;
+}
+// Spoken turn-by-turn directions, layered on top of the existing chime/tone
+// alerts rather than replacing them — this only fires when voiceNavEnabled
+// is on, using the browser's built-in speech synthesis (no network request,
+// no audio asset to ship). Reuses the same localized instruction phrases
+// (t('turnLeft'), t('turnRight'), ...) the on-screen turn-by-turn card
+// already shows, so English/Serbian stay in sync automatically.
+function formatDistanceForSpeech(m) {
+  if (!isFinite(m)) return '';
+  if (m >= 1000) return (m / 1000).toFixed(1) + ' ' + t('voiceKilometers');
+  return Math.round(m) + ' ' + t('voiceMeters');
+}
+function speakNavInstruction(text) {
+  if (!voiceNavEnabled || !text) return;
+  if (!('speechSynthesis' in window)) return;
+  try {
+    // Cancel rather than queue: if a new instruction is ready, any
+    // still-speaking older one is stale and shouldn't talk over it.
+    window.speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = lang === 'sr' ? 'sr-RS' : 'en-US';
+    window.speechSynthesis.speak(utter);
+  } catch (err) {
+    console.warn('speakNavInstruction failed:', err.message);
+  }
+}
+function cancelVoiceNav() {
+  if (!('speechSynthesis' in window)) return;
+  try { window.speechSynthesis.cancel(); } catch (err) {}
+}
+
 const DRIVING_SAFETY_REMINDER_KEY = 'ttb_driving_safety_reminder';
 function getDrivingSafetyReminderPref() {
   try {
@@ -9019,7 +9113,7 @@ function instructionForStep(step) {
   if (!step) return null;
   const { type, modifier, exit, name } = step;
 
-  if (type === 'arrive') return { icon: 'turn-arrive.png', text: t('turnArrive') };
+  if (type === 'arrive') return { icon: 'turn-arrive.png', text: t('turnArrive'), isArrive: true };
   if (type === 'depart')  return null;
 
   if (type === 'roundabout' || type === 'rotary' || type === 'roundabout turn') {
@@ -9081,6 +9175,10 @@ function updateTurnByTurnDisplay(from) {
     if (tbtChimePlayedForStep !== navStepIndex) {
       tbtChimePlayedForStep = navStepIndex;
       playTurnUpcomingChime();
+      const spokenText = info.isArrive
+        ? info.text
+        : t('voiceLeadIn').replace('{dist}', formatDistanceForSpeech(distToTurn)) + info.text;
+      speakNavInstruction(spokenText);
     }
   } else if (!justTookTurn) {
   }
@@ -9161,6 +9259,7 @@ function formatDuration(s) {
 }
 
 function clearNavigation() {
+  cancelVoiceNav();
   destinationCoords = null;
   navLastRouteAt = 0;
   navLastRouteFrom = null;
@@ -9667,6 +9766,7 @@ function toggleDrivingMode(mode) {
     }
     if (navPanelOpen) closeNavigatePanel();
     hideTurnByTurnDisplay();
+    cancelVoiceNav();
     resetQuickGrids();
     setUserMarkerStyle(false);
     stopMarkerAnimLoop();
