@@ -4567,11 +4567,17 @@ function hideBadgeInfo() {
 }
 
 const ADMIN_LEVELS = [
-  { level:1, nameEn:'Municipal Controller', nameSr:'Opštinski kontrolor' },
+  { level:1, nameEn:'Municipal Controller',  nameSr:'Opštinski kontrolor' },
   { level:2, nameEn:'Regional Director',     nameSr:'Regionalni direktor' },
-  { level:3, nameEn:'Global Overseer',       nameSr:'Globalni nadzornik' },
+  { level:3, nameEn:'Continental Director',  nameSr:'Kontinentalni direktor' },
+  { level:4, nameEn:'Global Overseer',       nameSr:'Globalni nadzornik' },
 ];
-const ADMIN_DEFAULT_LEVEL = 3;
+// Was 3 back when level 3 meant "sees everything". Level 3 now means
+// continent-scoped and level 4 is the new global tier — bumped to 4 so any
+// existing admin profile without an explicit admin_level (which relied on
+// this fallback to mean "global") keeps global access instead of silently
+// becoming an unconfigured, locked-out continent admin.
+const ADMIN_DEFAULT_LEVEL = 4;
 
 function adminLevelInfo(lvl) { return ADMIN_LEVELS.find(a => a.level === lvl) || null; }
 function adminLevelName(lvl) {
@@ -4845,7 +4851,8 @@ function getMunicipalityForAdminAssignment(value) {
 function currentAdminTag() {
   const lvl = currentAdminLevel();
   if (!lvl) return '';
-  if (lvl >= 3) return t('adminTagGlobal');
+  if (lvl >= 4) return t('adminTagGlobal');
+  if (lvl === 3) return currentProfile.admin_continent ? t('adminTagContinent').replace('{continent}', continentDisplayName(currentProfile.admin_continent)) : t('adminTagUnset');
   if (lvl === 2) return currentProfile.admin_country_code ? countryDisplayName(currentProfile.admin_country_code) : t('adminTagUnset');
   const muni = currentProfile.admin_municipality_id != null
     ? getMunicipalityForAdminAssignment(currentProfile.admin_municipality_id) : null;
@@ -4855,8 +4862,11 @@ function currentAdminTag() {
 function isMunicipalityInAdminDomain(muni) {
   const lvl = currentAdminLevel();
   if (!lvl) return false;
-  if (lvl >= 3) return true;
+  if (lvl >= 4) return true;
   if (!muni) return false;
+  if (lvl === 3) {
+    return !!(currentProfile.admin_continent && continentOfCountry(muni.country_code) === currentProfile.admin_continent);
+  }
   if (lvl === 2) {
     return !!(currentProfile.admin_country_code && muni.country_code === currentProfile.admin_country_code);
   }
@@ -4868,8 +4878,11 @@ function isMunicipalityInAdminDomain(muni) {
 function isMunicipalityInAdminRowDomain(muni, row) {
   if (!row) return false;
   const lvl = row.admin_level || ADMIN_DEFAULT_LEVEL;
-  if (lvl >= 3) return true;
+  if (lvl >= 4) return true;
   if (!muni) return false;
+  if (lvl === 3) {
+    return !!(row.admin_continent && continentOfCountry(muni.country_code) === row.admin_continent);
+  }
   if (lvl === 2) {
     return !!(row.admin_country_code && muni.country_code === row.admin_country_code);
   }
@@ -4880,7 +4893,7 @@ function isMunicipalityInAdminRowDomain(muni, row) {
 
 function isReportInAdminDomain(report) {
   if (!currentAdminLevel()) return false;
-  if (currentAdminLevel() >= 3) return true;
+  if (currentAdminLevel() >= 4) return true;
   if (!report) return false;
   let muni = report.municipality_id != null ? getMunicipalityById(report.municipality_id) : null;
   if (!muni && isValidLatLng(report.latitude, report.longitude)) {
@@ -5579,7 +5592,8 @@ async function renderAdminDashboard() {
   }
   section.style.display = 'flex';
 
-  if (currentAdminLevel() === 1 || currentAdminLevel() === 2) await loadMunicipalityCache();
+  if (currentAdminLevel() === 1 || currentAdminLevel() === 2 || currentAdminLevel() === 3) await loadMunicipalityCache();
+  if (currentAdminLevel() === 3) await loadCountryContinentCache();
   if (!currentSession || !currentProfile || !currentProfile.is_admin) return;
 
   const lvl = currentAdminLevel();
@@ -5595,7 +5609,7 @@ async function renderAdminDashboard() {
   const idStatusEl = document.getElementById('dashboardIdentityStatus');
   if (idStatusEl) idStatusEl.textContent = adminLevelName(lvl);
 
-  const noteKey = lvl === 1 ? 'adminDashboardScopeNote1' : lvl === 2 ? 'adminDashboardScopeNote2' : 'adminDashboardScopeNote3';
+  const noteKey = lvl === 1 ? 'adminDashboardScopeNote1' : lvl === 2 ? 'adminDashboardScopeNote2' : lvl === 3 ? 'adminDashboardScopeNote3' : 'adminDashboardScopeNote4';
   document.getElementById('adminDashboardScopeNote').textContent = t(noteKey);
 
   const stats = await getAdminModerationStats();
@@ -5843,7 +5857,12 @@ const T = {
   updateConflict:{ en:'Another admin already changed this report\u2019s status. Refreshed to show the latest.', sr:'Drugi administrator je već promenio status ove prijave. Osveženo sa najnovijim stanjem.' },
   adminBadge:    { en:'ADMIN',                                     sr:'ADMIN' },
   adminTagGlobal:   { en:'Global',                                 sr:'Globalno' },
+  adminTagContinent:{ en:'{continent} (continent)',                sr:'{continent} (kontinent)' },
   adminTagUnset:    { en:'Unassigned',                             sr:'Nedodeljeno' },
+  ucCoverageNone:   { en:'No contacts added yet',                  sr:'Nema dodatih kontakata' },
+  ucCoverageSome:   { en:'Some contacts added',                    sr:'Dodato je nekoliko kontakata' },
+  ucCoverageMost:   { en:'Most contacts added',                    sr:'Dodata je većina kontakata' },
+  ucCoverageFull:   { en:'All contacts added',                     sr:'Dodati su svi kontakti' },
   adminDashboardSectionTitle: { en:'My Admin Role',                sr:'Moja administratorska uloga' },
   adminDashboardLevelLabel:   { en:'Level',                        sr:'Nivo' },
   adminDashboardTagLabel:     { en:'Responsible for',              sr:'Odgovoran za' },
@@ -5854,7 +5873,8 @@ const T = {
   adminDashboardBadgesTitle:  { en:'Admin achievements',           sr:'Administratorska dostignuća' },
   adminDashboardScopeNote1:   { en:'Full power inside this municipality. Elsewhere, your vote carries the strongest weight, unless you\u2019re physically on-site, where you can still take full control.', sr:'Puna ovlašćenja unutar ove opštine. Van nje, vaš glas ima najveću težinu, osim ako se ne nalazite fizički na licu mesta, gde i dalje imate punu kontrolu.' },
   adminDashboardScopeNote2:   { en:'Full power inside this country. Elsewhere, your vote carries the strongest weight, unless you\u2019re physically on-site, where you can still take full control.', sr:'Puna ovlašćenja unutar ove zemlje. Van nje, vaš glas ima najveću težinu, osim ako se ne nalazite fizički na licu mesta, gde i dalje imate punu kontrolu.' },
-  adminDashboardScopeNote3:   { en:'Full power everywhere, all the time.', sr:'Puna ovlašćenja svuda, u svakom trenutku.' },
+  adminDashboardScopeNote3:   { en:'Full power inside this continent. Elsewhere, your vote carries the strongest weight, unless you\u2019re physically on-site, where you can still take full control.', sr:'Puna ovlašćenja unutar ovog kontinenta. Van njega, vaš glas ima najveću težinu, osim ako se ne nalazite fizički na licu mesta, gde i dalje imate punu kontrolu.' },
+  adminDashboardScopeNote4:   { en:'Full power everywhere, all the time.', sr:'Puna ovlašćenja svuda, u svakom trenutku.' },
   profileProgressToNext:    { en:'{n} points to {level}',          sr:'Još {n} poena do nivoa: {level}' },
   profileMaxLevel:          { en:'You\u2019ve reached the top level: your vote counts as much as it can.', sr:'Dostigli ste najviši nivo: vaš glas vredi maksimalno.' },
   profileStats:  { en:'{s} successful out of {t} civic points', sr:'{s} uspešnih od ukupno {t} poena' },
@@ -7375,7 +7395,7 @@ function collectAllIconPaths() {
     'icons/google.png', 'icons/github.png', 'icons/osm.png', 'icons/close.png', 'icons/help.png',
     'icons/arrow.png', 'icons/search.png', 'icons/trophy.png',
     'icons/public.png', 'icons/email.png', 'icons/phone.png', 'icons/link.png',
-    'icons/badges/badge-admin-admin-1.png', 'icons/badges/badge-admin-admin-2.png', 'icons/badges/badge-admin-admin-3.png',
+    'icons/badges/badge-admin-admin-1.png', 'icons/badges/badge-admin-admin-2.png', 'icons/badges/badge-admin-admin-3.png', 'icons/badges/badge-admin-admin-4.png',
     'icons/turn-arrive.png', 'icons/turn-roundabout.png', 'icons/turn-merge.png',
     'icons/turn-fork.png', 'icons/turn-end-of-road.png', 'icons/turn-ramp.png',
   ];
@@ -13546,7 +13566,7 @@ function municipalityDisplayName(m) {
 }
 function canManageContactsForMunicipality(municipalityId) {
   if (!currentProfile || !currentProfile.is_admin) return false;
-  if (currentAdminLevel() >= 3) return true;
+  if (currentAdminLevel() >= 4) return true;
   const muni = municipalityId != null ? getMunicipalityById(municipalityId) : null;
   return isMunicipalityInAdminDomain(muni);
 }
@@ -14029,7 +14049,7 @@ function populateUcMunicipalitySelect() {
   if (!sel) return;
   const prevValue = sel.value;
 
-  const selectable = currentAdminLevel() >= 3
+  const selectable = currentAdminLevel() >= 4
     ? municipalityCache
     : municipalityCache.filter(m => isMunicipalityInAdminDomain(m));
 
@@ -14160,7 +14180,7 @@ function renderUcList() {
   const rawQuery = searchEl ? searchEl.value.trim() : '';
   const query = rawQuery ? normalizeMuniNameForMatch(rawQuery) : '';
 
-  const domainMunis = currentAdminLevel() >= 3
+  const domainMunis = currentAdminLevel() >= 4
     ? municipalityCache
     : municipalityCache.filter(m => isMunicipalityInAdminDomain(m));
 
@@ -14267,25 +14287,43 @@ function renderUcList() {
       // Quick-add row is computed from every contact in this municipality
       // (not the possibly search-filtered `companies` above), so it stays
       // accurate even while the admin is filtering the list by a company
-      // name. Every category gets its own "+" button here — previously this
-      // only rendered a static (non-clickable) list of *missing* categories,
-      // so adding a contact for a given tag meant opening a blank form and
-      // manually re-picking the municipality and category from scratch.
+      // name.
       const allMuniCompanies = companiesByMuni.get(muniKey) || [];
       const coveredCats = new Set();
       allMuniCompanies.forEach(c => (c.categories || []).forEach(cat => coveredCats.add(cat)));
       const missingCats = UC_CATEGORIES.filter(cat => !coveredCats.has(cat));
-      const quickAddTagsHtml = muni
+
+      // Each tag can only belong to one contact per municipality, so a "+"
+      // button for an already-covered category can never do anything useful
+      // — only render buttons for the tags that are actually still open.
+      const quickAddTagsHtml = muni && missingCats.length
         ? '<div class="uc-muni-missing-tags">' +
             '<span class="uc-muni-missing-label">' + escapeHtml(t('ucQuickAddTagsLabel')) + '</span>' +
-            UC_CATEGORIES.map(cat => {
-              const isMissing = missingCats.includes(cat);
-              return '<button type="button" class="uc-cat-chip uc-cat-chip-add' + (isMissing ? ' uc-cat-chip-missing' : ' uc-cat-chip-covered') + '" ' +
+            missingCats.map(cat =>
+              '<button type="button" class="uc-cat-chip uc-cat-chip-add uc-cat-chip-missing" ' +
                 'onclick="quickAddUcContact(\'' + muni.id + '\', \'' + cat + '\')">' +
                 '+ ' + escapeHtml(translateCategory(cat)) +
-              '</button>';
-            }).join('') +
+              '</button>'
+            ).join('') +
           '</div>'
+        : '';
+
+      // Coverage dot: red = no contacts yet, orange = some tags covered,
+      // yellow = most tags covered, green = every tag has a contact. Reuses
+      // the app's existing status color palette (STATUS_COLORS) and the
+      // same small-dot class already used for municipality status
+      // indicators elsewhere (bottom-muni-stat-dot).
+      const coverageRatio = UC_CATEGORIES.length ? coveredCats.size / UC_CATEGORIES.length : 0;
+      const coverageDotColor = coveredCats.size === 0 ? STATUS_COLORS.reported
+        : coveredCats.size === UC_CATEGORIES.length ? STATUS_COLORS.fixed
+        : coverageRatio >= 0.5 ? '#f1c40f'
+        : STATUS_COLORS.in_progress;
+      const coverageDotTitle = coveredCats.size === 0 ? t('ucCoverageNone')
+        : coveredCats.size === UC_CATEGORIES.length ? t('ucCoverageFull')
+        : coverageRatio >= 0.5 ? t('ucCoverageMost')
+        : t('ucCoverageSome');
+      const coverageDotHtml = muni
+        ? '<span class="bottom-muni-stat-dot" style="background:' + coverageDotColor + ';" title="' + escapeHtml(coverageDotTitle) + '"></span> '
         : '';
 
       const itemsHtml = companies.length ? companies.map(c => {
@@ -14314,7 +14352,7 @@ function renderUcList() {
         '</div>';
       }).join('') : '<div class="detail-empty uc-muni-empty">' + t('ucMuniNoContacts') + '</div>';
       return '<details class="uc-muni-group" id="uc-muni-group-' + (muni ? muni.id : 'unknown') + '">' +
-        '<summary><span class="uc-group-chevron"><img src="icons/arrow.png" alt=""></span> ' + muniLabel +
+        '<summary><span class="uc-group-chevron"><img src="icons/arrow.png" alt=""></span> ' + coverageDotHtml + muniLabel +
           ' <span class="uc-country-count">(' + companies.length + ')</span></summary>' +
         quickAddTagsHtml +
         '<div class="uc-muni-items">' + itemsHtml + '</div>' +
