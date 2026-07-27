@@ -7280,9 +7280,10 @@ map.on('zoomstart', () => {
 map.on('zoom', () => {
   noteZoomActivity(rotationActive());
   if (zoomRotatedFromZoom == null || !rotWrapper) return;
-  // A manual two-finger gesture already drives its own smooth, per-frame
-  // preview scale — don't fight it with a second animation here.
-  if (twoFingerGesture && twoFingerGesture.mode === 'manual') { zoomRotatedFromZoom = null; return; }
+  // A two-finger gesture already drives its own smooth, per-frame preview
+  // scale (and now, per-frame rotation) — don't fight it with a second
+  // animation here.
+  if (twoFingerGesture) { zoomRotatedFromZoom = null; return; }
   const startZoom = zoomRotatedFromZoom;
   const newZoom = map.getZoom();
   zoomRotatedFromZoom = null;
@@ -7833,8 +7834,17 @@ function applyMapBearing(targetHeadingDeg) {
   const cssRotation = `rotate(${mapBearing}deg) scale(${currentPinchPreviewScale})`;
   if (rotWrapper) rotWrapper.style.transform = cssRotation;
   document.querySelectorAll('.compass-needle').forEach(needle => { needle.style.transform = cssRotation; });
-  if (typeof setNativeDraggingEnabled === 'function') setNativeDraggingEnabled(!rotationActive());
-  if (typeof setNativeZoomEnabled === 'function') setNativeZoomEnabled(!rotationActive());
+  // While a two-finger gesture is in progress we've already taken explicit
+  // manual control of dragging/zoom for its whole duration (see
+  // beginTwoFingerGesture below) — re-deriving these from rotationActive() on
+  // every twist-to-rotate frame could otherwise flip native dragging back on
+  // mid-gesture the instant bearing crosses back through 0, fighting the
+  // gesture's own panBy calls. endTwoFingerGesture() re-syncs both once the
+  // gesture actually ends.
+  if (!twoFingerGesture) {
+    if (typeof setNativeDraggingEnabled === 'function') setNativeDraggingEnabled(!rotationActive());
+    if (typeof setNativeZoomEnabled === 'function') setNativeZoomEnabled(!rotationActive());
+  }
   document.documentElement.style.setProperty('--pin-counter-rotate', `${-mapBearing}deg`);
   updateAllPopupRotations();
   updateUserMarkerRotation();
@@ -9387,7 +9397,55 @@ map.on('zoomend', scheduleAutoRefollow);
 
 let customDragActive = false;
 let customDragLast   = null;
+let customDragPointerId = null;
+let customDragSamples = [];
 const activeTouchPointerIds = new Set();
+
+// --- Momentum ("fling") for manually-driven panning ---
+// Leaflet's own single-finger drag already glides to a stop on release (its
+// default inertia option) — but that only covers Leaflet's native handler.
+// Our manual two-finger pan (needed for rotation-correction + twist-to-
+// rotate, see below) and our manual single-finger drag while rotated both
+// bypass Leaflet's dragging entirely, so neither got that glide before.
+// This reimplements the same idea: sample recent positions, and on release
+// keep panning at the last measured velocity, decaying it every frame.
+let panFlingRAF = null;
+const PAN_VELOCITY_SAMPLE_MS   = 80;    // rolling window used to measure release velocity
+const PAN_FLING_DECAY_PER_MS   = 0.998; // velocity multiplier applied per elapsed ms while coasting
+const PAN_FLING_MIN_SPEED      = 0.04;  // px/ms below which we just stop rather than crawl forever
+
+function cancelPanFling() {
+  if (panFlingRAF) { cancelAnimationFrame(panFlingRAF); panFlingRAF = null; }
+}
+
+function startPanFlingFromSamples(samples) {
+  if (!samples || samples.length < 2) return;
+  const first = samples[0], last = samples[samples.length - 1];
+  const dt = last.t - first.t;
+  if (dt <= 0) return;
+  let vx = (last.x - first.x) / dt;
+  let vy = (last.y - first.y) / dt;
+  if (Math.hypot(vx, vy) < PAN_FLING_MIN_SPEED) return;
+
+  cancelPanFling();
+  let lastTs = null;
+  function step(ts) {
+    if (lastTs == null) { lastTs = ts; panFlingRAF = requestAnimationFrame(step); return; }
+    const dtFrame = ts - lastTs;
+    lastTs = ts;
+    const decay = Math.pow(PAN_FLING_DECAY_PER_MS, dtFrame);
+    vx *= decay; vy *= decay;
+    const d = unrotateDelta(vx * dtFrame, vy * dtFrame);
+    map.panBy([-d.dx, -d.dy], { animate: false });
+    if (Math.hypot(vx, vy) >= PAN_FLING_MIN_SPEED) {
+      panFlingRAF = requestAnimationFrame(step);
+    } else {
+      panFlingRAF = null;
+      scheduleAutoRefollow();
+    }
+  }
+  panFlingRAF = requestAnimationFrame(step);
+}
 
 function rotationActive() {
 
@@ -9441,12 +9499,16 @@ function customDragPointerDown(e) {
     if (activeTouchPointerIds.size > 1) {
       customDragActive = false;
       customDragLast = null;
+      customDragPointerId = null;
       return;
     }
   }
   if (!rotationActive()) return;
+  cancelPanFling();
   customDragActive = true;
+  customDragPointerId = e.pointerId;
   customDragLast = { x: e.clientX, y: e.clientY };
+  customDragSamples = [{ t: performance.now(), x: e.clientX, y: e.clientY }];
 
   onUserMapInteractionStart();
 }
@@ -9454,6 +9516,7 @@ function customDragPointerDown(e) {
 function customDragPointerMove(e) {
   if (e.pointerType === 'touch' && activeTouchPointerIds.size > 1) return;
   if (!customDragActive) return;
+  if (customDragPointerId != null && e.pointerId !== customDragPointerId) return;
   const dx = e.clientX - customDragLast.x;
   const dy = e.clientY - customDragLast.y;
   customDragLast = { x: e.clientX, y: e.clientY };
@@ -9462,12 +9525,22 @@ function customDragPointerMove(e) {
   const mapDx = dx * cos - dy * sin;
   const mapDy = dx * sin + dy * cos;
   map.panBy([-mapDx, -mapDy], { animate: false });
+
+  const now = performance.now();
+  customDragSamples.push({ t: now, x: e.clientX, y: e.clientY });
+  while (customDragSamples.length > 1 && now - customDragSamples[0].t > PAN_VELOCITY_SAMPLE_MS) customDragSamples.shift();
 }
 
 function customDragPointerUp(e) {
   if (e && e.pointerType === 'touch') activeTouchPointerIds.delete(e.pointerId);
+  // A different finger than the one actually driving the drag lifted (e.g. a
+  // stray extra touch) — the drag itself is still live, don't stop it.
+  if (e && customDragPointerId != null && e.pointerId !== customDragPointerId) return;
   customDragActive = false;
   customDragLast = null;
+  customDragPointerId = null;
+  startPanFlingFromSamples(customDragSamples);
+  customDragSamples = [];
   scheduleAutoRefollow();
 }
 
@@ -9552,6 +9625,14 @@ function distanceBetweenTouches(t0, t1) {
 function midpointOfTouches(t0, t1) {
   return { x: (t0.clientX + t1.clientX) / 2, y: (t0.clientY + t1.clientY) / 2 };
 }
+function angleBetweenTouches(t0, t1) {
+  return Math.atan2(t1.clientY - t0.clientY, t1.clientX - t0.clientX) * 180 / Math.PI;
+}
+// How far the two fingers have to twist, in total, before we start rotating
+// the map — same idea as Google Maps' own small rotate deadzone. Without it,
+// the natural millimeter of wobble in an ordinary two-finger pinch or pan
+// would constantly nudge the bearing by a fraction of a degree.
+const ROTATE_GESTURE_DEADZONE_DEG = 3;
 function findTouchById(touchList, id) {
   for (let i = 0; i < touchList.length; i++) {
     if (touchList[i].identifier === id) return touchList[i];
@@ -9580,65 +9661,56 @@ function unrotateDelta(dx, dy) {
   return { dx: dx * cos - dy * sin, dy: dx * sin + dy * cos };
 }
 
-function switchToManualTwoFingerGesture(mid, distance) {
-  const g = twoFingerGesture;
-  // Native Leaflet touch handling works in screen-space and has no idea the
-  // map is visually rotated via CSS on rotWrapper, so it pans/zooms in the
-  // wrong direction once rotated (which can only happen here via compass
-  // heading-up mode now — there's no gesture that rotates the map anymore).
-  // Take full manual control, re-basing the reference values off the current
-  // touch state so there's no jump at the handoff.
-  g.mode = 'manual';
-  g.lastMid = mid;
-  g.zoomStepDistance = distance;
+// Two-finger gestures are now always handled manually — pan, pinch-zoom, and
+// twist-to-rotate all at once, the way Google Maps does it. That replaces the
+// old approach of letting Leaflet's native touchZoom drive things at bearing
+// 0 and only taking manual control once already rotated: Leaflet's native
+// handler has no concept of rotation at all, so it can never support a twist
+// gesture, and the old native→manual handoff mid-gesture (when rotation
+// kicked in, e.g. driving mode's auto heading-up) was itself a source of
+// visible jumps. Going manual from the very first touch removes that seam
+// entirely.
+function beginTwoFingerGesture(t0, t1) {
+  cancelPanFling();
   if (map.dragging && map.dragging.enabled()) map.dragging.disable();
   if (map.touchZoom && map.touchZoom.enabled()) map.touchZoom.disable();
   // Native dragging/touchZoom apply their own live CSS preview transform to
-  // the map pane while a gesture is in progress (that's how they give
-  // visual feedback before committing). disable() only stops them from
-  // handling future events — it doesn't clean up that in-flight preview —
-  // so without this, mid-gesture handoffs left the pane visually offset or
-  // scaled from Leaflet's last preview frame for an instant, which is what
-  // showed up as a jump/"trip" right when manual control kicked in. Snapping
-  // back to the last *committed* center/zoom (unchanged, so this fires no
-  // zoomstart/zoomend of its own) discards that stray transform before our
-  // own rotWrapper-based preview below takes over.
+  // the map pane while a gesture is in progress (that's how they give visual
+  // feedback before committing). disable() only stops them from handling
+  // future events — it doesn't clean up that in-flight preview — so without
+  // this, starting our own manual gesture on top could show a stray offset
+  // or scale from Leaflet's last preview frame for an instant. Snapping back
+  // to the last *committed* center/zoom (unchanged, so this fires no
+  // zoomstart/zoomend of its own) discards that before our own rotWrapper-
+  // based preview below takes over.
   map.setView(map.getCenter(), map.getZoom(), { animate: false });
   map.getContainer().style.touchAction = 'none';
   // rotWrapper normally transitions its transform over .25s (for smooth
-  // heading-up rotation), but that same transition was fighting our
-  // per-frame preview-scale updates below — each pinch frame's transform
-  // change got smeared out over a quarter second instead of applying
-  // immediately, which is its own source of laggy, rubber-bandy zoom.
+  // heading-up rotation), but that same transition would fight our per-frame
+  // preview updates below — each pinch/twist frame's transform change would
+  // get smeared out over a quarter second instead of applying immediately,
+  // which is its own source of laggy, rubber-bandy feel.
   if (rotWrapper) rotWrapper.style.transition = 'none';
-  onUserMapInteractionStart();
-}
 
-function beginTwoFingerGesture(t0, t1) {
+  const startAngle = angleBetweenTouches(t0, t1);
   twoFingerGesture = {
     id0: t0.identifier,
     id1: t1.identifier,
-    mode: 'native',
-    lastDistance: distanceBetweenTouches(t0, t1),
     lastMid: midpointOfTouches(t0, t1),
+    zoomStepDistance: distanceBetweenTouches(t0, t1),
+    lastAngle: startAngle,
+    cumulativeTwist: 0,      // running twist total while still inside the deadzone
+    rotationLocked: false,   // true once the deadzone's been crossed and rotation is "live"
     pendingMid: null,
-    pendingDistance: null
+    pendingDistance: null,
+    pendingAngle: null,
+    velocitySamples: []      // recent {t,x,y} midpoint samples, used to fling on release
   };
-  if (rotationActive()) {
-    // Map is already rotated (via compass heading-up mode): native handling
-    // would pan/zoom in the wrong direction from the very first pixel, so
-    // take manual control right away instead of starting native and
-    // switching over later.
-    switchToManualTwoFingerGesture(twoFingerGesture.lastMid, twoFingerGesture.lastDistance);
-  }
-  // Otherwise: let Leaflet's own dragging/touchZoom drive the pinch entirely
-  // — at bearing 0 screen-space is map-space, so there's nothing to correct
-  // and native handling is simpler and better-tested than anything custom.
-  // onMapTouchMove watches for the bearing changing mid-gesture (e.g. driving
-  // mode's auto heading-up kicking in) and hands control over if that happens.
+  onUserMapInteractionStart();
 }
 
 function endTwoFingerGesture() {
+  const g = twoFingerGesture;
   twoFingerGesture = null;
   twoFingerRafScheduled = false;
   currentPinchPreviewScale = 1;
@@ -9648,39 +9720,80 @@ function endTwoFingerGesture() {
   }
   setNativeDraggingEnabled(!rotationActive());
   setNativeZoomEnabled(!rotationActive());
+  if (g) startPanFlingFromSamples(g.velocitySamples);
+  scheduleAutoRefollow();
+}
+
+// Carries a pan through with whichever single finger is still down right as
+// a two-finger gesture ends (see onMapTouchEnd). Deliberately tracked with
+// the Touch API's own identifier end-to-end here — customDrag below tracks
+// single-finger drags via PointerEvent.pointerId instead, and the two ids
+// are not guaranteed to match for the same physical finger, so this stays
+// self-contained rather than trying to hand off between the two systems.
+let oneFingerCarry = null; // { id, lastX, lastY, samples }
+
+function beginOneFingerCarry(touch) {
+  cancelPanFling();
+  oneFingerCarry = {
+    id: touch.identifier,
+    lastX: touch.clientX,
+    lastY: touch.clientY,
+    samples: [{ t: performance.now(), x: touch.clientX, y: touch.clientY }]
+  };
+  onUserMapInteractionStart();
+}
+
+function updateOneFingerCarry(touch) {
+  const c = oneFingerCarry;
+  const dx = touch.clientX - c.lastX;
+  const dy = touch.clientY - c.lastY;
+  c.lastX = touch.clientX;
+  c.lastY = touch.clientY;
+  if (dx !== 0 || dy !== 0) {
+    const d = unrotateDelta(dx, dy);
+    map.panBy([-d.dx, -d.dy], { animate: false });
+  }
+  const now = performance.now();
+  c.samples.push({ t: now, x: touch.clientX, y: touch.clientY });
+  while (c.samples.length > 1 && now - c.samples[0].t > PAN_VELOCITY_SAMPLE_MS) c.samples.shift();
+}
+
+function endOneFingerCarry() {
+  if (!oneFingerCarry) return;
+  startPanFlingFromSamples(oneFingerCarry.samples);
+  oneFingerCarry = null;
   scheduleAutoRefollow();
 }
 
 function onMapTouchStart(e) {
   if (twoFingerGesture) return; // gesture already tracking two fingers, ignore any extra
-  if (e.touches.length >= 2) beginTwoFingerGesture(e.touches[0], e.touches[1]);
+  if (e.touches.length >= 2) {
+    oneFingerCarry = null; // upgrading straight from a one-finger carry into a fresh two-finger gesture
+    beginTwoFingerGesture(e.touches[0], e.touches[1]);
+  }
 }
 
 function onMapTouchMove(e) {
+  if (oneFingerCarry) {
+    const t = findTouchById(e.touches, oneFingerCarry.id);
+    if (!t) { endOneFingerCarry(); return; }
+    updateOneFingerCarry(t);
+    return;
+  }
   const g = twoFingerGesture;
   if (!g) return;
   const t0 = findTouchById(e.touches, g.id0);
   const t1 = findTouchById(e.touches, g.id1);
   if (!t0 || !t1) { endTwoFingerGesture(); return; }
 
-  if (g.mode === 'native') {
-    if (rotationActive()) {
-      // The bearing changed mid-gesture (e.g. driving mode's auto heading-up
-      // rotated the map while the user was still pinching) — native handling
-      // doesn't know about rotation at all, so take over immediately rather
-      // than finishing the gesture in the wrong direction.
-      switchToManualTwoFingerGesture(midpointOfTouches(t0, t1), distanceBetweenTouches(t0, t1));
-    }
-    return; // native Leaflet drives pan+zoom entirely on its own otherwise
-  }
-
   // Just record the latest touch positions here; the actual math runs at
   // most once per animation frame in applyTwoFingerGestureFrame(). Touch
-  // events can fire faster than the screen can redraw, and each pan/zoom
-  // used to trigger its own Leaflet redraw — coalescing them into one
+  // events can fire faster than the screen can redraw, and each pan/zoom/
+  // rotate used to trigger its own Leaflet redraw — coalescing them into one
   // update per frame is what keeps this smooth.
   g.pendingMid = midpointOfTouches(t0, t1);
   g.pendingDistance = distanceBetweenTouches(t0, t1);
+  g.pendingAngle = angleBetweenTouches(t0, t1);
 
   if (twoFingerRafScheduled) return;
   twoFingerRafScheduled = true;
@@ -9690,17 +9803,34 @@ function onMapTouchMove(e) {
 function applyTwoFingerGestureFrame() {
   twoFingerRafScheduled = false;
   const g = twoFingerGesture;
-  if (!g || g.mode !== 'manual' || !g.pendingMid) return;
+  if (!g || !g.pendingMid) return;
 
   const mid = g.pendingMid;
   const distance = g.pendingDistance;
+  const angle = g.pendingAngle;
+  const now = performance.now();
 
-  // Rotation-corrected two-finger pan, plus pinch-zoom around the touch
-  // midpoint — computed once per frame from a single snapshot of the touch
-  // data. The rotation-correction helpers are no-ops at bearing 0, so this
-  // behaves exactly like a plain two-finger pan/pinch when the map isn't
-  // rotated (though native handles that case directly and never reaches
-  // here at all).
+  // --- twist-to-rotate ---
+  // Google Maps style: nothing happens until the fingers have twisted past a
+  // small combined threshold (ROTATE_GESTURE_DEADZONE_DEG), so an ordinary
+  // pinch or pan doesn't accidentally start rotating the map. Once past it,
+  // rotation tracks the twist 1:1 for the rest of the gesture.
+  let angleDelta = shortestAngleDelta(g.lastAngle, angle);
+  g.lastAngle = angle;
+  if (!g.rotationLocked) {
+    g.cumulativeTwist += angleDelta;
+    if (Math.abs(g.cumulativeTwist) >= ROTATE_GESTURE_DEADZONE_DEG) {
+      g.rotationLocked = true;
+      angleDelta = g.cumulativeTwist; // apply the whole twist that crossed the threshold at once, so it isn't "eaten"
+    } else {
+      angleDelta = 0;
+    }
+  }
+  if (angleDelta !== 0) applyMapBearing(mapBearing + angleDelta);
+
+  // --- rotation-corrected two-finger pan ---
+  // The rotation-correction helper is a no-op at bearing 0, so this behaves
+  // exactly like a plain two-finger pan when the map isn't rotated.
   if (g.lastMid) {
     const dx = mid.x - g.lastMid.x;
     const dy = mid.y - g.lastMid.y;
@@ -9709,6 +9839,14 @@ function applyTwoFingerGestureFrame() {
       map.panBy([-d.dx, -d.dy], { animate: false });
     }
   }
+
+  // Track recent midpoint samples so a release can "fling" the pan onward at
+  // whatever velocity the fingers were last moving at, same as Leaflet's own
+  // single-finger inertia.
+  g.velocitySamples.push({ t: now, x: mid.x, y: mid.y });
+  while (g.velocitySamples.length > 1 && now - g.velocitySamples[0].t > PAN_VELOCITY_SAMPLE_MS) g.velocitySamples.shift();
+
+  // --- pinch-zoom around the touch midpoint ---
   if (g.zoomStepDistance > 0 && distance > 0) {
     // Every frame of active pinching counts as zoom activity, independent of
     // whether this particular frame crosses a full committed zoomDelta step
@@ -9750,21 +9888,38 @@ function applyTwoFingerGestureFrame() {
       currentPinchPreviewScale = 1;
       if (rotWrapper) rotWrapper.style.transform = `rotate(${mapBearing}deg) scale(1)`;
     }
+  } else if (angleDelta !== 0 && rotWrapper) {
+    // Pure twist with fingers held the same distance apart: still needs the
+    // preview transform refreshed (applyMapBearing already did this, but the
+    // zoom branch above is what normally keeps rotWrapper's transform in
+    // sync with currentPinchPreviewScale — cheap no-op most of the time).
+    rotWrapper.style.transform = `rotate(${mapBearing}deg) scale(${currentPinchPreviewScale})`;
   }
 
   g.lastMid = mid;
 }
 
 function onMapTouchEnd(e) {
+  if (oneFingerCarry) {
+    if (!findTouchById(e.touches, oneFingerCarry.id)) endOneFingerCarry();
+    return;
+  }
   if (!twoFingerGesture) return;
   const t0 = findTouchById(e.touches, twoFingerGesture.id0);
   const t1 = findTouchById(e.touches, twoFingerGesture.id1);
   if (t0 && t1) return; // both original fingers still down, nothing changed
   endTwoFingerGesture();
-  // A third finger may have been down already — if exactly two touches
-  // remain after the one that just lifted, pick those up as a fresh
-  // gesture instead of leaving two-finger handling stuck off.
-  if (e.touches.length === 2) beginTwoFingerGesture(e.touches[0], e.touches[1]);
+  if (e.touches.length === 2) {
+    // A third finger may have been down already — pick the remaining two up
+    // as a fresh gesture instead of leaving two-finger handling stuck off.
+    beginTwoFingerGesture(e.touches[0], e.touches[1]);
+  } else if (e.touches.length === 1) {
+    // One finger is still down right as the two-finger gesture ends — carry
+    // its pan straight through instead of waiting for a fresh touch. Leaflet
+    // only starts its own drag on a new pointerdown, so without this the map
+    // would otherwise sit dead until the user lifted and pressed again.
+    beginOneFingerCarry(e.touches[0]);
+  }
 }
 (function initTwoFingerRotate(){
   const el = map.getContainer();
