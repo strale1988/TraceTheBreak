@@ -9633,6 +9633,17 @@ function angleBetweenTouches(t0, t1) {
 // the natural millimeter of wobble in an ordinary two-finger pinch or pan
 // would constantly nudge the bearing by a fraction of a degree.
 const ROTATE_GESTURE_DEADZONE_DEG = 3;
+// atan2 is inherently unstable when the two touch points are close together —
+// with fingers 10px apart, a single pixel of touch-sensor jitter can swing
+// the computed angle by several degrees; the same jitter barely moves the
+// angle once fingers are further apart. That noise, not any real twisting,
+// is what made rotation feel "way too sensitive": below this separation we
+// don't trust the angle at all.
+const ROTATE_MIN_FINGER_DISTANCE_PX = 60;
+// Extra belt-and-suspenders clamp: no single animation frame is allowed to
+// rotate the map by more than this many degrees, so one noisy sample can't
+// cause a visible snap even if it slips past the distance gate above.
+const ROTATE_MAX_DEG_PER_FRAME = 12;
 function findTouchById(touchList, id) {
   for (let i = 0; i < touchList.length; i++) {
     if (touchList[i].identifier === id) return touchList[i];
@@ -9693,20 +9704,32 @@ function beginTwoFingerGesture(t0, t1) {
   if (rotWrapper) rotWrapper.style.transition = 'none';
 
   const startAngle = angleBetweenTouches(t0, t1);
+  const startDistance = distanceBetweenTouches(t0, t1);
   twoFingerGesture = {
     id0: t0.identifier,
     id1: t1.identifier,
     lastMid: midpointOfTouches(t0, t1),
-    zoomStepDistance: distanceBetweenTouches(t0, t1),
     lastAngle: startAngle,
     cumulativeTwist: 0,      // running twist total while still inside the deadzone
     rotationLocked: false,   // true once the deadzone's been crossed and rotation is "live"
+    zoomBaseDistance: startDistance,  // finger distance at the last committed zoom
+    zoomBaseZoom: map.getZoom(),     // map zoom at that same last commit
+    lastAppliedDistance: startDistance, // finger distance as of the most recently processed frame
+    lastAppliedPoint: null,            // rotation-corrected container point as of that frame, for the final release commit
     pendingMid: null,
     pendingDistance: null,
     pendingAngle: null,
-    velocitySamples: []      // recent {t,x,y} midpoint samples, used to fling on release
+    velocitySamples: []      // recent {t,x,y,d} midpoint/distance samples, used to fling on release
   };
   onUserMapInteractionStart();
+}
+
+// Mirrors what the map's zoomSnap option does for other zoom interactions,
+// so our own final release commit below settles on the same grid rather
+// than an arbitrary fractional zoom.
+function snapZoomToGrid(zoom) {
+  const snap = map.options.zoomSnap || 0;
+  return snap ? Math.round(zoom / snap) * snap : zoom;
 }
 
 function endTwoFingerGesture() {
@@ -9717,6 +9740,18 @@ function endTwoFingerGesture() {
   if (rotWrapper) {
     rotWrapper.style.transition = '';
     rotWrapper.style.transform = `rotate(${mapBearing}deg)`;
+  }
+  // Mid-gesture only commits whole zoom levels (see applyTwoFingerGestureFrame)
+  // to keep tile churn down, so on release there's almost always a leftover
+  // fractional amount still sitting only in the CSS preview scale. Commit it
+  // precisely now, snapped to the map's normal zoom grid, so the map doesn't
+  // rest at a coarser zoom than the user actually pinched to.
+  if (g && g.lastAppliedPoint && g.zoomBaseDistance > 0 && g.lastAppliedDistance > 0) {
+    const finalRatio = Math.log2(g.lastAppliedDistance / g.zoomBaseDistance);
+    if (Math.abs(finalRatio) > 0.02) {
+      const finalZoom = snapZoomToGrid(g.zoomBaseZoom + finalRatio);
+      map.setZoomAround(g.lastAppliedPoint, finalZoom, { animate: false });
+    }
   }
   setNativeDraggingEnabled(!rotationActive());
   setNativeZoomEnabled(!rotationActive());
