@@ -10887,7 +10887,11 @@ function maybeFetchSpeedLimit(lat, lon) {
   lastSpeedLimitFetchLoc = { lat, lon };
 
   const { center, radius } = speedSignQueryArea(lat, lon);
-  const query = `[out:json][timeout:5];way(around:${radius},${center.lat},${center.lon})[highway][maxspeed];out tags center 24;`;
+  // "geom" (not "center") so every element comes back with its full node-by-node
+  // geometry. A single center point can't tell us where a way's speed limit
+  // actually starts/ends along our route, and it can't tell a way that merely
+  // grazes the query circle apart from one that runs along it — geometry can.
+  const query = `[out:json][timeout:5];way(around:${radius},${center.lat},${center.lon})[highway][maxspeed];out tags geom 24;`;
   const url = 'https://overpass-api.de/api/interpreter?data=' + encodeURIComponent(query);
 
   const abortController = new AbortController();
@@ -10899,35 +10903,73 @@ function maybeFetchSpeedLimit(lat, lon) {
       return res.json();
     }).then(data => {
       const routeLatLngs = navigationLine.getLatLngs();
-      const onRoute = (data.elements || [])
-        .filter(el => el.tags && el.tags.maxspeed && el.center)
-        .filter(el => distanceToPolylineMeters({ lat: el.center.lat, lon: el.center.lon }, routeLatLngs) <= SPEED_SIGN_ROUTE_MATCH_M);
-
-      // The sign that governs right now is the last one behind/at the vehicle along
-      // the route — not whichever OSM way happens to be geometrically closest, which
-      // can be a sign just ahead on a bend and would show the wrong number for the
-      // stretch you're actually on right after crossing into a new limit.
       const originSeg = findNearestSegmentOnPolyline({ lat, lon }, routeLatLngs);
       const originIndex = originSeg ? originSeg.index : 0;
-      let current = null, currentIndex = -1;
-      for (const el of onRoute) {
-        const seg = findNearestSegmentOnPolyline({ lat: el.center.lat, lon: el.center.lon }, routeLatLngs);
-        const idx = seg ? seg.index : -1;
-        if (idx !== -1 && idx <= originIndex && idx > currentIndex) { current = el; currentIndex = idx; }
+
+      const raw = data.elements || [];
+      const projected = raw
+        .filter(el => el.tags && el.tags.maxspeed && Array.isArray(el.geometry) && el.geometry.length)
+        .map(el => ({ el, way: projectWayOntoRoute(el, routeLatLngs) }));
+
+      // Keeping a way only if MOST of its nodes hug the route (not just one
+      // point) is what actually excludes parallel service roads and crossing
+      // streets — those typically touch the corridor at a single node (an
+      // intersection) while the rest of their geometry sits well outside it.
+      const onRoute = projected
+        .filter(p => p.way && p.way.onRouteFraction >= SPEED_SIGN_ONROUTE_FRACTION_MIN)
+        .map(p => ({
+          value: parseSpeedLimitTag(p.el.tags.maxspeed),
+          startIndex: p.way.startIndex,
+          endIndex: p.way.endIndex,
+          startPoint: p.way.startPoint,
+          endPoint: p.way.endPoint,
+          onRouteFraction: p.way.onRouteFraction,
+          tags: p.el.tags
+        }))
+        .filter(w => w.value !== null);
+
+      // The limit that governs right now is whichever zone's [startIndex, endIndex]
+      // interval actually contains our position along the route — not whichever
+      // OSM way happens to be geometrically nearest, which could be the *next*
+      // zone just ahead on a bend.
+      let current = onRoute.find(w => originIndex >= w.startIndex && originIndex <= w.endIndex) || null;
+      if (!current) {
+        // Between two mapped ways (a small gap in OSM data) — use the most
+        // recently passed zone instead of leaving the dashboard blank.
+        let bestEnd = -1;
+        for (const w of onRoute) {
+          if (w.endIndex <= originIndex && w.endIndex > bestEnd) { current = w; bestEnd = w.endIndex; }
+        }
       }
       if (!current) {
         // Nothing behind us yet in this corridor (e.g. navigation just started) —
         // fall back to nearest by straight-line distance so the dashboard isn't
         // left blank until the first sign is actually crossed.
         let nearestDist = Infinity;
-        for (const el of onRoute) {
-          const d = distMeters({ lat, lon }, { lat: el.center.lat, lon: el.center.lon });
-          if (d < nearestDist) { nearestDist = d; current = el; }
+        for (const w of onRoute) {
+          const d = distMeters({ lat, lon }, w.startPoint);
+          if (d < nearestDist) { nearestDist = d; current = w; }
         }
       }
+
+      if (SPEED_SIGN_DEBUG) {
+        console.groupCollapsed(`[speed-limit] fetch @ ${lat.toFixed(5)},${lon.toFixed(5)} — ${raw.length} raw, ${onRoute.length} on-route`);
+        console.log('query area', { center, radius });
+        console.table(projected.map(p => ({
+          highway: p.el.tags && p.el.tags.highway,
+          maxspeed: p.el.tags && p.el.tags.maxspeed,
+          onRouteFraction: p.way ? p.way.onRouteFraction.toFixed(2) : 'n/a',
+          startIndex: p.way ? p.way.startIndex : 'n/a',
+          endIndex: p.way ? p.way.endIndex : 'n/a',
+          kept: !!(p.way && p.way.onRouteFraction >= SPEED_SIGN_ONROUTE_FRACTION_MIN)
+        })));
+        console.log('originIndex', originIndex, 'chosen current', current ? { value: current.value, startIndex: current.startIndex, endIndex: current.endIndex } : null);
+        console.groupEnd();
+      }
+
       lastSpeedLimitSuccessAt = Date.now();
-      updateSpeedLimitDisplay(current ? parseSpeedLimitTag(current.tags.maxspeed) : null);
-      renderSpeedSignMarkers(onRoute, lat, lon);
+      updateSpeedLimitDisplay(current ? current.value : null);
+      renderSpeedSignMarkers(onRoute, originIndex);
     }).catch(err => {
       const reason = err && err.name === 'AbortError' ? 'timed out' : (err && err.message) || err;
       console.warn('Speed limit fetch failed:', reason);
@@ -10944,6 +10986,47 @@ function maybeFetchSpeedLimit(lat, lon) {
     speedLimitFetching = false;
     console.warn('Speed limit fetch failed to start:', err && err.message);
   }
+}
+
+// Flip to false to silence the console diagnostics below once you've confirmed
+// the corridor matching looks right for your area.
+const SPEED_SIGN_DEBUG = true;
+
+// A way only counts as "on our route" if at least this fraction of its nodes
+// fall within SPEED_SIGN_ROUTE_MATCH_M of the route polyline. A single close
+// node (e.g. a crossing street's intersection point, or a parallel service
+// road that briefly touches the corridor) is not enough.
+const SPEED_SIGN_ONROUTE_FRACTION_MIN = 0.75;
+
+// Projects every node of an OSM way's geometry onto the route polyline, and
+// reports the route-index span the way covers plus what fraction of its
+// nodes actually sit inside the matching corridor. This is what lets us
+// treat a speed limit as a zone with a real start and end point along the
+// route, instead of a single centroid guess.
+function projectWayOntoRoute(el, routeLatLngs) {
+  const geom = el.geometry;
+  if (!Array.isArray(geom) || !geom.length) return null;
+
+  let minIndex = Infinity, maxIndex = -Infinity;
+  let startPoint = null, endPoint = null;
+  let onRouteCount = 0;
+
+  for (const pt of geom) {
+    const seg = findNearestSegmentOnPolyline({ lat: pt.lat, lon: pt.lon }, routeLatLngs);
+    if (!seg) continue;
+    if (seg.dist <= SPEED_SIGN_ROUTE_MATCH_M) onRouteCount++;
+    if (seg.index < minIndex) { minIndex = seg.index; startPoint = { lat: pt.lat, lon: pt.lon }; }
+    if (seg.index > maxIndex) { maxIndex = seg.index; endPoint = { lat: pt.lat, lon: pt.lon }; }
+  }
+  if (minIndex === Infinity) return null;
+
+  return {
+    startIndex: minIndex,
+    endIndex: maxIndex,
+    startPoint,
+    endPoint,
+    onRouteFraction: onRouteCount / geom.length
+  };
 }
 
 let speedSignMarkersLayer = null;
@@ -10968,36 +11051,27 @@ function buildSpeedSignIcon(value) {
   });
 }
 
-function renderSpeedSignMarkers(candidates, originLat, originLon) {
+function renderSpeedSignMarkers(onRoute, originIndex) {
   const layer = ensureSpeedSignLayer();
   clearSpeedSignMarkers();
   if (!isActivelyNavigatingRoute()) return;
 
-  const routeLatLngs = navigationLine.getLatLngs();
-  const originSeg = findNearestSegmentOnPolyline({ lat: originLat, lon: originLon }, routeLatLngs);
-  const originIndex = originSeg ? originSeg.index : 0;
-
-  const ahead = candidates
-    .map(el => {
-      const center = { lat: el.center.lat, lon: el.center.lon };
-      const seg = findNearestSegmentOnPolyline(center, routeLatLngs);
-      return {
-        el,
-        value: parseSpeedLimitTag(el.tags.maxspeed),
-        dist: distMeters({ lat: originLat, lon: originLon }, center),
-        routeIndex: seg ? seg.index : -1
-      };
-    })
-    .filter(c => c.value !== null && c.routeIndex >= originIndex)
-    .sort((a, b) => a.dist - b.dist);
+  // A zone still ahead (or one we're currently inside) is worth showing a sign
+  // for; one whose end we've already passed is not. Placing the marker at
+  // startPoint — the actual node where the way (and so the real sign) begins —
+  // is what makes these line up with where the limit actually changes, rather
+  // than sitting at some arbitrary centroid partway along a long stretch.
+  const ahead = onRoute
+    .filter(w => w.endIndex >= originIndex)
+    .sort((a, b) => a.startIndex - b.startIndex);
 
   const placed = [];
-  for (const c of ahead) {
-    const tooClose = placed.some(p => p.value === c.value && distMeters({ lat: p.el.center.lat, lon: p.el.center.lon }, { lat: c.el.center.lat, lon: c.el.center.lon }) < SPEED_SIGN_DEDUPE_RADIUS_M);
+  for (const w of ahead) {
+    const tooClose = placed.some(p => p.value === w.value && distMeters(p.startPoint, w.startPoint) < SPEED_SIGN_DEDUPE_RADIUS_M);
     if (tooClose) continue;
-    placed.push(c);
-    L.marker([c.el.center.lat, c.el.center.lon], {
-      icon: buildSpeedSignIcon(c.value),
+    placed.push(w);
+    L.marker([w.startPoint.lat, w.startPoint.lon], {
+      icon: buildSpeedSignIcon(w.value),
       interactive: false,
       keyboard: false
     }).addTo(layer);
