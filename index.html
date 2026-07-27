@@ -4821,7 +4821,7 @@ async function getAdminModerationStats() {
 const _adminMuniLookupWarned = new Set();
 function getMunicipalityForAdminAssignment(value) {
   if (value == null) return null;
-  const byId = municipalityCache.find(m => String(m.id) === String(value));
+  const byId = municipalityById.get(String(value));
   if (byId) return byId;
   const bySlug = municipalityCache.find(m => m.slug === value);
   if (bySlug) return bySlug;
@@ -12343,6 +12343,13 @@ let municipalityCache = [];
 let municipalityCacheLoaded = false;
 
 const loadedMuniIds = new Set();
+// Kept in lockstep with loadedMuniIds/municipalityCache at every mutation
+// point below, so getMunicipalityById() can do an O(1) map lookup instead of
+// an O(n) linear scan over the whole cache (up to ~97k rows) — that scan was
+// getting run once per report/company across list renders and analytics
+// grouping, turning into O(n*m) and freezing the tab on any decent-sized
+// dataset.
+const municipalityById = new Map();
 
 const loadedMuniCountries = new Set();
 
@@ -12406,7 +12413,7 @@ async function loadMunicipalityCache(forceRefresh) {
       const cached = readMunicipalityCacheFromStorage();
       if (cached && cached.length) {
         municipalityCache = cached;
-        municipalityCache.forEach(m => loadedMuniIds.add(m.id));
+        municipalityCache.forEach(m => { loadedMuniIds.add(m.id); municipalityById.set(String(m.id), m); });
         municipalityCacheLoaded = true;
       }
     }
@@ -12425,8 +12432,10 @@ async function loadMunicipalityCache(forceRefresh) {
       }
       municipalityCache = allRows;
       loadedMuniIds.clear();
+      municipalityById.clear();
       municipalityCache.forEach(m => {
         loadedMuniIds.add(m.id);
+        municipalityById.set(String(m.id), m);
         if (m.country_code) loadedMuniCountries.add(String(m.country_code).toUpperCase());
       });
       municipalityCacheLoaded = true;
@@ -12504,7 +12513,7 @@ function mergeMunicipalitiesIntoCache(rows) {
   if (!rows || !rows.length) return;
   for (const row of rows) {
     if (row.id != null && loadedMuniIds.has(row.id)) continue;
-    if (row.id != null) loadedMuniIds.add(row.id);
+    if (row.id != null) { loadedMuniIds.add(row.id); municipalityById.set(String(row.id), row); }
     municipalityCache.push(row);
   }
   municipalityCacheLoaded = true;
@@ -12623,7 +12632,7 @@ function findMunicipalityInCache(lat, lon) {
 
 function getMunicipalityById(id) {
   if (id == null) return null;
-  return municipalityCache.find(m => String(m.id) === String(id)) || null;
+  return municipalityById.get(String(id)) || null;
 }
 
 function getMunicipalityBySlug(slug) {
@@ -12858,6 +12867,7 @@ async function autoRegisterMunicipality(name, countryCode, lat, lon, osmType, os
       if (error) throw error;
       municipalityCache.push(data);
       loadedMuniIds.add(data.id);
+      municipalityById.set(String(data.id), data);
       writeMunicipalityCacheToStorage(municipalityCache);
       return data;
     } catch (err) {
@@ -14150,11 +14160,11 @@ function renderUcList() {
   const rawQuery = searchEl ? searchEl.value.trim() : '';
   const query = rawQuery ? normalizeMuniNameForMatch(rawQuery) : '';
 
-  const inDomainMunis = currentAdminLevel() >= 3
+  const domainMunis = currentAdminLevel() >= 3
     ? municipalityCache
     : municipalityCache.filter(m => isMunicipalityInAdminDomain(m));
 
-  if (!inDomainMunis.length) {
+  if (!domainMunis.length) {
     listEl.innerHTML = '<div class="detail-empty">' + t('ucNoContacts') + '</div>';
     return;
   }
@@ -14166,13 +14176,22 @@ function renderUcList() {
     companiesByMuni.get(key).push(c);
   });
 
+  // Previously this built a group entry — including a 16-button quick-add
+  // row — for *every* municipality in the admin's domain (for a level-3
+  // admin, every municipality worldwide, ~97k). That's what actually froze
+  // the tab: constructing and parsing hundreds of thousands of DOM nodes in
+  // one synchronous pass, not a network wait. This panel's actual purpose is
+  // to show existing contacts, so build the default list from only
+  // municipalities that already have at least one — a name search below can
+  // still reach an empty municipality by id/name without paying that cost
+  // up front for every request.
+  const domainMuniById = new Map(domainMunis.map(m => [String(m.id), m]));
   const countryGroups = new Map();
-
-  inDomainMunis.forEach(muni => {
-    const countryCode = muni.country_code || '';
+  companiesByMuni.forEach((companies, muniKey) => {
+    const muni = domainMuniById.get(muniKey) || null;
+    const countryCode = (muni && muni.country_code) || '';
     if (!countryGroups.has(countryCode)) countryGroups.set(countryCode, new Map());
-    const muniKey = String(muni.id);
-    countryGroups.get(countryCode).set(muniKey, { muni, companies: companiesByMuni.get(muniKey) || [] });
+    countryGroups.get(countryCode).set(muniKey, { muni, companies });
   });
 
   let visibleCountryGroups = countryGroups;
@@ -14195,10 +14214,25 @@ function renderUcList() {
       });
       if (keptMuniGroups.size) visibleCountryGroups.set(countryCode, keptMuniGroups);
     });
+
+    // Also surface contact-free municipalities whose name/country matches
+    // the search, so an admin can still find and quick-add to a brand-new
+    // municipality by typing its name, without ever building a group for all
+    // ~97k of them up front.
+    domainMunis.forEach(m => {
+      const muniKey = String(m.id);
+      if (companiesByMuni.has(muniKey)) return; // already covered above
+      const countryCode = m.country_code || '';
+      const countryNameMatches = normalizeMuniNameForMatch(countryDisplayName(countryCode)).includes(query);
+      const muniNameMatches = normalizeMuniNameForMatch(municipalityDisplayName(m)).includes(query);
+      if (!countryNameMatches && !muniNameMatches) return;
+      if (!visibleCountryGroups.has(countryCode)) visibleCountryGroups.set(countryCode, new Map());
+      visibleCountryGroups.get(countryCode).set(muniKey, { muni: m, companies: [] });
+    });
   }
 
   if (!visibleCountryGroups.size) {
-    listEl.innerHTML = '<div class="detail-empty">' + t('ucNoSearchResults') + '</div>';
+    listEl.innerHTML = '<div class="detail-empty">' + t(query ? 'ucNoSearchResults' : 'ucNoContacts') + '</div>';
     return;
   }
 
