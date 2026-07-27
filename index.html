@@ -7781,6 +7781,17 @@ function updateRotationOrigin() {
 }
 window.addEventListener('resize', updateRotationOrigin);
 
+// Keeps every compass needle (main-screen compass, driving compass) pointing
+// at true north on screen. Cheap enough to call on every rotation frame —
+// a manual two-finger twist updates mapBearing continuously without going
+// through applyMapBearing(), so without this the needle used to freeze at
+// whatever it last showed and only catch up once the gesture ended (or not
+// at all if the gesture ended far from north).
+function updateCompassNeedles() {
+  const cssRotation = `rotate(${mapBearing}deg)`;
+  document.querySelectorAll('.compass-needle').forEach(needle => { needle.style.transform = cssRotation; });
+}
+
 function applyMapBearing(targetHeadingDeg) {
   const delta = shortestAngleDelta(mapBearing % 360, targetHeadingDeg);
   mapBearing += delta;
@@ -7788,6 +7799,7 @@ function applyMapBearing(targetHeadingDeg) {
   if (rotWrapper) rotWrapper.style.transform = cssRotation;
   document.querySelectorAll('.compass-needle').forEach(needle => { needle.style.transform = cssRotation; });
   if (typeof setNativeDraggingEnabled === 'function') setNativeDraggingEnabled(!rotationActive());
+  if (typeof setNativeZoomEnabled === 'function') setNativeZoomEnabled(!rotationActive());
   document.documentElement.style.setProperty('--pin-counter-rotate', `${-mapBearing}deg`);
   updateAllPopupRotations();
   updateUserMarkerRotation();
@@ -9367,6 +9379,26 @@ function setNativeDraggingEnabled(enabled) {
   }
 }
 
+// Same problem as native dragging/touchZoom above, but for scroll-wheel and
+// double-click zoom: Leaflet anchors both around a container point taken
+// straight from the mouse event, with no idea the map is visually rotated
+// via CSS on rotWrapper. Once rotated, that anchor point is off — scrolling
+// or double-clicking near an edge of the map visibly yanks the map sideways
+// as it zooms ("tripping"), because Leaflet is zooming around the point as
+// if the map were still north-up. We disable Leaflet's own handlers while
+// rotated and drive rotation-corrected equivalents ourselves below
+// (onRotatedWheelZoom / onRotatedDblClickZoom).
+function setNativeZoomEnabled(enabled) {
+  if (map.doubleClickZoom) {
+    if (enabled) { if (!map.doubleClickZoom.enabled()) map.doubleClickZoom.enable(); }
+    else if (map.doubleClickZoom.enabled()) map.doubleClickZoom.disable();
+  }
+  if (map.scrollWheelZoom) {
+    if (enabled) { if (!map.scrollWheelZoom.enabled()) map.scrollWheelZoom.enable(); }
+    else if (map.scrollWheelZoom.enabled()) map.scrollWheelZoom.disable();
+  }
+}
+
 function customDragPointerDown(e) {
   if (e.pointerType === 'touch') {
     activeTouchPointerIds.add(e.pointerId);
@@ -9412,6 +9444,59 @@ function customDragPointerUp(e) {
   el.addEventListener('pointermove', customDragPointerMove, { passive: true });
   window.addEventListener('pointerup', customDragPointerUp, { passive: true });
   window.addEventListener('pointercancel', customDragPointerUp, { passive: true });
+})();
+
+// Rotation-corrected double-click zoom. Only acts while rotated — Leaflet's
+// own doubleClickZoom handler is disabled for that case (setNativeZoomEnabled
+// above) and re-enabled the instant the map is north-up again, so this is a
+// pure stand-in rather than a full replacement.
+function onRotatedDblClick(e) {
+  if (!rotationActive()) return;
+  L.DomEvent.stop(e);
+  const rawPoint = map.mouseEventToContainerPoint(e);
+  const correctedPoint = unrotateContainerPoint(rawPoint);
+  const oldZoom = map.getZoom();
+  const delta = map.options.zoomDelta || 1;
+  const targetZoom = e.shiftKey ? oldZoom - delta : oldZoom + delta;
+  map.setZoomAround(correctedPoint, targetZoom);
+}
+
+// Rotation-corrected scroll-wheel zoom. Same idea as the pinch handling
+// above: debounce a burst of wheel ticks into one committed zoom step so a
+// fast scroll doesn't force a full instant re-render (choppy) on every
+// single tick, and rotation-correct the anchor point so the zoom stays
+// under the cursor instead of drifting once the map is rotated.
+let rotatedWheelAccum = 0;
+let rotatedWheelPoint = null;
+let rotatedWheelTimer = null;
+const ROTATED_WHEEL_DEBOUNCE_MS = 60;
+function commitRotatedWheelZoom() {
+  rotatedWheelTimer = null;
+  const point = rotatedWheelPoint;
+  const accum = rotatedWheelAccum;
+  rotatedWheelPoint = null;
+  rotatedWheelAccum = 0;
+  if (!point || !accum) return;
+  const targetZoom = Math.min(map.getMaxZoom(), Math.max(map.getMinZoom(), map.getZoom() + accum));
+  map.setZoomAround(point, targetZoom);
+}
+function onRotatedWheelZoom(e) {
+  if (!rotationActive()) return;
+  e.preventDefault();
+  const rawPoint = map.mouseEventToContainerPoint(e);
+  // Re-derive the anchor point every tick (not just on the first one of a
+  // burst) so a scroll that drifts across the map while rotated still zooms
+  // toward wherever the cursor currently is, matching native scroll-zoom feel.
+  rotatedWheelPoint = unrotateContainerPoint(rawPoint);
+  const step = map.options.zoomDelta || 0.25;
+  rotatedWheelAccum += (e.deltaY > 0 ? -step : step);
+  if (rotatedWheelTimer) clearTimeout(rotatedWheelTimer);
+  rotatedWheelTimer = setTimeout(commitRotatedWheelZoom, ROTATED_WHEEL_DEBOUNCE_MS);
+}
+(function initRotationAwareZoom(){
+  const el = map.getContainer();
+  el.addEventListener('dblclick', onRotatedDblClick);
+  el.addEventListener('wheel', onRotatedWheelZoom, { passive: false });
 })();
 
 // Active two-finger gesture, or null when no gesture is in progress. Tracks
@@ -9597,6 +9682,7 @@ function endTwoFingerGesture() {
     if (distToNorth <= 8) resetMapBearing();
   }
   setNativeDraggingEnabled(!rotationActive());
+  setNativeZoomEnabled(!rotationActive());
   scheduleAutoRefollow();
 }
 
@@ -9690,6 +9776,7 @@ function applyTwoFingerGestureFrame() {
       document.documentElement.style.setProperty('--pin-counter-rotate', `${-mapBearing}deg`);
       updateAllPopupRotations();
       updateUserMarkerRotation();
+      updateCompassNeedles();
     }
   }
 
