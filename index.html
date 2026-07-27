@@ -4848,11 +4848,26 @@ function getMunicipalityForAdminAssignment(value) {
   return null;
 }
 
+// Resolves the continent for a level-3 (continent-scoped) admin. Prefers an
+// explicit admin_continent if set, but falls back to deriving it from
+// admin_country_code — so an admin can simply be given a country code (which
+// may already be set from when they were a level-2 country admin) and the
+// app automatically widens their domain to that country's whole continent,
+// without needing a separate continent value assigned.
+function resolveAdminContinent(profileLike) {
+  if (!profileLike) return '';
+  if (profileLike.admin_continent) return profileLike.admin_continent;
+  return profileLike.admin_country_code ? continentOfCountry(profileLike.admin_country_code) : '';
+}
+
 function currentAdminTag() {
   const lvl = currentAdminLevel();
   if (!lvl) return '';
   if (lvl >= 4) return t('adminTagGlobal');
-  if (lvl === 3) return currentProfile.admin_continent ? t('adminTagContinent').replace('{continent}', continentDisplayName(currentProfile.admin_continent)) : t('adminTagUnset');
+  if (lvl === 3) {
+    const continent = resolveAdminContinent(currentProfile);
+    return continent ? t('adminTagContinent').replace('{continent}', continentDisplayName(continent)) : t('adminTagUnset');
+  }
   if (lvl === 2) return currentProfile.admin_country_code ? countryDisplayName(currentProfile.admin_country_code) : t('adminTagUnset');
   const muni = currentProfile.admin_municipality_id != null
     ? getMunicipalityForAdminAssignment(currentProfile.admin_municipality_id) : null;
@@ -4865,7 +4880,8 @@ function isMunicipalityInAdminDomain(muni) {
   if (lvl >= 4) return true;
   if (!muni) return false;
   if (lvl === 3) {
-    return !!(currentProfile.admin_continent && continentOfCountry(muni.country_code) === currentProfile.admin_continent);
+    const continent = resolveAdminContinent(currentProfile);
+    return !!(continent && continentOfCountry(muni.country_code) === continent);
   }
   if (lvl === 2) {
     return !!(currentProfile.admin_country_code && muni.country_code === currentProfile.admin_country_code);
@@ -4881,7 +4897,8 @@ function isMunicipalityInAdminRowDomain(muni, row) {
   if (lvl >= 4) return true;
   if (!muni) return false;
   if (lvl === 3) {
-    return !!(row.admin_continent && continentOfCountry(muni.country_code) === row.admin_continent);
+    const continent = resolveAdminContinent(row);
+    return !!(continent && continentOfCountry(muni.country_code) === continent);
   }
   if (lvl === 2) {
     return !!(row.admin_country_code && muni.country_code === row.admin_country_code);
