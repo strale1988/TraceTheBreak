@@ -3337,6 +3337,27 @@ span.flatpickr-weekday {
       <p class="detail-export-hint" id="themeSmartHint">Auto follows your device's light/dark setting. Smart adapts to ambient light where available, otherwise local time.</p>
     </div>
 
+    <div class="detail-section" id="mapStyleSettingsSection">
+      <div class="detail-section-title" id="mapStyleSectionTitle">Map style</div>
+      <label class="settings-select-row" id="mapStyleDefaultRow">
+        <span id="mapStyleDefaultLabel">Default map style</span>
+        <select id="mapStyleDefaultSelect" onchange="setMapStyleDefault(this.value)"></select>
+      </label>
+      <p class="detail-export-hint" id="mapStyleHint">Used when you're not navigating. Light/dark theme is applied on top of whichever style you pick.</p>
+      <label class="settings-select-row" id="mapStyleCarRow">
+        <span id="mapStyleCarLabel">Driving map style</span>
+        <select id="mapStyleCarSelect" onchange="setNavMapStylePref('car', this.value)"></select>
+      </label>
+      <label class="settings-select-row" id="mapStyleBikeRow">
+        <span id="mapStyleBikeLabel">Cycling map style</span>
+        <select id="mapStyleBikeSelect" onchange="setNavMapStylePref('bike', this.value)"></select>
+      </label>
+      <label class="settings-select-row" id="mapStyleFootRow">
+        <span id="mapStyleFootLabel">Walking map style</span>
+        <select id="mapStyleFootSelect" onchange="setNavMapStylePref('foot', this.value)"></select>
+      </label>
+    </div>
+
     <div class="detail-section" id="iconPackSettingsSection">
       <div class="detail-section-title" id="iconPackSectionTitle">Icon pack</div>
       <div class="theme-segment" id="iconPackSegment"></div>
@@ -5887,6 +5908,15 @@ const T = {
   themeAuto:         { en:'Auto',                        sr:'Automatski' },
   themeSmart:        { en:'Smart',                        sr:'Pametna' },
   themeSmartHint:    { en:'Auto follows your device\'s light/dark setting. Smart adapts to ambient light where available, otherwise local time.', sr:'Automatski prati podešavanje svetle/tamne teme uređaja. Pametna se prilagođava osvetljenju okoline gde je dostupno, inače lokalnom vremenu.' },
+  mapStyleSectionTitle: { en:'Map style',                sr:'Stil mape' },
+  mapStyleHint:      { en:'Used when you\'re not navigating. Light/dark theme is applied on top of whichever style you pick.', sr:'Koristi se kada ne navigirate. Svetla/tamna tema se primenjuje na izabrani stil.' },
+  mapStyleDefaultLabel: { en:'Default map style',        sr:'Podrazumevani stil mape' },
+  mapStyleCarLabel:  { en:'Driving map style',           sr:'Stil mape za vožnju' },
+  mapStyleBikeLabel: { en:'Cycling map style',           sr:'Stil mape za vožnju bicikla' },
+  mapStyleFootLabel: { en:'Walking map style',           sr:'Stil mape za hodanje' },
+  mapStyleAutoCar:   { en:'Auto (Streets)',              sr:'Automatski (Ulice)' },
+  mapStyleAutoBike:  { en:'Auto (Terrain)',              sr:'Automatski (Reljef)' },
+  mapStyleAutoFoot:  { en:'Auto (Standard)',             sr:'Automatski (Standardna)' },
   iconPackSectionTitle: { en:'Icon pack',                             sr:'Paket ikonica' },
   iconPackHint:      { en:'Changes how map pins and icons look. The app will reload after switching.', sr:'Menja izgled ikonica i pinova na mapi. Aplikacija će se ponovo učitati nakon promene.' },
   languageSectionTitle: { en:'Language',                 sr:'Jezik' },
@@ -6540,6 +6570,13 @@ function applyLang(){
   document.getElementById('themeBtnAuto').textContent = t('themeAuto');
   document.getElementById('themeBtnSmart').textContent = t('themeSmart');
   document.getElementById('themeSmartHint').textContent = t('themeSmartHint');
+  document.getElementById('mapStyleSectionTitle').textContent = t('mapStyleSectionTitle');
+  document.getElementById('mapStyleHint').textContent = t('mapStyleHint');
+  document.getElementById('mapStyleDefaultLabel').textContent = t('mapStyleDefaultLabel');
+  document.getElementById('mapStyleCarLabel').textContent = t('mapStyleCarLabel');
+  document.getElementById('mapStyleBikeLabel').textContent = t('mapStyleBikeLabel');
+  document.getElementById('mapStyleFootLabel').textContent = t('mapStyleFootLabel');
+  populateMapStyleSelects();
   document.getElementById('iconPackSectionTitle').textContent = t('iconPackSectionTitle');
   document.getElementById('iconPackHint').textContent = t('iconPackHint');
   renderIconPackSegment();
@@ -7163,7 +7200,13 @@ const map = L.map('map', {
   maxBoundsViscosity: 1.0,
   minZoom: 2,
   zoomSnap: 0.25,
-  zoomDelta: 0.25
+  zoomDelta: 0.25,
+  // Native touchZoom only pinch-zooms (no rotate) and re-renders tiles on
+  // every pointermove. It's fully replaced below by a custom Pointer
+  // Events gesture handler (see initTouchPinchRotateGesture) that does
+  // pinch + twist-to-rotate + pan together, CSS-transform-only during the
+  // gesture, committed to Leaflet once on release.
+  touchZoom: false
 
 }).setView(
   savedMapView ? [savedMapView.lat, savedMapView.lng] : EUROPE_DEFAULT_CENTER,
@@ -7198,6 +7241,15 @@ const mapContainerEl = map.getContainer();
 // animation on rotWrapper, the same wrapper element the rotation itself is
 // applied to.
 let zoomRotatedFromZoom = null;
+// The pinch gesture (see initTouchPinchRotateGesture below) commits its
+// result with one non-animated map.setView() call that already shows the
+// exact pixel-correct final frame (it was driven live by CSS transform
+// right up to release). That setView still fires Leaflet's normal
+// zoomstart/zoom events though, and without this flag the bridge trick a
+// few lines down would kick in and briefly re-scale rotWrapper away from
+// the (already correct) commit frame and back — a visible flash. The
+// pinch handler sets this true for the duration of its own setView call.
+let suppressZoomBridge = false;
 // A single "zoom" gesture — a scroll-wheel session, a pinch, a double-tap —
 // can land as a rapid burst of separate, instant zoomstart/zoomend pairs
 // (one per committed step) rather than one smooth animated zoom, especially
@@ -7268,7 +7320,7 @@ function endZoomBurst() {
 }
 map.on('zoomstart', () => {
   noteZoomActivity(rotationActive());
-  if (rotationActive()) {
+  if (rotationActive() && !suppressZoomBridge) {
     // zoomstart fires before Leaflet applies the new zoom, so this is still
     // the pre-zoom value.
     zoomRotatedFromZoom = map.getZoom();
@@ -7346,14 +7398,175 @@ const CachedTileLayer = L.TileLayer.extend({
   }
 });
 
-new CachedTileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-  attribution:'© OpenStreetMap',
-  maxZoom: 22,
-  maxNativeZoom: 19,
-  keepBuffer: 8,
-  updateWhenZooming: false,
-  noWrap: true
-}).addTo(map);
+// --- Map styles ------------------------------------------------------
+// Each style has a "light" tile source, and either a "dark" tile source
+// (a genuinely different, dark-designed basemap) or a CSS filter that
+// adapts the light tiles to dark theme. Either way, the app's light/dark
+// theme setting is layered on top of whatever style the user picked.
+const INVERT_DARK_FILTER = 'invert(1) hue-rotate(180deg) brightness(.92) contrast(.92)';
+const MAP_STYLES = {
+  standard: {
+    nameEn:'Standard', nameSr:'Standardna',
+    light:{ url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', subdomains:'abc', maxNativeZoom:19,
+            attribution:'© OpenStreetMap contributors' },
+    dark:{ filter: INVERT_DARK_FILTER }
+  },
+  streets:{
+    nameEn:'Streets', nameSr:'Ulice',
+    light:{ url:'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', subdomains:'abcd', maxNativeZoom:20,
+            attribution:'© OpenStreetMap contributors © CARTO' },
+    dark:{ filter: INVERT_DARK_FILTER }
+  },
+  minimal:{
+    nameEn:'Minimal', nameSr:'Minimalna',
+    light:{ url:'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', subdomains:'abcd', maxNativeZoom:20,
+            attribution:'© OpenStreetMap contributors © CARTO' },
+    dark:{ url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', subdomains:'abcd', maxNativeZoom:20,
+           attribution:'© OpenStreetMap contributors © CARTO' }
+  },
+  terrain:{
+    nameEn:'Terrain', nameSr:'Reljef',
+    light:{ url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', subdomains:'abc', maxNativeZoom:17,
+            attribution:'© OpenStreetMap contributors, SRTM | © OpenTopoMap' },
+    dark:{ filter: INVERT_DARK_FILTER }
+  },
+  satellite:{
+    nameEn:'Satellite', nameSr:'Satelitska',
+    light:{ url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', subdomains:'', maxNativeZoom:19,
+            attribution:'Esri, Maxar, Earthstar Geographics' },
+    dark:{ filter:'brightness(.55) contrast(1.15)' } // dim rather than invert — inverted satellite imagery looks broken
+  }
+};
+const MAP_STYLE_ORDER = ['standard', 'streets', 'minimal', 'terrain', 'satellite'];
+// Smart per-context defaults: best-suited style for each travel mode, and
+// for the map when not navigating.
+const MAP_STYLE_SMART_DEFAULTS = { overview:'standard', car:'streets', bike:'terrain', foot:'standard' };
+
+const MAP_STYLE_DEFAULT_KEY = 'ttb_map_style_default';
+const MAP_STYLE_NAV_PREFIX = 'ttb_map_style_nav_';
+
+function mapStyleName(id) {
+  const s = MAP_STYLES[id];
+  if (!s) return id;
+  return lang === 'sr' ? s.nameSr : s.nameEn;
+}
+
+let mapStyleDefault = localStorage.getItem(MAP_STYLE_DEFAULT_KEY) || MAP_STYLE_SMART_DEFAULTS.overview;
+if (!MAP_STYLES[mapStyleDefault]) mapStyleDefault = MAP_STYLE_SMART_DEFAULTS.overview;
+
+function getNavMapStylePref(mode) {
+  const v = localStorage.getItem(MAP_STYLE_NAV_PREFIX + mode);
+  return (v && (v === 'auto' || MAP_STYLES[v])) ? v : 'auto';
+}
+
+function setMapStyleDefault(styleId) {
+  if (!MAP_STYLES[styleId]) return;
+  mapStyleDefault = styleId;
+  try { localStorage.setItem(MAP_STYLE_DEFAULT_KEY, styleId); } catch (e) {}
+  refreshActiveMapStyle();
+}
+
+function setNavMapStylePref(mode, styleId) {
+  const value = (styleId === 'auto' || MAP_STYLES[styleId]) ? styleId : 'auto';
+  try { localStorage.setItem(MAP_STYLE_NAV_PREFIX + mode, value); } catch (e) {}
+  refreshActiveMapStyle();
+}
+
+// Resolves which style should currently be shown: the per-mode nav
+// preference (or that mode's smart default) while navigating, otherwise
+// the general default style.
+function resolveActiveMapStyleId() {
+  if (typeof drivingMode !== 'undefined' && drivingMode) {
+    const mode = (typeof travelMode !== 'undefined') ? travelMode : 'car';
+    const pref = getNavMapStylePref(mode);
+    if (pref !== 'auto' && MAP_STYLES[pref]) return pref;
+    return MAP_STYLE_SMART_DEFAULTS[mode] || mapStyleDefault;
+  }
+  return mapStyleDefault;
+}
+
+function currentThemeResolved() {
+  return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
+}
+
+function buildTileLayer(styleId, theme) {
+  const style = MAP_STYLES[styleId] || MAP_STYLES.standard;
+  const source = (theme === 'dark' && style.dark && style.dark.url) ? style.dark : style.light;
+  return new CachedTileLayer(source.url, {
+    attribution: source.attribution,
+    subdomains: source.subdomains !== undefined ? source.subdomains : 'abc',
+    maxZoom: 22,
+    maxNativeZoom: source.maxNativeZoom || 19,
+    keepBuffer: 8,
+    updateWhenZooming: false,
+    noWrap: true,
+    detectRetina: true
+  });
+}
+
+function applyMapStyleFilter(styleId, theme) {
+  const style = MAP_STYLES[styleId] || MAP_STYLES.standard;
+  let filter = 'none';
+  if (theme === 'dark') {
+    // Only apply a CSS filter when this style doesn't already have its own
+    // purpose-built dark tile set (e.g. Minimal's dark_all layer needs none).
+    if (style.dark && style.dark.filter && !style.dark.url) filter = style.dark.filter;
+  }
+  document.documentElement.style.setProperty('--map-tile-filter', filter);
+}
+
+let activeTileLayer = null;
+let activeMapStyleId = null;
+let activeMapStyleTheme = null;
+
+function setActiveMapStyle(styleId) {
+  const resolved = MAP_STYLES[styleId] ? styleId : 'standard';
+  const theme = currentThemeResolved();
+  if (resolved === activeMapStyleId && theme === activeMapStyleTheme && activeTileLayer) {
+    applyMapStyleFilter(resolved, theme);
+    return;
+  }
+  const previousLayer = activeTileLayer;
+  activeMapStyleId = resolved;
+  activeMapStyleTheme = theme;
+  const newLayer = buildTileLayer(resolved, theme);
+  newLayer.addTo(map);
+  activeTileLayer = newLayer;
+  if (previousLayer) {
+    let removed = false;
+    const removeOld = () => { if (!removed && map.hasLayer(previousLayer)) { removed = true; map.removeLayer(previousLayer); } };
+    newLayer.once('load', removeOld);
+    setTimeout(removeOld, 3000);
+  }
+  applyMapStyleFilter(resolved, theme);
+}
+
+function refreshActiveMapStyle() {
+  setActiveMapStyle(resolveActiveMapStyleId());
+}
+
+function populateMapStyleSelects() {
+  const defaultSel = document.getElementById('mapStyleDefaultSelect');
+  if (defaultSel) {
+    defaultSel.innerHTML = MAP_STYLE_ORDER.map(id =>
+      `<option value="${id}">${escapeHtml(mapStyleName(id))}</option>`).join('');
+    defaultSel.value = mapStyleDefault;
+  }
+  const navAutoKeys = { car:'mapStyleAutoCar', bike:'mapStyleAutoBike', foot:'mapStyleAutoFoot' };
+  const navSelectIds = { car:'mapStyleCarSelect', bike:'mapStyleBikeSelect', foot:'mapStyleFootSelect' };
+  ['car', 'bike', 'foot'].forEach(mode => {
+    const sel = document.getElementById(navSelectIds[mode]);
+    if (!sel) return;
+    sel.innerHTML = `<option value="auto">${escapeHtml(t(navAutoKeys[mode]))}</option>` +
+      MAP_STYLE_ORDER.map(id => `<option value="${id}">${escapeHtml(mapStyleName(id))}</option>`).join('');
+    sel.value = getNavMapStylePref(mode);
+  });
+}
+
+// Initial layer: at startup drivingMode/travelMode haven't been declared
+// yet, so use the plain default style — navigation styling kicks in once
+// toggleDrivingMode()/switchTravelMode() run.
+setActiveMapStyle(mapStyleDefault);
 
 const OSM_TILE_SUBDOMAINS = ['a', 'b', 'c'];
 const OFFLINE_PRECACHE_CONCURRENCY = 2;
@@ -7822,9 +8035,14 @@ function updateRotationOrigin() {
 }
 window.addEventListener('resize', updateRotationOrigin);
 
-function applyMapBearing(targetHeadingDeg) {
-  const delta = shortestAngleDelta(mapBearing % 360, targetHeadingDeg);
-  mapBearing += delta;
+// Sets mapBearing to an absolute value directly, with no shortest-path
+// smoothing. applyMapBearing() below (compass/heading-driven) still wants
+// that smoothing so a heading jump doesn't spin the map the "long way
+// round" — but gesture-driven rotation (two-finger twist, shift+drag) is
+// the user directly, continuously controlling bearing frame-by-frame, so
+// it must track 1:1 with no smoothing/shortest-path reinterpretation.
+function applyMapBearingRaw(newBearingDeg) {
+  mapBearing = newBearingDeg;
   const cssRotation = `rotate(${mapBearing}deg)`;
   if (rotWrapper) rotWrapper.style.transform = cssRotation;
   document.querySelectorAll('.compass-needle').forEach(needle => { needle.style.transform = cssRotation; });
@@ -7834,6 +8052,11 @@ function applyMapBearing(targetHeadingDeg) {
   updateAllPopupRotations();
   updateUserMarkerRotation();
   updateZoomAnimationForRotation();
+}
+
+function applyMapBearing(targetHeadingDeg) {
+  const delta = shortestAngleDelta(mapBearing % 360, targetHeadingDeg);
+  applyMapBearingRaw(mapBearing + delta);
 }
 
 const ROTATION_EPSILON_DEG = 0.5;
@@ -9451,12 +9674,15 @@ function rotationActive() {
 
 function setNativeDraggingEnabled(enabled) {
   if (!map.dragging) return;
-  // Two-finger pinch/pan is handled entirely by Leaflet's native touchZoom at
-  // all times now — it's left enabled regardless of rotation. Only
-  // single-finger dragging switches to the manual, rotation-corrected path
-  // below while the map is rotated (native single-finger dragging has no
-  // idea the map is visually rotated via CSS on rotWrapper, so it drags in
-  // the wrong direction once rotated).
+  // Two-finger pinch/rotate/pan is handled entirely by the custom Pointer
+  // Events gesture in initTouchPinchRotateGesture (native touchZoom is
+  // disabled at map init) — it disables/restores native dragging itself
+  // for the duration of each gesture, independent of this function. What
+  // remains here is just single-finger dragging: native while north-up,
+  // switching to the manual, rotation-corrected path below while the map
+  // is rotated (native single-finger dragging has no idea the map is
+  // visually rotated via CSS on rotWrapper, so it drags in the wrong
+  // direction once rotated).
   if (enabled) {
     if (!map.dragging.enabled()) map.dragging.enable();
     map.getContainer().style.touchAction = '';
@@ -9537,6 +9763,13 @@ function customDragPointerUp(e) {
   customDragPointerId = null;
   startPanFlingFromSamples(customDragSamples);
   customDragSamples = [];
+  // Restores Leaflet's native single-finger dragging once nothing manual
+  // is driving the map anymore (north-up state). While rotated this is a
+  // no-op (native dragging stays off, as before) — this only fixes the
+  // case introduced by the pinch-gesture handoff (see
+  // beginSingleFingerContinuation) where a north-up manual drag session
+  // needs to hand control back to Leaflet when it ends.
+  setNativeDraggingEnabled(!rotationActive());
   scheduleAutoRefollow();
 }
 
@@ -9608,6 +9841,347 @@ function onRotatedWheelZoom(e) {
   el.addEventListener('wheel', onRotatedWheelZoom, { passive: false });
 })();
 
+// =====================================================================
+// Google-Maps-style multi-touch gestures: pinch-zoom + twist-to-rotate +
+// pan, all combined in one continuous two-finger gesture.
+// =====================================================================
+//
+// HOW IT WORKS (high level):
+// Leaflet's native touchZoom only pinch-zooms and re-renders on every
+// touchmove, and has no concept of rotation at all. Instead of fighting
+// that, this is a full replacement: it reads the two active touch
+// pointers each frame and treats them as defining a similarity transform
+// (uniform scale + rotation + translation) of the map's on-screen
+// content. During the gesture we ONLY write a CSS transform to
+// rotWrapper (the element that already carries the app's existing
+// compass-driven rotation, see initRotationWrapper above) — we never
+// call into Leaflet's center/zoom machinery mid-gesture, so there is
+// zero layout/re-render cost while fingers are moving (just trig + one
+// style write per animation frame). Leaflet's real state (center, zoom,
+// mapBearing) is only ever touched once, on release, with a single
+// setView() computed so it reproduces — pixel for pixel — whatever the
+// CSS preview was already showing. That's what makes the commit
+// invisible (no snap/jump) despite Leaflet being completely unaware of
+// the gesture until that instant.
+//
+// GESTURE MATH (the short version — see beginPinchGesture /
+// applyPinchPreview / commitPinchGesture for the full derivation):
+// rotWrapper's CSS transform maps its own "local" coordinates (Leaflet's
+// ordinary north-up container pixels) to screen coordinates by rotating
+// mapBearing degrees about the container's center. At gesture start we
+// take the pinch midpoint (a screen coordinate) and unrotate it by the
+// CURRENT bearing to find its local coordinate, q0 — this is the fixed
+// point we keep pinned under the fingers. Every frame we know exactly
+// where q0 should now appear on screen if we only scaled+rotated it, and
+// the gap between that and the fingers' actual current midpoint is
+// exactly the translate() needed — so pan falls out of the same
+// calculation as pinch and rotate for free, instead of being handled
+// separately.
+//
+// Coordinate/rotation sign convention below matches the app's existing
+// rotation-aware code (see customDragPointerMove / unrotateContainerPoint
+// just above): rotating a "local" (unrotated) vector by +mapBearing
+// degrees gives the visual/screen vector; rotating a screen vector by
+// -mapBearing gives the local vector.
+
+function getContainerCenter() {
+  // map.getSize() returns Leaflet's cached container size (no DOM read),
+  // safe to call from hot paths.
+  const s = map.getSize();
+  return { x: s.x / 2, y: s.y / 2 };
+}
+
+function rotateVec(x, y, deg) {
+  const rad = deg * Math.PI / 180;
+  const c = Math.cos(rad), s = Math.sin(rad);
+  return { x: x * c - y * s, y: x * s + y * c };
+}
+
+// Converts a screen/container point into the "local" (north-up,
+// pre-CSS-rotation) container point Leaflet's own coordinate math
+// expects — Leaflet has no idea rotWrapper is visually rotated via CSS.
+// Used both by the pre-existing rotated wheel/dblclick handlers above
+// and by the pinch gesture below. bearingDeg defaults to the map's
+// current bearing; the pinch commit passes the gesture's *final*
+// bearing explicitly since mapBearing hasn't been updated yet at that
+// point.
+function unrotateContainerPoint(pt, bearingDeg) {
+  const b = bearingDeg == null ? mapBearing : bearingDeg;
+  const O = getContainerCenter();
+  const v = rotateVec(pt.x - O.x, pt.y - O.y, -b);
+  return L.point(O.x + v.x, O.y + v.y);
+}
+
+function unrotateDelta(dx, dy) {
+  const v = rotateVec(dx, dy, -mapBearing);
+  return { dx: v.x, dy: v.y };
+}
+
+// --- Gesture state -----------------------------------------------------
+let pinch = null; // non-null for the duration of an active 2-finger gesture
+const pinchPointers = new Map(); // pointerId -> {x,y (container-relative), clientX, clientY}, insertion order = finger order
+let pinchRafPending = false;
+let pinchSamples = []; // {t,x,y,d} history of the gesture midpoint, fed to the existing fling code on release
+let cachedMapRect = null; // bounding rect cached for the lifetime of one gesture sequence — avoids getBoundingClientRect() (a forced layout read) on every pointermove
+
+function trackedPointFromEvent(e) {
+  if (!cachedMapRect) cachedMapRect = mapContainerEl.getBoundingClientRect();
+  return {
+    x: e.clientX - cachedMapRect.left,
+    y: e.clientY - cachedMapRect.top,
+    clientX: e.clientX,
+    clientY: e.clientY
+  };
+}
+
+function beginPinchGesture() {
+  const ids = Array.from(pinchPointers.keys()).slice(0, 2);
+  const p1 = pinchPointers.get(ids[0]), p2 = pinchPointers.get(ids[1]);
+  const O = getContainerCenter();
+  const mid0 = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+  const startBearing = mapBearing;
+  // q0: the pinch midpoint's LOCAL (pre-rotation) coordinate — see the
+  // big comment above this section for why this is the anchor for the
+  // whole gesture's math.
+  const q0 = rotateVec(mid0.x - O.x, mid0.y - O.y, -startBearing);
+  // The actual geographic point currently under the fingers. This is
+  // only needed once, at the very end, to compute the committed center —
+  // captured now while Leaflet's real state still matches what's on
+  // screen (nothing has moved yet).
+  const anchorLatLng = map.containerPointToLatLng(unrotateContainerPoint(L.point(mid0.x, mid0.y), startBearing));
+
+  pinch = {
+    O, q0, startBearing, anchorLatLng,
+    startZoom: map.getZoom(),
+    lastDist: null, lastAngle: null,
+    scaleAccum: 1, rotAccum: 0,
+    lastMid: mid0
+  };
+
+  pinchSamples = [{ t: performance.now(), x: mid0.x, y: mid0.y, d: Math.hypot(p2.x - p1.x, p2.y - p1.y) }];
+
+  cancelPanFling();
+  onUserMapInteractionStart();
+  setNativeDraggingEnabled(false); // we own panning for the duration — stop Leaflet's native handler from also reacting to these same touches
+  if (rotWrapper) rotWrapper.style.transition = 'none'; // no CSS easing while we're driving every frame by hand
+  noteZoomActivity(false); // reuses the existing "hide pins/popups while a zoom-ish gesture is live" machinery so the one-time commit below doesn't cause a visible marker/cluster jump
+}
+
+// Renders the live gesture purely with a CSS transform — see the module
+// header comment for the derivation. `pinch.q0`/`pinch.O` are fixed at
+// gesture start; mid/scale/rotDeg change every frame.
+function applyPinchPreview(mid, scale, rotDeg) {
+  const { O, q0, startBearing } = pinch;
+  const totalBearing = startBearing + rotDeg;
+  // Where q0 would land on screen at the current scale/rotation if there
+  // were no extra pan applied yet.
+  const projected = rotateVec(q0.x * scale, q0.y * scale, totalBearing);
+  // The remaining gap between that and the fingers' actual current
+  // midpoint IS the translate() — this is what keeps the anchor point
+  // pinned under the fingers, giving pan "for free" out of the same
+  // transform as the pinch/rotate.
+  const tx = (mid.x - O.x) - projected.x;
+  const ty = (mid.y - O.y) - projected.y;
+  if (rotWrapper) {
+    rotWrapper.style.transform = `translate(${tx}px, ${ty}px) rotate(${totalBearing}deg) scale(${scale})`;
+  }
+}
+
+function processPinchFrame() {
+  pinchRafPending = false;
+  if (!pinch) return;
+  // Always drive the math off the first two pointers that started this
+  // gesture (insertion order), so a stray third finger touching down
+  // mid-gesture can't perturb it.
+  const ids = Array.from(pinchPointers.keys()).slice(0, 2);
+  const p1 = pinchPointers.get(ids[0]), p2 = pinchPointers.get(ids[1]);
+  if (!p1 || !p2) return;
+
+  const dx = p2.x - p1.x, dy = p2.y - p1.y;
+  const dist = Math.hypot(dx, dy);
+  const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+
+  // Scale and rotation are accumulated incrementally, frame-to-frame,
+  // rather than always measured against the gesture's very first
+  // reading. That keeps a long pinch or a multi-turn twist numerically
+  // stable and sidesteps the atan2 +-180 wraparound a from-the-start
+  // measurement would hit.
+  if (pinch.lastDist != null && dist > 0) pinch.scaleAccum *= dist / pinch.lastDist;
+  if (pinch.lastAngle != null) {
+    let d = angle - pinch.lastAngle;
+    if (d > 180) d -= 360;
+    if (d < -180) d += 360;
+    pinch.rotAccum += d;
+  }
+  pinch.lastDist = dist;
+  pinch.lastAngle = angle;
+
+  const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+  pinch.lastMid = mid;
+
+  applyPinchPreview(mid, pinch.scaleAccum, pinch.rotAccum);
+
+  const now = performance.now();
+  pinchSamples.push({ t: now, x: mid.x, y: mid.y, d: dist });
+  while (pinchSamples.length > 1 && now - pinchSamples[0].t > PAN_VELOCITY_SAMPLE_MS) pinchSamples.shift();
+
+  noteZoomActivity(false);
+}
+
+// Commits the live gesture to Leaflet's real state (center/zoom/bearing)
+// with one non-animated setView(), computed to reproduce exactly the
+// frame that was already on screen — so the commit itself is invisible.
+// keepDraggingDisabled is true when a single finger remains and control
+// is about to hand off to the manual single-finger pan path instead of
+// back to Leaflet's native dragging (see beginSingleFingerContinuation).
+function commitPinchGesture(keepDraggingDisabled) {
+  if (!pinch) return;
+  const { O, startBearing, startZoom, anchorLatLng, scaleAccum, rotAccum, lastMid } = pinch;
+  const totalBearing = startBearing + rotAccum;
+  const newZoom = Math.min(map.getMaxZoom(), Math.max(map.getMinZoom(), startZoom + Math.log2(scaleAccum)));
+
+  // Invert the same geometry as the live preview: find the local
+  // (pre-rotation) container point the anchor needs to sit at, then
+  // invert Leaflet's own project()/center relationship to get the
+  // center that puts it there at the new zoom.
+  const localFinal = unrotateContainerPoint(L.point(lastMid.x, lastMid.y), totalBearing);
+  const anchorPx = map.project(anchorLatLng, newZoom);
+  const newCenterPx = L.point(anchorPx.x - (localFinal.x - O.x), anchorPx.y - (localFinal.y - O.y));
+  const newCenter = map.unproject(newCenterPx, newZoom);
+
+  suppressZoomBridge = true;
+  applyMapBearingRaw(totalBearing); // also resets rotWrapper's transform back to plain rotate(totalBearing) — clears our scale/translate preview
+  if (rotWrapper) rotWrapper.style.transition = '';
+  map.setView(newCenter, newZoom, { animate: false });
+  suppressZoomBridge = false;
+
+  noteZoomActivity(rotationActive());
+  if (!keepDraggingDisabled) setNativeDraggingEnabled(!rotationActive());
+  pinch = null;
+}
+
+// When one finger of a two-finger gesture lifts and one remains down,
+// Google Maps seamlessly keeps panning with the remaining finger rather
+// than dropping into a dead zone. This hands the now-solo pointer over
+// to the app's existing manual single-finger drag machinery (see
+// customDragPointerDown/Move/Up above) — which works correctly at any
+// bearing, including 0, so it's safe to (re)use unconditionally here.
+function beginSingleFingerContinuation(pointerId, point) {
+  activeTouchPointerIds.clear();
+  activeTouchPointerIds.add(pointerId);
+  cancelPanFling();
+  customDragActive = true;
+  customDragPointerId = pointerId;
+  customDragLast = { x: point.clientX, y: point.clientY };
+  customDragSamples = [{ t: performance.now(), x: point.clientX, y: point.clientY }];
+}
+
+function pinchPointerDown(e) {
+  if (e.pointerType !== 'touch') return;
+  if (pinchPointers.size === 0) cachedMapRect = mapContainerEl.getBoundingClientRect();
+  pinchPointers.set(e.pointerId, trackedPointFromEvent(e));
+  if (pinchPointers.size === 2) beginPinchGesture();
+}
+
+function pinchPointerMove(e) {
+  if (e.pointerType !== 'touch' || !pinchPointers.has(e.pointerId)) return;
+  pinchPointers.set(e.pointerId, trackedPointFromEvent(e));
+  if (pinchPointers.size < 2 || !pinch) return;
+  // Coalesce potentially many pointermove events into at most one
+  // processing pass per animation frame — this is what keeps the
+  // gesture at a steady 60fps instead of doing the (cheap, but
+  // non-zero) trig + style write once per raw touch event.
+  if (!pinchRafPending) {
+    pinchRafPending = true;
+    requestAnimationFrame(processPinchFrame);
+  }
+}
+
+function pinchPointerUp(e) {
+  if (e.pointerType !== 'touch') return;
+  const wasTracked = pinchPointers.has(e.pointerId);
+  pinchPointers.delete(e.pointerId);
+  if (!wasTracked || !pinch) return;
+
+  const remainingIds = Array.from(pinchPointers.keys());
+  if (remainingIds.length >= 2) return; // still a full gesture with the other pointers, nothing to do
+
+  if (remainingIds.length === 1) {
+    const remaining = pinchPointers.get(remainingIds[0]);
+    pinchPointers.delete(remainingIds[0]); // hand this finger fully over to the single-finger path below
+    commitPinchGesture(true);
+    beginSingleFingerContinuation(remainingIds[0], remaining);
+    return;
+  }
+
+  // No fingers left at all.
+  commitPinchGesture(false);
+  startPanFlingFromSamples(pinchSamples); // already ignores momentum that was really just pinch-drift, via its .d/FLING_SUPPRESS_ZOOM_RATIO check
+  pinchSamples = [];
+  cachedMapRect = null;
+  scheduleAutoRefollow();
+}
+
+(function initTouchPinchRotateGesture() {
+  if (map.touchZoom) map.touchZoom.disable();
+  mapContainerEl.style.touchAction = 'none';
+  mapContainerEl.addEventListener('pointerdown', pinchPointerDown, { passive: true });
+  mapContainerEl.addEventListener('pointermove', pinchPointerMove, { passive: true });
+  window.addEventListener('pointerup', pinchPointerUp, { passive: true });
+  window.addEventListener('pointercancel', pinchPointerUp, { passive: true });
+  // Legacy Safari pinch-gesture events can still fire on some older iOS
+  // versions even with touch-action:none; swallow them so the page itself
+  // never zooms underneath our own handling.
+  mapContainerEl.addEventListener('gesturestart', e => e.preventDefault());
+  mapContainerEl.addEventListener('gesturechange', e => e.preventDefault());
+})();
+
+// --- Desktop: Shift + drag to rotate (optional, per Google Earth/Mapbox
+// convention — plain drag still pans; holding Shift switches a mouse
+// drag into a bearing control instead). Wheel-zoom and drag-pan are
+// untouched (existing native/rotation-aware handlers above already cover
+// those, including trackpad pinch: browsers report that as ctrl+wheel,
+// which both the native scrollWheelZoom and onRotatedWheelZoom paths
+// already handle and preventDefault on).
+let shiftRotateActive = false;
+let shiftRotateLast = null;
+let shiftRotateBearing = 0;
+const SHIFT_ROTATE_DEG_PER_PX = 0.5;
+
+function shiftRotatePointerDown(e) {
+  if (e.pointerType !== 'mouse' || !e.shiftKey || e.button !== 0) return;
+  shiftRotateActive = true;
+  shiftRotateLast = { x: e.clientX, y: e.clientY };
+  shiftRotateBearing = mapBearing;
+  cancelPanFling();
+  onUserMapInteractionStart();
+  setNativeDraggingEnabled(false);
+  e.preventDefault();
+}
+
+function shiftRotatePointerMove(e) {
+  if (!shiftRotateActive) return;
+  const dx = e.clientX - shiftRotateLast.x;
+  shiftRotateLast = { x: e.clientX, y: e.clientY };
+  shiftRotateBearing += dx * SHIFT_ROTATE_DEG_PER_PX;
+  applyMapBearingRaw(shiftRotateBearing);
+}
+
+function shiftRotatePointerUp() {
+  if (!shiftRotateActive) return;
+  shiftRotateActive = false;
+  shiftRotateLast = null;
+  setNativeDraggingEnabled(!rotationActive());
+  scheduleAutoRefollow();
+}
+
+(function initShiftDragRotate() {
+  mapContainerEl.addEventListener('pointerdown', shiftRotatePointerDown);
+  window.addEventListener('pointermove', shiftRotatePointerMove, { passive: true });
+  window.addEventListener('pointerup', shiftRotatePointerUp, { passive: true });
+})();
+
+
 
 const TRAVEL_MODE_CYCLE = ['car', 'bike', 'foot'];
 function toggleDrivingMode(mode) {
@@ -9621,6 +10195,7 @@ function toggleDrivingMode(mode) {
   document.body.classList.toggle('bike-mode-active', drivingMode && travelMode === 'bike');
   document.body.classList.toggle('walk-mode-active', drivingMode && travelMode === 'foot');
   updateTravelModeSwitchBtn();
+  if (typeof refreshActiveMapStyle === 'function') refreshActiveMapStyle();
 
   if (map.invalidateSize) map.invalidateSize({ animate: false, pan: false });
   updateRotationOrigin();
@@ -9703,6 +10278,7 @@ function switchTravelMode(nextMode) {
   document.body.classList.toggle('bike-mode-active', travelMode === 'bike');
   document.body.classList.toggle('walk-mode-active', travelMode === 'foot');
   updateTravelModeSwitchBtn();
+  if (typeof refreshActiveMapStyle === 'function') refreshActiveMapStyle();
   resetQuickGrids();
   snappedUserCoords = null;
   navLastRouteAt = 0;
@@ -17495,6 +18071,7 @@ function applyTheme(mode) {
   const resolved = resolveThemeMode(mode);
   document.documentElement.dataset.theme = resolved;
   updateThemeSegmentUI();
+  if (typeof refreshActiveMapStyle === 'function') refreshActiveMapStyle();
 }
 
 function setThemeMode(mode) {
