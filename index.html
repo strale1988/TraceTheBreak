@@ -9413,6 +9413,14 @@ let panFlingRAF = null;
 const PAN_VELOCITY_SAMPLE_MS   = 80;    // rolling window used to measure release velocity
 const PAN_FLING_DECAY_PER_MS   = 0.998; // velocity multiplier applied per elapsed ms while coasting
 const PAN_FLING_MIN_SPEED      = 0.04;  // px/ms below which we just stop rather than crawl forever
+// If the finger-to-finger distance changed by more than this much (as a
+// log2 ratio) over the velocity sample window, the release was still
+// actively pinching, not panning. Natural asymmetric finger motion while
+// scaling makes the midpoint drift a little even when the user has no
+// intention of panning at all — without this check, that drift got read as
+// swipe velocity and the map kept gliding for a moment right after every
+// pinch-zoom.
+const FLING_SUPPRESS_ZOOM_RATIO = 0.06;
 
 function cancelPanFling() {
   if (panFlingRAF) { cancelAnimationFrame(panFlingRAF); panFlingRAF = null; }
@@ -9423,6 +9431,10 @@ function startPanFlingFromSamples(samples) {
   const first = samples[0], last = samples[samples.length - 1];
   const dt = last.t - first.t;
   if (dt <= 0) return;
+  if (first.d && last.d) {
+    const zoomRatio = Math.abs(Math.log2(last.d / first.d));
+    if (zoomRatio > FLING_SUPPRESS_ZOOM_RATIO) return;
+  }
   let vx = (last.x - first.x) / dt;
   let vy = (last.y - first.y) / dt;
   if (Math.hypot(vx, vy) < PAN_FLING_MIN_SPEED) return;
@@ -9644,6 +9656,14 @@ const ROTATE_MIN_FINGER_DISTANCE_PX = 60;
 // rotate the map by more than this many degrees, so one noisy sample can't
 // cause a visible snap even if it slips past the distance gate above.
 const ROTATE_MAX_DEG_PER_FRAME = 12;
+// How big a real Leaflet zoom commit has to be during a live pinch before we
+// actually fire it (see applyTwoFingerGestureFrame). This is a full zoom
+// level rather than the map's usual 0.25 zoomDelta specifically to cut down
+// how many times mid-pinch we ask the tile layer for a fresh batch of tiles
+// — each commit is a real tile fetch, and doing it every 0.25 step during a
+// fast pinch outpaces what the network/tile cache can deliver, which is what
+// showed up as the map flashing gray/blank mid-zoom.
+const MID_GESTURE_ZOOM_COMMIT_STEP = 1;
 function findTouchById(touchList, id) {
   for (let i = 0; i < touchList.length; i++) {
     if (touchList[i].identifier === id) return touchList[i];
@@ -9850,8 +9870,21 @@ function applyTwoFingerGestureFrame() {
   // small combined threshold (ROTATE_GESTURE_DEADZONE_DEG), so an ordinary
   // pinch or pan doesn't accidentally start rotating the map. Once past it,
   // rotation tracks the twist 1:1 for the rest of the gesture.
+  //
+  // Below ROTATE_MIN_FINGER_DISTANCE_PX we don't trust the angle at all —
+  // atan2 amplifies ordinary touch-sensor jitter into large spurious angle
+  // swings once the two points are close together, which is what made
+  // rotation feel wildly oversensitive during an ordinary pinch (fingers
+  // are often close together right as a pinch starts or ends). The per-
+  // frame clamp below is a second layer of protection against any one noisy
+  // sample slipping through.
   let angleDelta = shortestAngleDelta(g.lastAngle, angle);
   g.lastAngle = angle;
+  if (distance < ROTATE_MIN_FINGER_DISTANCE_PX) {
+    angleDelta = 0;
+  } else {
+    angleDelta = Math.max(-ROTATE_MAX_DEG_PER_FRAME, Math.min(ROTATE_MAX_DEG_PER_FRAME, angleDelta));
+  }
   if (!g.rotationLocked) {
     g.cumulativeTwist += angleDelta;
     if (Math.abs(g.cumulativeTwist) >= ROTATE_GESTURE_DEADZONE_DEG) {
@@ -9875,53 +9908,65 @@ function applyTwoFingerGestureFrame() {
     }
   }
 
-  // Track recent midpoint samples so a release can "fling" the pan onward at
-  // whatever velocity the fingers were last moving at, same as Leaflet's own
-  // single-finger inertia.
-  g.velocitySamples.push({ t: now, x: mid.x, y: mid.y });
+  // Track recent midpoint + finger-distance samples. On release these drive
+  // a pan "fling" at whatever velocity the fingers were last moving at (same
+  // idea as Leaflet's own single-finger inertia) — but only when the release
+  // actually looked like a pan. Without the distance sample too, an ordinary
+  // pinch (where the midpoint drifts a little from natural asymmetric finger
+  // motion while scaling) would misread as an intentional swipe and keep the
+  // map drifting for a moment right after you let go of a pinch — see
+  // startPanFlingFromSamples.
+  g.velocitySamples.push({ t: now, x: mid.x, y: mid.y, d: distance });
   while (g.velocitySamples.length > 1 && now - g.velocitySamples[0].t > PAN_VELOCITY_SAMPLE_MS) g.velocitySamples.shift();
 
   // --- pinch-zoom around the touch midpoint ---
-  if (g.zoomStepDistance > 0 && distance > 0) {
+  if (g.zoomBaseDistance > 0 && distance > 0) {
     // Every frame of active pinching counts as zoom activity, independent of
-    // whether this particular frame crosses a full committed zoomDelta step
-    // below — same reasoning as the rotated wheel-zoom handler (see the big
-    // comment above map.on('zoomstart', ...)).
+    // whether this particular frame crosses a full committed step below —
+    // same reasoning as the rotated wheel-zoom handler (see the big comment
+    // above map.on('zoomstart', ...)).
     noteZoomActivity(true);
-    // The map still commits real zoom in discrete zoomDelta steps — Leaflet
-    // can't animate its own zoom while rotated (see
-    // updateZoomAnimationForRotation), so calling setZoomAround continuously
-    // would force a full instant re-render on almost every touch frame,
-    // which is what made this feel "choppy" before.
-    //
-    // To get a smooth feel back without a real Leaflet animation, every
-    // frame we preview the *continuous* pinch ratio as a plain CSS scale on
-    // rotWrapper (the same element the rotation itself is applied to, with
-    // its transition disabled for the duration of the gesture above). Once
-    // the preview scale reaches a full zoomDelta step, we commit that step
-    // with setZoomAround (rotation-corrected, anchored at the pinch
-    // midpoint) and reset the preview back to 1 — so the very next frame's
-    // CSS scale picks up right where the real zoom left off, with no visible
-    // jump. The net effect: continuous visual feedback during the pinch,
-    // exactly one discrete Leaflet redraw per zoomDelta, instead of one
-    // redraw (and one jump) per touch event.
-    const zoomStep = map.options.zoomDelta || 0.25;
-    const stepRatio = Math.log2(distance / g.zoomStepDistance);
 
+    const rawPoint = map.mouseEventToContainerPoint({ clientX: mid.x, clientY: mid.y });
+    const correctedPoint = unrotateContainerPoint(rawPoint);
+    g.lastAppliedPoint = correctedPoint;
+    g.lastAppliedDistance = distance;
+
+    // The map still commits real zoom in discrete steps — Leaflet can't
+    // animate its own zoom while rotated (see updateZoomAnimationForRotation),
+    // so calling setZoomAround continuously would force a full instant
+    // re-render on almost every touch frame. Worse, each of those commits
+    // asks the tile layer for a fresh set of tiles at the new zoom level —
+    // during a fast pinch that's many zoom levels' worth of tile requests in
+    // a couple hundred milliseconds, and network/cache latency can't keep up,
+    // which is what showed up as the map going gray/blank mid-zoom.
+    //
+    // MID_GESTURE_ZOOM_COMMIT_STEP below is a full zoom level (not the map's
+    // usual 0.25 zoomDelta) specifically to cut that tile churn down —
+    // mirroring how Leaflet's own native touchZoom handler only ever commits
+    // once, right at gesture end. In between commits, the pinch ratio is
+    // still previewed continuously as a plain CSS scale on rotWrapper (the
+    // same element the rotation is applied to, with its transition disabled
+    // for the gesture's duration), so the visual feedback stays just as
+    // smooth — it just looks softly scaled rather than pin-sharp until the
+    // next commit, exactly like Google Maps does mid-pinch. On release,
+    // endTwoFingerGesture() commits the exact remaining fraction so the map
+    // still settles at precisely the zoom the user pinched to.
+    const stepRatio = Math.log2(distance / g.zoomBaseDistance);
     currentPinchPreviewScale = Math.pow(2, stepRatio);
     if (rotWrapper) rotWrapper.style.transform = `rotate(${mapBearing}deg) scale(${currentPinchPreviewScale})`;
 
-    if (Math.abs(stepRatio) >= zoomStep) {
-      // Rotation-correct the zoom center too, so the zoom stays anchored
-      // between the two fingers instead of drifting once the map is
-      // rotated.
-      const rawPoint = map.mouseEventToContainerPoint({ clientX: mid.x, clientY: mid.y });
-      const correctedPoint = unrotateContainerPoint(rawPoint);
-      const targetZoom = map.getZoom() + (stepRatio > 0 ? zoomStep : -zoomStep);
+    if (Math.abs(stepRatio) >= MID_GESTURE_ZOOM_COMMIT_STEP) {
+      const committedStep = stepRatio > 0 ? MID_GESTURE_ZOOM_COMMIT_STEP : -MID_GESTURE_ZOOM_COMMIT_STEP;
+      const targetZoom = g.zoomBaseZoom + committedStep;
       map.setZoomAround(correctedPoint, targetZoom, { animate: false });
-      g.zoomStepDistance = distance;
-      currentPinchPreviewScale = 1;
-      if (rotWrapper) rotWrapper.style.transform = `rotate(${mapBearing}deg) scale(1)`;
+      // Rebase around the just-committed step (not the raw current finger
+      // distance) so rounding doesn't quietly drift over a long pinch.
+      g.zoomBaseZoom = targetZoom;
+      g.zoomBaseDistance = g.zoomBaseDistance * Math.pow(2, committedStep);
+      const residualRatio = Math.log2(distance / g.zoomBaseDistance);
+      currentPinchPreviewScale = Math.pow(2, residualRatio);
+      if (rotWrapper) rotWrapper.style.transform = `rotate(${mapBearing}deg) scale(${currentPinchPreviewScale})`;
     }
   } else if (angleDelta !== 0 && rotWrapper) {
     // Pure twist with fingers held the same distance apart: still needs the
@@ -11626,7 +11671,7 @@ function debounceWithMaxWait(fn, debounceMs, maxWaitMs) {
 
 // During a pinch-zoom (and pan+zoom) gesture, Leaflet commits real zoom/pan
 // steps with {animate:false} multiple times per second (see
-// applyTwoFingerGestureFrame's zoomStepDistance/panBy calls) — each commit
+// applyTwoFingerGestureFrame's setZoomAround/panBy calls) — each commit
 // fires its own synchronous moveend/zoomend. Wiring syncMarkers() straight to
 // those events meant it ran a dozen+ times *during* a single gesture,
 // repeatedly adding/removing markers from the cluster group and forcing
