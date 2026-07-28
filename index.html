@@ -3455,6 +3455,18 @@ span.flatpickr-weekday {
           <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
         </span>
       </label>
+      <div id="voiceNavPickerSection" style="display:none;">
+        <label class="settings-select-row" id="voiceNavVoiceRow">
+          <span id="voiceNavVoiceLabel">Voice</span>
+          <select id="voiceNavVoiceSelect" onchange="setVoiceNavVoiceURI(this.value)"></select>
+        </label>
+        <p class="detail-export-hint" id="voiceNavVoiceHint">Options come from voices installed on your device, so they vary by phone — you may see different accents and languages available.</p>
+        <label class="settings-select-row" id="voiceNavStyleRow">
+          <span id="voiceNavStyleLabel">Character</span>
+          <select id="voiceNavStyleSelect" onchange="setVoiceNavStyle(this.value)"></select>
+        </label>
+        <button type="button" class="settings-btn" id="voiceNavTestBtn" onclick="testVoiceNavSample()">🔊 Test voice</button>
+      </div>
       <label class="settings-toggle-row" id="drivingSafetyToggleRow">
         <span id="drivingSafetyToggleLabel">Show safe-driving reminder when starting driving mode</span>
         <span class="toggle-switch">
@@ -6403,6 +6415,15 @@ const T = {
   soundSectionTitle:      { en:'Sound',                               sr:'Zvuk' },
   soundToggleLabel:       { en:'Navigation & alert sounds',           sr:'Zvukovi za navigaciju i upozorenja' },
   voiceNavToggleLabel:    { en:'Voice-guided turn directions',        sr:'Glasovno navođenje skretanja' },
+  voiceNavVoiceLabel:     { en:'Voice',                               sr:'Glas' },
+  voiceNavVoiceDefault:   { en:'Automatic (system default)',          sr:'Automatski (podrazumevano na uređaju)' },
+  voiceNavVoiceHint:      { en:'Options come from voices installed on your device, so they vary by phone — you may see different accents and languages available.', sr:'Ponuđeni glasovi zavise od onih instaliranih na vašem uređaju, pa se razlikuju od telefona do telefona — moguće je da su dostupni različiti akcenti i jezici.' },
+  voiceNavStyleLabel:     { en:'Character',                          sr:'Karakter glasa' },
+  voiceNavStyleNormal:    { en:'Normal',                              sr:'Normalan' },
+  voiceNavStyleDeep:      { en:'Deep',                                sr:'Dubok' },
+  voiceNavStyleHigh:      { en:'High-pitched',                        sr:'Visok' },
+  voiceNavStyleCartoon:   { en:'Cartoon',                             sr:'Crtani lik' },
+  voiceNavTestBtn:        { en:'🔊 Test voice',                        sr:'🔊 Isprobaj glas' },
   drivingSafetySectionTitle: { en:'Driving mode',                                            sr:'Režim vožnje' },
   drivingSafetyToggleLabel:  { en:'Show safe-driving reminder when starting driving mode',    sr:'Prikaži podsetnik o bezbednoj vožnji pri pokretanju režima vožnje' },
   drivingSafetyTitle:        { en:'Drive safe',                                               sr:'Vozite bezbedno' },
@@ -6650,6 +6671,16 @@ function applyLang(){
   if (soundToggleLabelEl) soundToggleLabelEl.textContent = t('soundToggleLabel');
   const voiceNavToggleLabelEl = document.getElementById('voiceNavToggleLabel');
   if (voiceNavToggleLabelEl) voiceNavToggleLabelEl.textContent = t('voiceNavToggleLabel');
+  const voiceNavVoiceLabelEl = document.getElementById('voiceNavVoiceLabel');
+  if (voiceNavVoiceLabelEl) voiceNavVoiceLabelEl.textContent = t('voiceNavVoiceLabel');
+  const voiceNavVoiceHintEl = document.getElementById('voiceNavVoiceHint');
+  if (voiceNavVoiceHintEl) voiceNavVoiceHintEl.textContent = t('voiceNavVoiceHint');
+  const voiceNavStyleLabelEl = document.getElementById('voiceNavStyleLabel');
+  if (voiceNavStyleLabelEl) voiceNavStyleLabelEl.textContent = t('voiceNavStyleLabel');
+  const voiceNavTestBtnEl = document.getElementById('voiceNavTestBtn');
+  if (voiceNavTestBtnEl) voiceNavTestBtnEl.textContent = t('voiceNavTestBtn');
+  populateVoiceNavVoiceSelect();
+  populateVoiceNavStyleSelect();
   const drivingSafetySectionTitleEl = document.getElementById('drivingSafetySectionTitle');
   if (drivingSafetySectionTitleEl) drivingSafetySectionTitleEl.textContent = t('drivingSafetySectionTitle');
   const drivingSafetyToggleLabelEl = document.getElementById('drivingSafetyToggleLabel');
@@ -6873,6 +6904,7 @@ function showSettingsModal() {
   renderStatusFilterSettings();
   initSoundSettingsUi();
   initVoiceNavSettingsUi();
+  initVoiceNavVoiceList();
   initDrivingSafetySettingsUi();
   initOverspeedAlertSettingsUi();
   initBumpDetectionSettingsUi();
@@ -7461,9 +7493,17 @@ const MAP_STYLES = {
            attribution:'© OpenStreetMap contributors © CARTO' }
   },
   terrain:{
+    // Was OpenTopoMap (tile.opentopomap.org) — that host aggressively
+    // throttles/blocks direct hotlinked app traffic without a registered
+    // referrer, which is why this style stopped loading. Swapped to
+    // Esri's World_Terrain_Base service instead: same server.arcgisonline.com
+    // host family the satellite style below already uses successfully,
+    // free, no API key. It's shaded-relief only (no street/place labels —
+    // it's designed as a neutral background layer), and tops out at
+    // native zoom 13 rather than 17, but it actually loads.
     nameEn:'Terrain', nameSr:'Reljef',
-    light:{ url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', subdomains:'abc', maxNativeZoom:17,
-            attribution:'© OpenStreetMap contributors, SRTM | © OpenTopoMap' },
+    light:{ url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Terrain_Base/MapServer/tile/{z}/{y}/{x}', subdomains:'', maxNativeZoom:13,
+            attribution:'Esri, USGS, NOAA' },
     dark:{ filter: INVERT_DARK_FILTER }
   },
   satellite:{
@@ -9210,10 +9250,142 @@ function setVoiceNavEnabled(enabled) {
   voiceNavEnabled = !!enabled;
   try { localStorage.setItem(VOICE_NAV_PREF_KEY, voiceNavEnabled ? '1' : '0'); } catch (err) {}
   if (!voiceNavEnabled) cancelVoiceNav();
+  updateVoiceNavPickerVisibility();
 }
 function initVoiceNavSettingsUi() {
   const input = document.getElementById('voiceNavToggleInput');
   if (input) input.checked = voiceNavEnabled;
+  updateVoiceNavPickerVisibility();
+}
+function updateVoiceNavPickerVisibility() {
+  const section = document.getElementById('voiceNavPickerSection');
+  if (section) section.style.display = voiceNavEnabled ? '' : 'none';
+}
+
+// --- Voice + character picker ------------------------------------------
+// Two independent, stackable choices:
+//  - "Voice" picks one of the actual system voices installed on the
+//    device (SpeechSynthesisVoice) — this is where different accents,
+//    languages, and man/woman voices come from. What's available is
+//    entirely up to the OS/browser, so the list is built dynamically
+//    from speechSynthesis.getVoices() rather than hardcoded.
+//  - "Character" is a pitch/rate modifier layered on top of whichever
+//    voice is chosen, for a lighter playful effect (e.g. "Cartoon").
+//    It isn't a different voice engine, just pitch/rate shaping — the
+//    hint text under the voice picker sets that expectation.
+const VOICE_NAV_VOICE_KEY = 'ttb_voice_nav_voice_uri';
+const VOICE_NAV_STYLE_KEY = 'ttb_voice_nav_style';
+const VOICE_NAV_STYLES = {
+  normal: { labelKey:'voiceNavStyleNormal', pitch:1,    rate:1 },
+  deep:   { labelKey:'voiceNavStyleDeep',   pitch:0.55, rate:0.92 },
+  high:   { labelKey:'voiceNavStyleHigh',   pitch:1.7,  rate:1.02 },
+  cartoon:{ labelKey:'voiceNavStyleCartoon',pitch:1.9,  rate:1.25 }
+};
+let cachedVoiceList = [];
+
+function getVoiceNavVoiceURI() {
+  try { return localStorage.getItem(VOICE_NAV_VOICE_KEY) || ''; } catch (err) { return ''; }
+}
+function setVoiceNavVoiceURI(uri) {
+  try { localStorage.setItem(VOICE_NAV_VOICE_KEY, uri || ''); } catch (err) {}
+}
+function getVoiceNavStyle() {
+  try {
+    const v = localStorage.getItem(VOICE_NAV_STYLE_KEY);
+    return VOICE_NAV_STYLES[v] ? v : 'normal';
+  } catch (err) { return 'normal'; }
+}
+function setVoiceNavStyle(style) {
+  if (!VOICE_NAV_STYLES[style]) style = 'normal';
+  try { localStorage.setItem(VOICE_NAV_STYLE_KEY, style); } catch (err) {}
+}
+
+// speechSynthesis.getVoices() can return an empty array on first call —
+// most browsers load the voice list asynchronously and fire
+// onvoiceschanged once it's ready, so the select is (re)populated both
+// immediately and whenever that event fires.
+function refreshVoiceNavVoiceList() {
+  if (!('speechSynthesis' in window)) { cachedVoiceList = []; return; }
+  try { cachedVoiceList = window.speechSynthesis.getVoices() || []; } catch (err) { cachedVoiceList = []; }
+}
+function populateVoiceNavVoiceSelect() {
+  const select = document.getElementById('voiceNavVoiceSelect');
+  if (!select) return;
+  refreshVoiceNavVoiceList();
+  const currentURI = getVoiceNavVoiceURI();
+  const prefLang = lang === 'sr' ? 'sr' : 'en';
+  // Voices matching the app's current language surface first, since
+  // those are the most useful choices, but every installed voice is
+  // listed — a different-language voice can still be a deliberate
+  // "accent" choice.
+  const sorted = cachedVoiceList.slice().sort((a, b) => {
+    const aMatch = a.lang.toLowerCase().startsWith(prefLang) ? 0 : 1;
+    const bMatch = b.lang.toLowerCase().startsWith(prefLang) ? 0 : 1;
+    if (aMatch !== bMatch) return aMatch - bMatch;
+    return a.name.localeCompare(b.name);
+  });
+  select.innerHTML = '';
+  const defaultOpt = document.createElement('option');
+  defaultOpt.value = '';
+  defaultOpt.textContent = t('voiceNavVoiceDefault');
+  select.appendChild(defaultOpt);
+  sorted.forEach(v => {
+    const opt = document.createElement('option');
+    opt.value = v.voiceURI;
+    opt.textContent = `${v.name} (${v.lang})`;
+    select.appendChild(opt);
+  });
+  // If the previously-saved voice isn't in this list (voices differ
+  // per device/browser), fall back to "Automatic" rather than leaving
+  // the select on a stale, invisible selection.
+  select.value = sorted.some(v => v.voiceURI === currentURI) ? currentURI : '';
+  if (select.value !== currentURI) setVoiceNavVoiceURI(select.value);
+}
+function populateVoiceNavStyleSelect() {
+  const select = document.getElementById('voiceNavStyleSelect');
+  if (!select) return;
+  const current = getVoiceNavStyle();
+  select.innerHTML = '';
+  Object.keys(VOICE_NAV_STYLES).forEach(key => {
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = t(VOICE_NAV_STYLES[key].labelKey);
+    select.appendChild(opt);
+  });
+  select.value = current;
+}
+function initVoiceNavVoiceList() {
+  populateVoiceNavVoiceSelect();
+  populateVoiceNavStyleSelect();
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.onvoiceschanged = () => {
+      populateVoiceNavVoiceSelect();
+    };
+  }
+}
+function applyVoiceNavVoiceAndStyle(utter) {
+  const uri = getVoiceNavVoiceURI();
+  if (uri) {
+    if (!cachedVoiceList.length) refreshVoiceNavVoiceList();
+    const match = cachedVoiceList.find(v => v.voiceURI === uri);
+    if (match) utter.voice = match;
+  }
+  const style = VOICE_NAV_STYLES[getVoiceNavStyle()] || VOICE_NAV_STYLES.normal;
+  utter.pitch = style.pitch;
+  utter.rate = style.rate;
+}
+function testVoiceNavSample() {
+  if (!('speechSynthesis' in window)) return;
+  try {
+    window.speechSynthesis.cancel();
+    const sample = lang === 'sr' ? 'Skrenite levo za 200 metara.' : 'Turn left in 200 meters.';
+    const utter = new SpeechSynthesisUtterance(sample);
+    utter.lang = lang === 'sr' ? 'sr-RS' : 'en-US';
+    applyVoiceNavVoiceAndStyle(utter);
+    window.speechSynthesis.speak(utter);
+  } catch (err) {
+    console.warn('testVoiceNavSample failed:', err.message);
+  }
 }
 // Spoken turn-by-turn directions, layered on top of the existing chime/tone
 // alerts rather than replacing them — this only fires when voiceNavEnabled
@@ -9235,6 +9407,7 @@ function speakNavInstruction(text) {
     window.speechSynthesis.cancel();
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = lang === 'sr' ? 'sr-RS' : 'en-US';
+    applyVoiceNavVoiceAndStyle(utter);
     window.speechSynthesis.speak(utter);
   } catch (err) {
     console.warn('speakNavInstruction failed:', err.message);
@@ -9886,51 +10059,25 @@ function onRotatedWheelZoom(e) {
 })();
 
 // =====================================================================
-// Google-Maps-style multi-touch gestures: pinch-zoom + pan, combined in
-// one continuous two-finger gesture. (Twist-to-rotate was removed on
-// request — a pinch only ever scales + pans now, it never changes
-// mapBearing. Map rotation is still available elsewhere: compass mode
-// and Shift+drag on desktop.)
-// =====================================================================
+// Simple pinch-to-zoom. No free-transform pan, no twist-to-rotate — a
+// pinch just zooms, anchored under your fingers, exactly like tapping a
+// +/- zoom control repeatedly (just anchored at the pinch midpoint
+// instead of the map center). This replaces an earlier version that
+// drove a live CSS transform (scale+translate) every frame and
+// committed it to Leaflet on release; that gave smoother-looking motion
+// but the combined pan+zoom math made the map feel "all over the place"
+// in practice, so it's been dropped for this simpler, more predictable
+// behavior.
 //
-// HOW IT WORKS (high level):
-// Leaflet's native touchZoom only pinch-zooms and re-renders on every
-// touchmove. Instead of fighting that, this is a full replacement: it
-// reads the two active touch pointers each frame and treats them as
-// defining a similarity transform (uniform scale + translation, at a
-// fixed rotation) of the map's on-screen content. During the gesture we
-// ONLY write a CSS transform to rotWrapper (the element that already
-// carries the app's existing compass-driven rotation, see
-// initRotationWrapper above) — we never call into Leaflet's center/zoom
-// machinery mid-gesture, so there is zero layout/re-render cost while
-// fingers are moving (just trig + one style write per animation frame).
-// Leaflet's real state (center, zoom) is only ever touched once, on
-// release, with a single setView() computed so it reproduces — pixel
-// for pixel — whatever the CSS preview was already showing. That's what
-// makes the commit invisible (no snap/jump) despite Leaflet being
-// completely unaware of the gesture until that instant.
-//
-// GESTURE MATH (the short version — see beginPinchGesture /
-// applyPinchPreview / commitPinchGesture for the full derivation):
-// rotWrapper's CSS transform maps its own "local" coordinates (Leaflet's
-// ordinary north-up container pixels) to screen coordinates by rotating
-// mapBearing degrees about the container's center. At gesture start we
-// take the pinch midpoint (a screen coordinate) and unrotate it by the
-// CURRENT bearing to find its local coordinate, q0 — this is the fixed
-// point we keep pinned under the fingers. Every frame we know exactly
-// where q0 should now appear on screen if we only scaled it, and the gap
-// between that and the fingers' actual current midpoint is exactly the
-// translate() needed — so pan falls out of the same calculation as
-// pinch, instead of being handled separately. (rotDeg is passed through
-// this same math purely because gesture start can happen mid-rotation
-// from compass mode; it stays fixed at the gesture's starting bearing
-// throughout — see processPinchFrame.)
-//
-// Coordinate/rotation sign convention below matches the app's existing
-// rotation-aware code (see customDragPointerMove / unrotateContainerPoint
-// just above): rotating a "local" (unrotated) vector by +mapBearing
-// degrees gives the visual/screen vector; rotating a screen vector by
-// -mapBearing gives the local vector.
+// HOW IT WORKS: each animation frame we read the two active touch
+// pointers, take the log2 ratio of how their distance apart changed
+// since the last frame, and accumulate it. That accumulated zoom delta
+// is committed via the same rotation-corrected map.setZoomAround() used
+// by the scroll-wheel/double-tap zoom above (see onRotatedWheelZoom),
+// debounced by a short timer so a fast pinch doesn't force a re-render
+// on every single touchmove. There is no pan component at all — the map
+// only re-centers as a side effect of setZoomAround keeping the anchor
+// point fixed on screen.
 
 function getContainerCenter() {
   // map.getSize() returns Leaflet's cached container size (no DOM read),
@@ -9966,10 +10113,14 @@ function unrotateDelta(dx, dy) {
 }
 
 // --- Gesture state -----------------------------------------------------
-let pinch = null; // non-null for the duration of an active 2-finger gesture
+let pinchActive = false; // true for the duration of an active 2-finger gesture
 const pinchPointers = new Map(); // pointerId -> {x,y (container-relative), clientX, clientY}, insertion order = finger order
 let pinchRafPending = false;
-let pinchSamples = []; // {t,x,y,d} history of the gesture midpoint, fed to the existing fling code on release
+let pinchLastDist = null; // distance between the two tracked pointers, last frame
+let pinchAccum = 0; // accumulated log2(zoom) delta not yet committed
+let pinchAnchorPoint = null; // most recent rotation-corrected container point to zoom around
+let pinchCommitTimer = null;
+const PINCH_COMMIT_DEBOUNCE_MS = 60; // same debounce as the rotated-wheel zoom, for the same reason
 let cachedMapRect = null; // bounding rect cached for the lifetime of one gesture sequence — avoids getBoundingClientRect() (a forced layout read) on every pointermove
 
 function trackedPointFromEvent(e) {
@@ -9982,126 +10133,74 @@ function trackedPointFromEvent(e) {
   };
 }
 
-function beginPinchGesture() {
-  const ids = Array.from(pinchPointers.keys()).slice(0, 2);
-  const p1 = pinchPointers.get(ids[0]), p2 = pinchPointers.get(ids[1]);
-  const O = getContainerCenter();
-  const mid0 = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
-  const startBearing = mapBearing;
-  // q0: the pinch midpoint's LOCAL (pre-rotation) coordinate — see the
-  // big comment above this section for why this is the anchor for the
-  // whole gesture's math.
-  const q0 = rotateVec(mid0.x - O.x, mid0.y - O.y, -startBearing);
-  // The actual geographic point currently under the fingers. This is
-  // only needed once, at the very end, to compute the committed center —
-  // captured now while Leaflet's real state still matches what's on
-  // screen (nothing has moved yet).
-  const anchorLatLng = map.containerPointToLatLng(unrotateContainerPoint(L.point(mid0.x, mid0.y), startBearing));
-
-  pinch = {
-    O, q0, startBearing, anchorLatLng,
-    startZoom: map.getZoom(),
-    lastDist: null, lastAngle: null,
-    scaleAccum: 1, rotAccum: 0,
-    lastMid: mid0
-  };
-
-  pinchSamples = [{ t: performance.now(), x: mid0.x, y: mid0.y, d: Math.hypot(p2.x - p1.x, p2.y - p1.y) }];
-
-  cancelPanFling();
-  onUserMapInteractionStart();
-  setNativeDraggingEnabled(false); // we own panning for the duration — stop Leaflet's native handler from also reacting to these same touches
-  if (rotWrapper) rotWrapper.style.transition = 'none'; // no CSS easing while we're driving every frame by hand
-  noteZoomActivity(false); // reuses the existing "hide pins/popups while a zoom-ish gesture is live" machinery so the one-time commit below doesn't cause a visible marker/cluster jump
-}
-
-// Renders the live gesture purely with a CSS transform — see the module
-// header comment for the derivation. `pinch.q0`/`pinch.O` are fixed at
-// gesture start; mid/scale/rotDeg change every frame.
-function applyPinchPreview(mid, scale, rotDeg) {
-  const { O, q0, startBearing } = pinch;
-  const totalBearing = startBearing + rotDeg;
-  // Where q0 would land on screen at the current scale/rotation if there
-  // were no extra pan applied yet.
-  const projected = rotateVec(q0.x * scale, q0.y * scale, totalBearing);
-  // The remaining gap between that and the fingers' actual current
-  // midpoint IS the translate() — this is what keeps the anchor point
-  // pinned under the fingers, giving pan "for free" out of the same
-  // transform as the pinch/rotate.
-  const tx = (mid.x - O.x) - projected.x;
-  const ty = (mid.y - O.y) - projected.y;
-  if (rotWrapper) {
-    rotWrapper.style.transform = `translate(${tx}px, ${ty}px) rotate(${totalBearing}deg) scale(${scale})`;
-  }
-}
-
-function processPinchFrame() {
-  pinchRafPending = false;
-  if (!pinch) return;
+function pinchMidAndDist() {
   // Always drive the math off the first two pointers that started this
   // gesture (insertion order), so a stray third finger touching down
   // mid-gesture can't perturb it.
   const ids = Array.from(pinchPointers.keys()).slice(0, 2);
   const p1 = pinchPointers.get(ids[0]), p2 = pinchPointers.get(ids[1]);
-  if (!p1 || !p2) return;
-
-  const dx = p2.x - p1.x, dy = p2.y - p1.y;
-  const dist = Math.hypot(dx, dy);
-
-  // Scale is accumulated incrementally, frame-to-frame, rather than always
-  // measured against the gesture's very first reading. That keeps a long
-  // pinch numerically stable.
-  // NOTE: twist-to-rotate was removed on request — pinch now only ever
-  // zooms + pans (basic pinch-zoom behavior), pinch.rotAccum stays 0 for
-  // the lifetime of the gesture so applyPinchPreview/commitPinchGesture's
-  // totalBearing math below is a no-op and the map's bearing never
-  // changes from a pinch. Map rotation is still available elsewhere
-  // (compass mode, Shift+drag on desktop) — this only affects pinch.
-  if (pinch.lastDist != null && dist > 0) pinch.scaleAccum *= dist / pinch.lastDist;
-  pinch.lastDist = dist;
-
-  const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
-  pinch.lastMid = mid;
-
-  applyPinchPreview(mid, pinch.scaleAccum, pinch.rotAccum);
-
-  const now = performance.now();
-  pinchSamples.push({ t: now, x: mid.x, y: mid.y, d: dist });
-  while (pinchSamples.length > 1 && now - pinchSamples[0].t > PAN_VELOCITY_SAMPLE_MS) pinchSamples.shift();
-
-  noteZoomActivity(false);
+  if (!p1 || !p2) return null;
+  return {
+    mid: { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 },
+    dist: Math.hypot(p2.x - p1.x, p2.y - p1.y)
+  };
 }
 
-// Commits the live gesture to Leaflet's real state (center/zoom/bearing)
-// with one non-animated setView(), computed to reproduce exactly the
-// frame that was already on screen — so the commit itself is invisible.
-// keepDraggingDisabled is true when a single finger remains and control
-// is about to hand off to the manual single-finger pan path instead of
-// back to Leaflet's native dragging (see beginSingleFingerContinuation).
-function commitPinchGesture(keepDraggingDisabled) {
-  if (!pinch) return;
-  const { O, startBearing, startZoom, anchorLatLng, scaleAccum, rotAccum, lastMid } = pinch;
-  const totalBearing = startBearing + rotAccum;
-  const newZoom = Math.min(map.getMaxZoom(), Math.max(map.getMinZoom(), startZoom + Math.log2(scaleAccum)));
+function beginPinchGesture() {
+  pinchActive = true;
+  pinchLastDist = null;
+  pinchAccum = 0;
+  pinchAnchorPoint = null;
+  cancelPanFling();
+  onUserMapInteractionStart();
+  setNativeDraggingEnabled(false); // stop Leaflet's native handler from also reacting to these same touches
+  noteZoomActivity(rotationActive()); // reuses the existing "hide pins/popups while a zoom-ish gesture is live" machinery
+}
 
-  // Invert the same geometry as the live preview: find the local
-  // (pre-rotation) container point the anchor needs to sit at, then
-  // invert Leaflet's own project()/center relationship to get the
-  // center that puts it there at the new zoom.
-  const localFinal = unrotateContainerPoint(L.point(lastMid.x, lastMid.y), totalBearing);
-  const anchorPx = map.project(anchorLatLng, newZoom);
-  const newCenterPx = L.point(anchorPx.x - (localFinal.x - O.x), anchorPx.y - (localFinal.y - O.y));
-  const newCenter = map.unproject(newCenterPx, newZoom);
+// Commits whatever zoom delta has accumulated so far via the same
+// rotation-corrected setZoomAround() the scroll-wheel/double-tap zoom
+// uses — see onRotatedWheelZoom above. Debounced so a fast pinch doesn't
+// force a full re-render on every single touchmove.
+function commitPinchZoom() {
+  pinchCommitTimer = null;
+  const accum = pinchAccum;
+  const anchor = pinchAnchorPoint;
+  pinchAccum = 0;
+  if (!accum || !anchor) return;
+  const targetZoom = Math.min(map.getMaxZoom(), Math.max(map.getMinZoom(), map.getZoom() + accum));
+  map.setZoomAround(anchor, targetZoom);
+}
 
-  suppressZoomBridge = true;
-  applyMapBearingRaw(totalBearing); // also resets rotWrapper's transform back to plain rotate(totalBearing) — clears our scale/translate preview
-  if (rotWrapper) rotWrapper.style.transition = '';
-  map.setView(newCenter, newZoom, { animate: false });
-  suppressZoomBridge = false;
+function processPinchFrame() {
+  pinchRafPending = false;
+  if (!pinchActive) return;
+  const md = pinchMidAndDist();
+  if (!md || md.dist <= 0) return;
+
+  pinchAnchorPoint = unrotateContainerPoint(L.point(md.mid.x, md.mid.y));
+
+  // Scale is accumulated incrementally, frame-to-frame, rather than
+  // always measured against the gesture's very first reading. That
+  // keeps a long pinch numerically stable.
+  if (pinchLastDist != null) {
+    pinchAccum += Math.log2(md.dist / pinchLastDist);
+  }
+  pinchLastDist = md.dist;
 
   noteZoomActivity(rotationActive());
+  if (!pinchCommitTimer) pinchCommitTimer = setTimeout(commitPinchZoom, PINCH_COMMIT_DEBOUNCE_MS);
+}
+
+// Ends the gesture, flushing any not-yet-committed zoom delta immediately
+// rather than waiting out the debounce timer, so lifting fingers doesn't
+// leave a small pending zoom stranded.
+function commitPinchGesture(keepDraggingDisabled) {
+  if (!pinchActive) return;
+  if (pinchCommitTimer) { clearTimeout(pinchCommitTimer); pinchCommitTimer = null; }
+  commitPinchZoom();
+  noteZoomActivity(rotationActive());
   if (!keepDraggingDisabled) setNativeDraggingEnabled(!rotationActive());
-  pinch = null;
+  pinchActive = false;
 }
 
 // When one finger of a two-finger gesture lifts and one remains down,
@@ -10130,11 +10229,9 @@ function pinchPointerDown(e) {
 function pinchPointerMove(e) {
   if (e.pointerType !== 'touch' || !pinchPointers.has(e.pointerId)) return;
   pinchPointers.set(e.pointerId, trackedPointFromEvent(e));
-  if (pinchPointers.size < 2 || !pinch) return;
+  if (pinchPointers.size < 2 || !pinchActive) return;
   // Coalesce potentially many pointermove events into at most one
-  // processing pass per animation frame — this is what keeps the
-  // gesture at a steady 60fps instead of doing the (cheap, but
-  // non-zero) trig + style write once per raw touch event.
+  // processing pass per animation frame.
   if (!pinchRafPending) {
     pinchRafPending = true;
     requestAnimationFrame(processPinchFrame);
@@ -10145,7 +10242,7 @@ function pinchPointerUp(e) {
   if (e.pointerType !== 'touch') return;
   const wasTracked = pinchPointers.has(e.pointerId);
   pinchPointers.delete(e.pointerId);
-  if (!wasTracked || !pinch) return;
+  if (!wasTracked || !pinchActive) return;
 
   const remainingIds = Array.from(pinchPointers.keys());
   if (remainingIds.length >= 2) return; // still a full gesture with the other pointers, nothing to do
@@ -10155,13 +10252,13 @@ function pinchPointerUp(e) {
     pinchPointers.delete(remainingIds[0]); // hand this finger fully over to the single-finger path below
     commitPinchGesture(true);
     beginSingleFingerContinuation(remainingIds[0], remaining);
+    cachedMapRect = null;
     return;
   }
 
-  // No fingers left at all.
+  // No fingers left at all. No pan/fling here anymore — pinch is
+  // zoom-only now, so there's no meaningful velocity to fling.
   commitPinchGesture(false);
-  startPanFlingFromSamples(pinchSamples); // already ignores momentum that was really just pinch-drift, via its .d/FLING_SUPPRESS_ZOOM_RATIO check
-  pinchSamples = [];
   cachedMapRect = null;
   scheduleAutoRefollow();
 }
@@ -10461,19 +10558,17 @@ function markerAnimTick(ts) {
   const dt = markerAnimLastTs === null ? 16 : Math.max(1, ts - markerAnimLastTs);
   markerAnimLastTs = ts;
 
-  // A two-finger pinch owns rotWrapper's CSS transform (and, on release,
-  // owns the single setView()/bearing commit that reproduces it) for the
-  // duration of the gesture — see processPinchFrame/commitPinchGesture.
-  // This loop used to keep calling map.setView() and applyMapBearing()
-  // every frame regardless, which also write to the map's real center and
-  // to that same rotWrapper transform. Two rAF loops overwriting the same
-  // state in unpredictable order made the GPS marker visibly jitter/jump
-  // whenever you pinch-zoomed while navigating. So: while a pinch is
-  // active, keep the marker's own lat/lon current (harmless, and means
-  // there's no jump when the gesture ends) but don't touch the view or
-  // rotation — commitPinchGesture's own setNativeDraggingEnabled/bearing
-  // commit picks the driving position back up cleanly next frame.
-  const pinchInProgress = !!pinch;
+  // A two-finger pinch commits zoom steps directly via setZoomAround
+  // (see processPinchFrame/commitPinchZoom). This loop used to keep
+  // calling map.setView() and applyMapBearing() every frame regardless,
+  // which also write to the map's real center/rotation. Two things
+  // writing the same state in unpredictable order made the GPS marker
+  // visibly jitter/jump whenever you pinch-zoomed while navigating. So:
+  // while a pinch is active, keep the marker's own lat/lon current
+  // (harmless, and means there's no jump when the gesture ends) but
+  // don't touch the view or rotation — normal driving-follow picks back
+  // up cleanly the frame after the gesture ends.
+  const pinchInProgress = pinchActive;
 
   const pos = estimateCurrentPosition();
   if (pos) {
