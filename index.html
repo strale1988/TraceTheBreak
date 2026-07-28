@@ -10461,12 +10461,26 @@ function markerAnimTick(ts) {
   const dt = markerAnimLastTs === null ? 16 : Math.max(1, ts - markerAnimLastTs);
   markerAnimLastTs = ts;
 
+  // A two-finger pinch owns rotWrapper's CSS transform (and, on release,
+  // owns the single setView()/bearing commit that reproduces it) for the
+  // duration of the gesture — see processPinchFrame/commitPinchGesture.
+  // This loop used to keep calling map.setView() and applyMapBearing()
+  // every frame regardless, which also write to the map's real center and
+  // to that same rotWrapper transform. Two rAF loops overwriting the same
+  // state in unpredictable order made the GPS marker visibly jitter/jump
+  // whenever you pinch-zoomed while navigating. So: while a pinch is
+  // active, keep the marker's own lat/lon current (harmless, and means
+  // there's no jump when the gesture ends) but don't touch the view or
+  // rotation — commitPinchGesture's own setNativeDraggingEnabled/bearing
+  // commit picks the driving position back up cleanly next frame.
+  const pinchInProgress = !!pinch;
+
   const pos = estimateCurrentPosition();
   if (pos) {
     userMarker.setLatLng([pos.lat, pos.lon]);
     // Recenter the map every frame (instead of once per GPS fix) so it glides continuously
     // with the vehicle rather than jumping in discrete steps.
-    if (followMode) {
+    if (followMode && !pinchInProgress) {
       const zoom = Math.max(map.getZoom(), 17);
       map.setView([pos.lat, pos.lon], zoom, { animate: false });
     }
@@ -10483,7 +10497,7 @@ function markerAnimTick(ts) {
     }
     // Ease the map's rotation continuously toward the latest heading, rather than snapping
     // it once per GPS fix. applyMapBearing() already updates the arrow rotation internally.
-    if (headingUpMode) {
+    if (headingUpMode && !pinchInProgress) {
       applyMapBearing(-animatedDrivingHeading);
     } else {
       updateUserMarkerRotation();
