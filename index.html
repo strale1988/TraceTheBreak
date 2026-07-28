@@ -9886,27 +9886,29 @@ function onRotatedWheelZoom(e) {
 })();
 
 // =====================================================================
-// Google-Maps-style multi-touch gestures: pinch-zoom + twist-to-rotate +
-// pan, all combined in one continuous two-finger gesture.
+// Google-Maps-style multi-touch gestures: pinch-zoom + pan, combined in
+// one continuous two-finger gesture. (Twist-to-rotate was removed on
+// request — a pinch only ever scales + pans now, it never changes
+// mapBearing. Map rotation is still available elsewhere: compass mode
+// and Shift+drag on desktop.)
 // =====================================================================
 //
 // HOW IT WORKS (high level):
 // Leaflet's native touchZoom only pinch-zooms and re-renders on every
-// touchmove, and has no concept of rotation at all. Instead of fighting
-// that, this is a full replacement: it reads the two active touch
-// pointers each frame and treats them as defining a similarity transform
-// (uniform scale + rotation + translation) of the map's on-screen
-// content. During the gesture we ONLY write a CSS transform to
-// rotWrapper (the element that already carries the app's existing
-// compass-driven rotation, see initRotationWrapper above) — we never
-// call into Leaflet's center/zoom machinery mid-gesture, so there is
-// zero layout/re-render cost while fingers are moving (just trig + one
-// style write per animation frame). Leaflet's real state (center, zoom,
-// mapBearing) is only ever touched once, on release, with a single
-// setView() computed so it reproduces — pixel for pixel — whatever the
-// CSS preview was already showing. That's what makes the commit
-// invisible (no snap/jump) despite Leaflet being completely unaware of
-// the gesture until that instant.
+// touchmove. Instead of fighting that, this is a full replacement: it
+// reads the two active touch pointers each frame and treats them as
+// defining a similarity transform (uniform scale + translation, at a
+// fixed rotation) of the map's on-screen content. During the gesture we
+// ONLY write a CSS transform to rotWrapper (the element that already
+// carries the app's existing compass-driven rotation, see
+// initRotationWrapper above) — we never call into Leaflet's center/zoom
+// machinery mid-gesture, so there is zero layout/re-render cost while
+// fingers are moving (just trig + one style write per animation frame).
+// Leaflet's real state (center, zoom) is only ever touched once, on
+// release, with a single setView() computed so it reproduces — pixel
+// for pixel — whatever the CSS preview was already showing. That's what
+// makes the commit invisible (no snap/jump) despite Leaflet being
+// completely unaware of the gesture until that instant.
 //
 // GESTURE MATH (the short version — see beginPinchGesture /
 // applyPinchPreview / commitPinchGesture for the full derivation):
@@ -9916,11 +9918,13 @@ function onRotatedWheelZoom(e) {
 // take the pinch midpoint (a screen coordinate) and unrotate it by the
 // CURRENT bearing to find its local coordinate, q0 — this is the fixed
 // point we keep pinned under the fingers. Every frame we know exactly
-// where q0 should now appear on screen if we only scaled+rotated it, and
-// the gap between that and the fingers' actual current midpoint is
-// exactly the translate() needed — so pan falls out of the same
-// calculation as pinch and rotate for free, instead of being handled
-// separately.
+// where q0 should now appear on screen if we only scaled it, and the gap
+// between that and the fingers' actual current midpoint is exactly the
+// translate() needed — so pan falls out of the same calculation as
+// pinch, instead of being handled separately. (rotDeg is passed through
+// this same math purely because gesture start can happen mid-rotation
+// from compass mode; it stays fixed at the gesture's starting bearing
+// throughout — see processPinchFrame.)
 //
 // Coordinate/rotation sign convention below matches the app's existing
 // rotation-aware code (see customDragPointerMove / unrotateContainerPoint
@@ -10043,22 +10047,18 @@ function processPinchFrame() {
 
   const dx = p2.x - p1.x, dy = p2.y - p1.y;
   const dist = Math.hypot(dx, dy);
-  const angle = Math.atan2(dy, dx) * 180 / Math.PI;
 
-  // Scale and rotation are accumulated incrementally, frame-to-frame,
-  // rather than always measured against the gesture's very first
-  // reading. That keeps a long pinch or a multi-turn twist numerically
-  // stable and sidesteps the atan2 +-180 wraparound a from-the-start
-  // measurement would hit.
+  // Scale is accumulated incrementally, frame-to-frame, rather than always
+  // measured against the gesture's very first reading. That keeps a long
+  // pinch numerically stable.
+  // NOTE: twist-to-rotate was removed on request — pinch now only ever
+  // zooms + pans (basic pinch-zoom behavior), pinch.rotAccum stays 0 for
+  // the lifetime of the gesture so applyPinchPreview/commitPinchGesture's
+  // totalBearing math below is a no-op and the map's bearing never
+  // changes from a pinch. Map rotation is still available elsewhere
+  // (compass mode, Shift+drag on desktop) — this only affects pinch.
   if (pinch.lastDist != null && dist > 0) pinch.scaleAccum *= dist / pinch.lastDist;
-  if (pinch.lastAngle != null) {
-    let d = angle - pinch.lastAngle;
-    if (d > 180) d -= 360;
-    if (d < -180) d += 360;
-    pinch.rotAccum += d;
-  }
   pinch.lastDist = dist;
-  pinch.lastAngle = angle;
 
   const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
   pinch.lastMid = mid;
