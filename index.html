@@ -3455,18 +3455,6 @@ span.flatpickr-weekday {
           <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
         </span>
       </label>
-      <div id="voiceNavPickerSection" style="display:none;">
-        <label class="settings-select-row" id="voiceNavVoiceRow">
-          <span id="voiceNavVoiceLabel">Voice</span>
-          <select id="voiceNavVoiceSelect" onchange="setVoiceNavVoiceURI(this.value)"></select>
-        </label>
-        <p class="detail-export-hint" id="voiceNavVoiceHint">Options come from voices installed on your device, so they vary by phone — you may see different accents and languages available.</p>
-        <label class="settings-select-row" id="voiceNavStyleRow">
-          <span id="voiceNavStyleLabel">Character</span>
-          <select id="voiceNavStyleSelect" onchange="setVoiceNavStyle(this.value)"></select>
-        </label>
-        <button type="button" class="settings-btn" id="voiceNavTestBtn" onclick="testVoiceNavSample()">🔊 Test voice</button>
-      </div>
       <label class="settings-toggle-row" id="drivingSafetyToggleRow">
         <span id="drivingSafetyToggleLabel">Show safe-driving reminder when starting driving mode</span>
         <span class="toggle-switch">
@@ -6415,15 +6403,6 @@ const T = {
   soundSectionTitle:      { en:'Sound',                               sr:'Zvuk' },
   soundToggleLabel:       { en:'Navigation & alert sounds',           sr:'Zvukovi za navigaciju i upozorenja' },
   voiceNavToggleLabel:    { en:'Voice-guided turn directions',        sr:'Glasovno navođenje skretanja' },
-  voiceNavVoiceLabel:     { en:'Voice',                               sr:'Glas' },
-  voiceNavVoiceDefault:   { en:'Automatic (system default)',          sr:'Automatski (podrazumevano na uređaju)' },
-  voiceNavVoiceHint:      { en:'Options come from voices installed on your device, so they vary by phone — you may see different accents and languages available.', sr:'Ponuđeni glasovi zavise od onih instaliranih na vašem uređaju, pa se razlikuju od telefona do telefona — moguće je da su dostupni različiti akcenti i jezici.' },
-  voiceNavStyleLabel:     { en:'Character',                          sr:'Karakter glasa' },
-  voiceNavStyleNormal:    { en:'Normal',                              sr:'Normalan' },
-  voiceNavStyleDeep:      { en:'Deep',                                sr:'Dubok' },
-  voiceNavStyleHigh:      { en:'High-pitched',                        sr:'Visok' },
-  voiceNavStyleCartoon:   { en:'Cartoon',                             sr:'Crtani lik' },
-  voiceNavTestBtn:        { en:'🔊 Test voice',                        sr:'🔊 Isprobaj glas' },
   drivingSafetySectionTitle: { en:'Driving mode',                                            sr:'Režim vožnje' },
   drivingSafetyToggleLabel:  { en:'Show safe-driving reminder when starting driving mode',    sr:'Prikaži podsetnik o bezbednoj vožnji pri pokretanju režima vožnje' },
   drivingSafetyTitle:        { en:'Drive safe',                                               sr:'Vozite bezbedno' },
@@ -6671,16 +6650,6 @@ function applyLang(){
   if (soundToggleLabelEl) soundToggleLabelEl.textContent = t('soundToggleLabel');
   const voiceNavToggleLabelEl = document.getElementById('voiceNavToggleLabel');
   if (voiceNavToggleLabelEl) voiceNavToggleLabelEl.textContent = t('voiceNavToggleLabel');
-  const voiceNavVoiceLabelEl = document.getElementById('voiceNavVoiceLabel');
-  if (voiceNavVoiceLabelEl) voiceNavVoiceLabelEl.textContent = t('voiceNavVoiceLabel');
-  const voiceNavVoiceHintEl = document.getElementById('voiceNavVoiceHint');
-  if (voiceNavVoiceHintEl) voiceNavVoiceHintEl.textContent = t('voiceNavVoiceHint');
-  const voiceNavStyleLabelEl = document.getElementById('voiceNavStyleLabel');
-  if (voiceNavStyleLabelEl) voiceNavStyleLabelEl.textContent = t('voiceNavStyleLabel');
-  const voiceNavTestBtnEl = document.getElementById('voiceNavTestBtn');
-  if (voiceNavTestBtnEl) voiceNavTestBtnEl.textContent = t('voiceNavTestBtn');
-  populateVoiceNavVoiceSelect();
-  populateVoiceNavStyleSelect();
   const drivingSafetySectionTitleEl = document.getElementById('drivingSafetySectionTitle');
   if (drivingSafetySectionTitleEl) drivingSafetySectionTitleEl.textContent = t('drivingSafetySectionTitle');
   const drivingSafetyToggleLabelEl = document.getElementById('drivingSafetyToggleLabel');
@@ -6904,7 +6873,6 @@ function showSettingsModal() {
   renderStatusFilterSettings();
   initSoundSettingsUi();
   initVoiceNavSettingsUi();
-  initVoiceNavVoiceList();
   initDrivingSafetySettingsUi();
   initOverspeedAlertSettingsUi();
   initBumpDetectionSettingsUi();
@@ -9250,142 +9218,10 @@ function setVoiceNavEnabled(enabled) {
   voiceNavEnabled = !!enabled;
   try { localStorage.setItem(VOICE_NAV_PREF_KEY, voiceNavEnabled ? '1' : '0'); } catch (err) {}
   if (!voiceNavEnabled) cancelVoiceNav();
-  updateVoiceNavPickerVisibility();
 }
 function initVoiceNavSettingsUi() {
   const input = document.getElementById('voiceNavToggleInput');
   if (input) input.checked = voiceNavEnabled;
-  updateVoiceNavPickerVisibility();
-}
-function updateVoiceNavPickerVisibility() {
-  const section = document.getElementById('voiceNavPickerSection');
-  if (section) section.style.display = voiceNavEnabled ? '' : 'none';
-}
-
-// --- Voice + character picker ------------------------------------------
-// Two independent, stackable choices:
-//  - "Voice" picks one of the actual system voices installed on the
-//    device (SpeechSynthesisVoice) — this is where different accents,
-//    languages, and man/woman voices come from. What's available is
-//    entirely up to the OS/browser, so the list is built dynamically
-//    from speechSynthesis.getVoices() rather than hardcoded.
-//  - "Character" is a pitch/rate modifier layered on top of whichever
-//    voice is chosen, for a lighter playful effect (e.g. "Cartoon").
-//    It isn't a different voice engine, just pitch/rate shaping — the
-//    hint text under the voice picker sets that expectation.
-const VOICE_NAV_VOICE_KEY = 'ttb_voice_nav_voice_uri';
-const VOICE_NAV_STYLE_KEY = 'ttb_voice_nav_style';
-const VOICE_NAV_STYLES = {
-  normal: { labelKey:'voiceNavStyleNormal', pitch:1,    rate:1 },
-  deep:   { labelKey:'voiceNavStyleDeep',   pitch:0.55, rate:0.92 },
-  high:   { labelKey:'voiceNavStyleHigh',   pitch:1.7,  rate:1.02 },
-  cartoon:{ labelKey:'voiceNavStyleCartoon',pitch:1.9,  rate:1.25 }
-};
-let cachedVoiceList = [];
-
-function getVoiceNavVoiceURI() {
-  try { return localStorage.getItem(VOICE_NAV_VOICE_KEY) || ''; } catch (err) { return ''; }
-}
-function setVoiceNavVoiceURI(uri) {
-  try { localStorage.setItem(VOICE_NAV_VOICE_KEY, uri || ''); } catch (err) {}
-}
-function getVoiceNavStyle() {
-  try {
-    const v = localStorage.getItem(VOICE_NAV_STYLE_KEY);
-    return VOICE_NAV_STYLES[v] ? v : 'normal';
-  } catch (err) { return 'normal'; }
-}
-function setVoiceNavStyle(style) {
-  if (!VOICE_NAV_STYLES[style]) style = 'normal';
-  try { localStorage.setItem(VOICE_NAV_STYLE_KEY, style); } catch (err) {}
-}
-
-// speechSynthesis.getVoices() can return an empty array on first call —
-// most browsers load the voice list asynchronously and fire
-// onvoiceschanged once it's ready, so the select is (re)populated both
-// immediately and whenever that event fires.
-function refreshVoiceNavVoiceList() {
-  if (!('speechSynthesis' in window)) { cachedVoiceList = []; return; }
-  try { cachedVoiceList = window.speechSynthesis.getVoices() || []; } catch (err) { cachedVoiceList = []; }
-}
-function populateVoiceNavVoiceSelect() {
-  const select = document.getElementById('voiceNavVoiceSelect');
-  if (!select) return;
-  refreshVoiceNavVoiceList();
-  const currentURI = getVoiceNavVoiceURI();
-  const prefLang = lang === 'sr' ? 'sr' : 'en';
-  // Voices matching the app's current language surface first, since
-  // those are the most useful choices, but every installed voice is
-  // listed — a different-language voice can still be a deliberate
-  // "accent" choice.
-  const sorted = cachedVoiceList.slice().sort((a, b) => {
-    const aMatch = a.lang.toLowerCase().startsWith(prefLang) ? 0 : 1;
-    const bMatch = b.lang.toLowerCase().startsWith(prefLang) ? 0 : 1;
-    if (aMatch !== bMatch) return aMatch - bMatch;
-    return a.name.localeCompare(b.name);
-  });
-  select.innerHTML = '';
-  const defaultOpt = document.createElement('option');
-  defaultOpt.value = '';
-  defaultOpt.textContent = t('voiceNavVoiceDefault');
-  select.appendChild(defaultOpt);
-  sorted.forEach(v => {
-    const opt = document.createElement('option');
-    opt.value = v.voiceURI;
-    opt.textContent = `${v.name} (${v.lang})`;
-    select.appendChild(opt);
-  });
-  // If the previously-saved voice isn't in this list (voices differ
-  // per device/browser), fall back to "Automatic" rather than leaving
-  // the select on a stale, invisible selection.
-  select.value = sorted.some(v => v.voiceURI === currentURI) ? currentURI : '';
-  if (select.value !== currentURI) setVoiceNavVoiceURI(select.value);
-}
-function populateVoiceNavStyleSelect() {
-  const select = document.getElementById('voiceNavStyleSelect');
-  if (!select) return;
-  const current = getVoiceNavStyle();
-  select.innerHTML = '';
-  Object.keys(VOICE_NAV_STYLES).forEach(key => {
-    const opt = document.createElement('option');
-    opt.value = key;
-    opt.textContent = t(VOICE_NAV_STYLES[key].labelKey);
-    select.appendChild(opt);
-  });
-  select.value = current;
-}
-function initVoiceNavVoiceList() {
-  populateVoiceNavVoiceSelect();
-  populateVoiceNavStyleSelect();
-  if ('speechSynthesis' in window) {
-    window.speechSynthesis.onvoiceschanged = () => {
-      populateVoiceNavVoiceSelect();
-    };
-  }
-}
-function applyVoiceNavVoiceAndStyle(utter) {
-  const uri = getVoiceNavVoiceURI();
-  if (uri) {
-    if (!cachedVoiceList.length) refreshVoiceNavVoiceList();
-    const match = cachedVoiceList.find(v => v.voiceURI === uri);
-    if (match) utter.voice = match;
-  }
-  const style = VOICE_NAV_STYLES[getVoiceNavStyle()] || VOICE_NAV_STYLES.normal;
-  utter.pitch = style.pitch;
-  utter.rate = style.rate;
-}
-function testVoiceNavSample() {
-  if (!('speechSynthesis' in window)) return;
-  try {
-    window.speechSynthesis.cancel();
-    const sample = lang === 'sr' ? 'Skrenite levo za 200 metara.' : 'Turn left in 200 meters.';
-    const utter = new SpeechSynthesisUtterance(sample);
-    utter.lang = lang === 'sr' ? 'sr-RS' : 'en-US';
-    applyVoiceNavVoiceAndStyle(utter);
-    window.speechSynthesis.speak(utter);
-  } catch (err) {
-    console.warn('testVoiceNavSample failed:', err.message);
-  }
 }
 // Spoken turn-by-turn directions, layered on top of the existing chime/tone
 // alerts rather than replacing them — this only fires when voiceNavEnabled
@@ -9407,7 +9243,6 @@ function speakNavInstruction(text) {
     window.speechSynthesis.cancel();
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = lang === 'sr' ? 'sr-RS' : 'en-US';
-    applyVoiceNavVoiceAndStyle(utter);
     window.speechSynthesis.speak(utter);
   } catch (err) {
     console.warn('speakNavInstruction failed:', err.message);
@@ -9775,42 +9610,33 @@ function toggleFollowMode() {
   }
 }
 
-const AUTO_REFOLLOW_DELAY_MS = 10000;
-let autoRefollowTimer = null;
-let pendingAutoRefollow = false;
+let pendingAutoRefollow = false; // true once follow mode was auto-disabled by a manual gesture; used only by the follow button, not a timer
 
-function cancelAutoRefollowTimer() {
-  if (autoRefollowTimer) { clearTimeout(autoRefollowTimer); autoRefollowTimer = null; }
-}
+function cancelAutoRefollowTimer() { /* kept as a no-op: see scheduleAutoRefollow below for why the timer itself was removed */ }
 
 function onUserMapInteractionStart() {
   if (followMode) {
     pendingAutoRefollow = true;
     setFollowMode(false);
   }
-  cancelAutoRefollowTimer();
 }
 
-function performAutoRefollow() {
-  if (!(pendingAutoRefollow && userCoords)) return;
-  pendingAutoRefollow = false;
-  setFollowMode(true);
-  followMapTo(userCoords.lat, userCoords.lon);
-}
-
-function scheduleAutoRefollow() {
-  if (!pendingAutoRefollow) return;
-  cancelAutoRefollowTimer();
-  autoRefollowTimer = setTimeout(() => {
-    autoRefollowTimer = null;
-    performAutoRefollow();
-  }, AUTO_REFOLLOW_DELAY_MS);
-}
+// Previously this snapped the map back onto the GPS position ~10s after
+// any manual pan or zoom, animating the view and forcing the zoom back
+// up to at least 16/17 — even if you had deliberately zoomed out to look
+// around. That's exactly the "the map yanks itself back after I zoom"
+// feeling that made zooming feel unnatural, so the timer is gone: follow
+// mode still turns itself off the instant you start a manual gesture
+// (see onUserMapInteractionStart, still wired below) so it never fights
+// your fingers, but it now only turns back on when you explicitly tap
+// the recenter/follow button — the same pattern Google Maps and most
+// nav apps use.
+function performAutoRefollow() { /* no longer auto-triggered; see comment above */ }
+function scheduleAutoRefollow() { /* intentionally a no-op now — kept so existing call sites don't need to change */ }
 
 map.on('dragstart', onUserMapInteractionStart);
 map.on('zoomstart', onUserMapInteractionStart);
-map.on('moveend', scheduleAutoRefollow);
-map.on('zoomend', scheduleAutoRefollow);
+
 
 let customDragActive = false;
 let customDragLast   = null;
@@ -10113,14 +9939,18 @@ function unrotateDelta(dx, dy) {
 }
 
 // --- Gesture state -----------------------------------------------------
-let pinchActive = false; // true for the duration of an active 2-finger gesture
+// Google-Maps-style pinch: purely a live CSS transform (scale, anchored
+// under your fingers) while your fingers move — Leaflet's real
+// center/zoom is never touched mid-gesture, so there's no zoom
+// animation, no marker "catch-up" animation, and no risk of Leaflet's
+// zoom-animation state getting confused by overlapping commits (which
+// is what was causing the map to occasionally blank out). On release,
+// ONE non-animated setView() reproduces exactly the frame that was
+// already on screen, so the commit itself is invisible — no snap, no
+// separate animation for markers/GPS dot to play catch-up with.
+let pinch = null; // non-null for the duration of an active 2-finger gesture
 const pinchPointers = new Map(); // pointerId -> {x,y (container-relative), clientX, clientY}, insertion order = finger order
 let pinchRafPending = false;
-let pinchLastDist = null; // distance between the two tracked pointers, last frame
-let pinchAccum = 0; // accumulated log2(zoom) delta not yet committed
-let pinchAnchorPoint = null; // most recent rotation-corrected container point to zoom around
-let pinchCommitTimer = null;
-const PINCH_COMMIT_DEBOUNCE_MS = 60; // same debounce as the rotated-wheel zoom, for the same reason
 let cachedMapRect = null; // bounding rect cached for the lifetime of one gesture sequence — avoids getBoundingClientRect() (a forced layout read) on every pointermove
 
 function trackedPointFromEvent(e) {
@@ -10147,60 +9977,97 @@ function pinchMidAndDist() {
 }
 
 function beginPinchGesture() {
-  pinchActive = true;
-  pinchLastDist = null;
-  pinchAccum = 0;
-  pinchAnchorPoint = null;
+  const md = pinchMidAndDist();
+  if (!md) return;
+  const O = getContainerCenter();
+  const startBearing = mapBearing;
+  // q0: the pinch midpoint's LOCAL (pre-rotation) coordinate — the fixed
+  // point we keep pinned under the fingers as scale changes.
+  const q0 = rotateVec(md.mid.x - O.x, md.mid.y - O.y, -startBearing);
+  // The actual geographic point currently under the fingers, captured
+  // once up front (needed only at commit time to compute the final center).
+  const anchorLatLng = map.containerPointToLatLng(unrotateContainerPoint(L.point(md.mid.x, md.mid.y), startBearing));
+
+  pinch = {
+    O, q0, startBearing, anchorLatLng,
+    startZoom: map.getZoom(),
+    lastDist: md.dist,
+    scaleAccum: 1,
+    lastMid: md.mid
+  };
+
   cancelPanFling();
   onUserMapInteractionStart();
   setNativeDraggingEnabled(false); // stop Leaflet's native handler from also reacting to these same touches
-  noteZoomActivity(rotationActive()); // reuses the existing "hide pins/popups while a zoom-ish gesture is live" machinery
+  if (rotWrapper) rotWrapper.style.transition = 'none'; // no CSS easing while we're driving every frame by hand
+  noteZoomActivity(rotationActive());
 }
 
-// Commits whatever zoom delta has accumulated so far via the same
-// rotation-corrected setZoomAround() the scroll-wheel/double-tap zoom
-// uses — see onRotatedWheelZoom above. Debounced so a fast pinch doesn't
-// force a full re-render on every single touchmove.
-function commitPinchZoom() {
-  pinchCommitTimer = null;
-  const accum = pinchAccum;
-  const anchor = pinchAnchorPoint;
-  pinchAccum = 0;
-  if (!accum || !anchor) return;
-  const targetZoom = Math.min(map.getMaxZoom(), Math.max(map.getMinZoom(), map.getZoom() + accum));
-  map.setZoomAround(anchor, targetZoom);
+// Renders the live gesture purely with a CSS transform — no Leaflet
+// calls at all, so this is essentially free (just trig + one style
+// write) and runs at a smooth 60fps regardless of tile/marker count.
+function applyPinchPreview(mid, scale) {
+  const { O, q0, startBearing } = pinch;
+  // Where q0 would land on screen at the current scale if no extra pan
+  // were applied yet.
+  const projected = rotateVec(q0.x * scale, q0.y * scale, startBearing);
+  // The remaining gap between that and the fingers' actual current
+  // midpoint is exactly the translate() needed to keep the anchor point
+  // pinned under the fingers — this is what makes it feel natural
+  // (zooming toward/away from wherever your fingers are, like Google
+  // Maps) instead of always zooming around a fixed point.
+  const tx = (mid.x - O.x) - projected.x;
+  const ty = (mid.y - O.y) - projected.y;
+  if (rotWrapper) {
+    rotWrapper.style.transform = `translate(${tx}px, ${ty}px) rotate(${startBearing}deg) scale(${scale})`;
+  }
 }
 
 function processPinchFrame() {
   pinchRafPending = false;
-  if (!pinchActive) return;
+  if (!pinch) return;
   const md = pinchMidAndDist();
   if (!md || md.dist <= 0) return;
-
-  pinchAnchorPoint = unrotateContainerPoint(L.point(md.mid.x, md.mid.y));
 
   // Scale is accumulated incrementally, frame-to-frame, rather than
   // always measured against the gesture's very first reading. That
   // keeps a long pinch numerically stable.
-  if (pinchLastDist != null) {
-    pinchAccum += Math.log2(md.dist / pinchLastDist);
-  }
-  pinchLastDist = md.dist;
+  if (pinch.lastDist != null && pinch.lastDist > 0) pinch.scaleAccum *= md.dist / pinch.lastDist;
+  pinch.lastDist = md.dist;
+  pinch.lastMid = md.mid;
 
+  applyPinchPreview(md.mid, pinch.scaleAccum);
   noteZoomActivity(rotationActive());
-  if (!pinchCommitTimer) pinchCommitTimer = setTimeout(commitPinchZoom, PINCH_COMMIT_DEBOUNCE_MS);
 }
 
-// Ends the gesture, flushing any not-yet-committed zoom delta immediately
-// rather than waiting out the debounce timer, so lifting fingers doesn't
-// leave a small pending zoom stranded.
+// Commits the live gesture to Leaflet's real state (center/zoom) with
+// one non-animated setView(), computed to reproduce — pixel for pixel —
+// whatever the CSS preview was already showing. keepDraggingDisabled is
+// true when a single finger remains and control is about to hand off to
+// the manual single-finger pan path instead of back to Leaflet's native
+// dragging (see beginSingleFingerContinuation).
 function commitPinchGesture(keepDraggingDisabled) {
-  if (!pinchActive) return;
-  if (pinchCommitTimer) { clearTimeout(pinchCommitTimer); pinchCommitTimer = null; }
-  commitPinchZoom();
+  if (!pinch) return;
+  const { O, startBearing, startZoom, anchorLatLng, scaleAccum, lastMid } = pinch;
+  const newZoom = Math.min(map.getMaxZoom(), Math.max(map.getMinZoom(), startZoom + Math.log2(scaleAccum)));
+
+  // Invert the same geometry as the live preview: find the local
+  // (pre-rotation) container point the anchor needs to sit at, then
+  // invert Leaflet's own project()/center relationship to get the
+  // center that puts it there at the new zoom.
+  const localFinal = unrotateContainerPoint(L.point(lastMid.x, lastMid.y), startBearing);
+  const anchorPx = map.project(anchorLatLng, newZoom);
+  const newCenterPx = L.point(anchorPx.x - (localFinal.x - O.x), anchorPx.y - (localFinal.y - O.y));
+  const newCenter = map.unproject(newCenterPx, newZoom);
+
+  suppressZoomBridge = true;
+  if (rotWrapper) { rotWrapper.style.transition = ''; rotWrapper.style.transform = `rotate(${startBearing}deg) scale(1)`; } // clears our scale/translate preview before Leaflet's own setView paints the real frame
+  map.setView(newCenter, newZoom, { animate: false }); // animate:false is essential — this is what keeps markers/the GPS dot from playing a separate "catch up" animation after the commit
+  suppressZoomBridge = false;
+
   noteZoomActivity(rotationActive());
   if (!keepDraggingDisabled) setNativeDraggingEnabled(!rotationActive());
-  pinchActive = false;
+  pinch = null;
 }
 
 // When one finger of a two-finger gesture lifts and one remains down,
@@ -10229,9 +10096,11 @@ function pinchPointerDown(e) {
 function pinchPointerMove(e) {
   if (e.pointerType !== 'touch' || !pinchPointers.has(e.pointerId)) return;
   pinchPointers.set(e.pointerId, trackedPointFromEvent(e));
-  if (pinchPointers.size < 2 || !pinchActive) return;
+  if (pinchPointers.size < 2 || !pinch) return;
   // Coalesce potentially many pointermove events into at most one
-  // processing pass per animation frame.
+  // processing pass per animation frame — this is what keeps the
+  // gesture at a steady 60fps instead of doing the (cheap, but
+  // non-zero) trig + style write once per raw touch event.
   if (!pinchRafPending) {
     pinchRafPending = true;
     requestAnimationFrame(processPinchFrame);
@@ -10242,7 +10111,7 @@ function pinchPointerUp(e) {
   if (e.pointerType !== 'touch') return;
   const wasTracked = pinchPointers.has(e.pointerId);
   pinchPointers.delete(e.pointerId);
-  if (!wasTracked || !pinchActive) return;
+  if (!wasTracked || !pinch) return;
 
   const remainingIds = Array.from(pinchPointers.keys());
   if (remainingIds.length >= 2) return; // still a full gesture with the other pointers, nothing to do
@@ -10256,8 +10125,7 @@ function pinchPointerUp(e) {
     return;
   }
 
-  // No fingers left at all. No pan/fling here anymore — pinch is
-  // zoom-only now, so there's no meaningful velocity to fling.
+  // No fingers left at all.
   commitPinchGesture(false);
   cachedMapRect = null;
   scheduleAutoRefollow();
@@ -10558,17 +10426,19 @@ function markerAnimTick(ts) {
   const dt = markerAnimLastTs === null ? 16 : Math.max(1, ts - markerAnimLastTs);
   markerAnimLastTs = ts;
 
-  // A two-finger pinch commits zoom steps directly via setZoomAround
-  // (see processPinchFrame/commitPinchZoom). This loop used to keep
-  // calling map.setView() and applyMapBearing() every frame regardless,
-  // which also write to the map's real center/rotation. Two things
-  // writing the same state in unpredictable order made the GPS marker
-  // visibly jitter/jump whenever you pinch-zoomed while navigating. So:
-  // while a pinch is active, keep the marker's own lat/lon current
-  // (harmless, and means there's no jump when the gesture ends) but
-  // don't touch the view or rotation — normal driving-follow picks back
-  // up cleanly the frame after the gesture ends.
-  const pinchInProgress = pinchActive;
+  // A two-finger pinch owns rotWrapper's CSS transform (and, on release,
+  // owns the single setView() commit that reproduces it) for the
+  // duration of the gesture — see processPinchFrame/commitPinchGesture.
+  // This loop used to keep calling map.setView() and applyMapBearing()
+  // every frame regardless, which also write to the map's real center and
+  // to that same rotWrapper transform. Two rAF loops overwriting the same
+  // state in unpredictable order made the GPS marker visibly jitter/jump
+  // whenever you pinch-zoomed while navigating. So: while a pinch is
+  // active, keep the marker's own lat/lon current (harmless, and means
+  // there's no jump when the gesture ends) but don't touch the view or
+  // rotation — commitPinchGesture's own setNativeDraggingEnabled/setView
+  // picks the driving position back up cleanly next frame.
+  const pinchInProgress = !!pinch;
 
   const pos = estimateCurrentPosition();
   if (pos) {
