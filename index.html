@@ -10044,6 +10044,53 @@ function processPinchFrame() {
   noteZoomActivity(rotationActive());
 }
 
+// --- Bridging the tile-loading gap after a big pinch-zoom commit ---------
+// The live pinch preview above (applyPinchPreview) is just a CSS transform
+// on the real map pane — there's no separate "old view" being kept around
+// anywhere. The instant commitPinchGesture() resets that transform and
+// hands off to the real, non-animated setView(), whatever was on screen a
+// frame ago is simply gone, and Leaflet has to fetch every tile the new
+// view needs before there's anything to draw in its place. For a small,
+// single-level zoom step that's normally fast enough not to notice — but a
+// fast real-world pinch can easily cross five or six zoom levels in one
+// gesture, which can mean dozens of brand-new tiles to fetch before the
+// screen is anything but blank. (Leaflet's own built-in zoom animation has
+// this same limitation in principle; it's just rarely visible there
+// because native zoom happens one small step at a time.)
+//
+// Fix: right before handing off to the real setView(), clone the current
+// frame — which is already fully rendered and pixel-correct, since it's
+// exactly what the live CSS preview was already showing — into a plain
+// overlay positioned exactly on top of the real map, and leave it there
+// covering the real map while Leaflet updates underneath invisibly. Only
+// once the new tiles have actually finished loading (or a safety timeout
+// elapses, in case of a slow/offline connection) do we fade the frozen
+// copy away. The user always sees a complete picture, never a blank one.
+function bridgeTileLoadGap() {
+  if (!rotWrapper) return;
+  const frozen = rotWrapper.cloneNode(true);
+  frozen.classList.add('ttb-zoom-snapshot');
+  frozen.style.transition = 'none';
+  frozen.style.pointerEvents = 'none';
+  frozen.removeAttribute('id');
+  mapContainerEl.appendChild(frozen);
+
+  let revealed = false;
+  const reveal = () => {
+    if (revealed) return;
+    revealed = true;
+    frozen.style.transition = 'opacity .18s ease';
+    frozen.style.opacity = '0';
+    setTimeout(() => frozen.remove(), 220);
+  };
+
+  if (activeTileLayer) activeTileLayer.once('load', reveal);
+  // Safety net: never leave the snapshot up forever (offline, tile errors,
+  // a layer swap mid-gesture) — reveal whatever's there after a max wait
+  // regardless of whether the 'load' event ever fires.
+  setTimeout(reveal, 1500);
+}
+
 // Commits the live gesture to Leaflet's real state (center/zoom) with
 // one non-animated setView(), computed to reproduce — pixel for pixel —
 // whatever the CSS preview was already showing. keepDraggingDisabled is
@@ -10064,8 +10111,14 @@ function commitPinchGesture(keepDraggingDisabled) {
   const newCenterPx = L.point(anchorPx.x - (localFinal.x - O.x), anchorPx.y - (localFinal.y - O.y));
   const newCenter = map.unproject(newCenterPx, newZoom);
 
+  // A meaningful zoom change is the only case that can trigger a real
+  // tile-loading gap — skip the snapshot overhead for a gesture that only
+  // panned or nudged the zoom fractionally (tiles for that are already
+  // loaded/cached from the buffer around the current view).
+  if (Math.abs(newZoom - startZoom) > 0.05) bridgeTileLoadGap();
+
   suppressZoomBridge = true;
-  if (rotWrapper) { rotWrapper.style.transition = ''; rotWrapper.style.transform = `rotate(${startBearing}deg) scale(1)`; } // clears our scale/translate preview before Leaflet's own setView paints the real frame
+  if (rotWrapper) { rotWrapper.style.transition = ''; rotWrapper.style.transform = `rotate(${startBearing}deg) scale(1)`; } // safe to clear immediately — bridgeTileLoadGap() above already froze a copy of this exact frame on top, so there's nothing visible for the user to see change until that snapshot fades away
   map.setView(newCenter, newZoom, { animate: false }); // animate:false is essential — this is what keeps markers/the GPS dot from playing a separate "catch up" animation after the commit
   suppressZoomBridge = false;
 
