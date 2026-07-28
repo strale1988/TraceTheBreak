@@ -10058,12 +10058,19 @@ function commitPinchGesture(keepDraggingDisabled) {
   const newCenter = map.unproject(newCenterPx, newZoom);
 
   suppressZoomBridge = true;
-  applyMapBearingRaw(totalBearing); // also resets rotWrapper's transform back to plain rotate(totalBearing) — clears our scale/translate preview
+  applyMapBearingRaw(totalBearing); // also resets rotWrapper's transform back to plain rotate(totalBearing) — clears our scale/translate preview, and updates mapBearing so rotationActive() below reflects the post-gesture state
   if (rotWrapper) rotWrapper.style.transition = '';
+  // Hide overlay/marker panes *before* the instant, non-animated setView
+  // below repaints them — otherwise they visibly snap into their new
+  // (correct) position for one frame first, THEN get hidden, which reads
+  // as the whole map flashing/disappearing the instant you lift your
+  // fingers off a rotate/pinch gesture. Hiding first makes that instant
+  // repaint invisible; the existing debounced reveal (endZoomBurst) still
+  // brings everything back a moment later once the gesture has settled.
+  noteZoomActivity(rotationActive());
   map.setView(newCenter, newZoom, { animate: false });
   suppressZoomBridge = false;
 
-  noteZoomActivity(rotationActive());
   if (!keepDraggingDisabled) setNativeDraggingEnabled(!rotationActive());
   pinch = null;
 }
@@ -10084,11 +10091,31 @@ function beginSingleFingerContinuation(pointerId, point) {
   customDragSamples = [{ t: performance.now(), x: point.clientX, y: point.clientY }];
 }
 
+// Real two-finger touch-downs rarely land at the exact same instant, and
+// the very first reported position of the second finger can be a pixel or
+// two off from where it actually settles a moment later. Starting the
+// gesture (anchoring q0/anchorLatLng, and starting the fling-velocity
+// sample history) from that first noisy reading caused a small, unwanted
+// jump/drift right as a two-finger rotation began, and could leave a bit
+// of residual "fling" motion after release. This buffer just waits a
+// short beat after the second finger touches down before actually
+// starting the gesture — pointer positions keep updating during the
+// wait (see pinchPointerMove, which updates pinchPointers regardless of
+// whether a gesture has started yet), so by the time beginPinchGesture()
+// runs it anchors off settled, stable coordinates instead.
+const PINCH_START_SETTLE_MS = 60;
+let pinchStartTimer = null;
+
 function pinchPointerDown(e) {
   if (e.pointerType !== 'touch') return;
   if (pinchPointers.size === 0) cachedMapRect = mapContainerEl.getBoundingClientRect();
   pinchPointers.set(e.pointerId, trackedPointFromEvent(e));
-  if (pinchPointers.size === 2) beginPinchGesture();
+  if (pinchPointers.size === 2 && !pinch && !pinchStartTimer) {
+    pinchStartTimer = setTimeout(() => {
+      pinchStartTimer = null;
+      if (pinchPointers.size === 2 && !pinch) beginPinchGesture();
+    }, PINCH_START_SETTLE_MS);
+  }
 }
 
 function pinchPointerMove(e) {
@@ -10109,6 +10136,7 @@ function pinchPointerUp(e) {
   if (e.pointerType !== 'touch') return;
   const wasTracked = pinchPointers.has(e.pointerId);
   pinchPointers.delete(e.pointerId);
+  if (pinchStartTimer && pinchPointers.size < 2) { clearTimeout(pinchStartTimer); pinchStartTimer = null; }
   if (!wasTracked || !pinch) return;
 
   const remainingIds = Array.from(pinchPointers.keys());
