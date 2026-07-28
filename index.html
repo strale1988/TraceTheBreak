@@ -1047,11 +1047,15 @@ body.nav-panel-open .driving-nav-card{
 }
 
 .user-location-icon{
-
-  transition: transform .6s linear;
+  /* No CSS transition here: Leaflet repositions this element (via transform)
+     on every pan/zoom, not just on a real GPS fix. A CSS transition can't
+     tell those apart, so it used to animate the dot sliding across the map
+     whenever the viewport moved (e.g. right after a pinch-zoom commits) —
+     not just when your actual location changed. Any intentional smooth
+     glide between real GPS fixes should be driven from JS (see
+     markerAnimTick's driving-mode interpolation) so it can be scoped to
+     genuine position updates only. */
 }
-
-body.driving-active .user-location-icon{ transition:none; }
 
 #drivingTopFade{
   position:fixed;
