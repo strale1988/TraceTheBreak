@@ -8090,10 +8090,13 @@ const pinCluster = L.markerClusterGroup({
   disableClusteringAtZoom: 17,
   spiderfyOnMaxZoom: true,
   showCoverageOnHover: false,
-  // Leaflet.markercluster defaults to animating markers flying into/out of
-  // clusters as you zoom (and cluster bubbles splitting apart). Turned off
-  // per request — pins should just regroup instantly at the new zoom level.
-  animate: false,
+  // Fly/split animation is back on (see updateClusterAnimationForRotation
+  // below, which flips this off again for as long as the map is actually
+  // rotated — Leaflet.markercluster's regroup animation piggybacks on the
+  // map's own zoom-pane animation, which we already force off while
+  // rotated since it can't handle a CSS-rotated map; animating the cluster
+  // on top of that mismatch is what caused the old flashing).
+  animate: true,
   iconCreateFunction: makeClusterIcon
 });
 
@@ -8121,12 +8124,27 @@ const companyMarkersLayer = L.markerClusterGroup({
   disableClusteringAtZoom: 17,
   spiderfyOnMaxZoom: true,
   showCoverageOnHover: false,
-  // Same as pinCluster above — no fly/split animation on regroup.
-  animate: false,
+  // Same as pinCluster above.
+  animate: true,
   iconCreateFunction: makePublicClusterIcon
 }).addTo(map);
 
 pinCluster.addTo(map);
+
+// Keeps both cluster groups' regroup animation in lockstep with whether
+// the map is actually running its own zoom-pane animation right now (see
+// updateZoomAnimationForRotation, which is the source of truth this
+// mirrors). Read live at animation time by the plugin, so flipping this
+// mid-session is safe — no re-add/reset needed. North-up: animated
+// fly-together/fly-apart on zoom, same as stock Leaflet.markercluster.
+// Rotated: falls back to the old instant regroup, since the plugin's
+// animation assumes the map's zoom pane is animating too.
+function updateClusterAnimationForRotation() {
+  const shouldAnimate = !rotationActive();
+  pinCluster.options.animate = shouldAnimate;
+  companyMarkersLayer.options.animate = shouldAnimate;
+}
+updateClusterAnimationForRotation();
 
 let rotWrapper = null;
 function initRotationWrapper() {
@@ -8249,6 +8267,7 @@ function applyMapBearingRaw(newBearingDeg) {
   updateAllPopupRotations();
   updateUserMarkerRotation();
   updateZoomAnimationForRotation();
+  updateClusterAnimationForRotation();
 }
 
 function applyMapBearing(targetHeadingDeg) {
@@ -9818,6 +9837,30 @@ const PAN_FLING_MIN_SPEED      = 0.04;  // px/ms below which we just stop rather
 // pinch-zoom.
 const FLING_SUPPRESS_ZOOM_RATIO = 0.06;
 
+// Manual rotated panning/fling drives the map with map.panBy() directly.
+// Unlike Leaflet's own drag handler, panBy() has no idea about
+// maxBoundsViscosity — the map only gets pulled back onto WORLD_BOUNDS
+// reactively, on 'moveend', once the gesture is already over. That let a
+// rotated drag or fling sail well past the edge of the world map and then
+// snap back hard the instant you released. clampPanToBounds() calls the
+// same private _limitCenter() Leaflet's own dragging uses internally,
+// right after every manual panBy, so the map hard-stops at the edge (to
+// match maxBoundsViscosity:1.0) instead of overshooting and correcting
+// after the fact. Returns true when clamping actually kicked in (i.e. the
+// map is sitting right at a world edge), so the fling loop below can stop
+// coasting there instead of continuing to push into the boundary.
+function clampPanToBounds() {
+  const bounds = map.options.maxBounds;
+  if (!bounds) return false;
+  const center = map.getCenter();
+  const limited = map._limitCenter(center, map.getZoom(), bounds);
+  if (limited.lat !== center.lat || limited.lng !== center.lng) {
+    map.panTo(limited, { animate: false });
+    return true;
+  }
+  return false;
+}
+
 function cancelPanFling() {
   if (panFlingRAF) { cancelAnimationFrame(panFlingRAF); panFlingRAF = null; }
 }
@@ -9845,7 +9888,8 @@ function startPanFlingFromSamples(samples) {
     vx *= decay; vy *= decay;
     const d = unrotateDelta(vx * dtFrame, vy * dtFrame);
     map.panBy([-d.dx, -d.dy], { animate: false });
-    if (Math.hypot(vx, vy) >= PAN_FLING_MIN_SPEED) {
+    const hitBound = clampPanToBounds();
+    if (!hitBound && Math.hypot(vx, vy) >= PAN_FLING_MIN_SPEED) {
       panFlingRAF = requestAnimationFrame(step);
     } else {
       panFlingRAF = null;
@@ -9854,6 +9898,7 @@ function startPanFlingFromSamples(samples) {
   }
   panFlingRAF = requestAnimationFrame(step);
 }
+
 
 function rotationActive() {
 
@@ -9933,6 +9978,7 @@ function customDragPointerMove(e) {
   const mapDx = dx * cos - dy * sin;
   const mapDy = dx * sin + dy * cos;
   map.panBy([-mapDx, -mapDy], { animate: false });
+  clampPanToBounds();
 
   const now = performance.now();
   customDragSamples.push({ t: now, x: e.clientX, y: e.clientY });
