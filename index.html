@@ -6006,8 +6006,8 @@ const T = {
   mapStyleCarLabel:  { en:'Driving map style',           sr:'Stil mape za vožnju' },
   mapStyleBikeLabel: { en:'Cycling map style',           sr:'Stil mape za vožnju bicikla' },
   mapStyleFootLabel: { en:'Walking map style',           sr:'Stil mape za hodanje' },
-  mapStyleAutoCar:   { en:'Auto (Streets)',              sr:'Automatski (Ulice)' },
-  mapStyleAutoBike:  { en:'Auto (Terrain)',              sr:'Automatski (Reljef)' },
+  mapStyleAutoCar:   { en:'Auto (Standard)',             sr:'Automatski (Standardna)' },
+  mapStyleAutoBike:  { en:'Auto (Standard)',             sr:'Automatski (Standardna)' },
   mapStyleAutoFoot:  { en:'Auto (Standard)',             sr:'Automatski (Standardna)' },
   iconPackSectionTitle: { en:'Icon pack',                             sr:'Paket ikonica' },
   iconPackHint:      { en:'Changes how map pins and icons look. The app will reload after switching.', sr:'Menja izgled ikonica i pinova na mapi. Aplikacija će se ponovo učitati nakon promene.' },
@@ -7624,20 +7624,6 @@ const MAP_STYLES = {
     dark:{ url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', subdomains:'abcd', maxNativeZoom:20,
            attribution:'© OpenStreetMap contributors © CARTO' }
   },
-  terrain:{
-    // Was OpenTopoMap (tile.opentopomap.org) — that host aggressively
-    // throttles/blocks direct hotlinked app traffic without a registered
-    // referrer, which is why this style stopped loading. Swapped to
-    // Esri's World_Terrain_Base service instead: same server.arcgisonline.com
-    // host family the satellite style below already uses successfully,
-    // free, no API key. It's shaded-relief only (no street/place labels —
-    // it's designed as a neutral background layer), and tops out at
-    // native zoom 13 rather than 17, but it actually loads.
-    nameEn:'Terrain', nameSr:'Reljef',
-    light:{ url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Terrain_Base/MapServer/tile/{z}/{y}/{x}', subdomains:'', maxNativeZoom:13,
-            attribution:'Esri, USGS, NOAA' },
-    dark:{ filter: INVERT_DARK_FILTER }
-  },
   satellite:{
     nameEn:'Satellite', nameSr:'Satelitska',
     light:{ url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', subdomains:'', maxNativeZoom:19,
@@ -7645,10 +7631,13 @@ const MAP_STYLES = {
     dark:{ filter:'brightness(.55) contrast(1.15)' } // dim rather than invert — inverted satellite imagery looks broken
   }
 };
-const MAP_STYLE_ORDER = ['standard', 'streets', 'minimal', 'terrain', 'satellite'];
+const MAP_STYLE_ORDER = ['standard', 'streets', 'minimal', 'satellite'];
 // Smart per-context defaults: best-suited style for each travel mode, and
-// for the map when not navigating.
-const MAP_STYLE_SMART_DEFAULTS = { overview:'standard', car:'streets', bike:'terrain', foot:'standard' };
+// for the map when not navigating. Everything defaults to standard now
+// (car used to default to streets and bike to terrain, back when terrain
+// was an option — terrain's gone, so there's no reason for car/bike to
+// diverge from the plain default anymore).
+const MAP_STYLE_SMART_DEFAULTS = { overview:'standard', car:'standard', bike:'standard', foot:'standard' };
 
 const MAP_STYLE_DEFAULT_KEY = 'ttb_map_style_default';
 const MAP_STYLE_NAV_PREFIX = 'ttb_map_style_nav_';
