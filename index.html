@@ -167,19 +167,16 @@ html[data-theme="dark"]{
 }
 .leaflet-tile-pane{ filter:var(--map-tile-filter); }
 .leaflet-marker-pane,
-.leaflet-popup-pane{ transition:opacity .12s ease; }
+.leaflet-popup-pane,
+.leaflet-overlay-pane{ transition:opacity .12s ease; }
 .leaflet-zoom-anim .leaflet-zoom-hide{
   visibility:visible !important;
   opacity:0 !important;
   pointer-events:none !important;
 }
 #map.map-zooming .leaflet-marker-pane,
-#map.map-zooming .leaflet-popup-pane{
-  opacity:0 !important;
-  pointer-events:none !important;
-}
-
-#map.map-zooming-rotated .leaflet-overlay-pane{
+#map.map-zooming .leaflet-popup-pane,
+#map.map-zooming .leaflet-overlay-pane{
   opacity:0 !important;
   pointer-events:none !important;
 }
@@ -7401,27 +7398,66 @@ const TILE_CACHE_NAME = 'ttb-osm-tiles-v1';
 
 const tileCacheReady = ('caches' in window) ? caches.open(TILE_CACHE_NAME) : Promise.resolve(null);
 
-async function fetchTileCached(url) {
+// A big pinch-zoom can suddenly need dozens of new tiles at once, which is
+// exactly the kind of burst that trips tile-server rate limiting or just
+// hits an ordinary transient network hiccup. A couple of retries with a
+// short backoff clears up the vast majority of those on their own.
+const TILE_FETCH_MAX_ATTEMPTS = 3;
+const TILE_FETCH_RETRY_DELAY_MS = 300;
+
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function fetchTileCached(url, attempt = 0) {
   const cache = await tileCacheReady;
   if (cache) {
     const cached = await cache.match(url);
     if (cached) return cached;
   }
-  const response = await fetch(url);
-  if (cache && response && response.ok) {
-    cache.put(url, response.clone()).catch(() => {});
+  let response;
+  try {
+    response = await fetch(url);
+  } catch (networkErr) {
+    if (attempt < TILE_FETCH_MAX_ATTEMPTS - 1) {
+      await delay(TILE_FETCH_RETRY_DELAY_MS * (attempt + 1));
+      return fetchTileCached(url, attempt + 1);
+    }
+    throw networkErr;
+  }
+  if (response.ok) {
+    if (cache) cache.put(url, response.clone()).catch(() => {});
+    return response;
+  }
+  // A non-ok response (e.g. 429 from a rate-limited tile server) is often
+  // just as transient as a network error — worth the same retry treatment
+  // before giving up on it.
+  if (attempt < TILE_FETCH_MAX_ATTEMPTS - 1) {
+    await delay(TILE_FETCH_RETRY_DELAY_MS * (attempt + 1));
+    return fetchTileCached(url, attempt + 1);
   }
   return response;
 }
+
+// 1x1 transparent GIF. Used as the final fallback when a tile genuinely
+// can't be loaded after retries — rather than leaving the <img> pointed at
+// a failed URL, which renders as the browser's broken-image icon sitting
+// on the map. An empty tile is a much less jarring failure mode: it just
+// reads as a gap in the map, not an error.
+const BLANK_TILE_SRC = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
 
 const CachedTileLayer = L.TileLayer.extend({
   createTile(coords, done) {
     const img = document.createElement('img');
     img.setAttribute('role', 'presentation');
     const url = this.getTileUrl(coords);
+    const giveUpBlank = () => {
+      img.onload = null;
+      img.onerror = null;
+      img.src = BLANK_TILE_SRC;
+      done(null, img); // report success (with blank content) so Leaflet doesn't retry forever and our zoom/tile-load bridging still sees this tile as settled
+    };
     const fallbackToPlainImg = () => {
       img.onload = () => done(null, img);
-      img.onerror = (e) => done(e, img);
+      img.onerror = giveUpBlank;
       img.src = url;
     };
     if (!('caches' in window)) { fallbackToPlainImg(); return img; }
@@ -7430,7 +7466,7 @@ const CachedTileLayer = L.TileLayer.extend({
       .then(blob => {
         const objectUrl = URL.createObjectURL(blob);
         img.onload = () => { URL.revokeObjectURL(objectUrl); done(null, img); };
-        img.onerror = (e) => { URL.revokeObjectURL(objectUrl); done(e, img); };
+        img.onerror = () => { URL.revokeObjectURL(objectUrl); fallbackToPlainImg(); };
         img.src = objectUrl;
       })
       .catch(fallbackToPlainImg);
