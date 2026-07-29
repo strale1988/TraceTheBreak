@@ -3557,7 +3557,7 @@ span.flatpickr-weekday {
       </div>
     </div>
 
-    <div class="detail-section" id="timeWindowFilterSection" style="padding:0;overflow:hidden;">
+    <div class="detail-section" id="timeWindowFilterSection" style="padding:0;overflow:hidden;display:none;">
       <div class="filter-label-row" style="border-radius:0;">
         <span class="filter-title" id="filterTitleLabel">Time Window Filter</span>
       </div>
@@ -4259,6 +4259,7 @@ function updateAuthUI() {
     if (reportFabBtn) reportFabBtn.style.display = 'none';
     updateAdminPanelButtonVisibility();
   }
+  updateCsvExportVisibility();
   if (reportFabBtn && reportFabBtn.style.display === 'none') closeReportWizard();
   checkFormReady();
   updateReportFabState();
@@ -4768,6 +4769,15 @@ function updateAdminPanelButtonVisibility() {
   const lvl = currentAdminLevel();
   const icon = document.getElementById('adminPanelBtnIcon');
   if (icon) icon.src = 'icons/badges/badge-admin-admin-' + lvl + '.png';
+}
+
+// CSV export (Settings > Time Window Filter) is restricted to level-4
+// (global) admins only — everyone else shouldn't even see the option
+// exists, not just have the button fail/refuse if pressed.
+function updateCsvExportVisibility() {
+  const section = document.getElementById('timeWindowFilterSection');
+  if (!section) return;
+  section.style.display = currentAdminLevel() >= 4 ? '' : 'none';
 }
 
 const ADMIN_BADGES = [
@@ -5768,6 +5778,7 @@ async function renderMyReportsSection() {
 
 async function renderAdminDashboard() {
   updateAdminPanelButtonVisibility();
+  updateCsvExportVisibility();
   const section = document.getElementById('adminDashboardSection');
   if (!section) return;
 
@@ -9950,6 +9961,16 @@ function setNativeZoomEnabled(enabled) {
 
 function customDragPointerDown(e) {
   if (e.pointerType === 'touch') {
+    // Defensive: e.isPrimary means this is a genuinely fresh contact (no
+    // other touch of this type is already active). If a prior gesture's
+    // pointerup/pointercancel was ever missed (e.g. a two-finger rotate
+    // that ended in a way that didn't clean up every id), a stale entry
+    // could sit in this set forever, making every future single-finger
+    // drag look like "multi-touch" below and get silently ignored — which
+    // is exactly a total, hard-to-reproduce "drag doesn't work" failure.
+    // A fresh primary contact means there is nothing left to track from
+    // before, so it's always safe to clear here.
+    if (e.isPrimary) activeTouchPointerIds.clear();
     activeTouchPointerIds.add(e.pointerId);
     // A second finger just touched down — this is now a multi-touch gesture,
     // hand it off entirely to the two-finger handler below and stop any
@@ -9967,6 +9988,14 @@ function customDragPointerDown(e) {
   customDragPointerId = e.pointerId;
   customDragLast = { x: e.clientX, y: e.clientY };
   customDragSamples = [{ t: performance.now(), x: e.clientX, y: e.clientY }];
+  // Claims all subsequent pointer events for this pointerId regardless of
+  // what DOM element ends up under the finger as it moves (a marker, a
+  // cluster icon, a popup, tile boundaries) — without this, the browser is
+  // free to re-target/hand the gesture to whatever's underneath, which can
+  // silently starve customDragPointerMove of events partway through a drag.
+  if (e.pointerId != null && map.getContainer().setPointerCapture) {
+    try { map.getContainer().setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+  }
 
   onUserMapInteractionStart();
 }
@@ -9995,6 +10024,12 @@ function customDragPointerUp(e) {
   // A different finger than the one actually driving the drag lifted (e.g. a
   // stray extra touch) — the drag itself is still live, don't stop it.
   if (e && customDragPointerId != null && e.pointerId !== customDragPointerId) return;
+  if (e && e.pointerId != null) {
+    const container = map.getContainer();
+    if (container.hasPointerCapture && container.hasPointerCapture(e.pointerId)) {
+      try { container.releasePointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+    }
+  }
   customDragActive = false;
   customDragLast = null;
   customDragPointerId = null;
@@ -10017,6 +10052,7 @@ function customDragPointerUp(e) {
   window.addEventListener('pointerup', customDragPointerUp, { passive: true });
   window.addEventListener('pointercancel', customDragPointerUp, { passive: true });
 })();
+
 
 // Rotation-corrected double-click zoom. Only acts while rotated — Leaflet's
 // own doubleClickZoom handler is disabled for that case (setNativeZoomEnabled
@@ -18018,6 +18054,7 @@ async function loadVoteProgress(reportIds) {
 }
 
 function downloadCSV() {
+  if (currentAdminLevel() < 4) return; // UI is already hidden below level 4 — this just backstops direct calls
   const bounds = map.getBounds();
   const visible = dateRangeOnlyData.filter(r =>
     isValidLatLng(r.latitude, r.longitude) && bounds.contains(L.latLng(r.latitude, r.longitude))
