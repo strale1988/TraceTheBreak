@@ -8144,7 +8144,12 @@ function updateClusterAnimationForRotation() {
   pinCluster.options.animate = shouldAnimate;
   companyMarkersLayer.options.animate = shouldAnimate;
 }
-updateClusterAnimationForRotation();
+// No eager call here: rotationActive() reads mapBearing, which is declared
+// with `let` further down the script and isn't initialized yet at this
+// point (calling in would throw a temporal-dead-zone ReferenceError and
+// abort the rest of the top-level script). The map always starts north-up
+// anyway, matching the animate:true default above, so this only needs to
+// run when applyMapBearingRaw actually changes the bearing.
 
 let rotWrapper = null;
 function initRotationWrapper() {
