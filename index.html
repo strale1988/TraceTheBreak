@@ -236,6 +236,49 @@ header{
   mask-image:radial-gradient(white,black);
 }
 
+/* Pull-to-refresh indicator. Pulling down on the header doesn't move the
+   header itself — this badge just grows/fades in beneath it as the user
+   drags, flips its arrow once the release threshold is reached, then
+   swaps to a spinner and reloads the page. Positioned off var(--header-h)
+   so it always sits right at the header's bottom edge regardless of
+   safe-area insets / header content changes. */
+#ptrIndicator{
+  position:fixed;
+  left:50%;
+  top:var(--header-h, 64px);
+  transform:translate(-50%,-50%) scale(.5);
+  width:38px; height:38px;
+  border-radius:50%;
+  background:var(--floating-bg);
+  border:1px solid var(--floating-border);
+  box-shadow:0 4px 14px var(--floating-shadow);
+  display:flex; align-items:center; justify-content:center;
+  opacity:0;
+  pointer-events:none;
+  z-index:99;
+  transition:opacity .2s ease, transform .2s ease;
+}
+#ptrIndicator.ptr-dragging{ transition:none; }
+#ptrIndicator .ptr-arrow-icon{
+  width:17px; height:17px;
+  filter:var(--icon-tint-filter);
+  transition:transform .18s ease;
+}
+#ptrIndicator.ptr-ready .ptr-arrow-icon{ transform:rotate(180deg); }
+#ptrIndicator.ptr-loading .ptr-arrow-icon{ display:none; }
+#ptrIndicator .ptr-spinner{
+  display:none;
+  width:16px; height:16px;
+  border-radius:50%;
+  border:2px solid var(--floating-border);
+  border-top-color:var(--accent);
+}
+#ptrIndicator.ptr-loading .ptr-spinner{
+  display:block;
+  animation:ptr-spin .7s linear infinite;
+}
+@keyframes ptr-spin{ to{ transform:rotate(360deg); } }
+
 .header-top{
   display:grid;
   grid-template-columns:1fr auto 1fr;
@@ -3018,6 +3061,11 @@ span.flatpickr-weekday {
     </div>
   </div>
 </header>
+
+<div id="ptrIndicator" aria-hidden="true">
+  <img class="ptr-arrow-icon" src="icons/arrow.png" alt="">
+  <span class="ptr-spinner"></span>
+</div>
 
 <div id="map"></div>
 <div id="mapLoadingOverlay">
@@ -7237,13 +7285,10 @@ const map = L.map('map', {
   maxBoundsViscosity: 1.0,
   minZoom: 2,
   zoomSnap: 0.25,
-  zoomDelta: 0.25,
-  // Native touchZoom only pinch-zooms (no rotate) and re-renders tiles on
-  // every pointermove. It's fully replaced below by a custom Pointer
-  // Events gesture handler (see initTouchPinchRotateGesture) that does
-  // pinch + twist-to-rotate + pan together, CSS-transform-only during the
-  // gesture, committed to Leaflet once on release.
-  touchZoom: false
+  zoomDelta: 0.25
+  // touchZoom left at its default (enabled): pinch-to-zoom is handled by
+  // Leaflet's own native touchZoom now — see initTwoFingerRotate below for
+  // the two-finger rotate gesture layered on top of it.
 
 }).setView(
   savedMapView ? [savedMapView.lat, savedMapView.lng] : EUROPE_DEFAULT_CENTER,
@@ -7260,6 +7305,83 @@ const map = L.map('map', {
     window.addEventListener('orientationchange', updateHeaderHeightVar);
   }
 })();
+
+// --- Pull-to-refresh on the header ---
+// Dragging down from the header doesn't move the header itself; it just
+// grows/fades in #ptrIndicator beneath it. Release past PTR_THRESHOLD and
+// the page reloads. Small vertical wiggles (PTR_DEADZONE) are ignored so a
+// normal tap on a header button still works; once a real drag is detected
+// we preventDefault so the ghost click that would otherwise fire on
+// touchend doesn't also trigger whatever button the drag started on.
+(function initPullToRefresh(){
+  const header = document.querySelector('header');
+  const indicator = document.getElementById('ptrIndicator');
+  if (!header || !indicator) return;
+
+  const PTR_THRESHOLD = 70;   // px of pull needed to arm the refresh
+  const PTR_MAX       = 110;  // px pull distance at which visual growth caps out
+  const PTR_DEADZONE  = 8;    // px before a touch is treated as a drag, not a tap
+
+  let startY = null, startX = null, dragging = false, triggered = false;
+
+  function resetIndicator(){
+    indicator.classList.remove('ptr-dragging', 'ptr-ready');
+    indicator.style.opacity = '';
+    indicator.style.transform = '';
+  }
+
+  header.addEventListener('touchstart', (e) => {
+    if (triggered) return;
+    if (e.touches.length !== 1) { startY = null; return; }
+    startY = e.touches[0].clientY;
+    startX = e.touches[0].clientX;
+    dragging = false;
+  }, { passive:true });
+
+  header.addEventListener('touchmove', (e) => {
+    if (startY === null || triggered || e.touches.length !== 1) return;
+    const dy = e.touches[0].clientY - startY;
+    const dx = e.touches[0].clientX - startX;
+
+    if (!dragging) {
+      if (dy < PTR_DEADZONE || Math.abs(dx) > dy) return; // not a downward drag yet
+      dragging = true;
+      indicator.classList.add('ptr-dragging');
+    }
+
+    if (dy <= 0) { resetIndicator(); return; }
+
+    e.preventDefault();
+    const pull = Math.min(dy, PTR_MAX);
+    const progress = Math.min(pull / PTR_THRESHOLD, 1);
+    indicator.style.opacity = progress;
+    indicator.style.transform = `translate(-50%,-50%) translateY(${pull * 0.55}px) scale(${.5 + progress * .5})`;
+    indicator.classList.toggle('ptr-ready', progress >= 1);
+  }, { passive:false });
+
+  function onTouchEnd(e){
+    if (startY === null) return;
+    const wasDragging = dragging;
+    const ready = indicator.classList.contains('ptr-ready');
+    startY = null;
+    dragging = false;
+    if (!wasDragging) return; // untouched tap — let the normal click go through
+    e.preventDefault();
+    if (ready) {
+      triggered = true;
+      indicator.classList.remove('ptr-dragging');
+      indicator.classList.add('ptr-loading');
+      indicator.style.opacity = 1;
+      indicator.style.transform = 'translate(-50%,-50%) scale(1)';
+      setTimeout(() => window.location.reload(), 180);
+    } else {
+      resetIndicator();
+    }
+  }
+  header.addEventListener('touchend', onTouchEnd, { passive:false });
+  header.addEventListener('touchcancel', () => { startY = null; dragging = false; resetIndicator(); }, { passive:true });
+})();
+
 map.on('moveend', saveMapView);
 
 requestAnimationFrame(() => map.invalidateSize());
@@ -7278,15 +7400,6 @@ const mapContainerEl = map.getContainer();
 // animation on rotWrapper, the same wrapper element the rotation itself is
 // applied to.
 let zoomRotatedFromZoom = null;
-// The pinch gesture (see initTouchPinchRotateGesture below) commits its
-// result with one non-animated map.setView() call that already shows the
-// exact pixel-correct final frame (it was driven live by CSS transform
-// right up to release). That setView still fires Leaflet's normal
-// zoomstart/zoom events though, and without this flag the bridge trick a
-// few lines down would kick in and briefly re-scale rotWrapper away from
-// the (already correct) commit frame and back — a visible flash. The
-// pinch handler sets this true for the duration of its own setView call.
-let suppressZoomBridge = false;
 // A single "zoom" gesture — a scroll-wheel session, a pinch, a double-tap —
 // can land as a rapid burst of separate, instant zoomstart/zoomend pairs
 // (one per committed step) rather than one smooth animated zoom, especially
@@ -7357,7 +7470,7 @@ function endZoomBurst() {
 }
 map.on('zoomstart', () => {
   noteZoomActivity(rotationActive());
-  if (rotationActive() && !suppressZoomBridge) {
+  if (rotationActive()) {
     // zoomstart fires before Leaflet applies the new zoom, so this is still
     // the pre-zoom value.
     zoomRotatedFromZoom = map.getZoom();
@@ -9749,26 +9862,16 @@ function rotationActive() {
 
 function setNativeDraggingEnabled(enabled) {
   if (!map.dragging) return;
-  // Two-finger pinch/rotate/pan is handled entirely by the custom Pointer
-  // Events gesture in initTouchPinchRotateGesture (native touchZoom is
-  // disabled at map init) — it disables/restores native dragging itself
-  // for the duration of each gesture, independent of this function. What
-  // remains here is just single-finger dragging: native while north-up,
-  // switching to the manual, rotation-corrected path below while the map
-  // is rotated (native single-finger dragging has no idea the map is
-  // visually rotated via CSS on rotWrapper, so it drags in the wrong
-  // direction once rotated).
+  // Pinch-zoom is native Leaflet touchZoom, and two-finger rotate is a
+  // separate touchstart/touchmove listener (see initTwoFingerRotate) that
+  // doesn't touch Leaflet's dragging state at all. What's toggled here is
+  // just single-finger dragging: native while north-up, switching to the
+  // manual, rotation-corrected path below while the map is rotated (native
+  // single-finger dragging has no idea the map is visually rotated via CSS
+  // on rotWrapper, so it drags in the wrong direction once rotated).
   if (enabled) {
     if (!map.dragging.enabled()) map.dragging.enable();
-    // IMPORTANT: never reset this to '' (auto). Auto re-opens the door to
-    // the browser's own native pinch-zoom-the-whole-page gesture, which
-    // fights with (and usually wins against) our custom two-finger pinch
-    // handler in initTouchPinchRotateGesture — that handler always needs
-    // touch-action:none on this element to reliably own two-finger
-    // gestures. 'pan-x pan-y' is the narrowest value that still lets
-    // Leaflet's native single-finger drag work while keeping pinch-zoom
-    // and double-tap-zoom disabled natively.
-    map.getContainer().style.touchAction = 'pan-x pan-y';
+    map.getContainer().style.touchAction = '';
   } else {
     if (map.dragging.enabled()) map.dragging.disable();
     map.getContainer().style.touchAction = 'none';
@@ -9849,7 +9952,7 @@ function customDragPointerUp(e) {
   // Restores Leaflet's native single-finger dragging once nothing manual
   // is driving the map anymore (north-up state). While rotated this is a
   // no-op (native dragging stays off, as before) — this only fixes the
-  // case introduced by the pinch-gesture handoff (see
+  // case introduced by the two-finger-rotate handoff (see
   // beginSingleFingerContinuation) where a north-up manual drag session
   // needs to hand control back to Leaflet when it ends.
   setNativeDraggingEnabled(!rotationActive());
@@ -9925,25 +10028,11 @@ function onRotatedWheelZoom(e) {
 })();
 
 // =====================================================================
-// Simple pinch-to-zoom. No free-transform pan, no twist-to-rotate — a
-// pinch just zooms, anchored under your fingers, exactly like tapping a
-// +/- zoom control repeatedly (just anchored at the pinch midpoint
-// instead of the map center). This replaces an earlier version that
-// drove a live CSS transform (scale+translate) every frame and
-// committed it to Leaflet on release; that gave smoother-looking motion
-// but the combined pan+zoom math made the map feel "all over the place"
-// in practice, so it's been dropped for this simpler, more predictable
-// behavior.
-//
-// HOW IT WORKS: each animation frame we read the two active touch
-// pointers, take the log2 ratio of how their distance apart changed
-// since the last frame, and accumulate it. That accumulated zoom delta
-// is committed via the same rotation-corrected map.setZoomAround() used
-// by the scroll-wheel/double-tap zoom above (see onRotatedWheelZoom),
-// debounced by a short timer so a fast pinch doesn't force a re-render
-// on every single touchmove. There is no pan component at all — the map
-// only re-centers as a side effect of setZoomAround keeping the anchor
-// point fixed on screen.
+// Shared rotation-math helpers. Used by the rotated scroll-wheel/
+// double-click zoom handlers above (Leaflet's own handlers assume the
+// map is never visually rotated, so those are hand-rolled equivalents),
+// by the two-finger rotate gesture below, and by the rotated single-
+// finger pan fling.
 
 function getContainerCenter() {
   // map.getSize() returns Leaflet's cached container size (no DOM read),
@@ -9979,196 +10068,62 @@ function unrotateDelta(dx, dy) {
 }
 
 // --- Gesture state -----------------------------------------------------
-// Google-Maps-style pinch: purely a live CSS transform (scale, anchored
-// under your fingers) while your fingers move — Leaflet's real
-// center/zoom is never touched mid-gesture, so there's no zoom
-// animation, no marker "catch-up" animation, and no risk of Leaflet's
-// zoom-animation state getting confused by overlapping commits (which
-// is what was causing the map to occasionally blank out). On release,
-// ONE non-animated setView() reproduces exactly the frame that was
-// already on screen, so the commit itself is invisible — no snap, no
-// separate animation for markers/GPS dot to play catch-up with.
-let pinch = null; // non-null for the duration of an active 2-finger gesture
-const pinchPointers = new Map(); // pointerId -> {x,y (container-relative), clientX, clientY}, insertion order = finger order
-let pinchRafPending = false;
-let cachedMapRect = null; // bounding rect cached for the lifetime of one gesture sequence — avoids getBoundingClientRect() (a forced layout read) on every pointermove
+// Pinch-to-zoom itself is native Leaflet touchZoom now (see
+// initTwoFingerRotate below for the rotate layer on top of it).
 
-function trackedPointFromEvent(e) {
-  if (!cachedMapRect) cachedMapRect = mapContainerEl.getBoundingClientRect();
-  return {
-    x: e.clientX - cachedMapRect.left,
-    y: e.clientY - cachedMapRect.top,
-    clientX: e.clientX,
-    clientY: e.clientY
-  };
+// --- Two-finger rotate gesture (coexists with Leaflet's native pinch-zoom) ---
+// Pinch-to-zoom is handled entirely by Leaflet's own native touchZoom now —
+// it's well-tested, it keeps markers/tiles perfectly in sync throughout the
+// zoom (they share the same CSS transform during Leaflet's built-in zoom
+// animation), and it already has its own graceful "scale what's already
+// loaded while new tiles load in" behavior, so there's no separate
+// tile-loading gap to paper over on top of it. All that's layered on top
+// here is rotation: a two-finger twist gesture running alongside it. A
+// pinch naturally introduces a little unintended finger-angle drift, which
+// is enough to fool a naive angle threshold into rotating when the user
+// only meant to zoom — so we decide, once per gesture, whether it's a
+// "rotate" or a "zoom" gesture (whichever signal, angle change or distance
+// change, crosses its threshold first) and lock into that interpretation
+// for the rest of the touch, so one can't drift into the other partway
+// through.
+let twoFingerRotateActive       = false;
+let twoFingerRotateStartAngle   = 0;
+let twoFingerRotateStartBearing = 0;
+let twoFingerStartDistance      = 0;
+let twoFingerGestureLock        = null; // null | 'rotate' | 'zoom'
+const TWO_FINGER_ROTATE_DEADZONE_DEG = 8;
+const TWO_FINGER_ZOOM_LOCK_RATIO     = 0.06; // 6% pinch-distance change locks in "zoom" first
+
+function angleBetweenTouches(t0, t1) {
+  return Math.atan2(t1.clientY - t0.clientY, t1.clientX - t0.clientX) * 180 / Math.PI;
+}
+function distanceBetweenTouches(t0, t1) {
+  return Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
 }
 
-function pinchMidAndDist() {
-  // Always drive the math off the first two pointers that started this
-  // gesture (insertion order), so a stray third finger touching down
-  // mid-gesture can't perturb it.
-  const ids = Array.from(pinchPointers.keys()).slice(0, 2);
-  const p1 = pinchPointers.get(ids[0]), p2 = pinchPointers.get(ids[1]);
-  if (!p1 || !p2) return null;
-  return {
-    mid: { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 },
-    dist: Math.hypot(p2.x - p1.x, p2.y - p1.y)
-  };
-}
-
-function beginPinchGesture() {
-  const md = pinchMidAndDist();
-  if (!md) return;
-  const O = getContainerCenter();
-  const startBearing = mapBearing;
-  // q0: the pinch midpoint's LOCAL (pre-rotation) coordinate — the fixed
-  // point we keep pinned under the fingers as scale changes.
-  const q0 = rotateVec(md.mid.x - O.x, md.mid.y - O.y, -startBearing);
-  // The actual geographic point currently under the fingers, captured
-  // once up front (needed only at commit time to compute the final center).
-  const anchorLatLng = map.containerPointToLatLng(unrotateContainerPoint(L.point(md.mid.x, md.mid.y), startBearing));
-
-  pinch = {
-    O, q0, startBearing, anchorLatLng,
-    startZoom: map.getZoom(),
-    lastDist: md.dist,
-    scaleAccum: 1,
-    lastMid: md.mid
-  };
-
-  cancelPanFling();
-  onUserMapInteractionStart();
-  setNativeDraggingEnabled(false); // stop Leaflet's native handler from also reacting to these same touches
-  if (rotWrapper) rotWrapper.style.transition = 'none'; // no CSS easing while we're driving every frame by hand
-  noteZoomActivity(rotationActive());
-}
-
-// Renders the live gesture purely with a CSS transform — no Leaflet
-// calls at all, so this is essentially free (just trig + one style
-// write) and runs at a smooth 60fps regardless of tile/marker count.
-function applyPinchPreview(mid, scale) {
-  const { O, q0, startBearing } = pinch;
-  // Where q0 would land on screen at the current scale if no extra pan
-  // were applied yet.
-  const projected = rotateVec(q0.x * scale, q0.y * scale, startBearing);
-  // The remaining gap between that and the fingers' actual current
-  // midpoint is exactly the translate() needed to keep the anchor point
-  // pinned under the fingers — this is what makes it feel natural
-  // (zooming toward/away from wherever your fingers are, like Google
-  // Maps) instead of always zooming around a fixed point.
-  const tx = (mid.x - O.x) - projected.x;
-  const ty = (mid.y - O.y) - projected.y;
-  if (rotWrapper) {
-    rotWrapper.style.transform = `translate(${tx}px, ${ty}px) rotate(${startBearing}deg) scale(${scale})`;
+function disableAutoHeadingForManualRotation() {
+  if (drivingMode) {
+    if (headingUpMode) {
+      headingUpMode = false;
+      const btn = document.getElementById('mapCompass');
+      if (btn) btn.classList.add('heading-up-disabled');
+    }
+  } else if (walkingHeadingMode) {
+    walkingHeadingMode = false;
+    const btn = document.getElementById('mainMapCompass');
+    if (btn) btn.classList.add('heading-up-disabled');
   }
 }
 
-function processPinchFrame() {
-  pinchRafPending = false;
-  if (!pinch) return;
-  const md = pinchMidAndDist();
-  if (!md || md.dist <= 0) return;
-
-  // Scale is accumulated incrementally, frame-to-frame, rather than
-  // always measured against the gesture's very first reading. That
-  // keeps a long pinch numerically stable.
-  if (pinch.lastDist != null && pinch.lastDist > 0) pinch.scaleAccum *= md.dist / pinch.lastDist;
-  pinch.lastDist = md.dist;
-  pinch.lastMid = md.mid;
-
-  applyPinchPreview(md.mid, pinch.scaleAccum);
-  noteZoomActivity(rotationActive());
-}
-
-// --- Bridging the tile-loading gap after a big pinch-zoom commit ---------
-// The live pinch preview above (applyPinchPreview) is just a CSS transform
-// on the real map pane — there's no separate "old view" being kept around
-// anywhere. The instant commitPinchGesture() resets that transform and
-// hands off to the real, non-animated setView(), whatever was on screen a
-// frame ago is simply gone, and Leaflet has to fetch every tile the new
-// view needs before there's anything to draw in its place. For a small,
-// single-level zoom step that's normally fast enough not to notice — but a
-// fast real-world pinch can easily cross five or six zoom levels in one
-// gesture, which can mean dozens of brand-new tiles to fetch before the
-// screen is anything but blank. (Leaflet's own built-in zoom animation has
-// this same limitation in principle; it's just rarely visible there
-// because native zoom happens one small step at a time.)
-//
-// Fix: right before handing off to the real setView(), clone the current
-// frame — which is already fully rendered and pixel-correct, since it's
-// exactly what the live CSS preview was already showing — into a plain
-// overlay positioned exactly on top of the real map, and leave it there
-// covering the real map while Leaflet updates underneath invisibly. Only
-// once the new tiles have actually finished loading (or a safety timeout
-// elapses, in case of a slow/offline connection) do we fade the frozen
-// copy away. The user always sees a complete picture, never a blank one.
-function bridgeTileLoadGap() {
-  if (!rotWrapper) return;
-  const frozen = rotWrapper.cloneNode(true);
-  frozen.classList.add('ttb-zoom-snapshot');
-  frozen.style.transition = 'none';
-  frozen.style.pointerEvents = 'none';
-  frozen.removeAttribute('id');
-  mapContainerEl.appendChild(frozen);
-
-  let revealed = false;
-  const reveal = () => {
-    if (revealed) return;
-    revealed = true;
-    frozen.style.transition = 'opacity .18s ease';
-    frozen.style.opacity = '0';
-    setTimeout(() => frozen.remove(), 220);
-  };
-
-  if (activeTileLayer) activeTileLayer.once('load', reveal);
-  // Safety net: never leave the snapshot up forever (offline, tile errors,
-  // a layer swap mid-gesture) — reveal whatever's there after a max wait
-  // regardless of whether the 'load' event ever fires.
-  setTimeout(reveal, 1500);
-}
-
-// Commits the live gesture to Leaflet's real state (center/zoom) with
-// one non-animated setView(), computed to reproduce — pixel for pixel —
-// whatever the CSS preview was already showing. keepDraggingDisabled is
-// true when a single finger remains and control is about to hand off to
-// the manual single-finger pan path instead of back to Leaflet's native
-// dragging (see beginSingleFingerContinuation).
-function commitPinchGesture(keepDraggingDisabled) {
-  if (!pinch) return;
-  const { O, startBearing, startZoom, anchorLatLng, scaleAccum, lastMid } = pinch;
-  const newZoom = Math.min(map.getMaxZoom(), Math.max(map.getMinZoom(), startZoom + Math.log2(scaleAccum)));
-
-  // Invert the same geometry as the live preview: find the local
-  // (pre-rotation) container point the anchor needs to sit at, then
-  // invert Leaflet's own project()/center relationship to get the
-  // center that puts it there at the new zoom.
-  const localFinal = unrotateContainerPoint(L.point(lastMid.x, lastMid.y), startBearing);
-  const anchorPx = map.project(anchorLatLng, newZoom);
-  const newCenterPx = L.point(anchorPx.x - (localFinal.x - O.x), anchorPx.y - (localFinal.y - O.y));
-  const newCenter = map.unproject(newCenterPx, newZoom);
-
-  // A meaningful zoom change is the only case that can trigger a real
-  // tile-loading gap — skip the snapshot overhead for a gesture that only
-  // panned or nudged the zoom fractionally (tiles for that are already
-  // loaded/cached from the buffer around the current view).
-  if (Math.abs(newZoom - startZoom) > 0.05) bridgeTileLoadGap();
-
-  suppressZoomBridge = true;
-  if (rotWrapper) { rotWrapper.style.transition = ''; rotWrapper.style.transform = `rotate(${startBearing}deg) scale(1)`; } // safe to clear immediately — bridgeTileLoadGap() above already froze a copy of this exact frame on top, so there's nothing visible for the user to see change until that snapshot fades away
-  map.setView(newCenter, newZoom, { animate: false }); // animate:false is essential — this is what keeps markers/the GPS dot from playing a separate "catch up" animation after the commit
-  suppressZoomBridge = false;
-
-  noteZoomActivity(rotationActive());
-  if (!keepDraggingDisabled) setNativeDraggingEnabled(!rotationActive());
-  pinch = null;
-}
-
-// When one finger of a two-finger gesture lifts and one remains down,
-// Google Maps seamlessly keeps panning with the remaining finger rather
-// than dropping into a dead zone. This hands the now-solo pointer over
-// to the app's existing manual single-finger drag machinery (see
-// customDragPointerDown/Move/Up above) — which works correctly at any
-// bearing, including 0, so it's safe to (re)use unconditionally here.
+// When one finger of a two-finger rotate lifts and one remains down, keep
+// panning with it rather than dropping into a dead zone until it's lifted
+// and pressed again — hands the now-solo touch over to the app's existing
+// manual single-finger drag machinery (see customDragPointerDown/Move/Up
+// above), which works correctly at any bearing. pointerId is null here
+// because touch events (Touch.identifier) and Pointer events
+// (PointerEvent.pointerId) aren't guaranteed to correlate — customDrag
+// treats a null id as "accept whichever pointer moves next", which is
+// unambiguous since only the one continuing finger is still down.
 function beginSingleFingerContinuation(pointerId, point) {
   activeTouchPointerIds.clear();
   activeTouchPointerIds.add(pointerId);
@@ -10179,63 +10134,59 @@ function beginSingleFingerContinuation(pointerId, point) {
   customDragSamples = [{ t: performance.now(), x: point.clientX, y: point.clientY }];
 }
 
-function pinchPointerDown(e) {
-  if (e.pointerType !== 'touch') return;
-  if (pinchPointers.size === 0) cachedMapRect = mapContainerEl.getBoundingClientRect();
-  pinchPointers.set(e.pointerId, trackedPointFromEvent(e));
-  if (pinchPointers.size === 2) beginPinchGesture();
-}
-
-function pinchPointerMove(e) {
-  if (e.pointerType !== 'touch' || !pinchPointers.has(e.pointerId)) return;
-  pinchPointers.set(e.pointerId, trackedPointFromEvent(e));
-  if (pinchPointers.size < 2 || !pinch) return;
-  // Coalesce potentially many pointermove events into at most one
-  // processing pass per animation frame — this is what keeps the
-  // gesture at a steady 60fps instead of doing the (cheap, but
-  // non-zero) trig + style write once per raw touch event.
-  if (!pinchRafPending) {
-    pinchRafPending = true;
-    requestAnimationFrame(processPinchFrame);
+function onMapTouchStart(e) {
+  if (e.touches.length === 2) {
+    twoFingerRotateActive = true;
+    twoFingerGestureLock = null;
+    twoFingerRotateStartAngle = angleBetweenTouches(e.touches[0], e.touches[1]);
+    twoFingerRotateStartBearing = mapBearing;
+    twoFingerStartDistance = distanceBetweenTouches(e.touches[0], e.touches[1]);
+    onUserMapInteractionStart();
   }
 }
+function onMapTouchMove(e) {
+  if (!twoFingerRotateActive || e.touches.length !== 2) return;
+  const angle = angleBetweenTouches(e.touches[0], e.touches[1]);
+  let delta = angle - twoFingerRotateStartAngle;
+  if (delta > 180) delta -= 360;
+  if (delta < -180) delta += 360;
 
-function pinchPointerUp(e) {
-  if (e.pointerType !== 'touch') return;
-  const wasTracked = pinchPointers.has(e.pointerId);
-  pinchPointers.delete(e.pointerId);
-  if (!wasTracked || !pinch) return;
+  const distance = distanceBetweenTouches(e.touches[0], e.touches[1]);
+  const distanceRatio = twoFingerStartDistance > 0
+    ? Math.abs(distance - twoFingerStartDistance) / twoFingerStartDistance
+    : 0;
 
-  const remainingIds = Array.from(pinchPointers.keys());
-  if (remainingIds.length >= 2) return; // still a full gesture with the other pointers, nothing to do
-
-  if (remainingIds.length === 1) {
-    const remaining = pinchPointers.get(remainingIds[0]);
-    pinchPointers.delete(remainingIds[0]); // hand this finger fully over to the single-finger path below
-    commitPinchGesture(true);
-    beginSingleFingerContinuation(remainingIds[0], remaining);
-    cachedMapRect = null;
-    return;
+  if (twoFingerGestureLock === null) {
+    if (Math.abs(delta) >= TWO_FINGER_ROTATE_DEADZONE_DEG) {
+      twoFingerGestureLock = 'rotate';
+    } else if (distanceRatio >= TWO_FINGER_ZOOM_LOCK_RATIO) {
+      twoFingerGestureLock = 'zoom'; // let Leaflet's native touchZoom keep driving this one
+    } else {
+      return; // still ambiguous — wait for a clearer signal before committing either way
+    }
   }
 
-  // No fingers left at all.
-  commitPinchGesture(false);
-  cachedMapRect = null;
-  scheduleAutoRefollow();
+  if (twoFingerGestureLock !== 'rotate') return;
+  disableAutoHeadingForManualRotation();
+  applyMapBearing(twoFingerRotateStartBearing + delta);
 }
-
-(function initTouchPinchRotateGesture() {
-  if (map.touchZoom) map.touchZoom.disable();
-  mapContainerEl.style.touchAction = 'none';
-  mapContainerEl.addEventListener('pointerdown', pinchPointerDown, { passive: true });
-  mapContainerEl.addEventListener('pointermove', pinchPointerMove, { passive: true });
-  window.addEventListener('pointerup', pinchPointerUp, { passive: true });
-  window.addEventListener('pointercancel', pinchPointerUp, { passive: true });
-  // Legacy Safari pinch-gesture events can still fire on some older iOS
-  // versions even with touch-action:none; swallow them so the page itself
-  // never zooms underneath our own handling.
-  mapContainerEl.addEventListener('gesturestart', e => e.preventDefault());
-  mapContainerEl.addEventListener('gesturechange', e => e.preventDefault());
+function onMapTouchEnd(e) {
+  if (e.touches.length >= 2 || !twoFingerRotateActive) return;
+  twoFingerRotateActive = false;
+  const wasRotating = twoFingerGestureLock === 'rotate';
+  twoFingerGestureLock = null;
+  if (wasRotating && e.touches.length === 1 && rotationActive()) {
+    beginSingleFingerContinuation(null, e.touches[0]);
+  } else {
+    scheduleAutoRefollow();
+  }
+}
+(function initTwoFingerRotate(){
+  const el = map.getContainer();
+  el.addEventListener('touchstart', onMapTouchStart, { passive: true });
+  el.addEventListener('touchmove', onMapTouchMove, { passive: true });
+  el.addEventListener('touchend', onMapTouchEnd, { passive: true });
+  el.addEventListener('touchcancel', onMapTouchEnd, { passive: true });
 })();
 
 // Same legacy-Safari pinch-zoom guard as above, but for the whole document —
@@ -10519,19 +10470,20 @@ function markerAnimTick(ts) {
   const dt = markerAnimLastTs === null ? 16 : Math.max(1, ts - markerAnimLastTs);
   markerAnimLastTs = ts;
 
-  // A two-finger pinch owns rotWrapper's CSS transform (and, on release,
-  // owns the single setView() commit that reproduces it) for the
-  // duration of the gesture — see processPinchFrame/commitPinchGesture.
-  // This loop used to keep calling map.setView() and applyMapBearing()
-  // every frame regardless, which also write to the map's real center and
-  // to that same rotWrapper transform. Two rAF loops overwriting the same
-  // state in unpredictable order made the GPS marker visibly jitter/jump
-  // whenever you pinch-zoomed while navigating. So: while a pinch is
-  // active, keep the marker's own lat/lon current (harmless, and means
-  // there's no jump when the gesture ends) but don't touch the view or
-  // rotation — commitPinchGesture's own setNativeDraggingEnabled/setView
-  // picks the driving position back up cleanly next frame.
-  const pinchInProgress = !!pinch;
+  // A two-finger rotate gesture owns rotWrapper's CSS transform (via
+  // applyMapBearing) for the duration of the gesture — see
+  // onMapTouchMove/onMapTouchStart above. This loop used to keep calling
+  // map.setView() and applyMapBearing() every frame regardless, which also
+  // write to the map's real center and to that same rotWrapper transform.
+  // Two rAF loops overwriting the same state in unpredictable order made
+  // the GPS marker visibly jitter/jump whenever you rotated the map while
+  // navigating. So: while a rotate gesture is active, keep the marker's
+  // own lat/lon current (harmless, and means there's no jump when the
+  // gesture ends) but don't touch the view or rotation — the gesture's own
+  // handling picks the driving position back up cleanly next frame. (Pinch
+  // *zoom* no longer needs this: it's native Leaflet touchZoom now, not a
+  // custom rotWrapper transform, so it doesn't conflict with this loop.)
+  const pinchInProgress = twoFingerRotateActive;
 
   const pos = estimateCurrentPosition();
   if (pos) {
