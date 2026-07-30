@@ -6369,6 +6369,8 @@ const T = {
   deleteReasonDuplicate:      { en:'Duplicate of another report',                          sr:'Duplikat druge prijave' },
   deleteReasonAlreadyFixed:   { en:'Already fixed / no longer an issue',                   sr:'Već popravljeno / više nije problem' },
   deleteReasonNotReal:        { en:"Submitted by mistake (not a real issue)",              sr:'Poslato greškom (nije stvaran problem)' },
+  deleteReasonPrivacy:        { en:'Shows something private (photo, plate, face, etc.)',   sr:'Prikazuje nešto privatno (slika, tablice, lice itd.)' },
+  deleteReasonTestReport:     { en:'Just testing the app',                                 sr:'Samo isprobavam aplikaciju' },
   deleteReasonOther:          { en:'Other reason',                                         sr:'Drugi razlog' },
   deleteReasonOtherPrompt:    { en:'Briefly describe why (optional)',                      sr:'Ukratko opišite zašto (opciono)' },
   banLoadingBtn:    { en:'…',                                        sr:'…' },
@@ -9095,6 +9097,8 @@ const DELETE_REASONS = [
   { code:'duplicate',       labelKey:'deleteReasonDuplicate' },
   { code:'already_fixed',   labelKey:'deleteReasonAlreadyFixed' },
   { code:'not_real',        labelKey:'deleteReasonNotReal' },
+  { code:'privacy',         labelKey:'deleteReasonPrivacy' },
+  { code:'test_report',     labelKey:'deleteReasonTestReport' },
   { code:'other',           labelKey:'deleteReasonOther' }
 ];
 // Asks the reporter why they're deleting their own report before doing so.
@@ -15396,7 +15400,7 @@ function renderWaitingListInto(containerId) {
       item.reasons.includes('after_photo') ? `<button type="button" style="background:${UI_COLORS.dangerStrong};color:#fff;" onclick="rejectAfterReportPhoto('${r.id}')">${t('photoRejectBtn')}</button>` : '',
       item.reasons.includes('rejected_photo') ? `<button type="button" class="settings-btn" onclick="clearReportFlag('${r.id}')">${t('flagClearBtn')}</button>` : '',
       item.reasons.includes('user_flag') ? `<button type="button" style="background:${UI_COLORS.success};color:#fff;" onclick="resolveReportFlags('${r.id}')">${t('reportFlagResolveBtn')}</button>` : '',
-      `<button type="button" style="background:${UI_COLORS.dangerStrong};color:#fff;" onclick="deleteReport('${r.id}')">${t('deleteBtn')}</button>`
+      `<button type="button" style="background:${UI_COLORS.dangerStrong};color:#fff;" onclick="deleteReport('${r.id}', false)">${t('deleteBtn')}</button>`
     ].filter(Boolean).join('');
     return `
     <div class="flagged-report-card">
@@ -18041,7 +18045,7 @@ function buildDetailStatusReadonlyHtml(report, reporterName) {
       <div class="detail-section-title">${t('popupStatus')}</div>
       ${hasFullPower ? `<div class="detail-edit-actions">
         <button type="button" class="detail-edit-btn" onclick="enterReportDetailEditMode('${report.id}')">${t('editBtn')}</button>
-        <button type="button" class="detail-delete-btn" onclick="deleteReport('${report.id}')">${t('deleteBtn')}</button>
+        <button type="button" class="detail-delete-btn" onclick="deleteReport('${report.id}', false)">${t('deleteBtn')}</button>
       </div>` : (canDelete ? `<div class="detail-edit-actions">
         <button type="button" class="detail-delete-btn" onclick="deleteReport('${report.id}')">${t('deleteBtn')}</button>
       </div>` : '')}
@@ -18228,9 +18232,24 @@ function buildStatusPatch(newStatus) {
   return { status: newStatus };
 }
 
-async function deleteReport(reportId) {
-  if (!(await themedConfirm(t('deleteConfirm')))) return;
+async function deleteReport(reportId, askReason = true) {
+  let reason = null;
+  if (askReason) {
+    reason = await pickDeleteReason();
+    if (!reason) return; // picker was cancelled — treat as "changed my mind", no delete
+  } else {
+    if (!(await themedConfirm(t('deleteConfirm')))) return;
+  }
   try {
+    if (reason && currentSession) {
+      const { error: logError } = await sb.from('report_deletion_log').insert({
+        report_id: reportId,
+        deleted_by: currentSession.user.id,
+        reason_code: reason.code,
+        reason_text: reason.text || null
+      });
+      if (logError) console.warn('Failed to log deletion reason (non-fatal):', logError);
+    }
     const { error } = await sb.from(TABLE).delete().eq('id', reportId);
     if (error) throw error;
     myReportsCache = null;
