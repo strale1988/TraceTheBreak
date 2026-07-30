@@ -1901,6 +1901,29 @@ body.driving-active #appPanel{
 .dashboard-city-info{ flex:1; min-width:0; }
 .dashboard-city-name{ font-size:var(--fs-13); font-weight:var(--fw-bold); color:var(--text-primary); text-transform:uppercase; letter-spacing:.02em; }
 .dashboard-city-detail{ font-size:var(--fs-11-5); color:var(--text-muted); margin-top:4px; }
+.dashboard-streak-card{ display:flex; align-items:center; gap:12px; background:var(--bg-surface-alt); border:1px solid var(--border-color); border-radius:var(--radius-lg); padding:12px 14px; }
+.dashboard-streak-flame{ font-size:28px; line-height:1; flex-shrink:0; filter:saturate(1); transition:filter .2s ease, opacity .2s ease; }
+.dashboard-streak-flame.is-cold{ filter:grayscale(1); opacity:.35; }
+.dashboard-streak-info{ flex:1; min-width:0; }
+.dashboard-streak-count{ display:flex; align-items:baseline; gap:5px; }
+.dashboard-streak-count-num{ font-size:var(--fs-20); font-weight:var(--fw-heavy); color:var(--text-primary); }
+.dashboard-streak-count-label{ font-size:var(--fs-11-5); font-weight:var(--fw-semibold); color:var(--text-muted); }
+.dashboard-streak-sub{ font-size:var(--fs-11); color:var(--text-muted); margin-top:2px; }
+.dashboard-streak-best{ text-align:right; flex-shrink:0; }
+.dashboard-streak-best-num{ display:block; font-size:var(--fs-15); font-weight:var(--fw-bold); color:var(--text-primary); }
+.dashboard-streak-best-label{ font-size:var(--fs-9-5); color:var(--text-muted); text-transform:uppercase; letter-spacing:.02em; }
+.dashboard-quests{ display:flex; flex-direction:column; gap:8px; margin-top:8px; }
+.dashboard-quest-card{ background:var(--bg-surface-alt); border-radius:var(--radius-lg); padding:10px 12px; }
+.dashboard-quest-card.is-complete{ opacity:.7; }
+.dashboard-quest-top{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.dashboard-quest-title{ font-size:var(--fs-12-5); font-weight:var(--fw-semibold); color:var(--text-primary); }
+.dashboard-quest-reward{ font-size:var(--fs-10); font-weight:var(--fw-bold); color:var(--accent); flex-shrink:0; white-space:nowrap; }
+.dashboard-quest-desc{ font-size:var(--fs-10-5); color:var(--text-muted); margin-top:2px; }
+.dashboard-quest-track{ width:100%; height:6px; border-radius:var(--radius-xs); background:var(--border-color-strong); overflow:hidden; margin-top:8px; }
+.dashboard-quest-fill{ height:100%; background:var(--success); border-radius:var(--radius-xs); transition:width .3s ease; }
+.dashboard-quest-fill.is-complete{ background:var(--accent); }
+.dashboard-quest-progress-text{ font-size:var(--fs-9-5); color:var(--text-muted); margin-top:4px; text-align:right; }
+.dashboard-quests-empty{ font-size:var(--fs-11-5); color:var(--text-muted); text-align:center; padding:10px; }
 .badge-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(106px,1fr)); gap:12px 6px; margin-top:8px; }
 .badge-tile{ display:flex; flex-direction:column; align-items:center; gap:5px; text-align:center; opacity:.4; cursor:pointer; -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
 .badge-tile.earned{ opacity:1; }
@@ -3685,6 +3708,20 @@ span.flatpickr-weekday {
         <div class="detail-section-title" id="dashboardSectionTitle">My Dashboard</div>
         <div class="profile-progress-track"><div class="profile-progress-fill" id="dashboardProgressFill"></div></div>
         <div class="dashboard-progress-text" id="dashboardProgressText"></div>
+        <div class="dashboard-streak-card" id="dashboardStreakCard" style="display:none">
+          <div class="dashboard-streak-flame" id="dashboardStreakFlame">🔥</div>
+          <div class="dashboard-streak-info">
+            <div class="dashboard-streak-count">
+              <span class="dashboard-streak-count-num" id="dashboardStreakDays">0</span>
+              <span class="dashboard-streak-count-label" id="dashboardStreakDaysLabel">day streak</span>
+            </div>
+            <div class="dashboard-streak-sub" id="dashboardStreakSub"></div>
+          </div>
+          <div class="dashboard-streak-best">
+            <span class="dashboard-streak-best-num" id="dashboardStreakBest">0</span>
+            <span class="dashboard-streak-best-label" id="dashboardStreakBestLabel">Best</span>
+          </div>
+        </div>
         <div class="dashboard-stats-grid">
           <div class="dashboard-stat-box">
             <span class="dashboard-stat-icon-glyph" style="background-color:#f0b429;-webkit-mask:url('icons/badges/badge-civic-voice.png') center/contain no-repeat;mask:url('icons/badges/badge-civic-voice.png') center/contain no-repeat;"></span>
@@ -3748,6 +3785,9 @@ span.flatpickr-weekday {
         </div>
         <div class="dashboard-badges-title" id="dashboardWeekTitle">This Week</div>
         <div class="weekly-chart" id="dashboardWeeklyChart"></div>
+
+        <div class="dashboard-badges-title" id="dashboardQuestsTitle">Quests</div>
+        <div class="dashboard-quests" id="dashboardQuestsList"></div>
 
         <div class="dashboard-badges-title" id="dashboardCityTitle">City Contribution</div>
         <div class="dashboard-city-card" id="dashboardCityCard" style="display:none">
@@ -5691,6 +5731,7 @@ async function renderUserDashboard() {
   setStat('dashboardStatVotes', stats.voteCount || 0);
 
   loadDashboardCityContribution();
+  loadDashboardStreakAndQuests();
 
   const allBadges = [...BADGES, ...USER_BADGES_EXTRA];
   renderBadgeCountHeader('dashboard', allBadges, currentProfile, stats);
@@ -5700,6 +5741,113 @@ async function renderUserDashboard() {
   if (badgeGrid) {
     badgeGrid.innerHTML = allBadges.map(b => buildBadgeIconHtml(b, isBadgeEarned(b, currentProfile, stats), currentProfile, stats)).join('');
   }
+}
+
+// ---- Streak card + quest cards (engagement_rules / user_engagement_progress / user_streaks) ----
+// Quests are entirely data-driven: engagement_rules rows define what exists, this just renders
+// whatever's active. Adding a new quest later needs zero changes here.
+function dashboardQuestPeriodStart(period) {
+  const now = new Date();
+  if (period === 'weekly') {
+    const day = now.getUTCDay();
+    const diff = (day === 0 ? -6 : 1) - day;
+    const monday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + diff));
+    return monday.toISOString().slice(0, 10);
+  }
+  if (period === 'daily') return now.toISOString().slice(0, 10);
+  return '1970-01-01';
+}
+
+async function loadDashboardStreakAndQuests() {
+  if (!currentSession || !currentProfile || currentProfile.is_admin) return;
+  const uid = currentSession.user.id;
+
+  try {
+    const { data: streak, error: streakErr } = await sb.from('user_streaks')
+      .select('current_streak, longest_streak, last_report_date')
+      .eq('user_id', uid).maybeSingle();
+    if (streakErr) throw streakErr;
+    if (!currentSession || currentSession.user.id !== uid) return;
+    renderDashboardStreak(streak);
+  } catch (err) {
+    console.error('Failed to load streak:', err.message);
+  }
+
+  try {
+    const { data: rules, error: rulesErr } = await sb.from('engagement_rules')
+      .select('*').eq('active', true).eq('type', 'quest').order('created_at', { ascending: true });
+    if (rulesErr) throw rulesErr;
+    const withPeriods = (rules || []).map(rule => ({ rule, period: dashboardQuestPeriodStart(rule.config && rule.config.period) }));
+
+    let progressRows = [];
+    const ruleKeys = withPeriods.map(x => x.rule.key);
+    if (ruleKeys.length) {
+      const { data: prog, error: progErr } = await sb.from('user_engagement_progress')
+        .select('rule_key, period_start, progress, status')
+        .eq('user_id', uid).in('rule_key', ruleKeys);
+      if (progErr) throw progErr;
+      progressRows = prog || [];
+    }
+    if (!currentSession || currentSession.user.id !== uid) return;
+    renderDashboardQuests(withPeriods, progressRows);
+  } catch (err) {
+    console.error('Failed to load quests:', err.message);
+  }
+}
+
+function renderDashboardStreak(streak) {
+  const card = document.getElementById('dashboardStreakCard');
+  if (!card) return;
+  const current = (streak && streak.current_streak) || 0;
+  const longest = (streak && streak.longest_streak) || 0;
+  card.style.display = 'flex';
+
+  const daysEl = document.getElementById('dashboardStreakDays');
+  if (daysEl) daysEl.textContent = current;
+  const bestEl = document.getElementById('dashboardStreakBest');
+  if (bestEl) bestEl.textContent = longest;
+  const flameEl = document.getElementById('dashboardStreakFlame');
+  if (flameEl) flameEl.classList.toggle('is-cold', current === 0);
+
+  const subEl = document.getElementById('dashboardStreakSub');
+  if (subEl) {
+    if (current === 0) {
+      subEl.textContent = t('dashboardStreakStartHint');
+    } else {
+      const today = new Date().toISOString().slice(0, 10);
+      const reportedToday = streak && streak.last_report_date === today;
+      subEl.textContent = reportedToday ? t('dashboardStreakTodayDone') : t('dashboardStreakKeepGoing');
+    }
+  }
+}
+
+function renderDashboardQuests(withPeriods, progressRows) {
+  const list = document.getElementById('dashboardQuestsList');
+  if (!list) return;
+  if (!withPeriods.length) {
+    list.innerHTML = `<div class="dashboard-quests-empty">${t('dashboardQuestsEmpty')}</div>`;
+    return;
+  }
+
+  list.innerHTML = withPeriods.map(({ rule, period }) => {
+    const row = progressRows.find(p => p.rule_key === rule.key && p.period_start === period);
+    const count = (row && row.progress && row.progress.count) || 0;
+    const target = (rule.config && rule.config.target) || 1;
+    const complete = !!row && row.status === 'completed';
+    const fraction = target > 0 ? Math.max(0, Math.min(1, count / target)) : 0;
+    const title = (lang === 'sr' ? rule.title_sr : rule.title_en) || rule.key;
+    const desc = lang === 'sr' ? rule.description_sr : rule.description_en;
+
+    return `<div class="dashboard-quest-card${complete ? ' is-complete' : ''}">
+      <div class="dashboard-quest-top">
+        <span class="dashboard-quest-title">${complete ? '✅' : '🎯'} ${escapeHtml(title)}</span>
+        ${rule.points_reward ? `<span class="dashboard-quest-reward">+${rule.points_reward} pts</span>` : ''}
+      </div>
+      ${desc ? `<div class="dashboard-quest-desc">${escapeHtml(desc)}</div>` : ''}
+      <div class="dashboard-quest-track"><div class="dashboard-quest-fill${complete ? ' is-complete' : ''}" style="width:${(fraction * 100).toFixed(0)}%"></div></div>
+      <div class="dashboard-quest-progress-text">${complete ? t('dashboardQuestComplete') : `${Math.min(count, target)}/${target}`}</div>
+    </div>`;
+  }).join('');
 }
 
 let myReportsCache = null;
@@ -6161,6 +6309,14 @@ const T = {
   dashboardStatComments:     { en:'Comments left',       sr:'Ostavljeni komentari' },
   dashboardStatCities:       { en:'Cities covered',      sr:'Pokriveni gradovi' },
   dashboardStatVotes:        { en:'Votes cast',          sr:'Dati glasovi' },
+  dashboardStreakDaysLabel:  { en:'day streak',          sr:'dana zaredom' },
+  dashboardStreakBestLabel:  { en:'Best',                sr:'Najbolji' },
+  dashboardStreakStartHint:  { en:'Report something to start a streak!', sr:'Prijavi nešto da započneš niz!' },
+  dashboardStreakTodayDone:  { en:'Nice — you kept it going today.', sr:'Odlično — nastavio si niz danas.' },
+  dashboardStreakKeepGoing:  { en:'Report something today to keep it going.', sr:'Prijavi nešto danas da nastaviš niz.' },
+  dashboardQuestsTitle:      { en:'Quests',              sr:'Izazovi' },
+  dashboardQuestsEmpty:      { en:'No active quests right now — check back soon.', sr:'Trenutno nema aktivnih izazova — vrati se uskoro.' },
+  dashboardQuestComplete:    { en:'Complete!',           sr:'Završeno!' },
   adminDashboardActivityTitle:   { en:'Moderation Stats',        sr:'Statistika moderacije' },
   adminDashboardStatReviewed:    { en:'Reports reviewed',        sr:'Pregledani izveštaji' },
   adminDashboardStatFast:        { en:'Fast resolves (<1h)',     sr:'Brza rešenja (<1č)' },
@@ -6913,6 +7069,15 @@ function applyLang(){
   if (dashBadgesTitleEl) dashBadgesTitleEl.textContent = t('dashboardBadgesTitle');
   const dashWeekTitleEl = document.getElementById('dashboardWeekTitle');
   if (dashWeekTitleEl) dashWeekTitleEl.textContent = t('dashboardWeekTitle');
+  const dashStreakDaysLabelEl = document.getElementById('dashboardStreakDaysLabel');
+  if (dashStreakDaysLabelEl) dashStreakDaysLabelEl.textContent = t('dashboardStreakDaysLabel');
+  const dashStreakBestLabelEl = document.getElementById('dashboardStreakBestLabel');
+  if (dashStreakBestLabelEl) dashStreakBestLabelEl.textContent = t('dashboardStreakBestLabel');
+  const dashQuestsTitleEl = document.getElementById('dashboardQuestsTitle');
+  if (dashQuestsTitleEl) dashQuestsTitleEl.textContent = t('dashboardQuestsTitle');
+  if (document.getElementById('dashboardQuestsList') && currentSession && currentProfile && !currentProfile.is_admin) {
+    loadDashboardStreakAndQuests();
+  }
   const myReportsTitleEl = document.getElementById('myReportsTitle');
   if (myReportsTitleEl) myReportsTitleEl.textContent = t('myReportsTitle');
   const myReportsFilterAllBtnEl = document.getElementById('myReportsFilterAllBtn');
