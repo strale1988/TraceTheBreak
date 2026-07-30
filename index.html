@@ -3895,7 +3895,6 @@ span.flatpickr-weekday {
           <div class="uc-form-row">
             <select id="ucMunicipalitySelect" style="flex:1;"></select>
           </div>
-          <button type="button" class="settings-btn" onclick="addMunicipalityFromMapCenter()" id="ucAddMuniBtn"><img class="icon-img icon-img-inline icon-tint-dark" src="icons/pin.png" alt="Pin"> Add municipality from map center</button>
           <div id="ucNoMunicipalitiesHint" class="detail-empty" style="display:none;"></div>
         </div>
         <div class="uc-cat-checks" id="ucCatChecks"></div>
@@ -6350,10 +6349,7 @@ const T = {
   ucLoadingList:     { en:'Loading contacts…',                   sr:'Učitavanje kontakata…' },
   ucMuniNoContacts:  { en:'No contacts added yet.',               sr:'Još uvek nema unetih kontakata.' },
   ucSelectMunicipality: { en:'Select municipality\u2026',          sr:'Izaberi opštinu\u2026' },
-  ucNoMunicipalitiesHint: { en:'No municipalities cached yet. Move the map to the desired area and tap "Add municipality from map center".', sr:'Još nema keširanih opština. Pomerite mapu na željeno mesto i pritisnite "Dodaj opštinu sa centra mape".' },
-  ucAddMuniBtn:      { en:'Add municipality from map center',  sr:'Dodaj opštinu sa centra mape' },
-  ucAddMuniLoading:  { en:'Looking up municipality…',            sr:'Tražim opštinu…' },
-  ucAddMuniFail:     { en:'Could not find a municipality at the current map center.', sr:'Nije pronađena opština na trenutnom centru mape.' },
+  ucNoMunicipalitiesHint: { en:'No municipalities found here yet. Open a municipality above and use "Add contact by category" instead.', sr:'Ovde još nema opština. Otvorite opštinu iznad i koristite "Dodaj kontakt po kategoriji".' },
   ucFixBoundariesBtn:      { en:'Fix all municipality boundaries', sr:'Popravi sve granice opština' },
   ucFixBoundariesConfirm:  { en:'This will merge duplicate municipalities and re-fetch boundaries for {count} municipalities with missing borders. It may take a few minutes and cannot be undone. Continue?', sr:'Ovo će spojiti duplirane opštine i ponovo preuzeti granice za {count} opština kojima nedostaju granice. Može potrajati nekoliko minuta i ne može se poništiti. Nastaviti?' },
   ucFixBoundariesNone:     { en:'No duplicate or broken municipality boundaries found. Everything looks clean.', sr:'Nema dupliranih ili oštećenih granica opština. Sve izgleda ispravno.' },
@@ -14222,13 +14218,57 @@ function isSessionOnlyMuniId(id) {
 
 }
 
-function municipalityMergeKey(m) {
-  // "name" is the municipality's own/local name and is populated far more
-  // consistently across sources than "name_en" (which is sometimes missing,
-  // sometimes a translation, sometimes an English exonym) — so it takes
-  // priority for matching duplicates against each other.
-  const norm = normalizeMuniNameForMatch(m.name || m.name_en);
-  return norm ? norm + '|' + (m.country_code || '').toUpperCase() : null;
+// Known cross-language name aliases for municipalities where the local name
+// and a foreign exonym don't share enough characters for plain text
+// normalization to recognize them as the same place (e.g. "Belgrade" vs
+// "Beograd"). Each inner array lists interchangeable normalized names —
+// add more pairs here as they come up. Matching still also requires the
+// same country_code, so this can't merge across countries.
+const MUNI_NAME_ALIAS_GROUPS = [
+  ['belgrade', 'beograd'],
+];
+const MUNI_NAME_ALIAS_MAP = new Map();
+MUNI_NAME_ALIAS_GROUPS.forEach(group => group.forEach(name => MUNI_NAME_ALIAS_MAP.set(name, group[0])));
+
+// A municipality can have its "duplicate identity" hiding in either name
+// field (one record might only have name_en populated, another only name),
+// so this returns every normalized/aliased key it could plausibly be filed
+// under rather than picking a single preferred field.
+function municipalityMergeKeys(m) {
+  const country = (m.country_code || '').toUpperCase();
+  const keys = new Set();
+  [m.name, m.name_en].forEach(raw => {
+    const norm = normalizeMuniNameForMatch(raw);
+    if (!norm) return;
+    keys.add((MUNI_NAME_ALIAS_MAP.get(norm) || norm) + '|' + country);
+  });
+  return keys;
+}
+
+// Groups municipalities that share ANY normalized/aliased key via
+// union-find, so e.g. A↔B (via name) and B↔C (via name_en) end up in one
+// group {A,B,C} even though A and C might not directly share a key.
+function findDuplicateMunicipalityGroups(list) {
+  const parent = list.map((_, i) => i);
+  function find(x) { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; }
+  function union(a, b) { const ra = find(a), rb = find(b); if (ra !== rb) parent[ra] = rb; }
+
+  const keyToIndices = new Map();
+  list.forEach((m, i) => {
+    municipalityMergeKeys(m).forEach(key => {
+      if (!keyToIndices.has(key)) keyToIndices.set(key, []);
+      keyToIndices.get(key).push(i);
+    });
+  });
+  keyToIndices.forEach(indices => { for (let i = 1; i < indices.length; i++) union(indices[0], indices[i]); });
+
+  const groups = new Map();
+  list.forEach((m, i) => {
+    const root = find(i);
+    if (!groups.has(root)) groups.set(root, []);
+    groups.get(root).push(m);
+  });
+  return [...groups.values()];
 }
 
 function pickCanonicalMunicipality(group, verifiedMuniIds) {
@@ -14248,15 +14288,7 @@ function pickCanonicalMunicipality(group, verifiedMuniIds) {
 }
 
 async function mergeDuplicateMunicipalities(onProgress) {
-  const groups = new Map();
-  for (const m of municipalityCache) {
-    const key = municipalityMergeKey(m);
-    if (!key) continue;
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(m);
-  }
-
-  const dupGroups = [...groups.values()].filter(g => g.length > 1);
+  const dupGroups = findDuplicateMunicipalityGroups(municipalityCache).filter(g => g.length > 1);
   const merges = [];
   let done = 0;
   const totalDupes = dupGroups.reduce((n, g) => n + g.length - 1, 0);
@@ -14368,10 +14400,7 @@ async function fixAllMunicipalityBoundaries() {
   const btn = document.getElementById('ucFixBoundariesBtn');
   await loadMunicipalityCache(true);
 
-  const dupeCount = [...new Map(municipalityCache
-    .filter(m => municipalityMergeKey(m))
-    .map(m => [municipalityMergeKey(m), true])).keys()]
-    .reduce((n, key) => n + (municipalityCache.filter(m => municipalityMergeKey(m) === key).length > 1 ? 1 : 0), 0);
+  const dupeCount = findDuplicateMunicipalityGroups(municipalityCache).filter(g => g.length > 1).length;
   const brokenCount = municipalityCache.filter(m => !boundaryHasRings(m.boundary) && isValidLatLng(m.centroid_lat, m.centroid_lon)).length;
 
   if (!dupeCount && !brokenCount) {
@@ -15222,8 +15251,6 @@ function applyUcFormTranslations() {
   if (cancelBtn) cancelBtn.textContent = t('cancelBtn');
   const saveBtn = document.getElementById('ucSaveBtn');
   if (saveBtn) saveBtn.textContent = t('saveBtn');
-  const addMuniBtn = document.getElementById('ucAddMuniBtn');
-  if (addMuniBtn) addMuniBtn.textContent = t('ucAddMuniBtn');
   const hint = document.getElementById('ucNoMunicipalitiesHint');
   if (hint) hint.textContent = ucOpenCountryCode ? t('ucNoMunicipalitiesHint') : t('ucSelectCountryHint');
   const verifyBtn = document.getElementById('ucVerifyBtn');
@@ -15960,35 +15987,6 @@ async function deleteUtilityCompany(id) {
   } catch (err) {
     console.error('Failed to delete utility company:', err.message);
     toast(t('ucSaveError'), 'error');
-  }
-}
-
-async function addMunicipalityFromMapCenter() {
-  const btn = document.getElementById('ucAddMuniBtn');
-
-  const original = btn ? btn.innerHTML : '';
-  if (btn) { btn.disabled = true; btn.innerHTML = t('ucAddMuniLoading'); }
-  try {
-    const center = map.getCenter();
-    await loadMunicipalityCache(true);
-    let muni = findMunicipalityInCache(center.lat, center.lng);
-    if (!muni) muni = await fetchMunicipalityFromNominatim(center.lat, center.lng);
-    if (!muni) {
-      toast(t('ucAddMuniFail'), 'error');
-      return;
-    }
-    if (muni.country_code && isCountryInAdminDomain(muni.country_code) && muni.country_code !== ucOpenCountryCode) {
-      await openUcCountry(muni.country_code);
-    } else {
-      populateUcMunicipalitySelect();
-    }
-    const sel = document.getElementById('ucMunicipalitySelect');
-    if (sel) sel.value = muni.id;
-  } catch (err) {
-    console.error('Failed to add municipality from map center:', err.message);
-    toast(t('ucAddMuniFail'), 'error');
-  } finally {
-    if (btn) { btn.disabled = false; btn.innerHTML = original || t('ucAddMuniBtn'); }
   }
 }
 
