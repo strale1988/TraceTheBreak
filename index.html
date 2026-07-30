@@ -11,7 +11,7 @@
   <meta http-equiv="Expires" content="0">
 
   <link rel="icon" type="image/png" href="./icons/TraceTheBreak.png">
-  <meta property="og:image" content="https://github.io"/>
+  <meta property="og:image" content="./icons/TraceTheBreak.png"/>
 
   <link rel="manifest" href="./manifest.json">
   <meta name="theme-color" content="#e16e11">
@@ -874,8 +874,7 @@ body.driving-active .report-fab-btn{ display:none !important; }
 .icon-tint-dark,
 .help-icon-btn .icon-img,
 .generic-modal .icon-img,
-.fullscreen-modal-body .icon-img,
-.turn-by-turn-icon{ filter:var(--icon-tint-filter); }
+.fullscreen-modal-body .icon-img{ filter:var(--icon-tint-filter); }
 
 .settings-btn{
   background:var(--bg-surface-alt); color:var(--text-primary); border:none; border-radius:var(--radius-xl);
@@ -6523,6 +6522,7 @@ const T = {
   ucNoSearchResults: { en:'No contacts match your search.',      sr:'Nema kontakata koji odgovaraju pretrazi.' },
   ucNoCountrySearchResults: { en:'No countries match your search.', sr:'Nema zemalja koje odgovaraju pretrazi.' },
   ucGeocodeBackfillBtn:      { en:'Geocode missing addresses',    sr:'Geokodiraj adrese bez koordinata' },
+  ucGeocodeBackfillScanning: { en:'Scanning…',                    sr:'Skeniranje…' },
   contactFlagAdminNotifyMsg: { en:'{name} was flagged: the {type} contact info may be wrong.', sr:'{name} je prijavljen: {type} kontakt podatak je možda pogrešan.' },
   ucGeocodeBackfillRunning:  { en:'Geocoding {current}/{total}…', sr:'Geokodiranje {current}/{total}…' },
   ucGeocodeBackfillDone:     { en:'Done: {found}/{total} addresses geocoded.', sr:'Gotovo: {found}/{total} adresa geokodirano.' },
