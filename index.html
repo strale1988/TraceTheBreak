@@ -3880,6 +3880,8 @@ span.flatpickr-weekday {
             </div>
           </div>
         </div>
+        <div class="dashboard-badges-title" id="adminDashboardQuestsTitle">Quests</div>
+        <div class="dashboard-quests" id="adminQuestsList"></div>
         <div class="dashboard-badges-title" id="adminDashboardWeekTitle">This Week</div>
         <div class="weekly-chart" id="adminDashboardWeeklyChart"></div>
         <div class="dashboard-progress-text" id="adminDashboardScopeNote"></div>
@@ -5775,9 +5777,19 @@ async function loadDashboardStreakAndQuests() {
     console.error('Failed to load streak:', err.message);
   }
 
+  await loadQuestsInto(uid, 'user', document.getElementById('dashboardQuestsList'));
+}
+
+async function loadAdminQuests() {
+  if (!currentSession || !currentProfile || !currentProfile.is_admin) return;
+  await loadQuestsInto(currentSession.user.id, 'admin', document.getElementById('adminQuestsList'));
+}
+
+async function loadQuestsInto(uid, scope, listEl) {
+  if (!listEl) return;
   try {
     const { data: rules, error: rulesErr } = await sb.from('engagement_rules')
-      .select('*').eq('active', true).eq('type', 'quest').order('created_at', { ascending: true });
+      .select('*').eq('active', true).eq('type', 'quest').eq('scope', scope).order('created_at', { ascending: true });
     if (rulesErr) throw rulesErr;
     const withPeriods = (rules || []).map(rule => ({ rule, period: dashboardQuestPeriodStart(rule.config && rule.config.period) }));
 
@@ -5791,9 +5803,9 @@ async function loadDashboardStreakAndQuests() {
       progressRows = prog || [];
     }
     if (!currentSession || currentSession.user.id !== uid) return;
-    renderDashboardQuests(withPeriods, progressRows);
+    renderDashboardQuests(withPeriods, progressRows, listEl);
   } catch (err) {
-    console.error('Failed to load quests:', err.message);
+    console.error('Failed to load ' + scope + ' quests:', err.message);
   }
 }
 
@@ -5823,15 +5835,15 @@ function renderDashboardStreak(streak) {
   }
 }
 
-function renderDashboardQuests(withPeriods, progressRows) {
-  const list = document.getElementById('dashboardQuestsList');
-  if (!list) return;
+function renderDashboardQuests(withPeriods, progressRows, listEl) {
+  listEl = listEl || document.getElementById('dashboardQuestsList');
+  if (!listEl) return;
   if (!withPeriods.length) {
-    list.innerHTML = `<div class="dashboard-quests-empty">${t('dashboardQuestsEmpty')}</div>`;
+    listEl.innerHTML = `<div class="dashboard-quests-empty">${t('dashboardQuestsEmpty')}</div>`;
     return;
   }
 
-  list.innerHTML = withPeriods.map(({ rule, period }) => {
+  listEl.innerHTML = withPeriods.map(({ rule, period }) => {
     const row = progressRows.find(p => p.rule_key === rule.key && p.period_start === period);
     const count = (row && row.progress && row.progress.count) || 0;
     const target = (rule.config && rule.config.target) || 1;
@@ -6021,6 +6033,7 @@ async function renderAdminDashboard() {
   setAdminStat('adminDashboardStatNight', stats.nightShiftCount || 0);
 
   renderWeeklyChart('adminDashboardWeeklyChart', stats.weeklyBreakdown);
+  loadAdminQuests();
 
   const xpLevel = adminXpLevelForXp(stats.moderationCount);
   const xpNext = nextAdminXpLevel(xpLevel);
@@ -6317,6 +6330,7 @@ const T = {
   dashboardStreakTodayDone:  { en:'Nice — you kept it going today.', sr:'Odlično — nastavio si niz danas.' },
   dashboardStreakKeepGoing:  { en:'Report something today to keep it going.', sr:'Prijavi nešto danas da nastaviš niz.' },
   dashboardQuestsTitle:      { en:'Quests',              sr:'Izazovi' },
+  adminDashboardQuestsTitle: { en:'Quests',              sr:'Izazovi' },
   dashboardQuestsEmpty:      { en:'No active quests right now — check back soon.', sr:'Trenutno nema aktivnih izazova — vrati se uskoro.' },
   dashboardQuestComplete:    { en:'Complete!',           sr:'Završeno!' },
   adminDashboardActivityTitle:   { en:'Moderation Stats',        sr:'Statistika moderacije' },
@@ -7094,6 +7108,8 @@ function applyLang(){
   if (dashStreakBestLabelEl) dashStreakBestLabelEl.textContent = t('dashboardStreakBestLabel');
   const dashQuestsTitleEl = document.getElementById('dashboardQuestsTitle');
   if (dashQuestsTitleEl) dashQuestsTitleEl.textContent = t('dashboardQuestsTitle');
+  const adminDashQuestsTitleEl = document.getElementById('adminDashboardQuestsTitle');
+  if (adminDashQuestsTitleEl) adminDashQuestsTitleEl.textContent = t('adminDashboardQuestsTitle');
   if (document.getElementById('dashboardQuestsList') && currentSession && currentProfile && !currentProfile.is_admin) {
     loadDashboardStreakAndQuests();
   }
