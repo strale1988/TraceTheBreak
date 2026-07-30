@@ -1901,8 +1901,17 @@ body.driving-active #appPanel{
 .dashboard-city-name{ font-size:var(--fs-13); font-weight:var(--fw-bold); color:var(--text-primary); text-transform:uppercase; letter-spacing:.02em; }
 .dashboard-city-detail{ font-size:var(--fs-11-5); color:var(--text-muted); margin-top:4px; }
 .dashboard-streak-card{ display:flex; align-items:center; gap:12px; background:var(--bg-surface-alt); border:1px solid var(--border-color); border-radius:var(--radius-lg); padding:12px 14px; }
-.dashboard-streak-flame{ width:28px; height:28px; flex-shrink:0; object-fit:contain; filter:saturate(1); transition:filter .2s ease, opacity .2s ease; }
-.dashboard-streak-flame.is-cold{ filter:grayscale(1); opacity:.35; }
+.dashboard-streak-flame{
+  width:28px; height:28px; flex-shrink:0;
+  display:inline-block;
+  background-color:var(--accent);
+  -webkit-mask-image:url('icons/flame.png'); mask-image:url('icons/flame.png');
+  -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
+  -webkit-mask-position:center; mask-position:center;
+  -webkit-mask-size:contain; mask-size:contain;
+  transition:background-color .2s ease, opacity .2s ease;
+}
+.dashboard-streak-flame.is-cold{ background-color:var(--text-muted); opacity:.35; }
 .dashboard-streak-info{ flex:1; min-width:0; }
 .dashboard-streak-count{ display:flex; align-items:baseline; gap:5px; }
 .dashboard-streak-count-num{ font-size:var(--fs-20); font-weight:var(--fw-heavy); color:var(--text-primary); }
@@ -1916,7 +1925,19 @@ body.driving-active #appPanel{
 .dashboard-quest-card.is-complete{ opacity:.7; }
 .dashboard-quest-top{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .dashboard-quest-title{ font-size:var(--fs-12-5); font-weight:var(--fw-semibold); color:var(--text-primary); display:flex; align-items:center; gap:6px; }
-.dashboard-quest-title-icon{ width:15px; height:15px; flex-shrink:0; object-fit:contain; }
+.dashboard-quest-title-icon{
+  width:15px; height:15px; flex-shrink:0;
+  display:inline-block;
+  background-color:var(--success);
+  -webkit-mask-image:url('icons/quest-target.png'); mask-image:url('icons/quest-target.png');
+  -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
+  -webkit-mask-position:center; mask-position:center;
+  -webkit-mask-size:contain; mask-size:contain;
+}
+.dashboard-quest-card.is-complete .dashboard-quest-title-icon{
+  background-color:var(--accent);
+  -webkit-mask-image:url('icons/quest-complete.png'); mask-image:url('icons/quest-complete.png');
+}
 .dashboard-quest-reward{ font-size:var(--fs-10); font-weight:var(--fw-bold); color:var(--accent); flex-shrink:0; white-space:nowrap; }
 .dashboard-quest-desc{ font-size:var(--fs-10-5); color:var(--text-muted); margin-top:2px; }
 .dashboard-quest-track{ width:100%; height:6px; border-radius:var(--radius-xs); background:var(--border-color-strong); overflow:hidden; margin-top:8px; }
@@ -3709,7 +3730,7 @@ span.flatpickr-weekday {
         <div class="profile-progress-track"><div class="profile-progress-fill" id="dashboardProgressFill"></div></div>
         <div class="dashboard-progress-text" id="dashboardProgressText"></div>
         <div class="dashboard-streak-card" id="dashboardStreakCard" style="display:none">
-          <img class="dashboard-streak-flame" id="dashboardStreakFlame" src="icons/flame.png" alt="">
+          <span class="dashboard-streak-flame" id="dashboardStreakFlame" aria-hidden="true"></span>
           <div class="dashboard-streak-info">
             <div class="dashboard-streak-count">
               <span class="dashboard-streak-count-num" id="dashboardStreakDays">0</span>
@@ -5853,7 +5874,7 @@ function renderDashboardQuests(withPeriods, progressRows, listEl) {
 
     return `<div class="dashboard-quest-card${complete ? ' is-complete' : ''}">
       <div class="dashboard-quest-top">
-        <span class="dashboard-quest-title"><img class="dashboard-quest-title-icon" src="${complete ? 'icons/quest-complete.png' : 'icons/quest-target.png'}" alt="">${escapeHtml(title)}</span>
+        <span class="dashboard-quest-title"><span class="dashboard-quest-title-icon" aria-hidden="true"></span>${escapeHtml(title)}</span>
         ${rule.points_reward ? `<span class="dashboard-quest-reward">+${rule.points_reward} pts</span>` : ''}
       </div>
       ${desc ? `<div class="dashboard-quest-desc">${escapeHtml(desc)}</div>` : ''}
@@ -7883,12 +7904,11 @@ const MAP_STYLES = {
   satellite:{
     nameEn:'Satellite', nameSr:'Satelitska',
     // Real imagery tops out around z19 in most places (and lower in rural
-    // areas). Past that Leaflet was still letting the user "zoom in" up to
-    // the global cap of 22 by stretching the last real tile — 8x pixel
-    // doubling that looks like the map is broken rather than just out of
-    // resolution. Capping maxZoom to maxNativeZoom stops the zoom control
-    // right where the imagery actually runs out, same as Google/Apple Maps do.
-    light:{ url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', subdomains:'', maxNativeZoom:19, maxZoom:19,
+    // areas). Past that, maxNativeZoom lets Leaflet keep the zoom control
+    // going by stretching the last real tile — blurrier than native
+    // resolution, but a stretched tile beats an empty gap where the user
+    // expects a map. No hard maxZoom cap here on purpose.
+    light:{ url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', subdomains:'', maxNativeZoom:19,
             attribution:'Esri, Maxar, Earthstar Geographics' },
     dark:{ filter:'brightness(.55) contrast(1.15)' } // dim rather than invert — inverted satellite imagery looks broken
   },
@@ -7896,7 +7916,7 @@ const MAP_STYLES = {
     nameEn:'Hybrid', nameSr:'Hibridna',
     // Same imagery as Satellite, with a transparent Esri reference layer
     // (place names, roads, borders) drawn on top so labels stay readable.
-    light:{ url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', subdomains:'', maxNativeZoom:19, maxZoom:19,
+    light:{ url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', subdomains:'', maxNativeZoom:19,
             attribution:'Esri, Maxar, Earthstar Geographics',
             overlayUrl:'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
             overlaySubdomains:'', overlayMaxNativeZoom:19,
