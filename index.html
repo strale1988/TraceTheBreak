@@ -2782,6 +2782,33 @@ details[open] > summary .uc-group-chevron{ transform:rotate(180deg);  }
   display:flex; flex-direction:column; gap:var(--space-8); padding:0 10px 10px;
 }
 .uc-country-count{ font-weight:var(--fw-regular); font-size:var(--fs-11); color:var(--text-muted); margin-left:auto; }
+.uc-country-search-wrap{
+  position:relative; margin:10px 12px;
+}
+.uc-country-search-icon{
+  position:absolute; left:11px; top:50%; transform:translateY(-50%);
+  width:14px; height:14px; opacity:.55; filter:var(--icon-tint-filter); pointer-events:none;
+}
+.uc-country-search-input{
+  width:100%; box-sizing:border-box; padding:10px 12px 10px 32px;
+  border-radius:var(--radius-lg); border:1.5px solid var(--accent);
+  background:var(--bg-surface); color:var(--text-primary); font-size:var(--fs-13);
+  animation:uc-search-breathe 2.6s ease-in-out infinite;
+}
+.uc-country-search-input::placeholder{ color:var(--text-muted); }
+.uc-country-search-input:focus{
+  outline:none; animation:none;
+  box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+@keyframes uc-search-breathe{
+  0%, 100% { box-shadow:0 0 0 0 color-mix(in srgb, var(--accent) 35%, transparent); }
+  50%      { box-shadow:0 0 0 5px color-mix(in srgb, var(--accent) 12%, transparent); }
+}
+.uc-muni-all-verified{
+  display:inline-flex; align-items:center; justify-content:center;
+  width:15px; height:15px; border-radius:50%; flex-shrink:0;
+  background:var(--success); color:#fff; font-size:10px; font-weight:var(--fw-bold);
+}
 .uc-muni-add-btn{
   flex-shrink:0; width:24px; height:24px; line-height:22px; padding:0;
   border-radius:50%; border:none; background:var(--accent); color:#fff;
@@ -6352,6 +6379,15 @@ const T = {
   ucUncategorizedChip: { en:'Uncategorized',                      sr:'Nekategorisano' },
   ucMissingTagsLabel:  { en:'No contact for:',                     sr:'Nema kontakta za:' },
   ucQuickAddTagsLabel: { en:'Add contact by category:',             sr:'Dodaj kontakt po kategoriji:' },
+  ucCategoryConflictError: { en:'{categories} already has a contact in this municipality ({names}). Remove the category from one of them first.', sr:'{categories} već ima kontakt u ovoj opštini ({names}). Prvo uklonite kategoriju sa jednog od njih.' },
+  ucFormatReviewTitle: { en:'A few things need a check before saving:', sr:'Nekoliko stvari treba proveriti pre čuvanja:' },
+  ucFormatAutoFixed:  { en:'Auto-corrected {field}: "{before}" \u2192 "{after}"', sr:'Automatski ispravljeno polje {field}: \u201e{before}\u201c \u2192 \u201e{after}\u201c' },
+  ucFormatInvalidEmail: { en:'Email "{value}" doesn\'t look valid. Please double-check it.', sr:'E-mail \u201e{value}\u201c ne izgleda ispravno. Molimo proverite ga.' },
+  ucFormatInvalidWebsite: { en:'Website "{value}" doesn\'t look valid. Please double-check it.', sr:'Sajt \u201e{value}\u201c ne izgleda ispravan. Molimo proverite ga.' },
+  ucFormatInvalidPhone: { en:'Phone "{value}" could not be recognized as a valid number for this country. Please double-check it.', sr:'Broj telefona \u201e{value}\u201c nije prepoznat kao ispravan za ovu zemlju. Molimo proverite ga.' },
+  ucFormatContinueBtn: { en:'Save anyway',                          sr:'Ipak sačuvaj' },
+  ucFormatCancelBtn:   { en:'Let me fix it',                        sr:'Da ispravim' },
+  ucMuniAllVerified:   { en:'All contacts in this municipality have been checked', sr:'Svi kontakti u ovoj opštini su provereni' },
 
   reportPhotoAddBtn:      { en:'Take photo',                                  sr:'Uslikaj' },
   reportPhotoGalleryBtn:  { en:'Choose from gallery',                         sr:'Izaberi iz galerije' },
@@ -13721,10 +13757,19 @@ const NOMINATIM_LATIN_LANG = 'accept-language=sr-Latn,en';
 
 function normalizeMuniNameForMatch(s) {
   if (!s) return '';
-  return cyrillicToLatin(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s*\([^)]*\)\s*/g, ' ')
-    .toLowerCase().trim().replace(/\s+/g, ' ')
-    .replace(/^grad\s+/, '');
+  let out = cyrillicToLatin(s)
+    .replace(/[đĐ]/g, 'dj')                            // đ has no accent decomposition under NFD, unlike š/č/ć/ž
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')  // strip remaining accents
+    .replace(/\s*\([^)]*\)\s*/g, ' ')                  // drop parenthetical qualifiers, e.g. "(Central)"
+    .toLowerCase().trim().replace(/\s+/g, ' ');
+  // Strip generic administrative-unit words so "X Municipality"/"Urban
+  // Municipality X"/"Opština X" match plain "X" from another source.
+  out = out.replace(/^grad\s+/, '')
+    .replace(/\b(urban|city|central)\s+municipality\b/g, ' ')
+    .replace(/\bmunicipality\b/g, ' ')
+    .replace(/\bopstina\b/g, ' ')
+    .trim().replace(/\s+/g, ' ');
+  return out;
 }
 
 function generateMuniSlug() {
@@ -14178,13 +14223,21 @@ function isSessionOnlyMuniId(id) {
 }
 
 function municipalityMergeKey(m) {
-  const norm = normalizeMuniNameForMatch(m.name_en || m.name);
+  // "name" is the municipality's own/local name and is populated far more
+  // consistently across sources than "name_en" (which is sometimes missing,
+  // sometimes a translation, sometimes an English exonym) — so it takes
+  // priority for matching duplicates against each other.
+  const norm = normalizeMuniNameForMatch(m.name || m.name_en);
   return norm ? norm + '|' + (m.country_code || '').toUpperCase() : null;
 }
 
-function pickCanonicalMunicipality(group) {
-  const withRings = group.filter(m => boundaryHasRings(m.boundary));
-  const pool = withRings.length ? withRings : group;
+function pickCanonicalMunicipality(group, verifiedMuniIds) {
+  // Never let a municipality with admin-confirmed contacts lose its row to
+  // an arbitrary duplicate — prefer it as canonical so nothing has to move.
+  const verified = verifiedMuniIds ? group.filter(m => verifiedMuniIds.has(String(m.id))) : [];
+  const base = verified.length ? verified : group;
+  const withRings = base.filter(m => boundaryHasRings(m.boundary));
+  const pool = withRings.length ? withRings : base;
   return pool.slice().sort((a, b) => {
     const aSession = isSessionOnlyMuniId(a.id), bSession = isSessionOnlyMuniId(b.id);
     if (aSession !== bSession) return aSession ? 1 : -1;
@@ -14208,8 +14261,26 @@ async function mergeDuplicateMunicipalities(onProgress) {
   let done = 0;
   const totalDupes = dupGroups.reduce((n, g) => n + g.length - 1, 0);
 
+  // Look up which of these municipalities already have admin-verified
+  // contacts, so pickCanonicalMunicipality can keep that one instead of an
+  // arbitrary duplicate.
+  const candidateIds = dupGroups.flat().filter(m => !isSessionOnlyMuniId(m.id)).map(m => m.id);
+  const verifiedMuniIds = new Set();
+  if (candidateIds.length) {
+    try {
+      const { data, error } = await sb.from(UTILITY_COMPANIES_TABLE)
+        .select('municipality_id')
+        .in('municipality_id', candidateIds)
+        .eq('verified', true);
+      if (error) throw error;
+      (data || []).forEach(row => verifiedMuniIds.add(String(row.municipality_id)));
+    } catch (err) {
+      console.error('Failed to look up verified contacts for duplicate municipalities:', err.message);
+    }
+  }
+
   for (const group of dupGroups) {
-    const canonical = pickCanonicalMunicipality(group);
+    const canonical = pickCanonicalMunicipality(group, verifiedMuniIds);
     for (const dup of group) {
       if (dup === canonical) continue;
       done++;
@@ -14226,6 +14297,18 @@ async function mergeDuplicateMunicipalities(onProgress) {
           continue;
         }
         try {
+          // Utility contacts must move over too — verified or not — or
+          // merging a duplicate away would silently delete/orphan any
+          // contacts an admin already entered and confirmed for it.
+          const { error: contactErr } = await sb.from(UTILITY_COMPANIES_TABLE)
+            .update({ municipality_id: canonical.id })
+            .eq('municipality_id', dup.id);
+          if (contactErr) throw contactErr;
+        } catch (err) {
+          console.error(`Failed to reassign contacts from municipality ${dup.id} to ${canonical.id}:`, err.message);
+          continue;
+        }
+        try {
           const { error: delErr } = await sb.from(MUNICIPALITIES_TABLE).delete().eq('id', dup.id);
           if (delErr) throw delErr;
         } catch (err) {
@@ -14235,7 +14318,7 @@ async function mergeDuplicateMunicipalities(onProgress) {
       }
 
       municipalityCache = municipalityCache.filter(m => m !== dup);
-      merges.push({ removedId: dup.id, keptId: canonical.id, name: dup.name_en || dup.name });
+      merges.push({ removedId: dup.id, keptId: canonical.id, name: dup.name || dup.name_en });
     }
   }
 
@@ -14320,6 +14403,7 @@ async function fixAllMunicipalityBoundaries() {
   }
 
   populateUcMunicipalitySelect();
+  await refreshUcOpenCountry();
   toast(t('ucFixBoundariesDone')
     .replace('{merged}', String(merges.length))
     .replace('{fixed}', String(fixed))
@@ -14389,18 +14473,30 @@ async function showMunicipalityContactsModal() {
 
   try {
 
-    const { data, error } = await sb.from(UTILITY_COMPANIES_TABLE)
+    // Prefer verified contacts, same as the report-detail contact lookup
+    // (getReportContacts). Only fall back to unverified ones if there's
+    // nothing verified yet, so the "verified contacts" hint and the
+    // "not verified yet" warning are never shown for the same list at once.
+    let { data, error } = await sb.from(UTILITY_COMPANIES_TABLE)
       .select('*')
       .eq('municipality_id', muni.id)
-      .order('verified', { ascending: false })
+      .eq('verified', true)
       .order('name');
     if (error) throw error;
-    const companies = data || [];
-    const showingUnverified = companies.some(c => !c.verified);
+    let companies = data || [];
+    let showingUnverified = false;
+    if (!companies.length) {
+      const fallback = await sb.from(UTILITY_COMPANIES_TABLE)
+        .select('*')
+        .eq('municipality_id', muni.id)
+        .order('name');
+      if (fallback.error) throw fallback.error;
+      companies = fallback.data || [];
+      showingUnverified = companies.length > 0;
+    }
 
     bodyEl.innerHTML = companies.length
-      ? `<p class="detail-export-hint">${t('municipalityContactsHint')}</p>` +
-        (showingUnverified ? `<p class="detail-export-hint" style="opacity:.75;">${t('municipalityContactsUnverifiedNote')}</p>` : '') +
+      ? `<p class="detail-export-hint">${t(showingUnverified ? 'municipalityContactsUnverifiedNote' : 'municipalityContactsHint')}</p>` +
         renderContactCards(companies, null)
       : `<div class="detail-empty">${t('detailNoContacts')}</div>`;
   } catch (err) {
@@ -15279,9 +15375,11 @@ function renderOpenCountryBody(countryCode) {
     return '<div class="detail-loading">' + t('ucCountryLoading') + '</div>';
   }
 
-  const searchInputHtml = '<input type="text" id="ucCountrySearchInput" oninput="onUcCountrySearchInput(this.value)" ' +
-    'value="' + escapeHtml(ucCountrySearchQuery) + '" placeholder="' + escapeHtml(t('ucCountrySearchPH')) + '" ' +
-    'style="width:100%;box-sizing:border-box;margin:8px 0;">';
+  const searchInputHtml = '<div class="uc-country-search-wrap">' +
+    '<img class="uc-country-search-icon" src="icons/search.png" alt="">' +
+    '<input type="text" id="ucCountrySearchInput" class="uc-country-search-input" oninput="onUcCountrySearchInput(this.value)" ' +
+    'value="' + escapeHtml(ucCountrySearchQuery) + '" placeholder="' + escapeHtml(t('ucCountrySearchPH')) + '">' +
+    '</div>';
 
   const domainMunis = municipalityCache.filter(m => m.country_code === countryCode && isMunicipalityInAdminDomain(m));
   if (!domainMunis.length) {
@@ -15336,6 +15434,10 @@ function renderOpenCountryBody(countryCode) {
     // the possibly search-filtered `companies` above), so it stays accurate
     // even while the admin is filtering the in-country list.
     const allMuniCompanies = companiesByMuni.get(muniKey) || [];
+    const allContactsVerified = allMuniCompanies.length > 0 && allMuniCompanies.every(c => c.verified);
+    const allVerifiedBadgeHtml = allContactsVerified
+      ? ' <span class="uc-muni-all-verified" title="' + escapeHtml(t('ucMuniAllVerified')) + '">✓</span>'
+      : '';
     const coveredCats = new Set();
     allMuniCompanies.forEach(c => (c.categories || []).forEach(cat => coveredCats.add(cat)));
     const missingCats = UC_CATEGORIES.filter(cat => !coveredCats.has(cat));
@@ -15393,7 +15495,7 @@ function renderOpenCountryBody(countryCode) {
       '</div>';
     }).join('') : '<div class="detail-empty uc-muni-empty">' + t('ucMuniNoContacts') + '</div>';
     return '<details class="uc-muni-group" id="uc-muni-group-' + (muni ? muni.id : 'unknown') + '">' +
-      '<summary><span class="uc-group-chevron"><img src="icons/arrow.png" alt=""></span> ' + coverageDotHtml + muniLabel +
+      '<summary><span class="uc-group-chevron"><img src="icons/arrow.png" alt=""></span> ' + coverageDotHtml + muniLabel + allVerifiedBadgeHtml +
         ' <span class="uc-country-count">(' + companies.length + ')</span></summary>' +
       quickAddTagsHtml +
       '<div class="uc-muni-items">' + itemsHtml + '</div>' +
@@ -15403,6 +15505,15 @@ function renderOpenCountryBody(countryCode) {
   return searchInputHtml + muniHtml;
 }
 
+// Between "start refresh" and "data back", the list is briefly re-rendered
+// in a loading state that has no municipality-level <details> elements at
+// all. If we read open-ids fresh from the DOM at that moment we'd only see
+// the country row and lose track of which municipality was open, so the
+// group would collapse back once the real content lands — forcing the
+// admin to search for it again. This remembers the last "real" (non-loading)
+// set of open ids so it survives that gap.
+let ucLastKnownOpenIds = [];
+
 function renderUcList() {
   const listEl = document.getElementById('ucList');
   if (!listEl) return;
@@ -15410,7 +15521,11 @@ function renderUcList() {
   // Country open/close is driven entirely by ucOpenCountryCode now, so don't
   // let a stale "this id was open before the re-render" snapshot force a
   // previously-open (now switched-away-from) country back open with no body.
-  const openIds = getOpenUcGroupIds().filter(id => !id.startsWith('uc-country-group-') || id === currentOpenCountryId);
+  const freshIds = getOpenUcGroupIds();
+  const useLastKnown = ucCountryDataLoading && freshIds.length <= 1 && ucLastKnownOpenIds.length > freshIds.length;
+  const openIds = (useLastKnown ? ucLastKnownOpenIds : freshIds)
+    .filter(id => !id.startsWith('uc-country-group-') || id === currentOpenCountryId);
+  if (!ucCountryDataLoading) ucLastKnownOpenIds = openIds;
 
   const searchEl = document.getElementById('ucSearchInput');
   const rawQuery = searchEl ? searchEl.value.trim() : '';
@@ -15595,26 +15710,97 @@ function formatPhoneNumberForSave(rawPhone, countryIso2) {
   return raw;
 }
 
+// --- Contact formatting helpers -------------------------------------------
+// These keep every admin-entered contact consistent (same spacing/casing/
+// punctuation conventions) regardless of who typed it in or how. Silent,
+// lossless clean-up (whitespace, casing) is just applied; anything that
+// might change the *meaning* of the value (a possibly-invalid email,
+// website, or phone) is surfaced to the admin for review instead of being
+// guessed at.
+
+// Collapses runs of whitespace and trims. Safe to apply silently to any
+// free-text field.
+function collapseWhitespace(str) {
+  return (str || '').replace(/\s+/g, ' ').trim();
+}
+
+// Normalizes an email to lowercase + trimmed (the conventional storage
+// format), without altering whether it's valid.
+function normalizeEmailForSave(rawEmail) {
+  return collapseWhitespace(rawEmail).toLowerCase();
+}
+
+const EMAIL_FORMAT_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+function isValidEmailFormat(email) {
+  return EMAIL_FORMAT_RE.test(email);
+}
+
+// Normalizes a website to a full https:// URL with no trailing slash
+// dropped inconsistently (matches the "https://www.example.com/" style
+// used across existing verified contacts). Only adds/adjusts the scheme;
+// never invents a domain.
+function normalizeWebsiteForSave(rawWebsite) {
+  let site = collapseWhitespace(rawWebsite);
+  if (!site) return site;
+  if (!/^https?:\/\//i.test(site)) site = 'https://' + site;
+  try {
+    const u = new URL(site);
+    let path = u.pathname === '' ? '/' : u.pathname;
+    return u.protocol + '//' + u.host + path + u.search + u.hash;
+  } catch (e) {
+    return site; // couldn't parse as a URL at all; leave as-is, flag as invalid below
+  }
+}
+
+function isValidWebsiteFormat(site) {
+  try {
+    const u = new URL(site);
+    return /^https?:$/.test(u.protocol) && !!u.host && u.host.includes('.');
+  } catch (e) {
+    return false;
+  }
+}
+
 function readUcFormRow() {
   const municipalityId = document.getElementById('ucMunicipalitySelect').value;
-  const name = cyrillicToLatin(document.getElementById('ucName').value.trim());
+  const name = collapseWhitespace(cyrillicToLatin(document.getElementById('ucName').value));
   const categories = Array.from(document.querySelectorAll('#ucCatChecks input:checked')).map(cb => cb.value);
   if (!municipalityId || !name || !categories.length) {
     toast(t('ucValidationError'), 'error');
     return null;
   }
-  const address = document.getElementById('ucAddress').value.trim();
-  const notes   = document.getElementById('ucNotes').value.trim();
+  const address = collapseWhitespace(document.getElementById('ucAddress').value);
+  const notes   = collapseWhitespace(document.getElementById('ucNotes').value);
+  const rawEmail   = document.getElementById('ucEmail').value.trim();
+  const rawWebsite = document.getElementById('ucWebsite').value.trim();
   return {
     municipality_id: municipalityId,
     name,
     categories,
-    phone:   document.getElementById('ucPhone').value.trim()   || null,
-    email:   document.getElementById('ucEmail').value.trim()   || null,
-    website: document.getElementById('ucWebsite').value.trim() || null,
+    phone:   document.getElementById('ucPhone').value.trim() || null,
+    email:   rawEmail   || null,
+    website: rawWebsite || null,
     address: address ? cyrillicToLatin(address) : null,
     notes:   notes   ? cyrillicToLatin(notes)   : null,
   };
+}
+
+// A given category/tag (Water, Electricity, ...) should map to exactly one
+// contact per municipality — that's what lets the "no contact for X" quick-add
+// chips and the coverage dot mean anything. This finds any other contact in
+// the same municipality that already claims one of the categories being
+// saved, so persistUcRow can block the save instead of creating an ambiguous
+// duplicate.
+function findUcCategoryConflicts(municipalityId, categories, excludingId) {
+  const conflicts = new Map(); // category -> conflicting contact name
+  ucCompaniesCache.forEach(c => {
+    if (String(c.municipality_id) !== String(municipalityId)) return;
+    if (excludingId != null && String(c.id) === String(excludingId)) return;
+    (c.categories || []).forEach(cat => {
+      if (categories.includes(cat) && !conflicts.has(cat)) conflicts.set(cat, c.name);
+    });
+  });
+  return conflicts;
 }
 
 async function persistUcRow(verified) {
@@ -15624,13 +15810,64 @@ async function persistUcRow(verified) {
     toast(t('ucOutOfDomainError'), 'error');
     return;
   }
+
+  const conflicts = findUcCategoryConflicts(row.municipality_id, row.categories, ucEditingId);
+  if (conflicts.size) {
+    const categories = Array.from(conflicts.keys()).map(cat => translateCategory(cat)).join(', ');
+    const names = Array.from(new Set(conflicts.values())).join(', ');
+    toast(t('ucCategoryConflictError').replace('{categories}', categories).replace('{names}', names), 'error');
+    return;
+  }
+
   row.updated_at = new Date().toISOString();
   row.verified = verified;
   row.verified_at = verified ? new Date().toISOString() : null;
   row.verified_by = verified ? (currentSession ? currentSession.user.id : null) : null;
 
   const muni = getMunicipalityById(row.municipality_id);
-  if (row.phone) row.phone = formatPhoneNumberForSave(row.phone, muni ? muni.country_code : null);
+
+  // Normalize email/website to the standard stored format, and collect a
+  // human-readable review list for anything that was changed or still
+  // looks off, so the admin gets a chance to double-check rather than
+  // having a bad value silently saved or silently "fixed" into something
+  // wrong.
+  const reviewNotes = [];
+  const rawPhone = row.phone;
+  if (row.phone) {
+    row.phone = formatPhoneNumberForSave(row.phone, muni ? muni.country_code : null);
+    if (window.libphonenumber && row.phone === rawPhone) {
+      // formatPhoneNumberForSave only returns the raw value unchanged when it
+      // couldn't validate/format it against the country's numbering plan.
+      reviewNotes.push(t('ucFormatInvalidPhone').replace('{value}', rawPhone));
+    }
+  }
+  if (row.email) {
+    const normalizedEmail = normalizeEmailForSave(row.email);
+    if (normalizedEmail !== row.email) {
+      reviewNotes.push(t('ucFormatAutoFixed').replace('{field}', t('ucEmailPH')).replace('{before}', row.email).replace('{after}', normalizedEmail));
+    }
+    row.email = normalizedEmail;
+    if (!isValidEmailFormat(row.email)) {
+      reviewNotes.push(t('ucFormatInvalidEmail').replace('{value}', row.email));
+    }
+  }
+  if (row.website) {
+    const normalizedWebsite = normalizeWebsiteForSave(row.website);
+    if (normalizedWebsite !== row.website) {
+      reviewNotes.push(t('ucFormatAutoFixed').replace('{field}', t('ucWebsitePH')).replace('{before}', row.website).replace('{after}', normalizedWebsite));
+    }
+    row.website = normalizedWebsite;
+    if (!isValidWebsiteFormat(row.website)) {
+      reviewNotes.push(t('ucFormatInvalidWebsite').replace('{value}', row.website));
+    }
+  }
+  if (reviewNotes.length) {
+    const proceed = await themedConfirm(
+      t('ucFormatReviewTitle') + '\n\n' + reviewNotes.map(n => '• ' + n).join('\n'),
+      { okLabel: t('ucFormatContinueBtn'), cancelLabel: t('ucFormatCancelBtn') }
+    );
+    if (!proceed) return;
+  }
 
   const existing = ucEditingId ? ucCompaniesCache.find(c => String(c.id) === String(ucEditingId)) : null;
   if (!row.address) {
@@ -15650,23 +15887,28 @@ async function persistUcRow(verified) {
   if (saveBtn) saveBtn.disabled = true;
   if (verifyBtn) verifyBtn.disabled = true;
   try {
-    let error;
+    let error, insertedId;
     if (ucEditingId) {
       ({ error } = await sb.from(UTILITY_COMPANIES_TABLE).update(row).eq('id', ucEditingId));
     } else {
       row.created_by = currentSession ? currentSession.user.id : null;
-      ({ error } = await sb.from(UTILITY_COMPANIES_TABLE).insert(row));
+      const inserted = await sb.from(UTILITY_COMPANIES_TABLE).insert(row).select().single();
+      error = inserted.error;
+      insertedId = inserted.data ? inserted.data.id : null;
     }
     if (error) throw error;
-    const wasEditingId = ucEditingId;
+    // Keep the contact open in edit mode after saving — whether it already
+    // existed or was just created — so the admin can go straight to hitting
+    // "Verify" without having to scroll/search for it again in the list.
+    const idToReopen = ucEditingId || insertedId;
 
     moveUcFormToAnchor();
     await refreshUcOpenCountry();
-    if (wasEditingId) {
-
-      editUtilityCompany(wasEditingId);
+    if (idToReopen != null) {
+      editUtilityCompany(idToReopen);
     } else {
-
+      // Couldn't get an id back (e.g. insert().select() unsupported/blocked) —
+      // fall back to resetting the form rather than leaving it in a broken state.
       resetUcForm();
       setUcMuniPickerVisible(true);
     }
