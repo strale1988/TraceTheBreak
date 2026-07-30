@@ -8399,23 +8399,16 @@ const pinCluster = L.markerClusterGroup({
   disableClusteringAtZoom: 17,
   spiderfyOnMaxZoom: true,
   showCoverageOnHover: false,
-  // Fly/split animation is back on (see updateClusterAnimationForRotation
-  // below, which flips this off again for as long as the map is actually
-  // rotated — Leaflet.markercluster's regroup animation piggybacks on the
-  // map's own zoom-pane animation, which we already force off while
-  // rotated since it can't handle a CSS-rotated map; animating the cluster
-  // on top of that mismatch is what caused the old flashing).
-  animate: true,
-  // Separate library option from `animate` above: this is what makes
-  // markercluster fly a marker in/out of its cluster when it's added or
-  // removed *without* a zoom happening — i.e. exactly what syncMarkers()
-  // does when it upserts pins for a newly-loaded viewport. Pins stay fully
-  // hidden (opacity:0 via .map-zooming) for the entire duration of a real
-  // zoom gesture, and syncMarkers only ever runs once that gesture has
-  // fully settled (see endZoomBurst / scheduleMarkerSyncOnSettle), so this
-  // animation only plays after zooming is completely finished and the new
-  // pins are becoming visible — never while actually zooming.
-  animateAddingMarkers: true,
+  // Fly/split (regroup) animation is OFF. It was only ever meant to run
+  // after a zoom gesture settled and pins were becoming visible again (see
+  // endZoomBurst / scheduleMarkerSyncOnSettle) — never during the zoom
+  // itself. In practice it was still producing visibility glitches (pins
+  // flickering/mispositioned), so it's disabled outright for now rather
+  // than half-working. Pins/clusters now just appear instantly once
+  // map-zooming is cleared. Flip both flags back to true here if the
+  // underlying glitch gets tracked down later.
+  animate: false,
+  animateAddingMarkers: false,
   iconCreateFunction: makeClusterIcon
 });
 
@@ -8443,35 +8436,13 @@ const companyMarkersLayer = L.markerClusterGroup({
   disableClusteringAtZoom: 17,
   spiderfyOnMaxZoom: true,
   showCoverageOnHover: false,
-  // Same as pinCluster above.
-  animate: true,
-  animateAddingMarkers: true,
+  // Same as pinCluster above — animation off.
+  animate: false,
+  animateAddingMarkers: false,
   iconCreateFunction: makePublicClusterIcon
 }).addTo(map);
 
 pinCluster.addTo(map);
-
-// Keeps both cluster groups' regroup animation in lockstep with whether
-// the map is actually running its own zoom-pane animation right now (see
-// updateZoomAnimationForRotation, which is the source of truth this
-// mirrors). Read live at animation time by the plugin, so flipping this
-// mid-session is safe — no re-add/reset needed. North-up: animated
-// fly-together/fly-apart on zoom, same as stock Leaflet.markercluster.
-// Rotated: falls back to the old instant regroup, since the plugin's
-// animation assumes the map's zoom pane is animating too.
-function updateClusterAnimationForRotation() {
-  const shouldAnimate = !rotationActive();
-  pinCluster.options.animate = shouldAnimate;
-  companyMarkersLayer.options.animate = shouldAnimate;
-  pinCluster.options.animateAddingMarkers = shouldAnimate;
-  companyMarkersLayer.options.animateAddingMarkers = shouldAnimate;
-}
-// No eager call here: rotationActive() reads mapBearing, which is declared
-// with `let` further down the script and isn't initialized yet at this
-// point (calling in would throw a temporal-dead-zone ReferenceError and
-// abort the rest of the top-level script). The map always starts north-up
-// anyway, matching the animate:true default above, so this only needs to
-// run when applyMapBearingRaw actually changes the bearing.
 
 let rotWrapper = null;
 function initRotationWrapper() {
@@ -8594,7 +8565,6 @@ function applyMapBearingRaw(newBearingDeg) {
   updateAllPopupRotations();
   updateUserMarkerRotation();
   updateZoomAnimationForRotation();
-  updateClusterAnimationForRotation();
 }
 
 function applyMapBearing(targetHeadingDeg) {
