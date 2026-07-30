@@ -4369,8 +4369,11 @@ function markOnboardingSeen() {
 
 function getOnboardingSteps() {
   return [
+    { id: null,             titleKey: 'onboardingStepWelcomeTitle',     textKey: 'onboardingStepWelcomeText' },
     { id: 'reportFabBtn',   titleKey: 'onboardingStepReportTitle',      textKey: 'onboardingStepReportText' },
+    { id: null,             titleKey: 'onboardingStepSendTitle',        textKey: 'onboardingStepSendText' },
     { id: 'pinMapBtn',      titleKey: 'onboardingStepPinTitle',         textKey: 'onboardingStepPinText' },
+    { id: 'notificationBtn', titleKey: 'onboardingStepNotifTitle',      textKey: 'onboardingStepNotifText' },
     { id: 'navigateModeBtn', titleKey: 'onboardingStepDrivingTitle',     textKey: 'onboardingStepDrivingText' },
     { id: 'leaderboardBtn', titleKey: 'onboardingStepLeaderboardTitle', textKey: 'onboardingStepLeaderboardText' }
   ];
@@ -4394,8 +4397,8 @@ function startOnboardingTour(isReplay) {
   const overlay = document.getElementById('onboardingOverlay');
   if (!overlay) return;
   const candidates = getOnboardingSteps()
-    .map(step => ({ ...step, el: document.getElementById(step.id) }))
-    .filter(step => isOnboardingTargetVisible(step.el));
+    .map(step => ({ ...step, el: step.id ? document.getElementById(step.id) : null }))
+    .filter(step => !step.id || isOnboardingTargetVisible(step.el));
   if (!candidates.length) {
     if (!isReplay) markOnboardingSeen();
     return;
@@ -4427,16 +4430,36 @@ function renderOnboardingStep() {
 
 function positionOnboardingStep() {
   const step = onboardingActiveSteps[onboardingStepIndex];
-  if (!step || !isOnboardingTargetVisible(step.el)) { advanceOnboardingTour(); return; }
+  if (!step) { advanceOnboardingTour(); return; }
+  const spot = document.getElementById('onboardingSpotlight');
+  const tooltip = document.getElementById('onboardingTooltip');
+
+  if (!step.id) {
+    // No-anchor step (e.g. welcome intro): dim the whole screen with no highlighted
+    // element, and center the tooltip card instead of pointing at something.
+    const vw = window.innerWidth, vh = window.innerHeight;
+    spot.style.top = (vh / 2) + 'px';
+    spot.style.left = (vw / 2) + 'px';
+    spot.style.width = '0px';
+    spot.style.height = '0px';
+
+    tooltip.style.visibility = 'hidden';
+    tooltip.style.display = 'block';
+    const tw = tooltip.offsetWidth, th = tooltip.offsetHeight;
+    tooltip.style.top = Math.max(12, (vh - th) / 2) + 'px';
+    tooltip.style.left = Math.max(12, (vw - tw) / 2) + 'px';
+    tooltip.style.visibility = 'visible';
+    return;
+  }
+
+  if (!isOnboardingTargetVisible(step.el)) { advanceOnboardingTour(); return; }
   const rect = step.el.getBoundingClientRect();
   const pad = 8;
-  const spot = document.getElementById('onboardingSpotlight');
   spot.style.top = (rect.top - pad) + 'px';
   spot.style.left = (rect.left - pad) + 'px';
   spot.style.width = (rect.width + pad * 2) + 'px';
   spot.style.height = (rect.height + pad * 2) + 'px';
 
-  const tooltip = document.getElementById('onboardingTooltip');
   tooltip.style.visibility = 'hidden';
   tooltip.style.display = 'block';
   const tw = tooltip.offsetWidth, th = tooltip.offsetHeight;
@@ -6251,13 +6274,15 @@ const T = {
   helpTitle:    { en:'How to use TraceTheBreak',         sr:'Kako se koristi TraceTheBreak' },
   helpClose:    { en:'Close',                            sr:'Zatvori' },
   helpStep1:    { en:'1. Set your location:',            sr:'1. Odredite vašu lokaciju:' },
-  helpStep1Body:{ en:'Make sure your device GPS is on, or tap the manual pin button (<img class="icon-img icon-img-inline" src="icons/pin.png" alt="pin">) to drop a point on the map yourself.', sr:'Proverite da li je GPS uključen, ili pritisnite dugme za ručnu lokaciju (<img class="icon-img icon-img-inline" src="icons/pin.png" alt="pin">) da sami postavite tačku na mapi.' },
+  helpStep1Body:{ en:'Make sure your device GPS is on, or tap the manual pin button (<img class="icon-img icon-img-inline" src="icons/pin.png" alt="pin">) to drop a point on the map yourself. If you drop a pin, it is used for your report instead of your GPS location.', sr:'Proverite da li je GPS uključen, ili pritisnite dugme za ručnu lokaciju (<img class="icon-img icon-img-inline" src="icons/pin.png" alt="pin">) da sami postavite tačku na mapi. Ako postavite pin, on se koristi za vašu prijavu umesto GPS lokacije.' },
   helpStep2:    { en:'2. Tap the report button:',        sr:'2. Pritisnite dugme za prijavu:' },
   helpStep2Body:{ en:'Tap the red report button (<img class="icon-img icon-img-inline" src="icons/reports/report_new.png" alt="report">) to start a report at your location.', sr:'Pritisnite crveno dugme za prijavu (<img class="icon-img icon-img-inline" src="icons/reports/report_new.png" alt="report">) da započnete prijavu na vašoj lokaciji.' },
   helpStep3:    { en:'3. Choose what broke:',            sr:'3. Izaberite šta se pokvarilo:' },
   helpStep3Body:{ en:'Select the type of break: water, electricity, sewage, gas, heating, road, streetlight, waste, walkways, bike lanes, green spaces, or other.', sr:'Izaberite vrstu kvara: voda, struja, kanalizacija, gas, grejanje, put, ulična rasveta, otpad, pešačke staze, biciklističke staze, zelene površine ili ostalo.' },
   helpStep4:    { en:'4. Submit:',                       sr:'4. Pošalji:' },
   helpStep4Body:{ en:'Add an optional note, then tap "REPORT BREAK".', sr:'Dodajte opcionu napomenu i pritisnite "PRIJAVI KVAR".' },
+  helpStep5:    { en:'5. After you submit:',             sr:'5. Nakon slanja:' },
+  helpStep5Body:{ en:'Your report appears on the map right away for everyone to see. It is then actually sent to the responsible service about an hour later, so there is no need to submit a second one while you wait.', sr:'Vaša prijava se odmah pojavljuje na mapi za sve. Nadležnoj službi se zvanično šalje oko sat vremena kasnije, tako da nema potrebe da šaljete drugu dok čekate.' },
   popupStatus:  { en:'Status', sr:'Status' },
   reportedByLabel: { en:'Reported by', sr:'Prijavio' },
   confirmedByLabel: { en:'Confirmed by {n} people', sr:'Potvrdilo {n} osoba' },
@@ -6721,10 +6746,16 @@ const T = {
 
   leaderboardBtnTitle:     { en:'Rankings',                           sr:'Rang lista' },
 
+  onboardingStepWelcomeTitle:     { en:'Welcome to TraceTheBreak',                           sr:'Dobrodošli u TraceTheBreak' },
+  onboardingStepWelcomeText:      { en:'Report infrastructure problems you spot nearby — potholes, water leaks, power outages, and more — and track them on the map until they\'re fixed. You can replay this tour or read more anytime from Settings → Help.', sr:'Prijavi probleme u infrastrukturi koje primetiš u okolini — rupe na putu, curenje vode, nestanke struje i slično — i prati ih na mapi dok se ne reše. Ovu turu možeš ponovo pokrenuti, a više detalja pronaći u Podešavanja → Pomoć.' },
   onboardingStepReportTitle:      { en:'Report a problem',                                   sr:'Prijavi problem' },
-  onboardingStepReportText:       { en:'Tap here to report something you see: a pothole, a leak, anything.', sr:'Dodirni ovde da prijaviš nešto što vidiš: rupu na putu, curenje, bilo šta.' },
+  onboardingStepReportText:       { en:'Tap here to report something you see: a pothole, a leak, anything. You\'ll need to be near the spot — either by GPS or a manually placed pin — for the report to go through.', sr:'Dodirni ovde da prijaviš nešto što vidiš: rupu na putu, curenje, bilo šta. Moraš biti u blizini mesta — bilo preko GPS-a ili ručno postavljenog pina — da bi prijava prošla.' },
+  onboardingStepSendTitle:        { en:'What happens after you report',                      sr:'Šta se dešava posle prijave' },
+  onboardingStepSendText:         { en:'Your report shows up on the map right away for everyone to see. It\'s then actually sent to the responsible service about an hour after you submit it — so there\'s no need to rush or send it twice.', sr:'Tvoja prijava se odmah pojavljuje na mapi za sve. Nadležnoj službi se zvanično šalje oko sat vremena nakon što je pošalješ — nema potrebe da žuriš ili je šalješ dvaput.' },
   onboardingStepPinTitle:         { en:'GPS looking off?',                                   sr:'GPS lokacija nije tačna?' },
-  onboardingStepPinText:          { en:'Drop a pin to fine-tune the exact spot on the map if your GPS location isn\'t precise enough.', sr:'Postavi pribadaču da precizno odabereš tačno mesto na mapi ako GPS lokacija nije dovoljno tačna.' },
+  onboardingStepPinText:          { en:'Drop a pin to fine-tune the exact spot on the map if your GPS location isn\'t precise enough — once placed, the pin is used for your report instead of the GPS dot.', sr:'Postavi pribadaču da precizno odabereš tačno mesto na mapi ako GPS lokacija nije dovoljno tačna — kada je postaviš, prijava koristi lokaciju pribadače umesto GPS tačke.' },
+  onboardingStepNotifTitle:       { en:'Stay in the loop',                                   sr:'Budi u toku' },
+  onboardingStepNotifText:        { en:'Get notified here when the status of your report changes — like when your issue gets fixed.', sr:'Ovde dobijaš obaveštenje kad se status tvoje prijave promeni — na primer kad tvoj problem bude rešen.' },
   onboardingStepDrivingTitle:     { en:'Driving mode',                                       sr:'Režim vožnje' },
   onboardingStepDrivingText:      { en:'Turn this on to quickly report road issues (potholes, damaged pavement, signage) with one big tap while you drive.', sr:'Uključi ovo da brzo prijaviš probleme na putu (rupe, oštećen kolovoz, signalizaciju) jednim dodirom velikog dugmeta dok voziš.' },
   onboardingStepLeaderboardTitle: { en:'Your dashboard',                                     sr:'Tvoja kontrolna tabla' },
@@ -7442,6 +7473,7 @@ function buildHelpModalContent() {
       <p><strong>${t('helpStep2')}</strong> ${t('helpStep2Body')}</p>
       <p><strong>${t('helpStep3')}</strong> ${t('helpStep3Body')}</p>
       <p><strong>${t('helpStep4')}</strong> ${t('helpStep4Body')}</p>
+      <p><strong>${t('helpStep5')}</strong> ${t('helpStep5Body')}</p>
       <p><strong><img class="icon-img icon-img-inline" src="icons/target.png" alt="compass"></strong> ${lang === 'sr' ? 'Uključite praćenje da mapa uvek prati vašu lokaciju, kao navigacija.' : 'Turn on follow mode to keep the map centered on you, like a navigation app.'}</p>
       <p><strong>${lang === 'sr' ? 'Prijavljivanje na licu mesta' : 'On-site reporting'}</strong> ${lang === 'sr'
         ? 'Prijavljivanje je dostupno samo na mobilnom uređaju, a ako ručno postavite pin na mapu, morate biti u krugu od 50 metara od njega da biste ga prijavili. Mala isprekidana kružnica na mapi pokazuje koliko ste blizu.'
@@ -11329,11 +11361,28 @@ function handleTileTap(category, subcategoryKey) {
 async function quickReportTap(category, subcategoryKey) {
   if (!currentSession || !currentProfile) { toast(t('signInFirst') || 'Sign in first', 'error'); return; }
   if (!currentProfile.is_admin && !isMobileDevice()) { toast(t('mobileOnlyReport'), 'error'); return; }
-  if (!userCoords) { toast(t('waitGps'), 'error'); return; }
-  if (!isValidCoordObj(userCoords)) { toast(t('invalidLocation'), 'error'); return; }
-  if (!currentProfile.is_admin && !hasReliableGps()) { toast(t('gpsTooWeak'), 'error'); return; }
+
+  const isAdmin = !!currentProfile.is_admin;
+  const inOwnDomain = isAdmin && isMunicipalityInAdminDomain(manualPinMunicipality);
+
+  // Prefer the manually-placed pin over the raw GPS fix, same as the main report wizard:
+  // GPS gives a rough dot, but if the user dropped a pin to fine-tune the exact spot,
+  // that's the location they mean to report.
+  const coords = pinMode && manualCoords ? manualCoords : userCoords;
+  if (!coords) { toast(t('waitGps'), 'error'); return; }
+  if (!isValidCoordObj(coords)) { toast(t('invalidLocation'), 'error'); return; }
+  if (!isAdmin && !hasReliableGps()) { toast(t('gpsTooWeak'), 'error'); return; }
   if ((await ensureVpnStatus()).isVpn) { toast(t('vpnBlockedReport'), 'error'); return; }
   if (shouldBlockReportSubmission()) return;
+
+  if (!isAdmin && !inOwnDomain && pinMode && manualCoords) {
+    if (!userCoords || !hasReliableGps()) { toast(t('waitGps'), 'error'); return; }
+    const dist = distMeters(userCoords, manualCoords);
+    if (dist > REPORT_PROXIMITY_MAX_M) {
+      toast(t('tooFarToReport').replace('{d}', Math.round(dist)), 'error');
+      return;
+    }
+  }
 
   const freshSession = await ensureFreshSession();
   if (!freshSession) return;
@@ -11345,8 +11394,8 @@ async function quickReportTap(category, subcategoryKey) {
   if (bikeGrid) bikeGrid.classList.add('submitting');
   try {
     const { data, error } = await sb.from(TABLE).insert([{
-      latitude: userCoords.lat,
-      longitude: userCoords.lon,
+      latitude: coords.lat,
+      longitude: coords.lon,
       category: category,
       subcategory: subcategoryKey,
       priority: 'normal',
@@ -11358,7 +11407,7 @@ async function quickReportTap(category, subcategoryKey) {
     }]).select('id').single();
     if (error) throw error;
     recordReportSubmission();
-    resolveAndAttachMunicipality(data && data.id, userCoords.lat, userCoords.lon);
+    resolveAndAttachMunicipality(data && data.id, coords.lat, coords.lon);
     toast('✓ ' + t('submitted'), 'success');
     await loadPinsByWindow();
   } catch (err) {
