@@ -2827,6 +2827,8 @@ input.uc-country-search-input{
   font-size:var(--fs-11-5); cursor:pointer; user-select:none;
 }
 .uc-cat-check input{ margin:0; }
+.uc-cat-check-disabled{ opacity:.45; cursor:not-allowed; }
+.uc-cat-check-disabled input{ cursor:not-allowed; }
 .uc-form-row{ display:flex; gap:var(--space-8); }
 .uc-form-row textarea{
   width:100%; padding:11px 10px; border:none; border-radius:var(--radius-md);
@@ -3893,7 +3895,7 @@ span.flatpickr-weekday {
         <input type="hidden" id="ucEditId">
         <div id="ucMuniPicker">
           <div class="uc-form-row">
-            <select id="ucMunicipalitySelect" style="flex:1;"></select>
+            <select id="ucMunicipalitySelect" style="flex:1;" onchange="populateUcCatChecks()"></select>
           </div>
           <div id="ucNoMunicipalitiesHint" class="detail-empty" style="display:none;"></div>
         </div>
@@ -6376,6 +6378,7 @@ const T = {
   ucMissingTagsLabel:  { en:'No contact for:',                     sr:'Nema kontakta za:' },
   ucQuickAddTagsLabel: { en:'Add contact by category:',             sr:'Dodaj kontakt po kategoriji:' },
   ucCategoryConflictError: { en:'{categories} already has a contact in this municipality ({names}). Remove the category from one of them first.', sr:'{categories} već ima kontakt u ovoj opštini ({names}). Prvo uklonite kategoriju sa jednog od njih.' },
+  ucCategoryTakenHint: { en:'Already covered by {name} in this municipality', sr:'Već pokriva {name} u ovoj opštini' },
   ucFormatReviewTitle: { en:'A few things need a check before saving:', sr:'Nekoliko stvari treba proveriti pre čuvanja:' },
   ucFormatAutoFixed:  { en:'Auto-corrected {field}: "{before}" \u2192 "{after}"', sr:'Automatski ispravljeno polje {field}: \u201e{before}\u201c \u2192 \u201e{after}\u201c' },
   ucFormatInvalidEmail: { en:'Email "{value}" doesn\'t look valid. Please double-check it.', sr:'E-mail \u201e{value}\u201c ne izgleda ispravno. Molimo proverite ga.' },
@@ -15342,9 +15345,21 @@ function populateUcCatChecks() {
   const wrap = document.getElementById('ucCatChecks');
   if (!wrap) return;
   const checkedBefore = new Set(Array.from(wrap.querySelectorAll('input:checked')).map(cb => cb.value));
-  wrap.innerHTML = UC_CATEGORIES.map(c =>
-    '<label class="uc-cat-check"><input type="checkbox" value="' + c + '" ' + (checkedBefore.has(c) ? 'checked' : '') + '> ' + translateCategory(c) + '</label>'
-  ).join('');
+  const muniSel = document.getElementById('ucMunicipalitySelect');
+  const municipalityId = muniSel ? muniSel.value : null;
+  const conflicts = municipalityId ? findUcCategoryConflicts(municipalityId, UC_CATEGORIES, ucEditingId) : new Map();
+  wrap.innerHTML = UC_CATEGORIES.map(c => {
+    const isChecked = checkedBefore.has(c);
+    const takenBy = conflicts.get(c);
+    // A category already checked (e.g. this contact's own existing category
+    // while editing) is never disabled — findUcCategoryConflicts already
+    // excludes ucEditingId's own rows, so a conflict here always means some
+    // *other* contact has it.
+    const disabled = !!takenBy && !isChecked;
+    const titleAttr = takenBy ? ' title="' + escapeHtml(t('ucCategoryTakenHint').replace('{name}', takenBy)) + '"' : '';
+    return '<label class="uc-cat-check' + (disabled ? ' uc-cat-check-disabled' : '') + '"' + titleAttr + '>' +
+      '<input type="checkbox" value="' + c + '" ' + (isChecked ? 'checked' : '') + (disabled ? ' disabled' : '') + '> ' + translateCategory(c) + '</label>';
+  }).join('');
 }
 
 let countryContinentCache = new Map();
@@ -15597,10 +15612,23 @@ function renderUcList() {
   // let a stale "this id was open before the re-render" snapshot force a
   // previously-open (now switched-away-from) country back open with no body.
   const freshIds = getOpenUcGroupIds();
-  const useLastKnown = ucCountryDataLoading && freshIds.length <= 1 && ucLastKnownOpenIds.length > freshIds.length;
-  const openIds = (useLastKnown ? ucLastKnownOpenIds : freshIds)
-    .filter(id => !id.startsWith('uc-country-group-') || id === currentOpenCountryId);
-  if (!ucCountryDataLoading) ucLastKnownOpenIds = openIds;
+  // Continent/country ids in freshIds are always trustworthy (they don't
+  // disappear from the DOM during a reload — only municipality-level
+  // <details> do, since the loading placeholder replaces the whole country
+  // body). So we only need a fallback for the *municipality* ids specifically:
+  // if none show up fresh but we remember some from the last real render,
+  // assume we're mid-reload rather than the admin having genuinely closed
+  // them all, and carry the remembered ones forward. This is what keeps
+  // municipality/contact groups open across a save-triggered refresh instead
+  // of collapsing back down to just the country row.
+  const freshMuniIds = freshIds.filter(id => id.startsWith('uc-muni-group-'));
+  const lastKnownMuniIds = ucLastKnownOpenIds.filter(id => id.startsWith('uc-muni-group-'));
+  const muniIdsToUse = freshMuniIds.length ? freshMuniIds : lastKnownMuniIds;
+  const openIds = freshIds
+    .filter(id => !id.startsWith('uc-muni-group-'))
+    .filter(id => !id.startsWith('uc-country-group-') || id === currentOpenCountryId)
+    .concat(muniIdsToUse);
+  if (freshMuniIds.length) ucLastKnownOpenIds = freshMuniIds;
 
   const searchEl = document.getElementById('ucSearchInput');
   const rawQuery = searchEl ? searchEl.value.trim() : '';
@@ -15702,6 +15730,7 @@ function resetUcForm() {
   document.querySelectorAll('#ucCatChecks input').forEach(cb => cb.checked = false);
   const sel = document.getElementById('ucMunicipalitySelect');
   if (sel) sel.selectedIndex = 0;
+  populateUcCatChecks();
   applyUcFormTranslations();
 }
 
@@ -15728,6 +15757,7 @@ function editUtilityCompany(id) {
   document.getElementById('ucEditId').value = c.id;
   const sel = document.getElementById('ucMunicipalitySelect');
   if (sel) sel.value = c.municipality_id;
+  populateUcCatChecks();
   document.getElementById('ucName').value = c.name || '';
   document.getElementById('ucPhone').value = c.phone || '';
   document.getElementById('ucEmail').value = c.email || '';
@@ -15756,6 +15786,7 @@ function quickAddUcContact(municipalityId, category) {
   setUcMuniPickerVisible(true);
   const sel = document.getElementById('ucMunicipalitySelect');
   if (sel) sel.value = municipalityId;
+  populateUcCatChecks();
   const cb = document.querySelector('#ucCatChecks input[value="' + category + '"]');
   if (cb) cb.checked = true;
   renderUcVerifyStatus();
