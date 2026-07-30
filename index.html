@@ -2789,7 +2789,7 @@ details[open] > summary .uc-group-chevron{ transform:rotate(180deg);  }
   position:absolute; left:11px; top:50%; transform:translateY(-50%);
   width:14px; height:14px; opacity:.55; filter:var(--icon-tint-filter); pointer-events:none;
 }
-.uc-country-search-input{
+input.uc-country-search-input{
   width:100%; box-sizing:border-box; padding:10px 12px 10px 32px;
   border-radius:var(--radius-lg); border:1.5px solid var(--accent);
   background:var(--bg-surface); color:var(--text-primary); font-size:var(--fs-13);
@@ -2827,10 +2827,6 @@ details[open] > summary .uc-group-chevron{ transform:rotate(180deg);  }
   font-size:var(--fs-11-5); cursor:pointer; user-select:none;
 }
 .uc-cat-check input{ margin:0; }
-.uc-cat-check-disabled{
-  opacity:.4; cursor:not-allowed;
-}
-.uc-cat-check-disabled input{ cursor:not-allowed; }
 .uc-form-row{ display:flex; gap:var(--space-8); }
 .uc-form-row textarea{
   width:100%; padding:11px 10px; border:none; border-radius:var(--radius-md);
@@ -3897,7 +3893,7 @@ span.flatpickr-weekday {
         <input type="hidden" id="ucEditId">
         <div id="ucMuniPicker">
           <div class="uc-form-row">
-            <select id="ucMunicipalitySelect" style="flex:1;" onchange="updateUcCatCheckAvailability()"></select>
+            <select id="ucMunicipalitySelect" style="flex:1;"></select>
           </div>
           <div id="ucNoMunicipalitiesHint" class="detail-empty" style="display:none;"></div>
         </div>
@@ -6387,8 +6383,7 @@ const T = {
   ucFormatInvalidPhone: { en:'Phone "{value}" could not be recognized as a valid number for this country. Please double-check it.', sr:'Broj telefona \u201e{value}\u201c nije prepoznat kao ispravan za ovu zemlju. Molimo proverite ga.' },
   ucFormatContinueBtn: { en:'Save anyway',                          sr:'Ipak sačuvaj' },
   ucFormatCancelBtn:   { en:'Let me fix it',                        sr:'Da ispravim' },
-  ucMuniAllVerified:   { en:'Every category has a contact and all of them have been checked', sr:'Svaka kategorija ima kontakt i svi su provereni' },
-  ucCategoryTakenHint: { en:'Already used by "{name}" in this municipality', sr:'Već koristi „{name}" u ovoj opštini' },
+  ucMuniAllVerified:   { en:'All contacts in this municipality have been checked', sr:'Svi kontakti u ovoj opštini su provereni' },
 
   reportPhotoAddBtn:      { en:'Take photo',                                  sr:'Uslikaj' },
   reportPhotoGalleryBtn:  { en:'Choose from gallery',                         sr:'Izaberi iz galerije' },
@@ -14755,17 +14750,6 @@ async function openUcCountry(countryCode, preserveSearch) {
   try {
     await ensureCountryMunicipalitiesLoaded(countryCode);
     if (token !== ucCountryLoadToken) return; // superseded by a newer selection
-
-    // Automatically fold together any duplicate municipality entries for this
-    // country (same place filed under a different name spelling/exonym)
-    // before showing the list, so admins never have to remember to run the
-    // manual "fix boundaries" cleanup just to avoid a split contact list.
-    const countryMunis = municipalityCache.filter(m => m.country_code === countryCode);
-    if (findDuplicateMunicipalityGroups(countryMunis).some(g => g.length > 1)) {
-      await mergeDuplicateMunicipalities();
-      if (token !== ucCountryLoadToken) return;
-    }
-
     const muniIds = municipalityCache
       .filter(m => m.country_code === countryCode && isMunicipalityInAdminDomain(m))
       .map(m => m.id);
@@ -14821,7 +14805,12 @@ async function refreshUcOpenCountry() {
 
 function onUcCountrySearchInput(value) {
   ucCountrySearchQuery = (value || '').trim();
-  renderUcList();
+  const resultsEl = ucOpenCountryCode && !ucCountryDataLoading ? document.getElementById('ucCountryResultsBody') : null;
+  if (resultsEl) {
+    resultsEl.innerHTML = renderOpenCountryResultsBody(ucOpenCountryCode);
+  } else {
+    renderUcList();
+  }
 }
 
 async function loadUtilityCompaniesAdmin() {
@@ -14835,6 +14824,7 @@ async function loadUtilityCompaniesAdmin() {
   if (listEl) listEl.innerHTML = '<div class="detail-loading">' + t('ucLoadingList') + '</div>';
 
   await loadCountryContinentCache();
+  loadUcCountryMuniCounts().then(() => renderUcList()); // fire-and-forget: counts fill in once loaded
   ucHomeCountryCode = await resolveAdminHomeCountryCode();
   buildUcCountryIndex();
 
@@ -15355,7 +15345,6 @@ function populateUcCatChecks() {
   wrap.innerHTML = UC_CATEGORIES.map(c =>
     '<label class="uc-cat-check"><input type="checkbox" value="' + c + '" ' + (checkedBefore.has(c) ? 'checked' : '') + '> ' + translateCategory(c) + '</label>'
   ).join('');
-  updateUcCatCheckAvailability();
 }
 
 let countryContinentCache = new Map();
@@ -15369,6 +15358,37 @@ async function loadCountryContinentCache() {
     countryContinentCacheLoaded = true;
   } catch (err) {
     console.error('Failed to load country/continent list:', err.message);
+  }
+}
+
+// Per-country municipality counts for the country list, without paying for
+// full municipality rows (geometry, names, etc.) the way opening a country
+// does. Just the country_code column, counted client-side, cached once —
+// same "lightweight index" spirit as buildUcCountryIndex.
+let ucCountryMuniCounts = new Map();
+let ucCountryMuniCountsLoaded = false;
+async function loadUcCountryMuniCounts() {
+  if (ucCountryMuniCountsLoaded) return;
+  try {
+    const counts = new Map();
+    const PAGE = 1000;
+    let from = 0;
+    while (true) {
+      const { data, error } = await sb.from(MUNICIPALITIES_TABLE)
+        .select('country_code').range(from, from + PAGE - 1);
+      if (error) throw error;
+      (data || []).forEach(r => {
+        const code = String(r.country_code || '').toUpperCase();
+        if (!code) return;
+        counts.set(code, (counts.get(code) || 0) + 1);
+      });
+      if (!data || data.length < PAGE) break;
+      from += PAGE;
+    }
+    ucCountryMuniCounts = counts;
+    ucCountryMuniCountsLoaded = true;
+  } catch (err) {
+    console.error('Failed to load municipality counts:', err.message);
   }
 }
 const CONTINENT_LABEL_KEYS = {
@@ -15425,9 +15445,20 @@ function renderOpenCountryBody(countryCode) {
     'value="' + escapeHtml(ucCountrySearchQuery) + '" placeholder="' + escapeHtml(t('ucCountrySearchPH')) + '">' +
     '</div>';
 
+  return searchInputHtml + '<div id="ucCountryResultsBody">' + renderOpenCountryResultsBody(countryCode) + '</div>';
+}
+
+// Just the filtered municipality/contact list for the currently open
+// country — no search bar. Kept separate from renderOpenCountryBody so
+// re-filtering on every keystroke (see onUcCountrySearchInput) only ever
+// touches this inner container, never the search <input> itself. Replacing
+// the input's own DOM node on every keystroke was what caused it to lose
+// focus/cursor position and made the surrounding page jump around while
+// typing.
+function renderOpenCountryResultsBody(countryCode) {
   const domainMunis = municipalityCache.filter(m => m.country_code === countryCode && isMunicipalityInAdminDomain(m));
   if (!domainMunis.length) {
-    return searchInputHtml + '<div class="detail-empty uc-muni-empty">' + t('ucCountryNoContactsYet') + '</div>';
+    return '<div class="detail-empty uc-muni-empty">' + t('ucCountryNoContactsYet') + '</div>';
   }
 
   const companiesByMuni = new Map();
@@ -15462,7 +15493,7 @@ function renderOpenCountryBody(countryCode) {
   }
 
   if (!muniGroups.size) {
-    return searchInputHtml + '<div class="detail-empty">' + t(query ? 'ucNoSearchResults' : 'ucCountryNoContactsYet') + '</div>';
+    return '<div class="detail-empty">' + t(query ? 'ucNoSearchResults' : 'ucCountryNoContactsYet') + '</div>';
   }
 
   const sortedMuniKeys = Array.from(muniGroups.keys()).sort((a, b) =>
@@ -15478,18 +15509,13 @@ function renderOpenCountryBody(countryCode) {
     // the possibly search-filtered `companies` above), so it stays accurate
     // even while the admin is filtering the in-country list.
     const allMuniCompanies = companiesByMuni.get(muniKey) || [];
-    const coveredCats = new Set();
-    allMuniCompanies.forEach(c => (c.categories || []).forEach(cat => coveredCats.add(cat)));
-    const missingCats = UC_CATEGORIES.filter(cat => !coveredCats.has(cat));
-
-    // The all-clear checkmark means there's nothing left to do here at all:
-    // every category has a contact AND every one of those contacts has been
-    // verified. Having zero missing categories isn't enough on its own if
-    // some existing contact still hasn't been checked, and vice versa.
-    const allContactsVerified = !missingCats.length && allMuniCompanies.length > 0 && allMuniCompanies.every(c => c.verified);
+    const allContactsVerified = allMuniCompanies.length > 0 && allMuniCompanies.every(c => c.verified);
     const allVerifiedBadgeHtml = allContactsVerified
       ? ' <span class="uc-muni-all-verified" title="' + escapeHtml(t('ucMuniAllVerified')) + '">✓</span>'
       : '';
+    const coveredCats = new Set();
+    allMuniCompanies.forEach(c => (c.categories || []).forEach(cat => coveredCats.add(cat)));
+    const missingCats = UC_CATEGORIES.filter(cat => !coveredCats.has(cat));
 
     const quickAddTagsHtml = muni && missingCats.length
       ? '<div class="uc-muni-missing-tags">' +
@@ -15551,7 +15577,7 @@ function renderOpenCountryBody(countryCode) {
     '</details>';
   }).join('');
 
-  return searchInputHtml + muniHtml;
+  return muniHtml;
 }
 
 // Between "start refresh" and "data back", the list is briefly re-rendered
@@ -15612,10 +15638,15 @@ function renderUcList() {
 
   const countryRowHtml = (countryCode) => {
     const isOpen = countryCode === ucOpenCountryCode;
+    const muniCount = ucCountryMuniCounts.get(String(countryCode).toUpperCase());
+    const muniCountHtml = muniCount != null
+      ? ' <span class="uc-muni-count-label">' + escapeHtml(t('ucMuniCountLabel').replace('{n}', String(muniCount))) + '</span>'
+      : '';
     const summaryHtml = '<summary onclick="event.preventDefault(); toggleUcCountry(\'' + countryCode + '\')">' +
       '<span class="uc-group-chevron"><img src="icons/arrow.png" alt=""></span> ' +
       escapeHtml(countryDisplayName(countryCode)) +
       (countryCode ? ' (' + escapeHtml(countryCode) + ')' : '') +
+      muniCountHtml +
       '</summary>';
     return '<details class="uc-country-group" id="uc-country-group-' + (countryCode || 'unknown') + '"' + (isOpen ? ' open' : '') + '>' +
       summaryHtml +
@@ -15671,7 +15702,6 @@ function resetUcForm() {
   document.querySelectorAll('#ucCatChecks input').forEach(cb => cb.checked = false);
   const sel = document.getElementById('ucMunicipalitySelect');
   if (sel) sel.selectedIndex = 0;
-  updateUcCatCheckAvailability();
   applyUcFormTranslations();
 }
 
@@ -15708,7 +15738,6 @@ function editUtilityCompany(id) {
     const cb = document.querySelector('#ucCatChecks input[value="' + cat + '"]');
     if (cb) cb.checked = true;
   });
-  updateUcCatCheckAvailability();
   renderUcVerifyStatus();
   const form = document.getElementById('ucForm');
 
@@ -15729,7 +15758,6 @@ function quickAddUcContact(municipalityId, category) {
   if (sel) sel.value = municipalityId;
   const cb = document.querySelector('#ucCatChecks input[value="' + category + '"]');
   if (cb) cb.checked = true;
-  updateUcCatCheckAvailability();
   renderUcVerifyStatus();
   const form = document.getElementById('ucForm');
   // Anchor the form right under the municipality group that was clicked so
@@ -15744,22 +15772,29 @@ function quickAddUcContact(municipalityId, category) {
   if (nameInput) nameInput.focus();
 }
 
+// Returns { value, valid }. `valid` reflects whether libphonenumber could
+// actually parse/validate the number — it must NOT be inferred from
+// "did the string change during formatting", since an already-correctly-
+// formatted number (e.g. "+381 21 870570") legitimately comes back
+// unchanged from formatInternational() and that's a *pass*, not a failure.
 function formatPhoneNumberForSave(rawPhone, countryIso2) {
   const raw = (rawPhone || '').trim();
-  if (!raw) return raw;
+  if (!raw) return { value: raw, valid: true };
   try {
     if (window.libphonenumber && countryIso2) {
       const parsed = window.libphonenumber.parsePhoneNumberFromString(raw, String(countryIso2).toUpperCase());
-      if (parsed && parsed.isValid()) return parsed.formatInternational();
+      if (parsed && parsed.isValid()) return { value: parsed.formatInternational(), valid: true };
     }
     if (window.libphonenumber && raw.startsWith('+')) {
       const parsed = window.libphonenumber.parsePhoneNumberFromString(raw);
-      if (parsed && parsed.isValid()) return parsed.formatInternational();
+      if (parsed && parsed.isValid()) return { value: parsed.formatInternational(), valid: true };
     }
   } catch (e) {
     console.error('Failed to format phone number:', e.message || e);
   }
-  return raw;
+  // If libphonenumber itself isn't loaded, don't flag the number as
+  // invalid — we simply couldn't check it, so leave it as entered.
+  return { value: raw, valid: !window.libphonenumber };
 }
 
 // --- Contact formatting helpers -------------------------------------------
@@ -15839,45 +15874,20 @@ function readUcFormRow() {
 
 // A given category/tag (Water, Electricity, ...) should map to exactly one
 // contact per municipality — that's what lets the "no contact for X" quick-add
-// chips and the coverage dot mean anything. Returns category -> contact name
-// for every category already claimed by some other contact in that
-// municipality (excludingId lets the contact currently being edited claim
-// its own categories without flagging itself).
-function usedUcCategoriesForMunicipality(municipalityId, excludingId) {
-  const used = new Map();
+// chips and the coverage dot mean anything. This finds any other contact in
+// the same municipality that already claims one of the categories being
+// saved, so persistUcRow can block the save instead of creating an ambiguous
+// duplicate.
+function findUcCategoryConflicts(municipalityId, categories, excludingId) {
+  const conflicts = new Map(); // category -> conflicting contact name
   ucCompaniesCache.forEach(c => {
     if (String(c.municipality_id) !== String(municipalityId)) return;
     if (excludingId != null && String(c.id) === String(excludingId)) return;
-    (c.categories || []).forEach(cat => { if (!used.has(cat)) used.set(cat, c.name); });
+    (c.categories || []).forEach(cat => {
+      if (categories.includes(cat) && !conflicts.has(cat)) conflicts.set(cat, c.name);
+    });
   });
-  return used;
-}
-
-function findUcCategoryConflicts(municipalityId, categories, excludingId) {
-  const used = usedUcCategoriesForMunicipality(municipalityId, excludingId);
-  const conflicts = new Map();
-  categories.forEach(cat => { if (used.has(cat)) conflicts.set(cat, used.get(cat)); });
   return conflicts;
-}
-
-// Disables (rather than hides, so it's clear why they're unavailable)
-// category checkboxes already claimed by another contact in the currently
-// selected municipality — stops a duplicate tag from being picked in the
-// form at all, instead of only catching it as an error after Save.
-function updateUcCatCheckAvailability() {
-  const wrap = document.getElementById('ucCatChecks');
-  const sel = document.getElementById('ucMunicipalitySelect');
-  if (!wrap || !sel) return;
-  const used = sel.value ? usedUcCategoriesForMunicipality(sel.value, ucEditingId) : new Map();
-  wrap.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-    const takenByOther = used.has(cb.value) && !cb.checked;
-    cb.disabled = takenByOther;
-    const label = cb.closest('label');
-    if (label) {
-      label.classList.toggle('uc-cat-check-disabled', takenByOther);
-      label.title = takenByOther ? t('ucCategoryTakenHint').replace('{name}', used.get(cb.value)) : '';
-    }
-  });
 }
 
 async function persistUcRow(verified) {
@@ -15911,10 +15921,9 @@ async function persistUcRow(verified) {
   const reviewNotes = [];
   const rawPhone = row.phone;
   if (row.phone) {
-    row.phone = formatPhoneNumberForSave(row.phone, muni ? muni.country_code : null);
-    if (window.libphonenumber && row.phone === rawPhone) {
-      // formatPhoneNumberForSave only returns the raw value unchanged when it
-      // couldn't validate/format it against the country's numbering plan.
+    const phoneResult = formatPhoneNumberForSave(row.phone, muni ? muni.country_code : null);
+    row.phone = phoneResult.value;
+    if (!phoneResult.valid) {
       reviewNotes.push(t('ucFormatInvalidPhone').replace('{value}', rawPhone));
     }
   }
