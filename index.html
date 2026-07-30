@@ -9573,6 +9573,13 @@ let bumpDetectionEnabled = getBumpDetectionPref();
 function setBumpDetectionEnabled(enabled) {
   bumpDetectionEnabled = !!enabled;
   try { localStorage.setItem(BUMP_DETECTION_PREF_KEY, bumpDetectionEnabled ? '1' : '0'); } catch (err) {}
+  // requestMotionPermission() bails out early if bumpDetectionEnabled was
+  // false, so turning the setting on while already mid-drive used to leave
+  // detection silently off until the next toggleDrivingMode()/switchTravelMode()
+  // call happened to re-request it. Kick it off right away instead.
+  if (bumpDetectionEnabled && typeof drivingMode !== 'undefined' && drivingMode && travelMode !== 'foot') {
+    requestMotionPermission();
+  }
 }
 function initBumpDetectionSettingsUi() {
   const input = document.getElementById('bumpDetectionToggleInput');
@@ -9883,27 +9890,49 @@ function toggleFollowMode() {
 
 let pendingAutoRefollow = false; // true once follow mode was auto-disabled by a manual gesture; used only by the follow button, not a timer
 
-function cancelAutoRefollowTimer() { /* kept as a no-op: see scheduleAutoRefollow below for why the timer itself was removed */ }
+// Auto re-follow: once the map has been idle (no active gesture, and no
+// overlay covering it) for AUTO_REFOLLOW_DELAY_MS, follow mode quietly turns
+// itself back on and recenters on the user. Every gesture-end call site
+// below (pan fling settling, drag/rotate ending, etc.) already calls
+// scheduleAutoRefollow(), and every gesture-start / openOverlay call site
+// already calls cancelAutoRefollowTimer() — so opening anything on top of
+// the map, or touching the map again, always restarts the full 10s from
+// scratch rather than resuming a partial countdown.
+const AUTO_REFOLLOW_DELAY_MS = 10000;
+let autoRefollowTimerId = null;
+
+function cancelAutoRefollowTimer() {
+  if (autoRefollowTimerId) { clearTimeout(autoRefollowTimerId); autoRefollowTimerId = null; }
+}
+
+function scheduleAutoRefollow() {
+  cancelAutoRefollowTimer();
+  if (followMode) return; // already following — nothing to re-enable
+  autoRefollowTimerId = setTimeout(performAutoRefollow, AUTO_REFOLLOW_DELAY_MS);
+}
+
+// Previously this snapped the map back onto the GPS position ~10s after any
+// manual pan or zoom, but always forced the zoom back up to at least 16/17
+// (via followMapTo) even if you'd deliberately zoomed out to look around —
+// that forced re-zoom on top of an unrequested snap-back was what made the
+// old timer feel broken, not the timer itself. This version recenters at
+// whatever zoom the map is already at, and leaves the zoom-forcing behavior
+// to the explicit follow button tap (toggleFollowMode -> followMapTo).
+function performAutoRefollow() {
+  autoRefollowTimerId = null;
+  if (followMode || !userCoords || overlayStack.length > 0) return;
+  setFollowMode(true);
+  pendingAutoRefollow = false;
+  map.setView([userCoords.lat, userCoords.lon], map.getZoom(), { animate: true });
+}
 
 function onUserMapInteractionStart() {
+  cancelAutoRefollowTimer();
   if (followMode) {
     pendingAutoRefollow = true;
     setFollowMode(false);
   }
 }
-
-// Previously this snapped the map back onto the GPS position ~10s after
-// any manual pan or zoom, animating the view and forcing the zoom back
-// up to at least 16/17 — even if you had deliberately zoomed out to look
-// around. That's exactly the "the map yanks itself back after I zoom"
-// feeling that made zooming feel unnatural, so the timer is gone: follow
-// mode still turns itself off the instant you start a manual gesture
-// (see onUserMapInteractionStart, still wired below) so it never fights
-// your fingers, but it now only turns back on when you explicitly tap
-// the recenter/follow button — the same pattern Google Maps and most
-// nav apps use.
-function performAutoRefollow() { /* no longer auto-triggered; see comment above */ }
-function scheduleAutoRefollow() { /* intentionally a no-op now — kept so existing call sites don't need to change */ }
 
 map.on('dragstart', onUserMapInteractionStart);
 map.on('zoomstart', onUserMapInteractionStart);
@@ -10435,6 +10464,7 @@ function toggleDrivingMode(mode) {
     navLastRouteAt = 0;
     navLastRouteFrom = null;
     bumpBaselineMag = null;
+    bumpCalibrationCount = 0;
     updateDrivingGpsStatus();
     if (!followMode) toggleFollowMode();
     setUserMarkerStyle(true);
@@ -10525,6 +10555,8 @@ let motionListenerAttached = false;
 let gravityEstimate  = null;
 
 let bumpBaselineMag  = null;
+let bumpCalibrationCount = 0;
+const BUMP_CALIBRATION_SAMPLES = 20; // ~a couple seconds of accelerometer samples before the baseline is trusted
 
 let lastBumpAt       = 0;
 
@@ -10588,7 +10620,12 @@ function handleDeviceMotion(event) {
 
   const mag = Math.sqrt(ax * ax + ay * ay + az * az);
 
-  if (bumpBaselineMag === null) { bumpBaselineMag = mag; return; }
+  if (bumpBaselineMag === null) { bumpBaselineMag = mag; bumpCalibrationCount = 1; return; }
+  if (bumpCalibrationCount < BUMP_CALIBRATION_SAMPLES) {
+    bumpCalibrationCount++;
+    bumpBaselineMag += (mag - bumpBaselineMag) / bumpCalibrationCount;
+    return;
+  }
 
   const isSpike = mag > bumpBaselineMag * bumpRatioThreshold() && mag > bumpAbsFloorMs2();
 
