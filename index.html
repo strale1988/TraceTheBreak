@@ -1901,17 +1901,8 @@ body.driving-active #appPanel{
 .dashboard-city-name{ font-size:var(--fs-13); font-weight:var(--fw-bold); color:var(--text-primary); text-transform:uppercase; letter-spacing:.02em; }
 .dashboard-city-detail{ font-size:var(--fs-11-5); color:var(--text-muted); margin-top:4px; }
 .dashboard-streak-card{ display:flex; align-items:center; gap:12px; background:var(--bg-surface-alt); border:1px solid var(--border-color); border-radius:var(--radius-lg); padding:12px 14px; }
-.dashboard-streak-flame{
-  width:28px; height:28px; flex-shrink:0;
-  display:inline-block;
-  background-color:var(--accent);
-  -webkit-mask-image:url('icons/flame.png'); mask-image:url('icons/flame.png');
-  -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
-  -webkit-mask-position:center; mask-position:center;
-  -webkit-mask-size:contain; mask-size:contain;
-  transition:background-color .2s ease, opacity .2s ease;
-}
-.dashboard-streak-flame.is-cold{ background-color:var(--text-muted); opacity:.35; }
+.dashboard-streak-flame{ width:28px; height:28px; flex-shrink:0; display:inline-block; transition:background-color .2s ease, opacity .2s ease; }
+.dashboard-streak-flame.is-cold{ background-color:var(--text-muted) !important; opacity:.35; }
 .dashboard-streak-info{ flex:1; min-width:0; }
 .dashboard-streak-count{ display:flex; align-items:baseline; gap:5px; }
 .dashboard-streak-count-num{ font-size:var(--fs-20); font-weight:var(--fw-heavy); color:var(--text-primary); }
@@ -1925,19 +1916,7 @@ body.driving-active #appPanel{
 .dashboard-quest-card.is-complete{ opacity:.7; }
 .dashboard-quest-top{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .dashboard-quest-title{ font-size:var(--fs-12-5); font-weight:var(--fw-semibold); color:var(--text-primary); display:flex; align-items:center; gap:6px; }
-.dashboard-quest-title-icon{
-  width:15px; height:15px; flex-shrink:0;
-  display:inline-block;
-  background-color:var(--success);
-  -webkit-mask-image:url('icons/quest-target.png'); mask-image:url('icons/quest-target.png');
-  -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
-  -webkit-mask-position:center; mask-position:center;
-  -webkit-mask-size:contain; mask-size:contain;
-}
-.dashboard-quest-card.is-complete .dashboard-quest-title-icon{
-  background-color:var(--accent);
-  -webkit-mask-image:url('icons/quest-complete.png'); mask-image:url('icons/quest-complete.png');
-}
+.dashboard-quest-title-icon{ width:15px; height:15px; flex-shrink:0; display:inline-block; }
 .dashboard-quest-reward{ font-size:var(--fs-10); font-weight:var(--fw-bold); color:var(--accent); flex-shrink:0; white-space:nowrap; }
 .dashboard-quest-desc{ font-size:var(--fs-10-5); color:var(--text-muted); margin-top:2px; }
 .dashboard-quest-track{ width:100%; height:6px; border-radius:var(--radius-xs); background:var(--border-color-strong); overflow:hidden; margin-top:8px; }
@@ -3443,6 +3422,9 @@ span.flatpickr-weekday {
 <div id="photoSourceModal" class="generic-modal-overlay" style="display:none">
   <div class="generic-modal" id="photoSourceModalInner"></div>
 </div>
+<div id="deleteReasonModal" class="generic-modal-overlay" style="display:none">
+  <div class="generic-modal" id="deleteReasonModalInner" style="max-width:380px"></div>
+</div>
 <input type="file" accept="image/*" capture="environment" id="reportPhotoPickerCamera" style="display:none">
 <input type="file" accept="image/*" id="reportPhotoPickerLibrary" style="display:none">
 
@@ -3730,7 +3712,7 @@ span.flatpickr-weekday {
         <div class="profile-progress-track"><div class="profile-progress-fill" id="dashboardProgressFill"></div></div>
         <div class="dashboard-progress-text" id="dashboardProgressText"></div>
         <div class="dashboard-streak-card" id="dashboardStreakCard" style="display:none">
-          <span class="dashboard-streak-flame" id="dashboardStreakFlame" aria-hidden="true"></span>
+          <span class="dashboard-streak-flame" id="dashboardStreakFlame"></span>
           <div class="dashboard-streak-info">
             <div class="dashboard-streak-count">
               <span class="dashboard-streak-count-num" id="dashboardStreakDays">0</span>
@@ -5874,7 +5856,7 @@ function renderDashboardQuests(withPeriods, progressRows, listEl) {
 
     return `<div class="dashboard-quest-card${complete ? ' is-complete' : ''}">
       <div class="dashboard-quest-top">
-        <span class="dashboard-quest-title"><span class="dashboard-quest-title-icon" aria-hidden="true"></span>${escapeHtml(title)}</span>
+        <span class="dashboard-quest-title"><span class="dashboard-quest-title-icon" style="background-color:${complete ? '#5ec98a' : '#93c5fd'};-webkit-mask:url('${complete ? 'icons/quest-complete.png' : 'icons/quest-target.png'}') center/contain no-repeat;mask:url('${complete ? 'icons/quest-complete.png' : 'icons/quest-target.png'}') center/contain no-repeat;"></span>${escapeHtml(title)}</span>
         ${rule.points_reward ? `<span class="dashboard-quest-reward">+${rule.points_reward} pts</span>` : ''}
       </div>
       ${desc ? `<div class="dashboard-quest-desc">${escapeHtml(desc)}</div>` : ''}
@@ -6381,6 +6363,14 @@ const T = {
   cancelBtn:     { en:'Cancel',                                    sr:'Otkaži' },
   closeBtn:      { en:'Close',                                     sr:'Zatvori' },
   deleteConfirm: { en:'Delete this report permanently?',           sr:'Trajno obrisati ovu prijavu?' },
+  deleteReasonTitle:          { en:'Why are you deleting this report?',                    sr:'Zašto brišete ovu prijavu?' },
+  deleteReasonAccidentalNav:  { en:'Accidentally reported while navigating',               sr:'Prijavljeno greškom tokom navigacije' },
+  deleteReasonWrongLocation:  { en:'Wrong location / pin placed incorrectly',              sr:'Pogrešna lokacija / pin je pogrešno postavljen' },
+  deleteReasonDuplicate:      { en:'Duplicate of another report',                          sr:'Duplikat druge prijave' },
+  deleteReasonAlreadyFixed:   { en:'Already fixed / no longer an issue',                   sr:'Već popravljeno / više nije problem' },
+  deleteReasonNotReal:        { en:"Submitted by mistake (not a real issue)",              sr:'Poslato greškom (nije stvaran problem)' },
+  deleteReasonOther:          { en:'Other reason',                                         sr:'Drugi razlog' },
+  deleteReasonOtherPrompt:    { en:'Briefly describe why (optional)',                      sr:'Ukratko opišite zašto (opciono)' },
   banLoadingBtn:    { en:'…',                                        sr:'…' },
   banBtn:           { en:'Ban user',                                 sr:'Blokiraj korisnika' },
   unbanBtn:         { en:'Unban user',                               sr:'Odblokiraj korisnika' },
@@ -7901,13 +7891,15 @@ const MAP_STYLES = {
     dark:{ url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', subdomains:'abcd', maxNativeZoom:20,
            attribution:'© OpenStreetMap contributors © CARTO' }
   },
-  satellite:{
+  satellite: {
     nameEn:'Satellite', nameSr:'Satelitska',
     // Real imagery tops out around z19 in most places (and lower in rural
-    // areas). Past that, maxNativeZoom lets Leaflet keep the zoom control
-    // going by stretching the last real tile — blurrier than native
-    // resolution, but a stretched tile beats an empty gap where the user
-    // expects a map. No hard maxZoom cap here on purpose.
+    // areas). We used to cap maxZoom to maxNativeZoom here so the zoom
+    // control stopped exactly where the imagery ran out (matching Google/
+    // Apple Maps). In practice that left people unable to zoom in further
+    // to place a precise pin in areas with sparse imagery — better to let
+    // Leaflet stretch the last available tile (blurry, but still usable)
+    // than to block zooming altogether.
     light:{ url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', subdomains:'', maxNativeZoom:19,
             attribution:'Esri, Maxar, Earthstar Geographics' },
     dark:{ filter:'brightness(.55) contrast(1.15)' } // dim rather than invert — inverted satellite imagery looks broken
@@ -7916,6 +7908,7 @@ const MAP_STYLES = {
     nameEn:'Hybrid', nameSr:'Hibridna',
     // Same imagery as Satellite, with a transparent Esri reference layer
     // (place names, roads, borders) drawn on top so labels stay readable.
+    // Same over-zoom-rather-than-block reasoning as Satellite above.
     light:{ url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', subdomains:'', maxNativeZoom:19,
             attribution:'Esri, Maxar, Earthstar Geographics',
             overlayUrl:'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
@@ -9081,6 +9074,57 @@ function pickReportPhotoDirect(source) {
     };
     inputEl.onchange = onPicked;
     inputEl.click();
+  });
+}
+
+let deleteReasonResolver = null;
+function hideDeleteReasonOverlay() {
+  const overlay = document.getElementById('deleteReasonModal');
+  if (overlay) overlay.style.display = 'none';
+  closeOverlay('deleteReasonModal');
+}
+function closeDeleteReasonModal(reason) {
+  hideDeleteReasonOverlay();
+  const resolve = deleteReasonResolver;
+  deleteReasonResolver = null;
+  if (resolve) resolve(reason || null);
+}
+const DELETE_REASONS = [
+  { code:'accidental_nav',  labelKey:'deleteReasonAccidentalNav' },
+  { code:'wrong_location',  labelKey:'deleteReasonWrongLocation' },
+  { code:'duplicate',       labelKey:'deleteReasonDuplicate' },
+  { code:'already_fixed',   labelKey:'deleteReasonAlreadyFixed' },
+  { code:'not_real',        labelKey:'deleteReasonNotReal' },
+  { code:'other',           labelKey:'deleteReasonOther' }
+];
+// Asks the reporter why they're deleting their own report before doing so.
+// Resolves to { code, text } on a chosen reason, or null if they cancel.
+function pickDeleteReason() {
+  return new Promise(resolve => {
+    deleteReasonResolver = resolve;
+    const overlay = document.getElementById('deleteReasonModal');
+    const inner = document.getElementById('deleteReasonModalInner');
+    bringModalToFront(overlay);
+    inner.innerHTML = `
+      <h2>${escapeHtml(t('deleteReasonTitle'))}</h2>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        ${DELETE_REASONS.map(r => `<button type="button" class="settings-btn" style="justify-content:flex-start;" data-reason-code="${r.code}">${escapeHtml(t(r.labelKey))}</button>`).join('')}
+      </div>`;
+    overlay.style.display = 'flex';
+    openOverlay('deleteReasonModal', () => closeDeleteReasonModal(null));
+    inner.querySelectorAll('[data-reason-code]').forEach(btn => {
+      btn.onclick = async () => {
+        const code = btn.getAttribute('data-reason-code');
+        if (code === 'other') {
+          deleteReasonResolver = null; // this picker resolves via the prompt below now, not via cancel/backdrop
+          hideDeleteReasonOverlay();
+          const text = await themedPrompt(t('deleteReasonOtherPrompt'), '');
+          resolve(text === null ? null : { code, text: text || null });
+        } else {
+          closeDeleteReasonModal({ code, text: null });
+        }
+      };
+    });
   });
 }
 
