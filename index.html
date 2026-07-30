@@ -2816,7 +2816,17 @@ input.uc-country-search-input{
 }
 .uc-form{
   display:flex; flex-direction:column; gap:var(--space-8);
-  background:var(--bg-surface-alt); border:1px solid var(--border-color); border-radius:var(--radius-lg); padding:12px;
+  background:var(--bg-surface); border:1.5px solid var(--accent); border-radius:var(--radius-lg); padding:12px;
+  box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.uc-form-muni-label{
+  font-size:var(--fs-11); font-weight:var(--fw-bold); text-transform:uppercase; letter-spacing:.3px;
+  color:var(--accent);
+}
+.uc-item.is-editing{
+  border-color:var(--accent); border-width:1.5px;
+  background:color-mix(in srgb, var(--accent) 9%, var(--bg-surface-alt));
+  box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
 }
 .uc-cat-checks{
   display:flex; flex-wrap:wrap; gap:var(--space-6);
@@ -3893,7 +3903,8 @@ span.flatpickr-weekday {
 
       <div class="uc-form" id="ucForm" style="display:none">
         <input type="hidden" id="ucEditId">
-        <div id="ucMuniPicker">
+        <div class="uc-form-muni-label" id="ucMuniLabel"></div>
+        <div id="ucMuniPicker" style="display:none">
           <div class="uc-form-row">
             <select id="ucMunicipalitySelect" style="flex:1;" onchange="populateUcCatChecks()"></select>
           </div>
@@ -15338,6 +15349,7 @@ function populateUcMunicipalitySelect() {
       sel.selectedIndex = 0;
     }
     ucDesiredMuniSelectValue = null;
+    updateUcMuniLabel();
     const hint = document.getElementById('ucNoMunicipalitiesHint');
     if (hint) {
       if (!ucOpenCountryCode) {
@@ -15709,8 +15721,36 @@ function renderUcList() {
   restoreOpenUcGroupIds(openIds);
 }
 function setUcMuniPickerVisible(visible) {
+  // The dropdown is always auto-filled now (from the + tag or from the
+  // contact being edited), so there's no case where the admin needs to pick
+  // a municipality by hand any more — keep it hidden regardless of what's
+  // passed in. The municipality name is surfaced via updateUcMuniLabel()
+  // instead. Left as a no-op rather than removed so every existing call
+  // site (editUtilityCompany, quickAddUcContact, cancelUcForm, etc.) keeps
+  // working untouched.
   const picker = document.getElementById('ucMuniPicker');
-  if (picker) picker.style.display = visible ? '' : 'none';
+  if (picker) picker.style.display = 'none';
+}
+
+function updateUcMuniLabel() {
+  const labelEl = document.getElementById('ucMuniLabel');
+  if (!labelEl) return;
+  const sel = document.getElementById('ucMunicipalitySelect');
+  const muniId = sel ? sel.value : '';
+  const muni = muniId ? municipalityCache.find(m => String(m.id) === String(muniId)) : null;
+  labelEl.textContent = muni
+    ? municipalityDisplayName(muni) + (muni.country_code ? ' (' + muni.country_code + ')' : '')
+    : '';
+}
+
+// Keeps exactly one contact card visually marked as "currently being
+// edited" (or none, e.g. while quick-adding a brand new one that has no
+// card yet). Called whenever the form is opened, moved, or closed.
+function highlightUcEditingItem(id) {
+  document.querySelectorAll('.uc-item.is-editing').forEach(el => el.classList.remove('is-editing'));
+  if (id == null) return;
+  const itemEl = document.getElementById('uc-item-' + id);
+  if (itemEl) itemEl.classList.add('is-editing');
 }
 
 function toggleUtilityCompanyEdit(id) {
@@ -15745,6 +15785,7 @@ function resetUcForm() {
   document.querySelectorAll('#ucCatChecks input').forEach(cb => cb.checked = false);
   const sel = document.getElementById('ucMunicipalitySelect');
   if (sel) sel.selectedIndex = 0;
+  updateUcMuniLabel();
   populateUcCatChecks();
   applyUcFormTranslations();
 }
@@ -15755,6 +15796,7 @@ function cancelUcForm() {
   moveUcFormToAnchor();
   setUcMuniPickerVisible(true);
   resetUcForm();
+  highlightUcEditingItem(null);
 }
 
 function editUtilityCompany(id) {
@@ -15773,6 +15815,7 @@ function editUtilityCompany(id) {
   const sel = document.getElementById('ucMunicipalitySelect');
   ucDesiredMuniSelectValue = c.municipality_id != null ? String(c.municipality_id) : null;
   if (sel) sel.value = c.municipality_id;
+  updateUcMuniLabel();
   populateUcCatChecks(c.municipality_id);
   document.getElementById('ucName').value = c.name || '';
   document.getElementById('ucPhone').value = c.phone || '';
@@ -15790,6 +15833,7 @@ function editUtilityCompany(id) {
   const itemEl = document.getElementById('uc-item-' + id);
   if (itemEl) itemEl.insertAdjacentElement('afterend', form);
   form.style.display = 'flex';
+  highlightUcEditingItem(id);
   form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
@@ -15803,16 +15847,19 @@ function quickAddUcContact(municipalityId, category) {
   const sel = document.getElementById('ucMunicipalitySelect');
   ucDesiredMuniSelectValue = municipalityId != null ? String(municipalityId) : null;
   if (sel) sel.value = municipalityId;
+  updateUcMuniLabel();
   populateUcCatChecks(municipalityId);
   const cb = document.querySelector('#ucCatChecks input[value="' + category + '"]');
   if (cb) cb.checked = true;
   renderUcVerifyStatus();
   const form = document.getElementById('ucForm');
-  // Anchor the form right under the municipality group that was clicked so
-  // it's obvious which municipality it'll be saved under, same as editing
-  // an existing contact anchors the form right under that contact.
-  const groupEl = document.getElementById('uc-muni-group-' + municipalityId);
-  if (groupEl) groupEl.insertAdjacentElement('afterend', form);
+  highlightUcEditingItem(null); // it's a brand new contact, no card to highlight yet
+  // Anchor the form inside the municipality's own item list (same container
+  // the existing contact cards live in), not just after the whole group —
+  // that keeps it the exact same width as a contact card instead of the
+  // slightly wider look it had when anchored one level up.
+  const itemsEl = document.querySelector('#uc-muni-group-' + municipalityId + ' .uc-muni-items');
+  if (itemsEl) itemsEl.insertBefore(form, itemsEl.firstChild);
   else moveUcFormToAnchor();
   form.style.display = 'flex';
   form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
