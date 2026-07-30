@@ -386,7 +386,6 @@ header p{ font-size:var(--fs-11); opacity:.7; margin-top:2px; }
 .lang-btn.active{ background:var(--accent); color:var(--accent-contrast); }
 .lang-btn .icon-img-inline{ filter:brightness(0) invert(45%); opacity:.85; }
 .lang-btn.active .icon-img-inline{ filter:brightness(0) invert(100%); opacity:1; }
-.lang-flag-icon{ width:16px; height:12px; object-fit:cover; border-radius:2px; vertical-align:middle; margin:0 2px -1px 0; }
 
 .help-icon-btn{
   background:var(--bg-surface-alt);
@@ -3447,8 +3446,8 @@ span.flatpickr-weekday {
     <div class="detail-section" id="languageSettingsSection">
       <div class="detail-section-title" id="languageSectionTitle">Language</div>
       <div class="theme-segment" id="langSegment">
-        <button type="button" class="theme-segment-btn lang-btn" onclick="setLang('en')" id="langBtnEn"><img class="lang-flag-icon" src="icons/flag-gb.png" alt=""> EN</button>
-        <button type="button" class="theme-segment-btn lang-btn active" onclick="setLang('sr')" id="langBtnSr"><img class="lang-flag-icon" src="icons/flag-rs.png" alt=""> SR</button>
+        <button type="button" class="theme-segment-btn lang-btn" onclick="setLang('en')" id="langBtnEn">English</button>
+        <button type="button" class="theme-segment-btn lang-btn active" onclick="setLang('sr')" id="langBtnSr">Srpski</button>
         <button type="button" class="theme-segment-btn lang-btn" onclick="setLang('auto')" id="langBtnAuto"><img class="icon-img icon-img-inline" src="icons/pin.png" alt=""> <span id="langBtnAutoLabel">Auto</span></button>
       </div>
       <p class="detail-export-hint" id="langAutoHint">We'll set the language based on your location.</p>
@@ -4284,6 +4283,7 @@ async function loadProfile() {
       currentProfile = created;
     }
     updateAuthUI();
+    syncPreferredLanguageToProfile(lang);
   } catch (err) {
     console.error('Failed to load profile:', err.message);
   }
@@ -6745,12 +6745,29 @@ function applyResolvedLang(l){
   lang = l;
   try { localStorage.setItem(LANG_STORAGE_KEY, l); } catch (e) {}
   applyLang();
+  syncPreferredLanguageToProfile(l);
 
   if (fp) {
     const savedDates = fp.selectedDates;
     fp.destroy();
     initCalendarFilter(savedDates);
     loadPinsByWindow();
+  }
+}
+
+let lastSyncedPreferredLanguage = null;
+async function syncPreferredLanguageToProfile(l) {
+  if (!currentSession || !currentProfile) return;
+  if (lastSyncedPreferredLanguage === l && currentProfile.preferred_language === l) return;
+  lastSyncedPreferredLanguage = l;
+  try {
+    const { error } = await sb.from(PROFILES_TABLE)
+      .update({ preferred_language: l })
+      .eq('id', currentSession.user.id);
+    if (error) throw error;
+    currentProfile.preferred_language = l;
+  } catch (err) {
+    console.error('Failed to sync preferred language:', err.message);
   }
 }
 
