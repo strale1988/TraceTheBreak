@@ -7682,12 +7682,29 @@ const MAP_STYLES = {
   },
   satellite:{
     nameEn:'Satellite', nameSr:'Satelitska',
-    light:{ url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', subdomains:'', maxNativeZoom:19,
+    // Real imagery tops out around z19 in most places (and lower in rural
+    // areas). Past that Leaflet was still letting the user "zoom in" up to
+    // the global cap of 22 by stretching the last real tile — 8x pixel
+    // doubling that looks like the map is broken rather than just out of
+    // resolution. Capping maxZoom to maxNativeZoom stops the zoom control
+    // right where the imagery actually runs out, same as Google/Apple Maps do.
+    light:{ url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', subdomains:'', maxNativeZoom:19, maxZoom:19,
             attribution:'Esri, Maxar, Earthstar Geographics' },
     dark:{ filter:'brightness(.55) contrast(1.15)' } // dim rather than invert — inverted satellite imagery looks broken
+  },
+  hybrid:{
+    nameEn:'Hybrid', nameSr:'Hibridna',
+    // Same imagery as Satellite, with a transparent Esri reference layer
+    // (place names, roads, borders) drawn on top so labels stay readable.
+    light:{ url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', subdomains:'', maxNativeZoom:19, maxZoom:19,
+            attribution:'Esri, Maxar, Earthstar Geographics',
+            overlayUrl:'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+            overlaySubdomains:'', overlayMaxNativeZoom:19,
+            overlayAttribution:'Esri' },
+    dark:{ filter:'brightness(.55) contrast(1.15)' }
   }
 };
-const MAP_STYLE_ORDER = ['standard', 'streets', 'minimal', 'satellite'];
+const MAP_STYLE_ORDER = ['standard', 'streets', 'minimal', 'satellite', 'hybrid'];
 // Smart per-context defaults: best-suited style for each travel mode, and
 // for the map when not navigating. Everything defaults to standard now
 // (car used to default to streets and bike to terrain, back when terrain
@@ -7742,19 +7759,39 @@ function currentThemeResolved() {
   return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
 }
 
-function buildTileLayer(styleId, theme) {
-  const style = MAP_STYLES[styleId] || MAP_STYLES.standard;
-  const source = (theme === 'dark' && style.dark && style.dark.url) ? style.dark : style.light;
-  return new CachedTileLayer(source.url, {
-    attribution: source.attribution,
-    subdomains: source.subdomains !== undefined ? source.subdomains : 'abc',
-    maxZoom: 22,
-    maxNativeZoom: source.maxNativeZoom || 19,
+function buildOneTileLayer(url, opts, fallbackMaxZoom) {
+  return new CachedTileLayer(url, {
+    attribution: opts.attribution,
+    subdomains: opts.subdomains !== undefined ? opts.subdomains : 'abc',
+    maxZoom: opts.maxZoom || fallbackMaxZoom || 22,
+    maxNativeZoom: opts.maxNativeZoom || 19,
     keepBuffer: 8,
     updateWhenZooming: false,
     noWrap: true,
     detectRetina: true
   });
+}
+
+// Builds the map layer for a style. Normally this is a single tile layer,
+// but styles like Hybrid combine a base (satellite) layer with a second,
+// transparent labels/boundaries layer drawn on top — so this can return
+// either a single CachedTileLayer or an L.layerGroup of two. Callers that
+// need "the base layer" specifically (e.g. to know when tiles have loaded)
+// should use the group's `_ttbBaseLayer` reference.
+function buildTileLayer(styleId, theme) {
+  const style = MAP_STYLES[styleId] || MAP_STYLES.standard;
+  const source = (theme === 'dark' && style.dark && style.dark.url) ? style.dark : style.light;
+  const base = buildOneTileLayer(source.url, source, 22);
+  if (!source.overlayUrl) return base;
+  const overlay = buildOneTileLayer(source.overlayUrl, {
+    attribution: source.overlayAttribution,
+    subdomains: source.overlaySubdomains,
+    maxZoom: source.maxZoom,
+    maxNativeZoom: source.overlayMaxNativeZoom || source.maxNativeZoom
+  }, 22);
+  const group = L.layerGroup([base, overlay]);
+  group._ttbBaseLayer = base;
+  return group;
 }
 
 function applyMapStyleFilter(styleId, theme) {
@@ -7788,7 +7825,8 @@ function setActiveMapStyle(styleId) {
   if (previousLayer) {
     let removed = false;
     const removeOld = () => { if (!removed && map.hasLayer(previousLayer)) { removed = true; map.removeLayer(previousLayer); } };
-    newLayer.once('load', removeOld);
+    const baseForLoadEvent = newLayer._ttbBaseLayer || newLayer;
+    baseForLoadEvent.once('load', removeOld);
     setTimeout(removeOld, 3000);
   }
   applyMapStyleFilter(resolved, theme);
