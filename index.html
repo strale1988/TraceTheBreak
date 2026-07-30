@@ -14641,6 +14641,14 @@ let ucEditingId = null;
 let ucEditingVerified = false;
 let ucEditingVerifiedAt = null;
 let ucMuniSelectPopulateToken = 0;
+// Set by editUtilityCompany/quickAddUcContact right before they try to set
+// ucMunicipalitySelect's value. The select's options are (re)populated
+// asynchronously in chunks (see populateUcMunicipalitySelect), so a direct
+// `sel.value = x` right after opening a country can silently fail — no
+// matching <option> exists yet. This lets the chunk-population completion
+// apply the *intended* value once the options actually land, instead of
+// falling back to whatever stale value the select happened to have.
+let ucDesiredMuniSelectValue = null;
 let ucCountryIndex = [];      // [{code, continent}] — countries in the admin's domain, lightweight
 let ucOpenCountryCode = null; // the single country currently expanded/loaded in the browse tree
 let ucCountryLoadToken = 0;   // guards against a stale async load winning a race when switching countries fast
@@ -15322,11 +15330,14 @@ function populateUcMunicipalitySelect() {
       requestAnimationFrame(appendNextChunk);
       return;
     }
-    if (decorated.some(({ m }) => String(m.id) === prevValue)) {
+    if (decorated.some(({ m }) => String(m.id) === ucDesiredMuniSelectValue)) {
+      sel.value = ucDesiredMuniSelectValue;
+    } else if (decorated.some(({ m }) => String(m.id) === prevValue)) {
       sel.value = prevValue;
     } else {
       sel.selectedIndex = 0;
     }
+    ucDesiredMuniSelectValue = null;
     const hint = document.getElementById('ucNoMunicipalitiesHint');
     if (hint) {
       if (!ucOpenCountryCode) {
@@ -15341,13 +15352,16 @@ function populateUcMunicipalitySelect() {
   requestAnimationFrame(appendNextChunk);
 }
 
-function populateUcCatChecks() {
+function populateUcCatChecks(municipalityId) {
   const wrap = document.getElementById('ucCatChecks');
   if (!wrap) return;
   const checkedBefore = new Set(Array.from(wrap.querySelectorAll('input:checked')).map(cb => cb.value));
-  const muniSel = document.getElementById('ucMunicipalitySelect');
-  const municipalityId = muniSel ? muniSel.value : null;
-  const conflicts = municipalityId ? findUcCategoryConflicts(municipalityId, UC_CATEGORIES, ucEditingId) : new Map();
+  let muniId = municipalityId;
+  if (muniId == null) {
+    const muniSel = document.getElementById('ucMunicipalitySelect');
+    muniId = muniSel ? muniSel.value : null;
+  }
+  const conflicts = muniId ? findUcCategoryConflicts(muniId, UC_CATEGORIES, ucEditingId) : new Map();
   wrap.innerHTML = UC_CATEGORIES.map(c => {
     const isChecked = checkedBefore.has(c);
     const takenBy = conflicts.get(c);
@@ -15721,6 +15735,7 @@ function resetUcForm() {
   ucEditingId = null;
   ucEditingVerified = false;
   ucEditingVerifiedAt = null;
+  ucDesiredMuniSelectValue = null;
   const editIdEl = document.getElementById('ucEditId');
   if (editIdEl) editIdEl.value = '';
   ['ucName', 'ucPhone', 'ucEmail', 'ucWebsite', 'ucAddress', 'ucNotes'].forEach(id => {
@@ -15756,8 +15771,9 @@ function editUtilityCompany(id) {
   ucEditingVerifiedAt = c.verified_at || null;
   document.getElementById('ucEditId').value = c.id;
   const sel = document.getElementById('ucMunicipalitySelect');
+  ucDesiredMuniSelectValue = c.municipality_id != null ? String(c.municipality_id) : null;
   if (sel) sel.value = c.municipality_id;
-  populateUcCatChecks();
+  populateUcCatChecks(c.municipality_id);
   document.getElementById('ucName').value = c.name || '';
   document.getElementById('ucPhone').value = c.phone || '';
   document.getElementById('ucEmail').value = c.email || '';
@@ -15785,8 +15801,9 @@ function quickAddUcContact(municipalityId, category) {
   resetUcForm();
   setUcMuniPickerVisible(true);
   const sel = document.getElementById('ucMunicipalitySelect');
+  ucDesiredMuniSelectValue = municipalityId != null ? String(municipalityId) : null;
   if (sel) sel.value = municipalityId;
-  populateUcCatChecks();
+  populateUcCatChecks(municipalityId);
   const cb = document.querySelector('#ucCatChecks input[value="' + category + '"]');
   if (cb) cb.checked = true;
   renderUcVerifyStatus();
