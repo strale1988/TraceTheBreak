@@ -8406,6 +8406,16 @@ const pinCluster = L.markerClusterGroup({
   // rotated since it can't handle a CSS-rotated map; animating the cluster
   // on top of that mismatch is what caused the old flashing).
   animate: true,
+  // Separate library option from `animate` above: this is what makes
+  // markercluster fly a marker in/out of its cluster when it's added or
+  // removed *without* a zoom happening — i.e. exactly what syncMarkers()
+  // does when it upserts pins for a newly-loaded viewport. Pins stay fully
+  // hidden (opacity:0 via .map-zooming) for the entire duration of a real
+  // zoom gesture, and syncMarkers only ever runs once that gesture has
+  // fully settled (see endZoomBurst / scheduleMarkerSyncOnSettle), so this
+  // animation only plays after zooming is completely finished and the new
+  // pins are becoming visible — never while actually zooming.
+  animateAddingMarkers: true,
   iconCreateFunction: makeClusterIcon
 });
 
@@ -8435,6 +8445,7 @@ const companyMarkersLayer = L.markerClusterGroup({
   showCoverageOnHover: false,
   // Same as pinCluster above.
   animate: true,
+  animateAddingMarkers: true,
   iconCreateFunction: makePublicClusterIcon
 }).addTo(map);
 
@@ -8452,6 +8463,8 @@ function updateClusterAnimationForRotation() {
   const shouldAnimate = !rotationActive();
   pinCluster.options.animate = shouldAnimate;
   companyMarkersLayer.options.animate = shouldAnimate;
+  pinCluster.options.animateAddingMarkers = shouldAnimate;
+  companyMarkersLayer.options.animateAddingMarkers = shouldAnimate;
 }
 // No eager call here: rotationActive() reads mapBearing, which is declared
 // with `let` further down the script and isn't initialized yet at this
