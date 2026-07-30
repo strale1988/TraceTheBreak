@@ -203,7 +203,7 @@ html{
   flex-direction:column; align-items:center; justify-content:center;
   text-align:center; padding:32px; gap:14px;
 }
-.rotate-device-overlay .rd-icon{ font-size:44px; transform:rotate(90deg); }
+.rotate-device-overlay .rd-icon{ width:44px; height:44px; transform:rotate(90deg); }
 .rotate-device-overlay .rd-title{ font-size:18px; font-weight:600; }
 .rotate-device-overlay .rd-text{ font-size:14px; opacity:.75; max-width:280px; }
 @media (orientation:landscape) and (hover:none) and (pointer:coarse){
@@ -386,6 +386,7 @@ header p{ font-size:var(--fs-11); opacity:.7; margin-top:2px; }
 .lang-btn.active{ background:var(--accent); color:var(--accent-contrast); }
 .lang-btn .icon-img-inline{ filter:brightness(0) invert(45%); opacity:.85; }
 .lang-btn.active .icon-img-inline{ filter:brightness(0) invert(100%); opacity:1; }
+.lang-flag-icon{ width:16px; height:12px; object-fit:cover; border-radius:2px; vertical-align:middle; margin:0 2px -1px 0; }
 
 .help-icon-btn{
   background:var(--bg-surface-alt);
@@ -1902,7 +1903,7 @@ body.driving-active #appPanel{
 .dashboard-city-name{ font-size:var(--fs-13); font-weight:var(--fw-bold); color:var(--text-primary); text-transform:uppercase; letter-spacing:.02em; }
 .dashboard-city-detail{ font-size:var(--fs-11-5); color:var(--text-muted); margin-top:4px; }
 .dashboard-streak-card{ display:flex; align-items:center; gap:12px; background:var(--bg-surface-alt); border:1px solid var(--border-color); border-radius:var(--radius-lg); padding:12px 14px; }
-.dashboard-streak-flame{ font-size:28px; line-height:1; flex-shrink:0; filter:saturate(1); transition:filter .2s ease, opacity .2s ease; }
+.dashboard-streak-flame{ width:28px; height:28px; flex-shrink:0; object-fit:contain; filter:saturate(1); transition:filter .2s ease, opacity .2s ease; }
 .dashboard-streak-flame.is-cold{ filter:grayscale(1); opacity:.35; }
 .dashboard-streak-info{ flex:1; min-width:0; }
 .dashboard-streak-count{ display:flex; align-items:baseline; gap:5px; }
@@ -1916,7 +1917,8 @@ body.driving-active #appPanel{
 .dashboard-quest-card{ background:var(--bg-surface-alt); border-radius:var(--radius-lg); padding:10px 12px; }
 .dashboard-quest-card.is-complete{ opacity:.7; }
 .dashboard-quest-top{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
-.dashboard-quest-title{ font-size:var(--fs-12-5); font-weight:var(--fw-semibold); color:var(--text-primary); }
+.dashboard-quest-title{ font-size:var(--fs-12-5); font-weight:var(--fw-semibold); color:var(--text-primary); display:flex; align-items:center; gap:6px; }
+.dashboard-quest-title-icon{ width:15px; height:15px; flex-shrink:0; object-fit:contain; }
 .dashboard-quest-reward{ font-size:var(--fs-10); font-weight:var(--fw-bold); color:var(--accent); flex-shrink:0; white-space:nowrap; }
 .dashboard-quest-desc{ font-size:var(--fs-10-5); color:var(--text-muted); margin-top:2px; }
 .dashboard-quest-track{ width:100%; height:6px; border-radius:var(--radius-xs); background:var(--border-color-strong); overflow:hidden; margin-top:8px; }
@@ -3445,8 +3447,8 @@ span.flatpickr-weekday {
     <div class="detail-section" id="languageSettingsSection">
       <div class="detail-section-title" id="languageSectionTitle">Language</div>
       <div class="theme-segment" id="langSegment">
-        <button type="button" class="theme-segment-btn lang-btn" onclick="setLang('en')" id="langBtnEn">🇬🇧 EN</button>
-        <button type="button" class="theme-segment-btn lang-btn active" onclick="setLang('sr')" id="langBtnSr">🇷🇸 SR</button>
+        <button type="button" class="theme-segment-btn lang-btn" onclick="setLang('en')" id="langBtnEn"><img class="lang-flag-icon" src="icons/flag-gb.png" alt=""> EN</button>
+        <button type="button" class="theme-segment-btn lang-btn active" onclick="setLang('sr')" id="langBtnSr"><img class="lang-flag-icon" src="icons/flag-rs.png" alt=""> SR</button>
         <button type="button" class="theme-segment-btn lang-btn" onclick="setLang('auto')" id="langBtnAuto"><img class="icon-img icon-img-inline" src="icons/pin.png" alt=""> <span id="langBtnAutoLabel">Auto</span></button>
       </div>
       <p class="detail-export-hint" id="langAutoHint">We'll set the language based on your location.</p>
@@ -3709,7 +3711,7 @@ span.flatpickr-weekday {
         <div class="profile-progress-track"><div class="profile-progress-fill" id="dashboardProgressFill"></div></div>
         <div class="dashboard-progress-text" id="dashboardProgressText"></div>
         <div class="dashboard-streak-card" id="dashboardStreakCard" style="display:none">
-          <div class="dashboard-streak-flame" id="dashboardStreakFlame">🔥</div>
+          <img class="dashboard-streak-flame" id="dashboardStreakFlame" src="icons/flame.png" alt="">
           <div class="dashboard-streak-info">
             <div class="dashboard-streak-count">
               <span class="dashboard-streak-count-num" id="dashboardStreakDays">0</span>
@@ -3823,7 +3825,7 @@ span.flatpickr-weekday {
       <div class="detail-section dashboard-section" id="adminDashboardSection" style="display:none">
         <div class="detail-section-title" id="adminDashboardSectionTitle" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
           <span>My Admin Role</span>
-          <button type="button" class="settings-btn" id="openAnalyticsBtn" onclick="openAnalyticsModal()" style="margin:0;padding:6px 12px;font-size:var(--fs-12-5);width:auto;flex:none;">📊 <span id="openAnalyticsBtnLabel">Analytics</span></button>
+          <button type="button" class="settings-btn" id="openAnalyticsBtn" onclick="openAnalyticsModal()" style="margin:0;padding:6px 12px;font-size:var(--fs-12-5);width:auto;flex:none;"><img class="icon-img icon-img-inline" src="icons/analytics.png" alt=""> <span id="openAnalyticsBtnLabel">Analytics</span></button>
         </div>
         <div class="dashboard-stats-grid">
           <div class="dashboard-stat-box">
@@ -5840,7 +5842,7 @@ function renderDashboardQuests(withPeriods, progressRows) {
 
     return `<div class="dashboard-quest-card${complete ? ' is-complete' : ''}">
       <div class="dashboard-quest-top">
-        <span class="dashboard-quest-title">${complete ? '✅' : '🎯'} ${escapeHtml(title)}</span>
+        <span class="dashboard-quest-title"><img class="dashboard-quest-title-icon" src="${complete ? 'icons/quest-complete.png' : 'icons/quest-target.png'}" alt="">${escapeHtml(title)}</span>
         ${rule.points_reward ? `<span class="dashboard-quest-reward">+${rule.points_reward} pts</span>` : ''}
       </div>
       ${desc ? `<div class="dashboard-quest-desc">${escapeHtml(desc)}</div>` : ''}
@@ -19102,7 +19104,7 @@ authReady.then(() => {
 </div>
 
   <div class="rotate-device-overlay" id="rotateDeviceOverlay">
-    <div class="rd-icon">📱</div>
+    <img class="rd-icon" src="icons/rotate-device.png" alt="">
     <div class="rd-title" id="rotateDeviceTitle"></div>
     <div class="rd-text" id="rotateDeviceText"></div>
   </div>
