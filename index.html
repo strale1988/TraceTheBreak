@@ -5496,16 +5496,26 @@ async function resolveLeaderboardCity() {
   return null;
 }
 
-async function loadDashboardCityContribution(myReportCount) {
+async function loadDashboardCityContribution() {
   const card = document.getElementById('dashboardCityCard');
   if (!card) return;
   try {
     const muni = await resolveLeaderboardCity();
     if (!muni || !currentSession || !currentProfile || currentProfile.is_admin) { card.style.display = 'none'; return; }
-    const { count, error } = await sb.from(TABLE).select('id', { count: 'exact', head: true }).eq('municipality_id', muni.id);
-    if (error) throw error;
+    // Both counts must be scoped to the SAME municipality, or "mine" (which
+    // used to be the user's lifetime report count across every city they've
+    // ever reported in) can end up bigger than "total" (reports in just this
+    // one city) — e.g. "72 of 35 are yours". Run both queries scoped to
+    // muni.id so mine is always <= total.
+    const [totalRes, mineRes] = await Promise.all([
+      sb.from(TABLE).select('id', { count: 'exact', head: true }).eq('municipality_id', muni.id),
+      sb.from(TABLE).select('id', { count: 'exact', head: true }).eq('municipality_id', muni.id).eq('owner_id', currentSession.user.id),
+    ]);
+    if (totalRes.error) throw totalRes.error;
+    if (mineRes.error) throw mineRes.error;
     if (!currentSession || !currentProfile || currentProfile.is_admin) return;
-    const total = count || 0;
+    const total = totalRes.count || 0;
+    const myReportCount = mineRes.count || 0;
     const pct = total > 0 ? Math.min(100, (myReportCount / total) * 100) : 0;
     card.style.display = 'flex';
     const nameEl = document.getElementById('dashboardCityName');
@@ -5680,7 +5690,7 @@ async function renderUserDashboard() {
   setStat('dashboardStatCities', stats.distinctCities || 0);
   setStat('dashboardStatVotes', stats.voteCount || 0);
 
-  loadDashboardCityContribution(stats.reportCount || 0);
+  loadDashboardCityContribution();
 
   const allBadges = [...BADGES, ...USER_BADGES_EXTRA];
   renderBadgeCountHeader('dashboard', allBadges, currentProfile, stats);
