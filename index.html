@@ -3921,6 +3921,8 @@ span.flatpickr-weekday {
             </div>
           </div>
         </div>
+        <div class="dashboard-badges-title" id="adminDigestHistoryTitle" style="display:none;">Weekly Digest History</div>
+        <div id="adminDigestHistoryList" style="display:none; flex-direction:column; gap:6px;"></div>
         <div class="dashboard-badges-title" id="adminDashboardQuestsTitle">Quests</div>
         <div class="dashboard-quests" id="adminQuestsList"></div>
         <div class="dashboard-badges-title" id="adminDashboardWeekTitle">This Week</div>
@@ -6307,6 +6309,108 @@ async function renderAdminDashboard() {
   if (adminBadgeGrid) {
     adminBadgeGrid.innerHTML = allAdminBadges.map(b => buildBadgeIconHtml(b, b.check(null, stats), null, stats)).join('');
   }
+
+  loadAdminDigestHistory();
+}
+
+// Weekly Digest History (admin dashboard) — read-only log of the weekly
+// municipality-admin digest for this admin (see admin_digest_log / the
+// weekly-admin-digest cron job). Level-1 (municipal) admins only, since
+// that's the only tier the digest is scoped to. "Download PDF" re-invokes
+// the edge function on demand rather than storing PDFs in the DB — mirrors
+// exportCompanyReportsPdf's weekly-utility-digest call, just with an
+// adminId + weekStart instead of a companyId. NOTE: confirm the
+// weekly-admin-digest edge function actually accepts { adminId, weekStart }
+// and returns { results: [{ status, pdfBase64 }] } the same way — wire this
+// up to whatever the real contract is if it differs.
+async function loadAdminDigestHistory() {
+  const titleEl = document.getElementById('adminDigestHistoryTitle');
+  const listEl = document.getElementById('adminDigestHistoryList');
+  if (!titleEl || !listEl) return;
+
+  if (!currentSession || !currentProfile || !currentProfile.is_admin || currentAdminLevel() !== 1) {
+    titleEl.style.display = 'none';
+    listEl.style.display = 'none';
+    return;
+  }
+  titleEl.style.display = '';
+  listEl.style.display = 'flex';
+  listEl.innerHTML = `<p class="detail-export-hint" style="margin:0;">${t('adminDigestHistoryLoading')}</p>`;
+
+  try {
+    const { data, error } = await sb
+      .from('admin_digest_log')
+      .select('week_start,status,report_count,created_at')
+      .eq('admin_id', currentSession.user.id)
+      .order('created_at', { ascending: false })
+      .limit(12);
+    if (error) throw error;
+
+    if (!currentSession || !currentProfile || !currentProfile.is_admin) return;
+
+    if (!data || !data.length) {
+      listEl.innerHTML = `<p class="detail-export-hint" style="margin:0;">${t('adminDigestHistoryEmpty')}</p>`;
+      return;
+    }
+    listEl.innerHTML = data.map(buildAdminDigestHistoryRowHtml).join('');
+  } catch (err) {
+    console.error('loadAdminDigestHistory error:', err.message || err);
+    listEl.innerHTML = `<p class="detail-export-hint" style="margin:0;">${t('adminDigestHistoryError')}</p>`;
+  }
+}
+
+function buildAdminDigestHistoryRowHtml(r) {
+  const weekLabel = r.week_start ? formatDate(r.week_start) : '—';
+  const sent = r.status === 'sent';
+  const skipped = r.status === 'skipped';
+  const pillColor = sent ? STATUS_COLORS.fixed : (skipped ? '#8b949e' : STATUS_COLORS.reported);
+  const statusText = sent ? t('adminDigestStatusSent') : (skipped ? t('adminDigestStatusSkipped') : t('adminDigestStatusFailed'));
+  const countText = sent ? t('adminDigestReportCount').replace('{n}', r.report_count ?? 0) : '';
+  const downloadBtn = sent
+    ? `<button type="button" class="detail-edit-btn" onclick="downloadAdminDigestPdf('${r.week_start}')">${t('adminDigestDownloadBtn')}</button>`
+    : '';
+  return `
+    <div class="detail-row" style="align-items:center;">
+      <span class="detail-row-label">${escapeHtml(weekLabel)}</span>
+      <span class="detail-row-value" style="display:flex; align-items:center; justify-content:flex-end; gap:8px; white-space:nowrap;">
+        ${countText ? `<span style="color:var(--text-muted); font-size:var(--fs-11);">${escapeHtml(countText)}</span>` : ''}
+        <span class="status-pill" style="background:${pillColor};">${statusText}</span>
+        ${downloadBtn}
+      </span>
+    </div>
+  `;
+}
+
+let adminDigestPdfBusy = false;
+async function downloadAdminDigestPdf(weekStart) {
+  if (adminDigestPdfBusy || !currentSession) return;
+  adminDigestPdfBusy = true;
+  toast(t('adminDigestGenerating'), 'success');
+  try {
+    const { data, error } = await sb.functions.invoke('weekly-admin-digest', {
+      body: { adminId: currentSession.user.id, weekStart }
+    });
+    if (error) throw error;
+
+    const result = (data && Array.isArray(data.results)) ? data.results[0] : data;
+    if (!result || !result.pdfBase64) {
+      toast(t('adminDigestNoPdf'), 'error');
+      return;
+    }
+    const blob = base64ToBlob(result.pdfBase64, 'application/pdf');
+    const fileName = `admin-digest-${weekStart}.pdf`;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = fileName;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    toast(t('adminDigestDownloaded'), 'success');
+  } catch (err) {
+    console.error('downloadAdminDigestPdf error:', err.message || err);
+    toast(t('adminDigestFailed'), 'error');
+  } finally {
+    adminDigestPdfBusy = false;
+  }
 }
 
 function renderDashboardTab() {
@@ -6586,6 +6690,19 @@ const T = {
   adminDashboardStatStreak:      { en:'Longest streak (days)',   sr:'Najduži niz (dana)' },
   adminDashboardStatBusiest:     { en:'Busiest day',             sr:'Najprometniji dan' },
   adminDashboardStatNight:       { en:'Night shift resolves',    sr:'Noćna rešenja' },
+  adminDigestHistoryTitle:    { en:'Weekly Digest History',   sr:'Istorija nedeljnih izveštaja' },
+  adminDigestHistoryLoading:  { en:'Loading digest history...', sr:'Učitavanje istorije izveštaja...' },
+  adminDigestHistoryEmpty:    { en:"No digest has gone out yet — you'll see them here once the weekly send starts.", sr:'Još nijedan izveštaj nije poslat — pojaviće se ovde čim počne nedeljno slanje.' },
+  adminDigestHistoryError:    { en:'Could not load digest history.', sr:'Istorija izveštaja nije mogla da se učita.' },
+  adminDigestStatusSent:      { en:'Sent',                    sr:'Poslato' },
+  adminDigestStatusSkipped:   { en:'No open reports',         sr:'Nema otvorenih prijava' },
+  adminDigestStatusFailed:    { en:'Failed',                  sr:'Neuspešno' },
+  adminDigestReportCount:     { en:'{n} report(s)',           sr:'{n} prijava' },
+  adminDigestDownloadBtn:     { en:'Download PDF',            sr:'Preuzmi PDF' },
+  adminDigestGenerating:      { en:'Preparing PDF...',        sr:'Priprema PDF-a...' },
+  adminDigestDownloaded:      { en:'PDF downloaded.',         sr:'PDF je preuzet.' },
+  adminDigestNoPdf:           { en:'No PDF available for that week.', sr:'PDF za tu nedelju nije dostupan.' },
+  adminDigestFailed:          { en:'Could not generate the PDF. Try again.', sr:'PDF nije mogao da se generiše. Pokušajte ponovo.' },
   dashboardCityTitle:         { en:'City Contribution',      sr:'Doprinos gradu' },
   dashboardCityDetail:        { en:'{mine} of {total} reports in your city are yours', sr:'{mine} od {total} prijava u vašem gradu su vaše' },
   dashboardNextBadgeLabel:    { en:'Next badge',              sr:'Sledeća značka' },
@@ -7515,6 +7632,8 @@ function applyLang(){
   if (adminDashBusiestLabel) adminDashBusiestLabel.textContent = t('adminDashboardStatBusiest');
   const adminDashNightLabel = document.getElementById('adminDashboardStatNightLabel');
   if (adminDashNightLabel) adminDashNightLabel.textContent = t('adminDashboardStatNight');
+  const adminDigestHistoryTitleEl = document.getElementById('adminDigestHistoryTitle');
+  if (adminDigestHistoryTitleEl) adminDigestHistoryTitleEl.textContent = t('adminDigestHistoryTitle');
   const dashCityTitleEl = document.getElementById('dashboardCityTitle');
   if (dashCityTitleEl) dashCityTitleEl.textContent = t('dashboardCityTitle');
   const dashNextBadgeLabelEl = document.getElementById('dashboardNextBadgeLabel');
