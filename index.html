@@ -3634,6 +3634,16 @@ span.flatpickr-weekday {
       </div>
     </div>
 
+    <div class="detail-section" id="notificationLanguageSettingsSection">
+      <div class="detail-section-title" id="notificationLanguageSectionTitle">Notification language</div>
+      <p class="detail-export-hint" id="notificationLanguageSectionHint">Which language should we use for your notifications?</p>
+      <div class="theme-segment" id="notificationLanguageSegment">
+        <button type="button" class="theme-segment-btn" onclick="setNotificationLanguage('auto')" id="notificationLanguageBtnAuto">Automatic</button>
+        <button type="button" class="theme-segment-btn" onclick="setNotificationLanguage('en')" id="notificationLanguageBtnEn">English</button>
+        <button type="button" class="theme-segment-btn" onclick="setNotificationLanguage('sr')" id="notificationLanguageBtnSr">Srpski</button>
+      </div>
+    </div>
+
     <div class="detail-section" id="timeWindowFilterSection" style="padding:0;overflow:hidden;display:none;">
       <div class="filter-label-row" style="border-radius:0;">
         <span class="filter-title" id="filterTitleLabel">Time Window Filter</span>
@@ -5476,11 +5486,10 @@ function renderUserNotifications() {
     listEl.innerHTML = `<div class="detail-empty">${t('notificationsEmpty')}</div>`;
     return;
   }
-  const isAdmin = !!(currentProfile && currentProfile.is_admin);
   listEl.innerHTML = userNotificationsCache.map(n => {
 
     const reportId = n.report_id || n.related_report_id || null;
-    const clickable = isAdmin && reportId;
+    const clickable = !!reportId;
     return `
     <div class="notification-item${n.is_read ? '' : ' unread'}"${clickable ? ` onclick="openNotificationReportTarget('${reportId}')" style="cursor:pointer;"` : ''}>
       <div class="notification-item-top">
@@ -5493,9 +5502,9 @@ function renderUserNotifications() {
   }).join('');
 }
 
-function openNotificationReportTarget(reportId) {
+async function openNotificationReportTarget(reportId) {
   hideNotificationModal();
-  viewReportFromAdminQueue(reportId);
+  await ensureReportLoadedThenShow(reportId);
 }
 
 async function markVisibleNotificationsRead() {
@@ -6319,7 +6328,7 @@ const T = {
   markFixed:     { en:'Mark Fixed',                                sr:'Označi Popravljeno' },
   yourReport:    { en:'Your report',                               sr:'Vaša prijava' },
   updateFail:    { en:'Could not update status. Try again.',       sr:'Ažuriranje statusa nije uspelo. Pokušajte ponovo.' },
-  appUpdateReadyToast: { en:"An update is ready — refresh when you're done here.", sr:'Dostupna je nova verzija — osvežite stranicu kada završite.' },
+  appUpdateReadyToast: { en:"An update is ready (refresh when you're done here).", sr:'Dostupna je nova verzija (osvežite stranicu kada završite).' },
   updateConflict:{ en:'Another admin already changed this report\u2019s status. Refreshed to show the latest.', sr:'Drugi administrator je već promenio status ove prijave. Osveženo sa najnovijim stanjem.' },
   adminBadge:    { en:'ADMIN',                                     sr:'ADMIN' },
   adminTagGlobal:   { en:'Global',                                 sr:'Globalno' },
@@ -6373,11 +6382,11 @@ const T = {
   dashboardStreakDaysLabel:  { en:'day streak',          sr:'dana zaredom' },
   dashboardStreakBestLabel:  { en:'Best',                sr:'Najbolji' },
   dashboardStreakStartHint:  { en:'Report something to start a streak!', sr:'Prijavi nešto da započneš niz!' },
-  dashboardStreakTodayDone:  { en:'Nice — you kept it going today.', sr:'Odlično — nastavio si niz danas.' },
+  dashboardStreakTodayDone:  { en:'Nice (you kept it going today).', sr:'Odlično (nastavio si niz danas).' },
   dashboardStreakKeepGoing:  { en:'Report something today to keep it going.', sr:'Prijavi nešto danas da nastaviš niz.' },
   dashboardQuestsTitle:      { en:'Quests',              sr:'Izazovi' },
   adminDashboardQuestsTitle: { en:'Quests',              sr:'Izazovi' },
-  dashboardQuestsEmpty:      { en:'No active quests right now — check back soon.', sr:'Trenutno nema aktivnih izazova — vrati se uskoro.' },
+  dashboardQuestsEmpty:      { en:'No active quests right now (check back soon).', sr:'Trenutno nema aktivnih izazova (vrati se uskoro).' },
   dashboardQuestComplete:    { en:'Complete!',           sr:'Završeno!' },
   adminDashboardActivityTitle:   { en:'Moderation Stats',        sr:'Statistika moderacije' },
   adminDashboardStatReviewed:    { en:'Reports reviewed',        sr:'Pregledani izveštaji' },
@@ -6432,7 +6441,7 @@ const T = {
   bannedAccountNotice: { en:'Your account is suspended from posting reports, flags, or votes.', sr:'Vaš nalog je suspendovan i ne može da šalje prijave, oznake ni glasove.' },
   markReported:  { en:'Mark Reported',                             sr:'Označi kao prijavljeno' },
   personalProblemOwnerNote: { en:'This is your own report, so you can update its status directly without a community vote.', sr:'Ovo je vaša prijava, pa možete direktno da ažurirate njen status bez glasanja zajednice.' },
-  ownerInProgressNote: { en:"As the reporter, you can mark this in progress yourself — this can't be undone, and marking it fixed still needs neighbors to confirm.", sr:'Kao prijavljivač, možete sami označiti da je u toku — ovo se ne može poništiti, a da bi bilo označeno kao popravljeno i dalje je potrebna potvrda komšija.' },
+  ownerInProgressNote: { en:"As the reporter, you can mark this in progress yourself (this can't be undone, and marking it fixed still needs neighbors to confirm).", sr:'Kao prijavljivač, možete sami označiti da je u toku (ovo se ne može poništiti, a da bi bilo označeno kao popravljeno i dalje je potrebna potvrda komšija).' },
   navigateSearchPH:  { en:'Search destination...',                  sr:'Pretraži odredište...' },
   navigatePinPopupBtn: { en:'Navigate',                             sr:'Navigiraj' },
   navigateSearching: { en:'Searching...',                           sr:'Pretraga...' },
@@ -6537,6 +6546,11 @@ const T = {
 
   nearbyCheckinSectionTitle: { en:'Nearby issue check-ins',                   sr:'Provera obližnjih prijava' },
   nearbyCheckinSectionHint:  { en:'When you pass close to an open report, we can ask if it\'s still there.', sr:'Kada prođete blizu otvorene prijave, možemo vas pitati da li je problem i dalje prisutan.' },
+  notificationLanguageSectionTitle: { en:'Notification language',            sr:'Jezik obaveštenja' },
+  notificationLanguageSectionHint:  { en:'Which language should we use for your notifications?', sr:'Na kom jeziku želite da primate obaveštenja?' },
+  notificationLanguageAuto: { en:'Automatic',                                sr:'Automatski' },
+  notificationLanguageEn:   { en:'English',                                  sr:'Engleski' },
+  notificationLanguageSr:   { en:'Srpski',                                   sr:'Srpski' },
   nearbyCheckinFreqOff:      { en:'Off',                                      sr:'Isključeno' },
   nearbyCheckinFreqLow:      { en:'Rarely',                                   sr:'Retko' },
   nearbyCheckinFreqNormal:   { en:'Normal',                                   sr:'Uobičajeno' },
@@ -6766,15 +6780,15 @@ const T = {
   leaderboardBtnTitle:     { en:'Rankings',                           sr:'Rang lista' },
 
   onboardingStepWelcomeTitle:     { en:'Welcome to TraceTheBreak',                           sr:'Dobrodošli u TraceTheBreak' },
-  onboardingStepWelcomeText:      { en:'Report infrastructure problems you spot nearby — potholes, water leaks, power outages, and more — and track them on the map until they\'re fixed. You can replay this tour or read more anytime from Settings → Help.', sr:'Prijavi probleme u infrastrukturi koje primetiš u okolini — rupe na putu, curenje vode, nestanke struje i slično — i prati ih na mapi dok se ne reše. Ovu turu možeš ponovo pokrenuti, a više detalja pronaći u Podešavanja → Pomoć.' },
+  onboardingStepWelcomeText:      { en:'Report infrastructure problems you spot nearby (potholes, water leaks, power outages, and more) and track them on the map until they\'re fixed. You can replay this tour or read more anytime from Settings → Help.', sr:'Prijavi probleme u infrastrukturi koje primetiš u okolini (rupe na putu, curenje vode, nestanke struje i slično) i prati ih na mapi dok se ne reše. Ovu turu možeš ponovo pokrenuti, a više detalja pronaći u Podešavanja → Pomoć.' },
   onboardingStepReportTitle:      { en:'Report a problem',                                   sr:'Prijavi problem' },
-  onboardingStepReportText:       { en:'Tap here to report something you see: a pothole, a leak, anything. You\'ll need to be near the spot — either by GPS or a manually placed pin — for the report to go through.', sr:'Dodirni ovde da prijaviš nešto što vidiš: rupu na putu, curenje, bilo šta. Moraš biti u blizini mesta — bilo preko GPS-a ili ručno postavljenog pina — da bi prijava prošla.' },
+  onboardingStepReportText:       { en:'Tap here to report something you see: a pothole, a leak, anything. You\'ll need to be near the spot (either by GPS or a manually placed pin) for the report to go through.', sr:'Dodirni ovde da prijaviš nešto što vidiš: rupu na putu, curenje, bilo šta. Moraš biti u blizini mesta (bilo preko GPS-a ili ručno postavljenog pina) da bi prijava prošla.' },
   onboardingStepSendTitle:        { en:'What happens after you report',                      sr:'Šta se dešava posle prijave' },
-  onboardingStepSendText:         { en:'Your report shows up on the map right away for everyone to see. It\'s actually sent to the responsible company about an hour later — that gap gives you, or an admin, time to delete it first if it was made by mistake.', sr:'Tvoja prijava se odmah pojavljuje na mapi za sve. Nadležnoj kompaniji se šalje tek oko sat vremena kasnije — taj razmak ti, ili adminu, daje vremena da je obrišeš ako je greškom napravljena.' },
+  onboardingStepSendText:         { en:'Your report shows up on the map right away for everyone to see. It\'s actually sent to the responsible company about an hour later (that gap gives you, or an admin, time to delete it first if it was made by mistake).', sr:'Tvoja prijava se odmah pojavljuje na mapi za sve. Nadležnoj kompaniji se šalje tek nakon sat vremena što ti daje vremena da je obrišeš ako je greškom napravljena.' },
   onboardingStepPinTitle:         { en:'GPS looking off?',                                   sr:'GPS lokacija nije tačna?' },
-  onboardingStepPinText:          { en:'Drop a pin to fine-tune the exact spot on the map if your GPS location isn\'t precise enough — once placed, the pin is used for your report instead of the GPS dot.', sr:'Postavi pribadaču da precizno odabereš tačno mesto na mapi ako GPS lokacija nije dovoljno tačna — kada je postaviš, prijava koristi lokaciju pribadače umesto GPS tačke.' },
+  onboardingStepPinText:          { en:'Drop a pin to fine-tune the exact spot on the map if your GPS location isn\'t precise enough (once placed, the pin is used for your report instead of the GPS dot).', sr:'Postavi pribadaču da precizno odabereš tačno mesto na mapi ako GPS lokacija nije dovoljno tačna (kada je postaviš, prijava koristi lokaciju pribadače umesto GPS tačke).' },
   onboardingStepNotifTitle:       { en:'Stay in the loop',                                   sr:'Budi u toku' },
-  onboardingStepNotifText:        { en:'Get notified here when the status of your report changes — like when your issue gets fixed.', sr:'Ovde dobijaš obaveštenje kad se status tvoje prijave promeni — na primer kad tvoj problem bude rešen.' },
+  onboardingStepNotifText:        { en:'Get notified here when the status of your report changes (like when your issue gets fixed).', sr:'Ovde dobijaš obaveštenje kad se status tvoje prijave promeni (na primer kad tvoj problem bude rešen).' },
   onboardingStepDrivingTitle:     { en:'Driving mode',                                       sr:'Režim vožnje' },
   onboardingStepDrivingText:      { en:'Turn this on to quickly report road issues (potholes, damaged pavement, signage) with one big tap while you drive.', sr:'Uključi ovo da brzo prijaviš probleme na putu (rupe, oštećen kolovoz, signalizaciju) jednim dodirom velikog dugmeta dok voziš.' },
   onboardingStepLeaderboardTitle: { en:'Your dashboard',                                     sr:'Tvoja kontrolna tabla' },
@@ -6877,6 +6891,38 @@ async function setShowUsernameOnReports(checked) {
   } catch (err) {
     console.error('Failed to update username visibility preference:', err.message);
     if (toggleEl) toggleEl.checked = !checked;
+    toast(t('settingsSaveFailed'), 'error');
+  }
+}
+
+// Persists the notification-language preference. NULL means "automatic":
+// notifications follow whatever preferred_language is (which itself tracks
+// the in-app language toggle) — see ttb_notify_lang() in Postgres, which
+// falls back to preferred_language and then to English if neither is set
+// or recognized.
+function updateNotificationLanguageSegmentUI() {
+  const pref = (currentProfile && currentProfile.notification_language) || 'auto';
+  [['auto', 'notificationLanguageBtnAuto'], ['en', 'notificationLanguageBtnEn'], ['sr', 'notificationLanguageBtnSr']].forEach(([val, id]) => {
+    const btn = document.getElementById(id);
+    if (btn) btn.classList.toggle('active', pref === val);
+  });
+}
+
+async function setNotificationLanguage(pref) {
+  if (!currentSession || !currentProfile) return;
+  const prevPref = currentProfile.notification_language || 'auto';
+  const dbValue = pref === 'auto' ? null : pref;
+  currentProfile.notification_language = dbValue;
+  updateNotificationLanguageSegmentUI();
+  try {
+    const { error } = await sb.from(PROFILES_TABLE)
+      .update({ notification_language: dbValue })
+      .eq('id', currentSession.user.id);
+    if (error) throw error;
+  } catch (err) {
+    console.error('Failed to update notification language preference:', err.message);
+    currentProfile.notification_language = prevPref === 'auto' ? null : prevPref;
+    updateNotificationLanguageSegmentUI();
     toast(t('settingsSaveFailed'), 'error');
   }
 }
@@ -7083,6 +7129,16 @@ function applyLang(){
   if (nearbyCheckinBtnNormalEl) nearbyCheckinBtnNormalEl.textContent = t('nearbyCheckinFreqNormal');
   const nearbyCheckinBtnHighEl = document.getElementById('nearbyCheckinBtnHigh');
   if (nearbyCheckinBtnHighEl) nearbyCheckinBtnHighEl.textContent = t('nearbyCheckinFreqHigh');
+  const notifLangTitleEl = document.getElementById('notificationLanguageSectionTitle');
+  if (notifLangTitleEl) notifLangTitleEl.textContent = t('notificationLanguageSectionTitle');
+  const notifLangHintEl = document.getElementById('notificationLanguageSectionHint');
+  if (notifLangHintEl) notifLangHintEl.textContent = t('notificationLanguageSectionHint');
+  const notifLangBtnAutoEl = document.getElementById('notificationLanguageBtnAuto');
+  if (notifLangBtnAutoEl) notifLangBtnAutoEl.textContent = t('notificationLanguageAuto');
+  const notifLangBtnEnEl = document.getElementById('notificationLanguageBtnEn');
+  if (notifLangBtnEnEl) notifLangBtnEnEl.textContent = t('notificationLanguageEn');
+  const notifLangBtnSrEl = document.getElementById('notificationLanguageBtnSr');
+  if (notifLangBtnSrEl) notifLangBtnSrEl.textContent = t('notificationLanguageSr');
   document.getElementById('mainMapCompass').title = t('mainCompassTitle');
   updateCommentPlaceholder();
   document.getElementById('dateRangePicker').placeholder  = t('calendarPH');
@@ -7300,6 +7356,7 @@ function showSettingsModal() {
   initMapButtonToggleUi();
   updateNearbyCheckinSegmentUI();
   updateContactReminderSegmentUI();
+  updateNotificationLanguageSegmentUI();
   initOfflineMapSettingsUi();
   openOverlay('settingsModal', hideSettingsModal);
 }
@@ -16857,6 +16914,7 @@ async function showReportDetailModal(reportId) {
     (report.photo_status === 'rejected' && isAdmin)
   );
   const showPhotoLoginPrompt = !!report.photo_path && !currentSession && report.photo_status === 'approved';
+  let photoSectionHtml = '';
   if (showPhotoImage) {
     const badge = report.photo_status === 'pending'
       ? `<span class="photo-status-badge pending">${t('photoPendingBadge')}</span>`
