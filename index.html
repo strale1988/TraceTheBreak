@@ -3644,6 +3644,15 @@ span.flatpickr-weekday {
       </div>
     </div>
 
+    <div class="detail-section" id="legalSettingsSection">
+      <div class="detail-section-title" id="legalSectionTitle">Legal</div>
+      <p class="detail-export-hint" id="legalCopyrightText">© tracethestuff.com</p>
+      <div style="display:flex; gap:var(--space-8);">
+        <button type="button" class="settings-btn" style="flex:1;" onclick="showLegalContentModal('terms_of_service')" id="legalTermsBtn">Terms of Service</button>
+        <button type="button" class="settings-btn" style="flex:1;" onclick="showLegalContentModal('privacy_policy')" id="legalPrivacyBtn">Privacy Policy</button>
+      </div>
+    </div>
+
     <div class="detail-section" id="timeWindowFilterSection" style="padding:0;overflow:hidden;display:none;">
       <div class="filter-label-row" style="border-radius:0;">
         <span class="filter-title" id="filterTitleLabel">Time Window Filter</span>
@@ -3696,6 +3705,14 @@ span.flatpickr-weekday {
     <button class="fullscreen-modal-close" id="companyDetailCloseBtn" onclick="hideCompanyDetailModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
   </div>
   <div class="fullscreen-modal-body" id="companyDetailBody"></div>
+</div>
+
+<div id="legalContentModal" class="fullscreen-modal-overlay" style="display:none">
+  <div class="fullscreen-modal-header">
+    <h2 id="legalContentTitle"></h2>
+    <button class="fullscreen-modal-close" id="legalContentCloseBtn" onclick="hideLegalContentModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
+  </div>
+  <div class="fullscreen-modal-body" id="legalContentBody"></div>
 </div>
 
 <div id="municipalityContactsModal" class="fullscreen-modal-overlay" style="display:none">
@@ -4272,6 +4289,7 @@ async function signOutUser() {
   hideSettingsModal();
   hideReportDetailModal();
   hideCompanyDetailModal();
+  hideLegalContentModal();
   hideNotificationModal();
   if (typeof drivingMode !== 'undefined' && drivingMode) toggleDrivingMode();
   if (typeof heatmapActive !== 'undefined' && heatmapActive) toggleHeatmap();
@@ -6255,6 +6273,11 @@ const T = {
   privacySectionTitle: { en:'Privacy',                   sr:'Privatnost' },
   showUsernameToggleLabel: { en:'Show my username on reports', sr:'Prikaži moje korisničko ime na prijavama' },
   showUsernameHint: { en:'When off, your reports show a short ID instead of your username. Admins can still see who reported it, for moderation.', sr:'Kada je isključeno, vaše prijave prikazuju kratak ID umesto korisničkog imena. Administratori i dalje mogu videti ko je prijavio, radi moderacije.' },
+
+  legalSectionTitle: { en:'Legal', sr:'Pravne informacije' },
+  termsOfServiceBtn: { en:'Terms of Service', sr:'Uslovi korišćenja' },
+  privacyPolicyBtn: { en:'Privacy Policy', sr:'Politika privatnosti' },
+  legalContentLoadFailed: { en:'This could not be loaded right now. Please try again later.', sr:'Ovo trenutno nije moguće učitati. Pokušajte ponovo kasnije.' },
   reporterHiddenAdminSuffix: { en:'(hidden from public)', sr:'(sakriveno od javnosti)' },
   showUsernameOnMsg: { en:'Your username is now shown on your reports.', sr:'Vaše korisničko ime sada je prikazano na vašim prijavama.' },
   showUsernameOffMsg: { en:'Your username is now hidden on your reports.', sr:'Vaše korisničko ime je sada sakriveno na vašim prijavama.' },
@@ -7054,6 +7077,16 @@ function applyLang(){
   if (showUsernameToggleLabelEl) showUsernameToggleLabelEl.textContent = t('showUsernameToggleLabel');
   const showUsernameHintEl = document.getElementById('showUsernameHint');
   if (showUsernameHintEl) showUsernameHintEl.textContent = t('showUsernameHint');
+  const legalSectionTitleEl = document.getElementById('legalSectionTitle');
+  if (legalSectionTitleEl) legalSectionTitleEl.textContent = t('legalSectionTitle');
+  const legalTermsBtnEl = document.getElementById('legalTermsBtn');
+  if (legalTermsBtnEl) legalTermsBtnEl.textContent = t('termsOfServiceBtn');
+  const legalPrivacyBtnEl = document.getElementById('legalPrivacyBtn');
+  if (legalPrivacyBtnEl) legalPrivacyBtnEl.textContent = t('privacyPolicyBtn');
+  renderLegalCopyrightLine();
+  if (document.getElementById('legalContentModal').style.display !== 'none' && legalContentModalOpenKey) {
+    renderLegalContentModalBody(legalContentModalOpenKey);
+  }
   document.getElementById('themeBtnLight').textContent = t('themeLight');
   document.getElementById('themeBtnDark').textContent = t('themeDark');
   document.getElementById('themeBtnAuto').textContent = t('themeAuto');
@@ -19362,11 +19395,75 @@ function hideMapLoadingOverlay() {
   }, remaining);
 }
 
+// Legal content (copyright line, Terms of Service, Privacy Policy) is stored in the
+// `legal_content` Supabase table (key -> {en, sr} jsonb) rather than hardcoded here, so it
+// can be edited or translated into new languages without an app redeploy. A small hardcoded
+// fallback is kept below in case the fetch fails or a row/language is missing.
+let legalContent = {};
+let legalContentModalOpenKey = null;
+
+const LEGAL_CONTENT_FALLBACK = {
+  copyright_footer: { en: '© TraceTheBreak · tracethestuff.com', sr: '© TraceTheBreak · tracethestuff.com' },
+  terms_of_service: { en: 'Terms of Service content is not available right now.', sr: 'Uslovi korišćenja trenutno nisu dostupni.' },
+  privacy_policy:   { en: 'Privacy Policy content is not available right now.', sr: 'Politika privatnosti trenutno nije dostupna.' }
+};
+
+function legalText(key) {
+  const fromDb = legalContent[key];
+  if (fromDb && (fromDb[lang] || fromDb.en)) return fromDb[lang] || fromDb.en;
+  const fb = LEGAL_CONTENT_FALLBACK[key];
+  return fb ? (fb[lang] || fb.en) : '';
+}
+
+async function loadLegalContent() {
+  try {
+    const { data, error } = await sb.from('legal_content').select('key, value');
+    if (error) throw error;
+    legalContent = {};
+    (data || []).forEach(row => { legalContent[row.key] = row.value || {}; });
+  } catch (err) {
+    console.error('Failed to load legal content:', err.message || err);
+  }
+  renderLegalCopyrightLine();
+  if (document.getElementById('legalContentModal').style.display !== 'none' && legalContentModalOpenKey) {
+    renderLegalContentModalBody(legalContentModalOpenKey);
+  }
+}
+
+function renderLegalCopyrightLine() {
+  const el = document.getElementById('legalCopyrightText');
+  if (el) el.textContent = legalText('copyright_footer');
+}
+
+function renderLegalContentModalBody(key) {
+  const body = document.getElementById('legalContentBody');
+  if (body) body.innerHTML = `<div class="detail-section"><p class="detail-export-hint" style="white-space:pre-wrap;">${escapeHtml(legalText(key))}</p></div>`;
+}
+
+function showLegalContentModal(key) {
+  legalContentModalOpenKey = key;
+  const modal = document.getElementById('legalContentModal');
+  const titleEl = document.getElementById('legalContentTitle');
+  titleEl.textContent = key === 'terms_of_service' ? t('termsOfServiceBtn') : t('privacyPolicyBtn');
+  renderLegalContentModalBody(key);
+  bringModalToFront(modal);
+  modal.style.display = 'flex';
+  openOverlay('legalContentModal', hideLegalContentModal);
+}
+
+function hideLegalContentModal() {
+  const modal = document.getElementById('legalContentModal');
+  modal.style.display = 'none';
+  legalContentModalOpenKey = null;
+  closeOverlay('legalContentModal');
+}
+
 discoverIconPacks().finally(initIconPackRewrite);
 initTheme();
 initCalendarFilter();
 initLang();
 applyLang();
+loadLegalContent();
 
 const INITIAL_LOCATION_ZOOM = 13;
 const INITIAL_LOCATION_FIX_TIMEOUT_MS = 2500;
