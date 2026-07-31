@@ -4185,6 +4185,173 @@ const COUNTRIES_TABLE = 'countries';
 const REPORT_CONTACT_EVENTS_TABLE = 'report_contact_events';
 const MUNICIPALITY_STATS_TABLE = 'municipality_report_stats';
 
+// ---------------------------------------------------------------------------
+// TESTER MODE — sandbox for accounts flagged `is_tester` on their profile.
+//
+// Goal: a tester can click through the *entire* app — file a report, delete
+// one, upload a photo, vote, flag something, and (if they also happen to be
+// an admin) use admin actions too — and get completely normal success
+// feedback, but NOTHING is actually written to the real database.
+//
+// Rather than hunting down and rewriting every single insert/update/delete
+// call site across the app (there are dozens), this hooks the one choke
+// point they all share: window.fetch, which is what the Supabase JS client
+// uses under the hood for every REST/RPC/storage/function call. When the
+// signed-in user is a tester, any *mutating* request (POST/PATCH/PUT/DELETE)
+// aimed at our own Supabase project is short-circuited into a fake
+// successful response instead of hitting the network — reads (GET) always
+// go through for real, so testers still see the real map/data.
+//
+// brake_reports gets special handling on top of that generic guard: faked
+// inserts/updates/deletes are also mirrored into an in-memory shadow store
+// so a tester's fake reports still appear on their own map, can be opened,
+// edited, and deleted, exactly like a real one — just never actually saved,
+// and gone the moment they reload.
+// ---------------------------------------------------------------------------
+
+function isTesterMode() {
+  return !!(currentProfile && currentProfile.is_tester);
+}
+
+let testerAddedReports = [];          // fully-fake reports a tester "created"
+let testerDeletedReportIds = new Set(); // ids (fake or real) a tester "deleted"
+let testerReportOverrides = {};       // reportId -> patch, for edits/status changes tester made to REAL reports
+
+function applyTesterReportOverlay(reports) {
+  if (!Array.isArray(reports)) return reports;
+  let out = reports.filter(r => !testerDeletedReportIds.has(String(r.id)));
+  out = out.map(r => testerReportOverrides[r.id] ? { ...r, ...testerReportOverrides[r.id] } : r);
+  const extra = testerAddedReports.filter(r => !testerDeletedReportIds.has(String(r.id)));
+  return out.concat(extra);
+}
+
+let testerModeToastShownAt = 0;
+function showTesterModeToast() {
+  // Rate-limited so a flurry of rapid actions (e.g. an admin bulk action)
+  // doesn't spam the toast stack — the persistent banner already makes the
+  // sandbox state obvious, this is just a light reassurance per action.
+  const now = Date.now();
+  if (now - testerModeToastShownAt < 1200) return;
+  testerModeToastShownAt = now;
+  try { toast('🧪 ' + (t('testerModeActionSimulated') || 'Tester mode — nothing saved'), 'success'); } catch (e) {}
+}
+
+function ensureTesterModeBanner() {
+  let el = document.getElementById('testerModeBanner');
+  if (isTesterMode()) {
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'testerModeBanner';
+      el.style.cssText = 'position:fixed; top:0; left:0; right:0; z-index:99999; background:#5847e6; color:#fff; text-align:center; font-size:12.5px; font-weight:600; padding:6px 10px; box-shadow:0 2px 6px rgba(0,0,0,.25);';
+      el.textContent = '🧪 Tester mode — nothing you do here is saved for real';
+      document.body.appendChild(el);
+    }
+  } else if (el) {
+    el.remove();
+  }
+}
+
+(function initTesterModeFetchGuard() {
+  const REAL_FETCH = window.fetch.bind(window);
+  const READ_ONLY_RPC_ALLOWLIST = new Set(['get_report_contact_counts']);
+
+  function fakeResponse(body, status) {
+    return new Response(JSON.stringify(body), {
+      status: status || 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  function idFromUrl(url) {
+    const m = url.match(/[?&]id=eq\.([^&]+)/);
+    return m ? decodeURIComponent(m[1]) : null;
+  }
+
+  function handleBrakeReportsWrite(method, url, body) {
+    showTesterModeToast();
+    if (method === 'POST') {
+      const rows = Array.isArray(body) ? body : [body || {}];
+      const created = rows.map(r => {
+        const id = 'tester_' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
+        const full = {
+          status: 'reported',
+          priority: 'normal',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          ...r,
+          id
+        };
+        testerAddedReports.push(full);
+        return full;
+      });
+      return fakeResponse(created, 201);
+    }
+    const id = idFromUrl(url);
+    if (method === 'DELETE') {
+      if (id) {
+        testerDeletedReportIds.add(id);
+        testerAddedReports = testerAddedReports.filter(r => String(r.id) !== id);
+      }
+      return fakeResponse([], 200);
+    }
+    // PATCH/PUT — status changes, edits, municipality attach, etc.
+    const patch = body || {};
+    if (id) {
+      const fake = testerAddedReports.find(r => String(r.id) === id);
+      if (fake) Object.assign(fake, patch);
+      else testerReportOverrides[id] = { ...(testerReportOverrides[id] || {}), ...patch };
+    }
+    return fakeResponse([{ id, ...patch }], 200);
+  }
+
+  window.fetch = async function (input, init) {
+    const isReq = (typeof Request !== 'undefined') && (input instanceof Request);
+    const url = isReq ? input.url : String(input);
+    const method = ((init && init.method) || (isReq && input.method) || 'GET').toUpperCase();
+
+    if (!isTesterMode() || method === 'GET' || method === 'HEAD' || !url.startsWith(SUPABASE_URL)) {
+      return REAL_FETCH(input, init);
+    }
+    // Auth and read-style storage access (signed/public URLs, downloads) always go through for real.
+    if (url.includes('/auth/v1/')) return REAL_FETCH(input, init);
+    if (/\/storage\/v1\/object\/(sign|public|authenticated)\//.test(url)) return REAL_FETCH(input, init);
+
+    const rpcMatch = url.match(/\/rest\/v1\/rpc\/([^?]+)/);
+    if (rpcMatch && READ_ONLY_RPC_ALLOWLIST.has(rpcMatch[1])) return REAL_FETCH(input, init);
+
+    let bodyText = null;
+    try {
+      bodyText = isReq ? await input.clone().text() : (init && init.body && typeof init.body === 'string' ? init.body : null);
+    } catch (e) {}
+    let parsedBody = null;
+    try { parsedBody = bodyText ? JSON.parse(bodyText) : null; } catch (e) {}
+
+    if (url.includes('/functions/v1/')) {
+      showTesterModeToast();
+      return fakeResponse({ ok: true, status: 'test_sent', simulated: true });
+    }
+    if (url.includes('/storage/v1/object/')) {
+      showTesterModeToast();
+      if (method === 'DELETE') return fakeResponse([{ name: 'tester-simulated' }], 200);
+      return fakeResponse({ Key: 'tester-simulated/' + Date.now(), Id: 'sim-' + Date.now() });
+    }
+
+    const tableMatch = url.match(/\/rest\/v1\/([^?\/]+)/);
+    const table = tableMatch ? tableMatch[1] : null;
+    if (table === TABLE) return handleBrakeReportsWrite(method, url, parsedBody);
+
+    // Generic fallback for every other table (profiles, gallery, flags, votes, utility_companies, ...)
+    showTesterModeToast();
+    if (method === 'DELETE') return fakeResponse([], 200);
+    if (method === 'POST') {
+      const rows = Array.isArray(parsedBody) ? parsedBody : [parsedBody || {}];
+      const echoed = rows.map(r => ({ id: r.id || ('sim_' + Math.random().toString(36).slice(2)), ...r }));
+      return fakeResponse(echoed, 201);
+    }
+    return fakeResponse([{ ...(parsedBody || {}) }], 200);
+  };
+})();
+
 function isValidLat(lat) { return typeof lat === 'number' && isFinite(lat) && lat >= -90  && lat <= 90; }
 function isValidLng(lng) { return typeof lng === 'number' && isFinite(lng) && lng >= -180 && lng <= 180; }
 function isValidLatLng(lat, lng) { return isValidLat(lat) && isValidLng(lng); }
@@ -4345,6 +4512,7 @@ function updateSettingsAccountGate() {
   if (group) group.style.display = hasAccount ? '' : 'none';
 }
 function updateAuthUI() {
+  ensureTesterModeBanner();
   const reportFormPanel = document.getElementById('reportFormPanel');
   const desktopBlockedPanel = document.getElementById('desktopBlockedPanel');
   const lockedFormPanel = document.getElementById('lockedFormPanel');
@@ -6037,6 +6205,7 @@ async function renderMyReportsSection() {
     if (token !== myReportsLoadToken) return;
     if (error) throw error;
     myReportsCache = data || [];
+    if (isTesterMode()) myReportsCache = applyTesterReportOverlay(myReportsCache);
     if (loading) loading.style.display = 'none';
     renderMyReportsList();
   } catch (err) {
@@ -6434,6 +6603,12 @@ const T = {
   editSubcategoryLabel: { en:'Subtype',   sr:'Podvrsta' },
   editStatusLabel:      { en:'Status',    sr:'Status' },
   editCommentLabel:     { en:'Note',      sr:'Napomena' },
+  companyNotifyLabel:         { en:'Sent to utility company',                              sr:'Poslato nadležnoj kompaniji' },
+  companyNotifyNotYet:        { en:'Not sent yet',                                          sr:'Još nije poslato' },
+  companyLastReminderLabel:   { en:'Last reminder sent',                                    sr:'Poslednji podsetnik poslat' },
+  companyNotifyReminderNote:  { en:'A reminder is automatically re-sent every 7 days until this is fixed.', sr:'Podsetnik se automatski ponovo šalje svakih 7 dana dok se ne reši.' },
+  testerModeActionSimulated:  { en:'Tester mode — nothing saved',                           sr:'Test režim — ništa nije sačuvano' },
+  deleteLockedAfterSentNote:  { en:'This report has already been sent to the utility company, so it can no longer be deleted.', sr:'Ova prijava je već poslata nadležnoj kompaniji, pa se više ne može obrisati.' },
   deleteBtn:     { en:'Delete',                                    sr:'Obriši' },
   saveBtn:       { en:'Save',                                      sr:'Sačuvaj' },
   cancelBtn:     { en:'Cancel',                                    sr:'Otkaži' },
@@ -18264,13 +18439,35 @@ async function exportCompanyReportsPdf(companyId) {
   }
 }
 
+function buildCompanyNotifyStatusHtml(report) {
+  // company_notified_at / company_last_notified_at / company_notify_count are
+  // populated server-side (see sync_report_notify_status trigger on
+  // individual_report_notify_log) whenever the individual-report-notify
+  // function actually sends — not on test sends or dry runs.
+  if (!report.company_notified_at) {
+    return `<div class="detail-row"><span class="detail-row-label">${t('companyNotifyLabel')}</span><span class="detail-row-value" style="color:var(--muted);">${t('companyNotifyNotYet')}</span></div>`;
+  }
+  const firstSent = formatDate(report.company_notified_at);
+  const lastSent = report.company_last_notified_at ? formatDate(report.company_last_notified_at) : firstSent;
+  const showsReminder = report.company_last_notified_at && report.company_last_notified_at !== report.company_notified_at;
+  return `
+    <div class="detail-row"><span class="detail-row-label">${t('companyNotifyLabel')}</span><span class="detail-row-value">${firstSent}</span></div>
+    ${showsReminder ? `<div class="detail-row"><span class="detail-row-label">${t('companyLastReminderLabel')}</span><span class="detail-row-value">${lastSent}</span></div>` : ''}
+    ${report.status !== 'fixed' ? `<div class="hint" style="margin-top:2px;">${t('companyNotifyReminderNote')}</div>` : ''}
+  `;
+}
+
 function buildDetailStatusReadonlyHtml(report, reporterName) {
   const isAdmin = !!(currentProfile && currentProfile.is_admin);
   const isOwner = !!(currentSession && report.owner_id === currentSession.user.id);
 
   const hasFullPower = hasFullPowerOverReport(report) || (isAdmin && isOwner);
 
-  const canDelete = hasFullPower || isOwner;
+  // Once a report has actually gone out to the responsible utility company,
+  // an owner can no longer pull it — only someone with full power (admin
+  // authority over the report's area) can still remove it after that point.
+  const wasSentToCompany = !!report.company_notified_at;
+  const canDelete = hasFullPower || (isOwner && !wasSentToCompany);
   const canAddPhotoInline = !!currentSession && (
     (isOwner && (!report.photo_path || report.photo_status === 'rejected')) ||
     isAdmin
@@ -18312,7 +18509,7 @@ function buildDetailStatusReadonlyHtml(report, reporterName) {
         <button type="button" class="detail-delete-btn" onclick="deleteReport('${report.id}', false)">${t('deleteBtn')}</button>
       </div>` : (canDelete ? `<div class="detail-edit-actions">
         <button type="button" class="detail-delete-btn" onclick="deleteReport('${report.id}')">${t('deleteBtn')}</button>
-      </div>` : '')}
+      </div>` : (isOwner && wasSentToCompany ? `<div class="hint" style="margin:0;">${t('deleteLockedAfterSentNote')}</div>` : ''))}
     </div>
     <div class="detail-row"><span class="detail-row-label">${t('popupStatus')}</span><span class="status-pill" style="background:${statusColor(report.status)};">${statusLabel(report.status)}</span></div>
     <div class="detail-row"><span class="detail-row-label">${t('priorityLabel')}</span><span class="status-pill" style="background:${priorityColor(report.priority)};">${priorityLabelText(report.priority)}</span></div>
@@ -18324,6 +18521,7 @@ function buildDetailStatusReadonlyHtml(report, reporterName) {
       ${categorySkipsInProgress(report.category) ? '' : buildTimelineItem(report.in_progress_at, !!report.in_progress_at, STATUS_COLORS.in_progress)}
       ${buildTimelineItem(report.fixed_at, !!report.fixed_at, STATUS_COLORS.fixed)}
     </div>
+    ${buildCompanyNotifyStatusHtml(report)}
     ${noteRowHtml}
   `;
 }
@@ -18943,6 +19141,7 @@ async function loadPinsByWindow() {
     freshInWindow.forEach(r => merged.set(r.id, r));
     (alwaysOnRes.data || []).forEach(r => merged.set(r.id, r));
     globalActiveData = Array.from(merged.values());
+    if (isTesterMode()) globalActiveData = applyTesterReportOverlay(globalActiveData);
     markActiveDataChanged();
     pruneLoadedReportsIfNeeded();
 
