@@ -18453,7 +18453,7 @@ function buildCompanyNotifyStatusHtml(report) {
   return `
     <div class="detail-row"><span class="detail-row-label">${t('companyNotifyLabel')}</span><span class="detail-row-value">${firstSent}</span></div>
     ${showsReminder ? `<div class="detail-row"><span class="detail-row-label">${t('companyLastReminderLabel')}</span><span class="detail-row-value">${lastSent}</span></div>` : ''}
-    ${report.status !== 'fixed' ? `<div class="hint" style="margin-top:2px;">${t('companyNotifyReminderNote')}</div>` : ''}
+    ${report.status !== 'fixed' ? `<p class="detail-export-hint" style="margin:4px 0 0;">${t('companyNotifyReminderNote')}</p>` : ''}
   `;
 }
 
@@ -18509,7 +18509,7 @@ function buildDetailStatusReadonlyHtml(report, reporterName) {
         <button type="button" class="detail-delete-btn" onclick="deleteReport('${report.id}', false)">${t('deleteBtn')}</button>
       </div>` : (canDelete ? `<div class="detail-edit-actions">
         <button type="button" class="detail-delete-btn" onclick="deleteReport('${report.id}')">${t('deleteBtn')}</button>
-      </div>` : (isOwner && wasSentToCompany ? `<div class="hint" style="margin:0;">${t('deleteLockedAfterSentNote')}</div>` : ''))}
+      </div>` : (isOwner && wasSentToCompany ? `<p class="detail-export-hint" style="margin:0; text-align:right;">${t('deleteLockedAfterSentNote')}</p>` : ''))}
     </div>
     <div class="detail-row"><span class="detail-row-label">${t('popupStatus')}</span><span class="status-pill" style="background:${statusColor(report.status)};">${statusLabel(report.status)}</span></div>
     <div class="detail-row"><span class="detail-row-label">${t('priorityLabel')}</span><span class="status-pill" style="background:${priorityColor(report.priority)};">${priorityLabelText(report.priority)}</span></div>
