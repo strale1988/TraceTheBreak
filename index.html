@@ -3470,6 +3470,18 @@ span.flatpickr-weekday {
 
     <div id="settingsAccountGatedGroup">
 
+    <div class="detail-section" id="privacySettingsSection">
+      <div class="detail-section-title" id="privacySectionTitle">Privacy</div>
+      <label class="settings-toggle-row" id="showUsernameToggleRow">
+        <span id="showUsernameToggleLabel">Show my username on reports</span>
+        <span class="toggle-switch">
+          <input type="checkbox" id="showUsernameToggleInput" checked onchange="setShowUsernameOnReports(this.checked)">
+          <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+        </span>
+      </label>
+      <p class="detail-export-hint" id="showUsernameHint">When off, your reports show a short ID instead of your username. Admins can still see who reported it, for moderation.</p>
+    </div>
+
     <div class="detail-section" id="themeSettingsSection">
       <div class="detail-section-title" id="themeSectionTitle">Theme</div>
       <div class="theme-segment" id="themeSegment">
@@ -6231,6 +6243,13 @@ const T = {
   analyticsUnknownArea:   { en:'Unknown area',                     sr:'Nepoznata oblast' },
   analyticsWeekAbbrev:    { en:'W',                                 sr:'N' },
   themeSectionTitle: { en:'Theme',                       sr:'Tema' },
+  privacySectionTitle: { en:'Privacy',                   sr:'Privatnost' },
+  showUsernameToggleLabel: { en:'Show my username on reports', sr:'Prikaži moje korisničko ime na prijavama' },
+  showUsernameHint: { en:'When off, your reports show a short ID instead of your username. Admins can still see who reported it, for moderation.', sr:'Kada je isključeno, vaše prijave prikazuju kratak ID umesto korisničkog imena. Administratori i dalje mogu videti ko je prijavio, radi moderacije.' },
+  reporterHiddenAdminSuffix: { en:'(hidden from public)', sr:'(sakriveno od javnosti)' },
+  showUsernameOnMsg: { en:'Your username is now shown on your reports.', sr:'Vaše korisničko ime sada je prikazano na vašim prijavama.' },
+  showUsernameOffMsg: { en:'Your username is now hidden on your reports.', sr:'Vaše korisničko ime je sada sakriveno na vašim prijavama.' },
+  settingsSaveFailed: { en:'Could not save that setting. Please try again.', sr:'Podešavanje nije sačuvano. Pokušajte ponovo.' },
   settingsSignInGateMsgText: { en:'Sign in to customize theme, map, and driving settings.', sr:'Prijavite se da biste prilagodili temu, mapu i podešavanja vožnje.' },
   themeLight:        { en:'Light',                       sr:'Svetla' },
   themeDark:         { en:'Dark',                        sr:'Tamna' },
@@ -6829,6 +6848,39 @@ async function syncPreferredLanguageToProfile(l) {
   }
 }
 
+// Persists the "show my username on reports" privacy toggle. The actual
+// enforcement (retroactively syncing owner_username across all of this
+// user's reports) happens server-side via a trigger on this column — see
+// the show_username_on_reports migration — so this just needs to save the
+// preference and then refresh whatever's currently on screen to match.
+async function setShowUsernameOnReports(checked) {
+  if (!currentSession || !currentProfile) return;
+  const toggleEl = document.getElementById('showUsernameToggleInput');
+  try {
+    const { error } = await sb.from(PROFILES_TABLE)
+      .update({ show_username_on_reports: checked })
+      .eq('id', currentSession.user.id);
+    if (error) throw error;
+    currentProfile.show_username_on_reports = checked;
+
+    // Reflect it immediately in whatever's already loaded, rather than
+    // waiting for a refetch — the DB trigger already did the same update
+    // to every one of this user's report rows.
+    const ownUsername = checked ? currentProfile.username : null;
+    globalActiveData.forEach(r => {
+      if (r.owner_id === currentSession.user.id) {
+        r.owner_username = ownUsername;
+        refreshReportViews(r.id);
+      }
+    });
+    toast(checked ? t('showUsernameOnMsg') : t('showUsernameOffMsg'), 'success');
+  } catch (err) {
+    console.error('Failed to update username visibility preference:', err.message);
+    if (toggleEl) toggleEl.checked = !checked;
+    toast(t('settingsSaveFailed'), 'error');
+  }
+}
+
 const LANG_AUTO_COUNTRY_MAP_SR = ['rs', 'me', 'ba'];
 
 const LANG_AUTO_TIMEZONE_MAP_SR = ['Europe/Belgrade', 'Europe/Podgorica', 'Europe/Sarajevo'];
@@ -6950,6 +7002,12 @@ function applyLang(){
   const settingsSignInGateMsgTextEl = document.getElementById('settingsSignInGateMsgText');
   if (settingsSignInGateMsgTextEl) settingsSignInGateMsgTextEl.textContent = t('settingsSignInGateMsgText');
   document.getElementById('themeSectionTitle').textContent = t('themeSectionTitle');
+  const privacySectionTitleEl = document.getElementById('privacySectionTitle');
+  if (privacySectionTitleEl) privacySectionTitleEl.textContent = t('privacySectionTitle');
+  const showUsernameToggleLabelEl = document.getElementById('showUsernameToggleLabel');
+  if (showUsernameToggleLabelEl) showUsernameToggleLabelEl.textContent = t('showUsernameToggleLabel');
+  const showUsernameHintEl = document.getElementById('showUsernameHint');
+  if (showUsernameHintEl) showUsernameHintEl.textContent = t('showUsernameHint');
   document.getElementById('themeBtnLight').textContent = t('themeLight');
   document.getElementById('themeBtnDark').textContent = t('themeDark');
   document.getElementById('themeBtnAuto').textContent = t('themeAuto');
@@ -7228,6 +7286,8 @@ function showSettingsModal() {
   bringModalToFront(modal);
   modal.style.display = 'flex';
   updateSettingsAccountGate();
+  const showUsernameToggleEl = document.getElementById('showUsernameToggleInput');
+  if (showUsernameToggleEl) showUsernameToggleEl.checked = !currentProfile || currentProfile.show_username_on_reports !== false;
   const pulseToggleEl = document.getElementById('pulseToggleInput');
   if (pulseToggleEl) pulseToggleEl.checked = statusPulseEnabled;
   renderStatusFilterSettings();
@@ -15456,7 +15516,7 @@ function renderWaitingListInto(containerId) {
       ${thumbHtml}
       <div class="photo-review-meta">
         <div class="photo-review-title">${escapeHtml(reportSummaryTitle(r))} ${badgesHtml}</div>
-        <div class="photo-review-sub">${escapeHtml(r.owner_username || t('detailUnknown'))} · ${formatDate(item.waitingSince)}</div>
+        <div class="photo-review-sub">${escapeHtml(reporterDisplayName(r))} · ${formatDate(item.waitingSince)}</div>
         ${historyHtml}
       </div>
       <div class="photo-review-actions">${actionsHtml}</div>
@@ -15550,10 +15610,21 @@ async function searchAllReportsAdmin(query) {
   const token = ++adminReportSearchToken;
   const pattern = '%' + query.replace(/[%_]/g, '\\$&') + '%';
   try {
+    // Some reporters have chosen to hide their username publicly, which
+    // means owner_username is genuinely null on their rows (enforced
+    // server-side) — a plain ilike on that column can't find them anymore.
+    // Resolving matching profiles first and searching by owner_id keeps
+    // admin search working for those reporters too.
+    const matchingProfiles = await sb.from(PROFILES_TABLE).select('id').ilike('username', pattern).limit(50);
+    const matchingOwnerIds = (matchingProfiles.data || []).map(p => p.id);
+
     const queries = [
       sb.from(TABLE).select('*').ilike('comment', pattern).order('created_at', { ascending: false }).limit(WAITING_LIST_FETCH_LIMIT),
       sb.from(TABLE).select('*').ilike('owner_username', pattern).order('created_at', { ascending: false }).limit(WAITING_LIST_FETCH_LIMIT)
     ];
+    if (matchingOwnerIds.length) {
+      queries.push(sb.from(TABLE).select('*').in('owner_id', matchingOwnerIds).order('created_at', { ascending: false }).limit(WAITING_LIST_FETCH_LIMIT));
+    }
 
     if (UUID_RE.test(query.trim())) {
       queries.push(sb.from(TABLE).select('*').eq('id', query.trim()).limit(1));
@@ -16560,6 +16631,59 @@ function formatDate(dateStr) {
   return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+// Fallback identity shown when a reporter has chosen to hide their username
+// (profiles.show_username_on_reports = false → brake_reports.owner_username
+// is null for that row, enforced server-side). Short, stable, not reversible
+// to the real account by looking at it.
+function shortUserId(id) {
+  if (!id) return lang === 'sr' ? 'Nepoznato' : 'Unknown';
+  return '#' + String(id).replace(/-/g, '').slice(0, 8).toUpperCase();
+}
+
+// Admins still need to be able to identify a reporter behind a hidden report
+// for moderation/support — the privacy setting only controls what the public
+// sees. Since owner_username is genuinely null in the database for those
+// rows (not just hidden in the UI), resolving the real name for an admin
+// means a small lookup against profiles (readable by anyone per RLS, so this
+// is not a privileged query — just an admin-only *use* of it) rather than
+// reading it off the report row.
+const resolvedOwnerUsernameCache = new Map();
+const pendingOwnerUsernameResolves = new Set();
+async function resolveOwnerUsernameForAdmin(ownerId, reportId) {
+  if (!ownerId || resolvedOwnerUsernameCache.has(ownerId) || pendingOwnerUsernameResolves.has(ownerId)) return;
+  pendingOwnerUsernameResolves.add(ownerId);
+  try {
+    const { data, error } = await sb.from(PROFILES_TABLE).select('username').eq('id', ownerId).maybeSingle();
+    if (!error && data && data.username) {
+      resolvedOwnerUsernameCache.set(ownerId, data.username);
+      if (reportId) refreshReportViews(reportId);
+    }
+  } catch (err) {
+    console.error('Failed to resolve hidden reporter username:', err.message || err);
+  } finally {
+    pendingOwnerUsernameResolves.delete(ownerId);
+  }
+}
+
+// Single source of truth for "whose report is this, as far as the current
+// viewer is concerned": your own reports always show your real name to you;
+// admins get the real name (with a hidden-from-public marker) for
+// moderation even when it's hidden from everyone else; everyone else sees
+// either the public username or the short id fallback.
+function reporterDisplayName(report) {
+  if (!report) return shortUserId(null);
+  const isOwner = !!(currentSession && report.owner_id === currentSession.user.id);
+  if (isOwner && currentProfile && currentProfile.username) return currentProfile.username;
+  if (report.owner_username) return report.owner_username;
+  const isAdmin = !!(currentProfile && currentProfile.is_admin);
+  if (isAdmin && report.owner_id) {
+    const cached = resolvedOwnerUsernameCache.get(report.owner_id);
+    if (cached) return cached + ' ' + t('reporterHiddenAdminSuffix');
+    resolveOwnerUsernameForAdmin(report.owner_id, report.id);
+  }
+  return shortUserId(report.owner_id);
+}
+
 function buildTimelineItem(dateStr, reached, color) {
   const dotColor = reached ? color : 'rgba(255,255,255,.18)';
   const dateText = reached ? formatDate(dateStr) : '—';
@@ -16575,9 +16699,10 @@ function buildPopupHtml(report) {
   const sCol   = statusColor(report.status);
   const isOwner = !!(currentSession && report.owner_id === currentSession.user.id);
   const isAdmin = !!(currentProfile && currentProfile.is_admin);
-  const reporterName = report.owner_username || (lang === 'sr' ? 'Nepoznato' : 'Unknown');
+  const reporterName = reporterDisplayName(report);
   const dupGroup = duplicateGroupFor(report.id);
   const groupIdsJson = escapeHtml(JSON.stringify(dupGroup ? dupGroup.ids : [report.id]));
+
   const headerTitle = report.subcategory
     ? `${translateCategory(report.category)} / ${subcategoryLabel(report.category, report.subcategory)}`
     : translateCategory(report.category);
@@ -16725,11 +16850,7 @@ async function showReportDetailModal(reportId) {
     headerEl.style.background = statusColor(report.status);
     headerEl.classList.add('status-colored');
   }
-  const reporterName = report.owner_username || (lang === 'sr' ? 'Nepoznato' : 'Unknown');
-
-  const isOwner = !!(currentSession && report.owner_id === currentSession.user.id);
-  const isAdmin = !!(currentProfile && currentProfile.is_admin);
-  let photoSectionHtml = '';
+  const reporterName = reporterDisplayName(report);
   const showPhotoImage = !!report.photo_path && !!currentSession && (
     report.photo_status === 'approved' ||
     (report.photo_status === 'pending' && (isOwner || isAdmin)) ||
@@ -18191,7 +18312,7 @@ function cancelReportDetailEdit(reportId) {
   const report = globalActiveData.find(r => r.id === reportId);
   const section = document.getElementById('reportDetailStatusSection');
   if (!report || !section) return;
-  const reporterName = report.owner_username || (lang === 'sr' ? 'Nepoznato' : 'Unknown');
+  const reporterName = reporterDisplayName(report);
   section.innerHTML = buildDetailStatusReadonlyHtml(report, reporterName);
 }
 
