@@ -1924,6 +1924,15 @@ body.driving-active #appPanel{
 .dashboard-quest-fill.is-complete{ background:var(--accent); }
 .dashboard-quest-progress-text{ font-size:var(--fs-9-5); color:var(--text-muted); margin-top:4px; text-align:right; }
 .dashboard-quests-empty{ font-size:var(--fs-11-5); color:var(--text-muted); text-align:center; padding:10px; }
+.dashboard-badges-title-row{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.dashboard-quest-history-toggle{ appearance:none; border:none; background:none; padding:0; font-size:var(--fs-11); font-weight:var(--fw-semibold); color:var(--accent); cursor:pointer; }
+.dashboard-quest-history{ margin-top:6px; }
+.dashboard-quest-history-list{ display:flex; flex-direction:column; gap:6px; margin-top:6px; }
+.dashboard-quest-history-item{ display:flex; align-items:center; justify-content:space-between; gap:8px; background:var(--bg-surface-alt); border-radius:var(--radius-lg); padding:8px 12px; opacity:.85; }
+.dashboard-quest-history-item-main{ display:flex; flex-direction:column; gap:1px; min-width:0; }
+.dashboard-quest-history-item-title{ font-size:var(--fs-11-5); font-weight:var(--fw-semibold); color:var(--text-primary); }
+.dashboard-quest-history-item-date{ font-size:var(--fs-9-5); color:var(--text-muted); }
+.dashboard-quest-history-item-reward{ font-size:var(--fs-10); font-weight:var(--fw-bold); color:var(--accent); flex-shrink:0; white-space:nowrap; }
 .badge-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(106px,1fr)); gap:12px 6px; margin-top:8px; }
 .badge-tile{ display:flex; flex-direction:column; align-items:center; gap:5px; text-align:center; opacity:.4; cursor:pointer; -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
 .badge-tile.earned{ opacity:1; }
@@ -3828,8 +3837,14 @@ span.flatpickr-weekday {
         <div class="dashboard-badges-title" id="dashboardWeekTitle">This Week</div>
         <div class="weekly-chart" id="dashboardWeeklyChart"></div>
 
-        <div class="dashboard-badges-title" id="dashboardQuestsTitle">Quests</div>
+        <div class="dashboard-badges-title-row">
+          <div class="dashboard-badges-title" id="dashboardQuestsTitle">Quests</div>
+          <button type="button" class="dashboard-quest-history-toggle" id="dashboardQuestHistoryToggle">History</button>
+        </div>
         <div class="dashboard-quests" id="dashboardQuestsList"></div>
+        <div class="dashboard-quest-history" id="dashboardQuestHistory" style="display:none">
+          <div class="dashboard-quest-history-list" id="dashboardQuestHistoryList"></div>
+        </div>
 
         <div class="dashboard-badges-title" id="dashboardCityTitle">City Contribution</div>
         <div class="dashboard-city-card" id="dashboardCityCard" style="display:none">
@@ -6012,6 +6027,13 @@ async function loadDashboardStreakAndQuests() {
   }
 
   await loadQuestsInto(uid, 'user', document.getElementById('dashboardQuestsList'));
+
+  const historyBtn = document.getElementById('dashboardQuestHistoryToggle');
+  if (historyBtn && !historyBtn.dataset.bound) {
+    historyBtn.dataset.bound = '1';
+    historyBtn.textContent = t('dashboardQuestHistoryShow');
+    historyBtn.addEventListener('click', toggleDashboardQuestHistory);
+  }
 }
 
 async function loadAdminQuests() {
@@ -6096,6 +6118,79 @@ function renderDashboardQuests(withPeriods, progressRows, listEl) {
       <div class="dashboard-quest-progress-text">${complete ? t('dashboardQuestComplete') : `${Math.min(count, target)}/${target}`}</div>
     </div>`;
   }).join('');
+}
+
+// ---- Quest history (past completed quest periods) ----
+// Quests reset automatically every period (a new period_start = a fresh,
+// re-completable quest), but old completed rows stay in
+// user_engagement_progress. This surfaces them read-only so people can see
+// what they've finished over time, without affecting the live quest cards
+// above (which only ever look at the *current* period_start).
+let questHistoryLoaded = false;
+
+function toggleDashboardQuestHistory() {
+  const panel = document.getElementById('dashboardQuestHistory');
+  if (!panel) return;
+  const showing = panel.style.display !== 'none';
+  panel.style.display = showing ? 'none' : 'block';
+  const btn = document.getElementById('dashboardQuestHistoryToggle');
+  if (btn) btn.textContent = showing ? t('dashboardQuestHistoryShow') : t('dashboardQuestHistoryHide');
+  if (!showing && !questHistoryLoaded) {
+    questHistoryLoaded = true;
+    loadDashboardQuestHistory();
+  }
+}
+
+async function loadDashboardQuestHistory() {
+  if (!currentSession || !currentProfile || currentProfile.is_admin) return;
+  const uid = currentSession.user.id;
+  const listEl = document.getElementById('dashboardQuestHistoryList');
+  if (!listEl) return;
+  listEl.innerHTML = `<div class="dashboard-quests-empty">${t('dashboardQuestHistoryLoading')}</div>`;
+  try {
+    const { data: rows, error: rowsErr } = await sb.from('user_engagement_progress')
+      .select('rule_key, period_start, completed_at, progress')
+      .eq('user_id', uid).eq('status', 'completed')
+      .order('completed_at', { ascending: false })
+      .limit(30);
+    if (rowsErr) throw rowsErr;
+    if (!currentSession || currentSession.user.id !== uid) return;
+
+    if (!rows || !rows.length) {
+      listEl.innerHTML = `<div class="dashboard-quests-empty">${t('dashboardQuestHistoryEmpty')}</div>`;
+      return;
+    }
+
+    // Historical rows can reference quests that are now inactive (or since
+    // removed), so pull rule titles for whatever keys actually show up here
+    // rather than reusing the 'active' quest list.
+    const keys = [...new Set(rows.map(r => r.rule_key))];
+    const { data: rules, error: rulesErr } = await sb.from('engagement_rules')
+      .select('key, title_en, title_sr, points_reward').in('key', keys);
+    if (rulesErr) throw rulesErr;
+    const rulesByKey = {};
+    (rules || []).forEach(r => { rulesByKey[r.key] = r; });
+
+    listEl.innerHTML = rows.map(row => {
+      const rule = rulesByKey[row.rule_key];
+      // engagement_rules RLS only lets non-admins read active=true rows, so a
+      // retired quest's title/points won't resolve here — fall back to a
+      // readable version of the key rather than the raw snake_case string.
+      const title = rule ? (lang === 'sr' ? rule.title_sr : rule.title_en)
+        : row.rule_key.replace(/^(weekly|daily)_/, '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      const points = rule ? rule.points_reward : null;
+      return `<div class="dashboard-quest-history-item">
+        <div class="dashboard-quest-history-item-main">
+          <span class="dashboard-quest-history-item-title">${escapeHtml(title)}</span>
+          <span class="dashboard-quest-history-item-date">${formatDate(row.completed_at)}</span>
+        </div>
+        ${points ? `<span class="dashboard-quest-history-item-reward">+${points} pts</span>` : ''}
+      </div>`;
+    }).join('');
+  } catch (err) {
+    console.error('Failed to load quest history:', err.message);
+    listEl.innerHTML = `<div class="dashboard-quests-empty">${t('dashboardQuestHistoryError')}</div>`;
+  }
 }
 
 let myReportsCache = null;
@@ -6684,6 +6779,11 @@ const T = {
   adminDashboardQuestsTitle: { en:'Quests',              sr:'Izazovi' },
   dashboardQuestsEmpty:      { en:'No active quests right now (check back soon).', sr:'Trenutno nema aktivnih izazova (vrati se uskoro).' },
   dashboardQuestComplete:    { en:'Complete!',           sr:'Završeno!' },
+  dashboardQuestHistoryShow: { en:'History',             sr:'Istorija' },
+  dashboardQuestHistoryHide: { en:'Hide history',        sr:'Sakrij istoriju' },
+  dashboardQuestHistoryLoading:{ en:'Loading…',          sr:'Učitavanje…' },
+  dashboardQuestHistoryEmpty:{ en:'No completed quests yet.', sr:'Još nema završenih izazova.' },
+  dashboardQuestHistoryError:{ en:'Could not load quest history.', sr:'Istorija izazova nije mogla da se učita.' },
   adminDashboardActivityTitle:   { en:'Moderation Stats',        sr:'Statistika moderacije' },
   adminDashboardStatReviewed:    { en:'Reports reviewed',        sr:'Pregledani izveštaji' },
   adminDashboardStatFast:        { en:'Fast resolves (<1h)',     sr:'Brza rešenja (<1č)' },
@@ -7593,6 +7693,13 @@ function applyLang(){
   if (dashQuestsTitleEl) dashQuestsTitleEl.textContent = t('dashboardQuestsTitle');
   const adminDashQuestsTitleEl = document.getElementById('adminDashboardQuestsTitle');
   if (adminDashQuestsTitleEl) adminDashQuestsTitleEl.textContent = t('adminDashboardQuestsTitle');
+  const historyBtnEl = document.getElementById('dashboardQuestHistoryToggle');
+  if (historyBtnEl) {
+    const historyPanelEl = document.getElementById('dashboardQuestHistory');
+    const isOpen = historyPanelEl && historyPanelEl.style.display !== 'none';
+    historyBtnEl.textContent = isOpen ? t('dashboardQuestHistoryHide') : t('dashboardQuestHistoryShow');
+    if (isOpen) { questHistoryLoaded = false; loadDashboardQuestHistory(); }
+  }
   if (document.getElementById('dashboardQuestsList') && currentSession && currentProfile && !currentProfile.is_admin) {
     loadDashboardStreakAndQuests();
   }
