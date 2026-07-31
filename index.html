@@ -16894,6 +16894,9 @@ async function showReportDetailModal(reportId) {
   const report = globalActiveData.find(r => r.id === reportId);
   if (!report || !isValidLatLng(report.latitude, report.longitude)) return;
 
+  const isOwner = !!(currentSession && report.owner_id === currentSession.user.id);
+  const isAdmin = !!(currentProfile && currentProfile.is_admin);
+
   const modal = document.getElementById('reportDetailModal');
   const body = document.getElementById('reportDetailBody');
   const titleEl = document.getElementById('reportDetailTitle');
