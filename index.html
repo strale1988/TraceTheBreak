@@ -3261,9 +3261,9 @@ span.flatpickr-weekday {
 
 <div id="bottomRightStack" class="bottomright-stack">
   <div id="followLocationBtn" class="pin-map-btn" style="display:none" title="Follow my location" onclick="toggleFollowMode()" role="button" tabindex="0" aria-label="Follow my location" aria-pressed="false" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleFollowMode();}"><img class="icon-img" src="icons/target.png" alt=""></div>
-  <div id="pinMapBtn" class="pin-map-btn" style="display:none" title="Set location manually" onclick="togglePinMode()"><img class="icon-img" src="icons/pin.png" alt="Pin"></div>
-  <div id="navigateModeBtn" class="pin-map-btn" style="display:none" title="Navigate" onclick="enterNavigationMode()"><svg class="icon-img nav-arrow-btn-icon" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 2.2 L19.3 20 L12 15.6 L4.7 20 Z" fill="currentColor"/></svg></div>
-  <div id="heatmapBtn" class="pin-map-btn heatmap-btn" style="display:none" title="Heatmap" onclick="toggleHeatmap()">
+  <div id="pinMapBtn" class="pin-map-btn" style="display:none" title="Set location manually" onclick="togglePinMode()" role="button" tabindex="0" aria-label="Set location manually" aria-pressed="false" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();togglePinMode();}"><img class="icon-img" src="icons/pin.png" alt="Pin"></div>
+  <div id="navigateModeBtn" class="pin-map-btn" style="display:none" title="Navigate" onclick="enterNavigationMode()" role="button" tabindex="0" aria-label="Navigate" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();enterNavigationMode();}"><svg class="icon-img nav-arrow-btn-icon" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 2.2 L19.3 20 L12 15.6 L4.7 20 Z" fill="currentColor"/></svg></div>
+  <div id="heatmapBtn" class="pin-map-btn heatmap-btn" style="display:none" title="Heatmap" onclick="toggleHeatmap()" role="button" tabindex="0" aria-label="Heatmap" aria-pressed="false" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleHeatmap();}">
     <img class="icon-img" src="icons/heatmap.png" alt="Heatmap">
   </div>
   <div id="mainMapCompass" class="map-compass heading-up-disabled" style="display:none" title="Heading: tap to rotate the map with your direction of travel" onclick="toggleWalkingCompassMode()" role="button" tabindex="0" aria-label="Rotate map with direction of travel" aria-pressed="false" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleWalkingCompassMode();}">
@@ -8015,7 +8015,12 @@ function buildOneTileLayer(url, opts, fallbackMaxZoom) {
     keepBuffer: 8,
     updateWhenZooming: false,
     noWrap: true,
-    detectRetina: true
+    // Left off on purpose: with it on, Leaflet requests tiles one zoom level past
+    // maxNativeZoom on high-DPI screens (via zoomOffset), which 404s once you're
+    // zoomed past what a given tile provider actually supports — showing up as the
+    // map tiles going blank instead of the intended "stretch the last good tile"
+    // fallback below. Since this is a mobile-first app, that hit most phones.
+    detectRetina: false
   });
 }
 
@@ -11885,7 +11890,7 @@ function maybeFetchSpeedLimit(lat, lon) {
 
 // Flip to false to silence the console diagnostics below once you've confirmed
 // the corridor matching looks right for your area.
-const SPEED_SIGN_DEBUG = true;
+const SPEED_SIGN_DEBUG = false;
 
 // A way only counts as "on our route" if at least this fraction of its nodes
 // fall within SPEED_SIGN_ROUTE_MATCH_M of the route polyline. A single close
@@ -12340,6 +12345,7 @@ function togglePinMode() {
   pinMode = !pinMode;
   const btn = document.getElementById('pinMapBtn');
   btn.classList.toggle('active', pinMode);
+  btn.setAttribute('aria-pressed', pinMode ? 'true' : 'false');
 
   if (pinMode) {
     clearMarkers();
@@ -12781,11 +12787,13 @@ function toggleHeatmap() {
     if (map.hasLayer(companyMarkersLayer)) map.removeLayer(companyMarkersLayer);
     heatLayer = buildHeatLayer().addTo(map);
     btn.classList.add('active');
+    btn.setAttribute('aria-pressed', 'true');
   } else {
     if (heatLayer) { map.removeLayer(heatLayer); heatLayer = null; }
     if (!map.hasLayer(pinCluster)) map.addLayer(pinCluster);
     if (!map.hasLayer(companyMarkersLayer)) map.addLayer(companyMarkersLayer);
     btn.classList.remove('active');
+    btn.setAttribute('aria-pressed', 'false');
   }
 }
 
@@ -13214,12 +13222,21 @@ function reportFabTap() {
 
   if (!isReportReady()) { toast(hasReliableGps() ? t('gpsTooWeak') : t('waitGps'), 'error'); return; }
 
+  // If the user already dropped a manual pin for precision, it's the location they
+  // mean to report — leave it alone instead of snapping it back to the GPS dot.
+  if (pinMode && manualCoords) {
+    checkFormReady();
+    openReportWizard();
+    return;
+  }
+
   if (hasReliableGps()) {
 
     if (!pinMode) {
       pinMode = true;
       wizOwnsPinDrop = true;
       document.getElementById('pinMapBtn').classList.add('active');
+      document.getElementById('pinMapBtn').setAttribute('aria-pressed', 'true');
     }
     manualCoords = { lat: userCoords.lat, lon: userCoords.lon };
     if (manualMarker) {
