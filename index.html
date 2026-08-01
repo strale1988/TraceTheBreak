@@ -2725,6 +2725,19 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   font-size:var(--fs-10); font-weight:var(--fw-bold); letter-spacing:.4px; text-transform:uppercase;
   color:var(--text-muted);
 }
+.activity-feed-list{ display:flex; flex-direction:column; gap:var(--space-8); margin-bottom:var(--space-8); }
+.activity-feed-item{
+  background:var(--bg-surface-alt); border:1px solid var(--border-color); border-radius:var(--radius-lg); padding:10px 12px;
+  display:flex; align-items:flex-start; gap:var(--space-8); cursor:pointer;
+  -webkit-tap-highlight-color:transparent; transition:transform .1s ease, opacity .1s ease;
+}
+.activity-feed-item:active{ transform:scale(0.98); opacity:.85; }
+.activity-feed-icon{ width:28px; height:28px; flex:0 0 28px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:var(--bg-surface); }
+.activity-feed-icon img{ width:16px; height:16px; }
+.activity-feed-body{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.activity-feed-line1{ font-size:var(--fs-13); font-weight:var(--fw-semibold); }
+.activity-feed-line2{ font-size:var(--fs-11); color:var(--text-muted); }
+.activity-feed-flag-badge{ font-size:var(--fs-9-5); font-weight:var(--fw-bold); text-transform:uppercase; letter-spacing:.2px; padding:1px 6px; border-radius:var(--radius-lg); background:var(--danger-strong); color:white; margin-left:6px; }
 .uc-list{ display:flex; flex-direction:column; gap:var(--space-8); }
 .uc-item{
   background:var(--bg-surface-alt); border:1px solid var(--border-color); border-radius:var(--radius-lg); padding:10px 12px;
@@ -4031,6 +4044,13 @@ span.flatpickr-weekday {
         <button type="button" class="uc-verify-btn" onclick="verifyUtilityCompany()" id="ucVerifyBtn">Admin has checked the data</button>
       </div>
 
+    </div>
+
+    <div class="admin-section detail-section" id="adminActivitySection">
+      <div class="admin-section-title detail-section-title" id="activityFeedSectionTitle">Recent activity</div>
+      <div class="activity-feed-list" id="activityFeedList"></div>
+      <div class="detail-empty" id="activityFeedEmpty" style="display:none;"></div>
+      <button type="button" class="settings-btn" id="activityFeedLoadMoreBtn" onclick="loadAdminActivityFeed(false)" style="display:none;">Load more</button>
     </div>
   </div>
 </div>
@@ -6712,6 +6732,24 @@ const T = {
   settingsModalTitle: { en:'Settings',                   sr:'Podešavanja' },
   adminPanelBtnTitle:   { en:'Admin panel',               sr:'Admin panel' },
   adminPanelModalTitle: { en:'Admin panel',               sr:'Admin panel' },
+  activityFeedSectionTitle: { en:'Recent activity',       sr:'Nedavne aktivnosti' },
+  activityFeedEmpty:    { en:'No activity yet in your jurisdiction.', sr:'Još nema aktivnosti u vašoj nadležnosti.' },
+  activityFeedLoadMoreBtn: { en:'Load more',              sr:'Učitaj još' },
+  activityFeedLoadingBtn:  { en:'Loading…',                sr:'Učitavanje…' },
+  activityEvReportSubmitted:   { en:'New report submitted',       sr:'Nova prijava' },
+  activityEvStatusInProgress:  { en:'Marked in progress',         sr:'Označeno u toku' },
+  activityEvStatusFixed:       { en:'Marked fixed',               sr:'Označeno rešeno' },
+  activityEvPhotoSubmitted:    { en:'Photo submitted',            sr:'Poslata fotografija' },
+  activityEvPhotoReviewed:     { en:'Photo reviewed',             sr:'Pregledana fotografija' },
+  activityEvFixedPhotoSubmitted: { en:'Fixed-photo submitted',    sr:'Poslata fotografija rešenog' },
+  activityEvFixedPhotoReviewed:  { en:'Fixed-photo reviewed',     sr:'Pregledana fotografija rešenog' },
+  activityEvAfterPhotoSubmitted: { en:'After-photo submitted',    sr:'Poslata fotografija posle' },
+  activityEvAfterPhotoReviewed:  { en:'After-photo reviewed',     sr:'Pregledana fotografija posle' },
+  activityEvGalleryPhotoAdded: { en:'Photo added to gallery',     sr:'Fotografija dodata u galeriju' },
+  activityEvFlagged:           { en:'Flagged for review',         sr:'Prijavljeno na pregled' },
+  activityEvContactLogged:     { en:'Utility contact logged',     sr:'Zabeležen kontakt sa preduzećem' },
+  activityFeedByPrefix:        { en:'by ',                        sr:'od ' },
+  activityFeedUnknownActor:    { en:'unknown user',               sr:'nepoznat korisnik' },
   openAnalyticsBtnLabel:  { en:'Analytics',                        sr:'Analitika' },
   analyticsModalTitle:    { en:'Analytics',                        sr:'Analitika' },
   analyticsRangeDaysSuffix: { en:'d',                               sr:'d' },
@@ -7725,6 +7763,7 @@ function applyLang(){
 
   if (currentProfile && currentProfile.is_admin && document.getElementById('adminPanelModal').style.display !== 'none') {
     document.getElementById('adminPanelModalTitle').textContent = t('adminPanelModalTitle');
+    renderAdminActivityFeed();
     const titleEl = document.getElementById('ucSectionTitle');
     if (titleEl) titleEl.textContent = t('ucSectionTitle');
     const ucSearchEl = document.getElementById('ucSearchInput');
@@ -7898,6 +7937,7 @@ function showAdminPanelModal() {
   modal.style.display = 'flex';
   cancelUcForm();
   loadUtilityCompaniesAdmin();
+  loadAdminActivityFeed(true);
   resetAdminSearch();
   openOverlay('adminPanelModal', hideAdminPanelModal);
 }
@@ -15973,6 +16013,144 @@ function onUcCountrySearchInput(value) {
   } else {
     renderUcList();
   }
+}
+
+// ---- Admin panel: Recent activity feed -----------------------------------
+// Jurisdiction-scoped feed (via get_admin_activity_feed RPC, which mirrors
+// admin_can_manage_municipality's level 1-4 resolution) of report
+// submissions, status changes, photo submissions/reviews, gallery photos,
+// flags, and utility contact logs. Each item opens the normal report detail
+// modal, so admins get the existing edit/delete/status/photo-review tools
+// for free just by tapping an activity item.
+const ACTIVITY_FEED_PAGE_SIZE = 25;
+let adminActivityFeedItems = [];
+let adminActivityFeedCursor = null; // ISO timestamp of the oldest loaded item, for keyset pagination
+let adminActivityFeedLoading = false;
+let adminActivityFeedExhausted = false;
+
+const ACTIVITY_EVENT_META = {
+  report_submitted:        { labelKey: 'activityEvReportSubmitted' },
+  status_in_progress:      { labelKey: 'activityEvStatusInProgress' },
+  status_fixed:             { labelKey: 'activityEvStatusFixed' },
+  photo_submitted:          { labelKey: 'activityEvPhotoSubmitted',       icon: 'icons/camera.png' },
+  photo_reviewed:           { labelKey: 'activityEvPhotoReviewed',        icon: 'icons/camera.png' },
+  fixed_photo_submitted:    { labelKey: 'activityEvFixedPhotoSubmitted',  icon: 'icons/camera.png' },
+  fixed_photo_reviewed:     { labelKey: 'activityEvFixedPhotoReviewed',   icon: 'icons/camera.png' },
+  after_photo_submitted:    { labelKey: 'activityEvAfterPhotoSubmitted',  icon: 'icons/camera.png' },
+  after_photo_reviewed:     { labelKey: 'activityEvAfterPhotoReviewed',   icon: 'icons/camera.png' },
+  gallery_photo_added:      { labelKey: 'activityEvGalleryPhotoAdded',    icon: 'icons/gallery.png' },
+  flagged_for_review:       { labelKey: 'activityEvFlagged' },
+  contact_logged:           { labelKey: 'activityEvContactLogged',       icon: 'icons/phone.png' },
+};
+
+function activityFeedIconFor(item) {
+  const meta = ACTIVITY_EVENT_META[item.event_type];
+  return (meta && meta.icon) ? meta.icon : categoryIcon(item.category);
+}
+
+function activityFeedLine2(item) {
+  const parts = [];
+  const catLabel = item.subcategory
+    ? `${translateCategory(item.category)} / ${subcategoryLabel(item.category, item.subcategory)}`
+    : translateCategory(item.category);
+  parts.push(catLabel);
+  if (item.municipality_name) parts.push(item.municipality_name);
+  const actor = item.actor_username ? (t('activityFeedByPrefix') + item.actor_username) : t('activityFeedUnknownActor');
+  parts.push(actor);
+  parts.push(formatDate(item.event_time));
+  return parts.filter(Boolean).join(' · ');
+}
+
+function renderActivityFeedItem(item) {
+  const meta = ACTIVITY_EVENT_META[item.event_type] || { labelKey: null };
+  const label = meta.labelKey ? t(meta.labelKey) : item.event_type;
+  const flagBadge = item.event_type === 'flagged_for_review' && item.extra
+    ? `<span class="activity-feed-flag-badge">${escapeHtml(item.extra)}</span>`
+    : '';
+  return `
+    <div class="activity-feed-item" onclick="openReportFromActivityFeed('${item.report_id}')">
+      <div class="activity-feed-icon"><img src="${activityFeedIconFor(item)}" alt=""></div>
+      <div class="activity-feed-body">
+        <div class="activity-feed-line1">${escapeHtml(label)}${flagBadge}</div>
+        <div class="activity-feed-line2">${escapeHtml(activityFeedLine2(item))}</div>
+      </div>
+    </div>`;
+}
+
+function renderAdminActivityFeed() {
+  const titleEl = document.getElementById('activityFeedSectionTitle');
+  if (titleEl) titleEl.textContent = t('activityFeedSectionTitle');
+  const listEl = document.getElementById('activityFeedList');
+  const emptyEl = document.getElementById('activityFeedEmpty');
+  const loadMoreBtn = document.getElementById('activityFeedLoadMoreBtn');
+  if (!listEl) return;
+
+  if (!adminActivityFeedItems.length && !adminActivityFeedLoading) {
+    listEl.innerHTML = '';
+    if (emptyEl) { emptyEl.textContent = t('activityFeedEmpty'); emptyEl.style.display = ''; }
+  } else {
+    if (emptyEl) emptyEl.style.display = 'none';
+    listEl.innerHTML = adminActivityFeedItems.map(renderActivityFeedItem).join('');
+  }
+
+  if (loadMoreBtn) {
+    loadMoreBtn.textContent = adminActivityFeedLoading ? t('activityFeedLoadingBtn') : t('activityFeedLoadMoreBtn');
+    loadMoreBtn.disabled = adminActivityFeedLoading;
+    loadMoreBtn.style.display = (adminActivityFeedExhausted || !adminActivityFeedItems.length) ? 'none' : '';
+  }
+}
+
+async function loadAdminActivityFeed(reset) {
+  if (!currentProfile || !currentProfile.is_admin) return;
+  if (adminActivityFeedLoading) return;
+  if (reset) {
+    adminActivityFeedItems = [];
+    adminActivityFeedCursor = null;
+    adminActivityFeedExhausted = false;
+  }
+  if (adminActivityFeedExhausted) return;
+
+  adminActivityFeedLoading = true;
+  renderAdminActivityFeed();
+  try {
+    const { data, error } = await sb.rpc('get_admin_activity_feed', {
+      p_before: adminActivityFeedCursor || new Date().toISOString(),
+      p_limit: ACTIVITY_FEED_PAGE_SIZE,
+    });
+    if (error) throw error;
+    const rows = data || [];
+    adminActivityFeedItems = adminActivityFeedItems.concat(rows);
+    if (rows.length) adminActivityFeedCursor = rows[rows.length - 1].event_time;
+    if (rows.length < ACTIVITY_FEED_PAGE_SIZE) adminActivityFeedExhausted = true;
+  } catch (err) {
+    console.error('Failed to load admin activity feed:', err.message || err);
+    adminActivityFeedExhausted = true;
+  } finally {
+    adminActivityFeedLoading = false;
+    renderAdminActivityFeed();
+  }
+}
+
+// Activity items can reference reports outside the admin's current map
+// viewport (globalActiveData is viewport/filter scoped), so fetch the
+// single report on demand before handing off to the normal detail modal --
+// this way the feed reuses all existing edit/delete/status/photo-review UI
+// instead of needing its own.
+async function openReportFromActivityFeed(reportId) {
+  if (!reportId) return;
+  let report = globalActiveData.find(r => r.id === reportId);
+  if (!report) {
+    try {
+      const { data, error } = await sb.from(TABLE).select('*').eq('id', reportId).maybeSingle();
+      if (error || !data) { console.error('Activity feed: report not found', error && error.message); return; }
+      report = data;
+      globalActiveData = globalActiveData.concat([report]);
+    } catch (err) {
+      console.error('Failed to fetch report from activity feed:', err.message || err);
+      return;
+    }
+  }
+  showReportDetailModal(reportId);
 }
 
 async function loadUtilityCompaniesAdmin() {
