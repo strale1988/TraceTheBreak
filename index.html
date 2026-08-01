@@ -6665,6 +6665,7 @@ const T = {
   mapStyleAutoCar:   { en:'Auto (Standard)',             sr:'Automatski (Standardna)' },
   mapStyleAutoBike:  { en:'Auto (Standard)',             sr:'Automatski (Standardna)' },
   mapStyleAutoFoot:  { en:'Auto (Standard)',             sr:'Automatski (Standardna)' },
+  mapStyleNoDataFallback: { en:'No satellite imagery at this zoom — showing Standard map', sr:'Nema satelitskog snimka na ovom zumu — prikazuje se Standardna mapa' },
   iconPackSectionTitle: { en:'Icon pack',                             sr:'Paket ikonica' },
   iconPackHint:      { en:'Changes how map pins and icons look. The app will reload after switching.', sr:'Menja izgled ikonica i pinova na mapi. Aplikacija će se ponovo učitati nakon promene.' },
   languageSectionTitle: { en:'Language',                 sr:'Jezik' },
@@ -8330,6 +8331,48 @@ function endZoomBurst() {
   if (typeof scheduleMarkerSyncOnSettle === 'function') scheduleMarkerSyncOnSettle();
   if (typeof scheduleViewportReloadIfNeeded === 'function') scheduleViewportReloadIfNeeded();
   if (typeof scheduleCompanyMarkersReload === 'function') scheduleCompanyMarkersReload();
+  if (typeof checkMapStyleZoomFallback === 'function') checkMapStyleZoomFallback();
+}
+
+// --- Satellite/Hybrid "no data past this zoom" fallback ---
+// Esri's World_Imagery/Reference tile servers only have real coverage up to
+// maxNativeZoom (see MAP_STYLES.satellite/hybrid comments) but we deliberately
+// let Leaflet zoom well past that and stretch the last tile. Past a certain
+// point Esri's own servers stop stretching and start returning an actual
+// placeholder tile image with "Map data not yet available" baked into it,
+// which reads as broken. Rather than cap zoom (blocking precise pin
+// placement), temporarily swap to the Standard style — which uses OSM tiles
+// and doesn't have this failure mode — once we're that far past native
+// coverage, then swap back once the user zooms back out.
+const MAP_STYLE_NO_DATA_FALLBACK_IDS = ['satellite', 'hybrid'];
+const MAP_STYLE_NO_DATA_ZOOM_MARGIN = 2; // allow a couple of stretched-but-real-looking levels first
+let mapStyleAutoFallbackActive = false;
+
+function checkMapStyleZoomFallback() {
+  const resolvedId = resolveActiveMapStyleId();
+  const isNoDataStyle = MAP_STYLE_NO_DATA_FALLBACK_IDS.includes(resolvedId);
+
+  if (!isNoDataStyle) {
+    // User isn't even on a no-data-prone style right now; nothing to do,
+    // but clear the flag in case it was left set from a style switch mid-fallback.
+    mapStyleAutoFallbackActive = false;
+    return;
+  }
+
+  const style = MAP_STYLES[resolvedId];
+  const theme = currentThemeResolved();
+  const source = (theme === 'dark' && style.dark && style.dark.url) ? style.dark : style.light;
+  const maxNative = source.maxNativeZoom || 19;
+  const pastNoDataThreshold = map.getZoom() > maxNative + MAP_STYLE_NO_DATA_ZOOM_MARGIN;
+
+  if (pastNoDataThreshold && !mapStyleAutoFallbackActive) {
+    mapStyleAutoFallbackActive = true;
+    setActiveMapStyle('standard');
+    toast(t('mapStyleNoDataFallback'));
+  } else if (!pastNoDataThreshold && mapStyleAutoFallbackActive) {
+    mapStyleAutoFallbackActive = false;
+    setActiveMapStyle(resolvedId);
+  }
 }
 map.on('zoomstart', () => {
   noteZoomActivity(rotationActive());
@@ -8637,6 +8680,10 @@ function setActiveMapStyle(styleId) {
 
 function refreshActiveMapStyle() {
   setActiveMapStyle(resolveActiveMapStyleId());
+  // Handles the case where the user manually picks Satellite/Hybrid while
+  // already zoomed in past the no-data threshold — otherwise the fallback
+  // wouldn't kick in until the next zoomend.
+  if (typeof checkMapStyleZoomFallback === 'function') checkMapStyleZoomFallback();
 }
 
 function populateMapStyleSelects() {
