@@ -1924,6 +1924,9 @@ body.driving-active #appPanel{
 .dashboard-quest-fill.is-complete{ background:var(--accent); }
 .dashboard-quest-progress-text{ font-size:var(--fs-9-5); color:var(--text-muted); margin-top:4px; text-align:right; }
 .dashboard-quests-empty{ font-size:var(--fs-11-5); color:var(--text-muted); text-align:center; padding:10px; }
+.dashboard-quests-load-error{ font-size:var(--fs-11-5); color:var(--text-muted); text-align:center; padding:10px; display:flex; flex-direction:column; align-items:center; gap:8px; }
+.dashboard-quests-retry-btn{ font-size:var(--fs-11-5); padding:6px 14px; border-radius:999px; border:1px solid var(--border-color); background:var(--bg-surface-alt); color:var(--text-primary); cursor:pointer; }
+.dashboard-quests-retry-btn:hover{ filter:brightness(0.95); }
 .dashboard-badges-title-row{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .dashboard-quest-history-toggle{ appearance:none; border:none; background:none; padding:0; font-size:var(--fs-11); font-weight:var(--fw-semibold); color:var(--accent); cursor:pointer; }
 .dashboard-quest-history{ margin-top:6px; }
@@ -6024,6 +6027,15 @@ async function loadDashboardStreakAndQuests() {
     renderDashboardStreak(streak);
   } catch (err) {
     console.error('Failed to load streak:', err.message);
+    if (currentSession && currentSession.user.id === uid) {
+      // The streak card may already be showing a previous value (stale-but-
+      // not-wrong) or may never have loaded at all — either way, a silent
+      // console.error gives the user no signal anything went wrong, so
+      // surface it distinctly from a genuine "no streak yet" state.
+      const card = document.getElementById('dashboardStreakCard');
+      const hadPriorValue = card && card.style.display === 'flex';
+      toast(t(hadPriorValue ? 'dashboardQuestsRefreshFailed' : 'dashboardStreakLoadError'), 'error');
+    }
   }
 
   await loadQuestsInto(uid, 'user', document.getElementById('dashboardQuestsList'));
@@ -6060,9 +6072,30 @@ async function loadQuestsInto(uid, scope, listEl) {
     }
     if (!currentSession || currentSession.user.id !== uid) return;
     renderDashboardQuests(withPeriods, progressRows, listEl);
+    listEl.dataset.loadedOnce = '1';
   } catch (err) {
     console.error('Failed to load ' + scope + ' quests:', err.message);
+    if (!currentSession || currentSession.user.id !== uid) return;
+    showQuestLoadError(listEl, uid, scope);
   }
+}
+
+// Distinguishes "never successfully loaded" (show an inline error + retry
+// button in place of the empty list, since silently leaving it blank looks
+// identical to "you have no quests") from "had a good render before, this
+// refresh just failed" (leave the last-known cards up rather than yanking
+// them, just flag via toast that it's possibly stale).
+function showQuestLoadError(listEl, uid, scope) {
+  if (listEl.dataset.loadedOnce === '1') {
+    toast(t('dashboardQuestsRefreshFailed'), 'error');
+    return;
+  }
+  listEl.innerHTML = `<div class="dashboard-quests-load-error">
+    <span>${escapeHtml(t('dashboardQuestsLoadError'))}</span>
+    <button type="button" class="dashboard-quests-retry-btn">${escapeHtml(t('retryBtn'))}</button>
+  </div>`;
+  const btn = listEl.querySelector('.dashboard-quests-retry-btn');
+  if (btn) btn.addEventListener('click', () => loadQuestsInto(uid, scope, listEl));
 }
 
 function renderDashboardStreak(streak) {
@@ -6543,17 +6576,71 @@ async function initAuth() {
   }
   updateAuthUI();
   stripAuthHashFromUrl();
+  if (currentSession) setupQuestProgressRealtimeSync(currentSession.user.id);
 
   sb.auth.onAuthStateChange(async (event, session) => {
     currentSession = session;
     if (session) {
       await loadProfile();
       stripAuthHashFromUrl();
+      setupQuestProgressRealtimeSync(session.user.id);
     } else {
       currentProfile = null;
       updateAuthUI();
+      teardownQuestProgressRealtimeSync();
     }
   });
+}
+
+// Quests/streak previously only refreshed when the dashboard tab was (re)opened
+// (loadDashboardStreakAndQuests / loadAdminQuests). Since the actual writes to
+// user_engagement_progress and user_streaks happen entirely server-side (DB
+// triggers on report/vote/photo actions — see bump_quest_progress), the client
+// had no way to know progress changed unless it re-opened the dashboard. This
+// subscribes to just the current user's rows so quest cards update live.
+let questProgressRealtimeChannel = null;
+let questProgressRealtimeUid = null;
+
+function setupQuestProgressRealtimeSync(uid) {
+  if (!uid) return;
+  if (questProgressRealtimeChannel && questProgressRealtimeUid === uid) return; // already subscribed for this user
+  teardownQuestProgressRealtimeSync();
+  questProgressRealtimeUid = uid;
+  questProgressRealtimeChannel = sb.channel('quest-progress-live-sync-' + uid)
+    .on('postgres_changes', {
+      event: '*', schema: 'public', table: 'user_engagement_progress', filter: 'user_id=eq.' + uid
+    }, () => {
+      try {
+        if (!currentSession || currentSession.user.id !== uid) return;
+        // Re-pull rather than hand-patch the payload row — the quest list also
+        // needs the joined engagement_rules data, so this keeps rendering
+        // logic in the one place (loadQuestsInto) instead of duplicating it.
+        const scope = (currentProfile && currentProfile.is_admin) ? 'admin' : 'user';
+        const listEl = document.getElementById(scope === 'admin' ? 'adminQuestsList' : 'dashboardQuestsList');
+        loadQuestsInto(uid, scope, listEl);
+      } catch (err) {
+        console.error('Realtime quest progress sync error:', err);
+      }
+    })
+    .on('postgres_changes', {
+      event: '*', schema: 'public', table: 'user_streaks', filter: 'user_id=eq.' + uid
+    }, payload => {
+      try {
+        if (!currentSession || currentSession.user.id !== uid) return;
+        renderDashboardStreak(payload.new);
+      } catch (err) {
+        console.error('Realtime streak sync error:', err);
+      }
+    })
+    .subscribe();
+}
+
+function teardownQuestProgressRealtimeSync() {
+  if (questProgressRealtimeChannel) {
+    sb.removeChannel(questProgressRealtimeChannel);
+    questProgressRealtimeChannel = null;
+  }
+  questProgressRealtimeUid = null;
 }
 
 function stripAuthHashFromUrl() {
@@ -6785,6 +6872,10 @@ const T = {
   dashboardQuestHistoryLoading:{ en:'Loading…',          sr:'Učitavanje…' },
   dashboardQuestHistoryEmpty:{ en:'No completed quests yet.', sr:'Još nema završenih izazova.' },
   dashboardQuestHistoryError:{ en:'Could not load quest history.', sr:'Istorija izazova nije mogla da se učita.' },
+  dashboardQuestsLoadError:  { en:"Couldn't load quests.", sr:'Izazovi nisu mogli da se učitaju.' },
+  dashboardQuestsRefreshFailed: { en:"Couldn't refresh quests — showing last known progress.", sr:'Izazovi nisu mogli da se osveže — prikazuje se poslednje poznato stanje.' },
+  dashboardStreakLoadError: { en:"Couldn't load your streak.", sr:'Niz nije mogao da se učita.' },
+  retryBtn:                  { en:'Retry',              sr:'Pokušaj ponovo' },
   adminDashboardActivityTitle:   { en:'Moderation Stats',        sr:'Statistika moderacije' },
   adminDashboardStatReviewed:    { en:'Reports reviewed',        sr:'Pregledani izveštaji' },
   adminDashboardStatFast:        { en:'Fast resolves (<1h)',     sr:'Brza rešenja (<1č)' },
