@@ -15226,7 +15226,137 @@ function renderMunicipalityBoundary(muni, source) {
     updateBottomMunicipalityBar(currentContactsMunicipality);
   }
   showMunicipalityLabel(muni);
+  // Re-highlight immediately rather than waiting for the moveend/zoomend
+  // debounce below — the "current" outline should snap to the new
+  // municipality the instant it's resolved.
+  scheduleMunicipalityBoundaryRefresh();
 }
+
+// --- Visible municipality boundary outlines --------------------------------
+// Separate from the boundary GeoJSON's *other* job above (invisible
+// point-in-polygon tests via findMunicipalityInCache) — this actually draws
+// outlines on the map so neighboring municipalities are visually
+// distinguishable, with a bolder highlight around whichever one is
+// currently active (GPS/pin/map-center).
+//
+// Performance is kept flat regardless of how many municipalities exist
+// (currently 90k+ rows worldwide) by three independent guards:
+//  1. Only municipalities whose bbox intersects the current (padded)
+//     viewport are ever drawn — never the whole table.
+//  2. Each polygon is simplified once (Ramer-Douglas-Peucker) the first
+//     time it's drawn and the simplified version is cached on the row
+//     (m._simplifiedBoundary), so re-panning past the same municipality
+//     later is free — no re-simplifying.
+//  3. Borders are drawn on Leaflet's canvas renderer rather than SVG, which
+//     scales much better once more than a few polygons are on screen, and
+//     are hidden above MUNI_BOUNDARY_MAX_ZOOM — at that zoom you're already
+//     clearly inside a single municipality, so outlines would just be
+//     clutter (and you'd only ever see one tiny arc of one edge anyway).
+
+const MUNI_BOUNDARY_MAX_ZOOM = 12;
+// ~300m in degrees — invisible at any zoom level borders are actually drawn
+// at, but cuts vertex counts on detailed OSM polygons dramatically.
+const MUNI_BOUNDARY_SIMPLIFY_TOLERANCE_DEG = 0.003;
+const MUNI_BOUNDARY_SIMPLIFY_MIN_POINTS = 40;
+
+function simplifyRingRDP(points, tolerance) {
+  if (!points || points.length <= MUNI_BOUNDARY_SIMPLIFY_MIN_POINTS) return points;
+  const sqTolerance = tolerance * tolerance;
+  function sqSegDist(p, a, b) {
+    let x = a[0], y = a[1], dx = b[0] - x, dy = b[1] - y;
+    if (dx !== 0 || dy !== 0) {
+      const t = ((p[0] - x) * dx + (p[1] - y) * dy) / (dx * dx + dy * dy);
+      if (t > 1) { x = b[0]; y = b[1]; }
+      else if (t > 0) { x += dx * t; y += dy * t; }
+    }
+    dx = p[0] - x; dy = p[1] - y;
+    return dx * dx + dy * dy;
+  }
+  function rdp(pts, first, last, out) {
+    let maxDist = sqTolerance, index = -1;
+    for (let i = first + 1; i < last; i++) {
+      const dist = sqSegDist(pts[i], pts[first], pts[last]);
+      if (dist > maxDist) { index = i; maxDist = dist; }
+    }
+    if (index !== -1) {
+      if (index - first > 1) rdp(pts, first, index, out);
+      out.push(pts[index]);
+      if (last - index > 1) rdp(pts, index, last, out);
+    }
+  }
+  const out = [points[0]];
+  rdp(points, 0, points.length - 1, out);
+  out.push(points[points.length - 1]);
+  return out;
+}
+
+function getSimplifiedMuniBoundary(m) {
+  if (!m || !m.boundary || !m.boundary.coordinates) return null;
+  if (m._simplifiedBoundary !== undefined) return m._simplifiedBoundary;
+  try {
+    const simplifyPolygon = (rings) => rings.map(ring => simplifyRingRDP(ring, MUNI_BOUNDARY_SIMPLIFY_TOLERANCE_DEG));
+    m._simplifiedBoundary = m.boundary.type === 'MultiPolygon'
+      ? { type: 'MultiPolygon', coordinates: m.boundary.coordinates.map(simplifyPolygon) }
+      : { type: 'Polygon', coordinates: simplifyPolygon(m.boundary.coordinates) };
+  } catch (e) {
+    m._simplifiedBoundary = m.boundary; // fall back to raw geometry rather than drop the border entirely
+  }
+  return m._simplifiedBoundary;
+}
+
+function cssVarColor(name, fallback) {
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name);
+  return (v && v.trim()) || fallback;
+}
+
+let municipalityBoundaryLayer = null;
+let municipalityBoundaryRenderer = null;
+
+function ensureMunicipalityBoundaryLayer() {
+  if (municipalityBoundaryLayer) return municipalityBoundaryLayer;
+  municipalityBoundaryRenderer = L.canvas({ padding: 0.5 });
+  municipalityBoundaryLayer = L.layerGroup().addTo(map);
+  return municipalityBoundaryLayer;
+}
+
+function muniBoundaryBBoxIntersectsViewport(bbox, vp) {
+  if (!bbox || bbox.length !== 4) return false;
+  const [minLon, minLat, maxLon, maxLat] = bbox;
+  return minLon <= vp.maxLon && maxLon >= vp.minLon && minLat <= vp.maxLat && maxLat >= vp.minLat;
+}
+
+function municipalityBoundaryStyle(m) {
+  const isCurrent = !!(currentContactsMunicipality && m.id === currentContactsMunicipality.id);
+  return isCurrent
+    ? { renderer: municipalityBoundaryRenderer, color: cssVarColor('--accent', '#e16e11'), weight: 2.5, opacity: 0.9, fill: false, smoothFactor: 1.5 }
+    : { renderer: municipalityBoundaryRenderer, color: cssVarColor('--text-muted', '#999'), weight: 1, opacity: 0.45, fill: false, smoothFactor: 1.5 };
+}
+
+function refreshMunicipalityBoundaries() {
+  const layer = ensureMunicipalityBoundaryLayer();
+  layer.clearLayers();
+  if (map.getZoom() > MUNI_BOUNDARY_MAX_ZOOM) return;
+
+  const vp = currentViewportBBox();
+  for (const m of municipalityCache) {
+    if (!m.boundary || !muniBoundaryBBoxIntersectsViewport(m.bbox, vp)) continue;
+    const geo = getSimplifiedMuniBoundary(m);
+    if (!geo) continue;
+    L.geoJSON(geo, { style: () => municipalityBoundaryStyle(m) }).addTo(layer);
+  }
+}
+
+const MUNI_BOUNDARY_REFRESH_DEBOUNCE_MS = 350;
+const MUNI_BOUNDARY_REFRESH_MAX_WAIT_MS = 2000;
+const runMunicipalityBoundaryRefresh = debounceWithMaxWait(
+  refreshMunicipalityBoundaries, MUNI_BOUNDARY_REFRESH_DEBOUNCE_MS, MUNI_BOUNDARY_REFRESH_MAX_WAIT_MS
+);
+function scheduleMunicipalityBoundaryRefresh() {
+  if (isMapZooming()) return;
+  runMunicipalityBoundaryRefresh();
+}
+map.on('moveend', scheduleMunicipalityBoundaryRefresh);
+map.on('zoomend', scheduleMunicipalityBoundaryRefresh);
 
 const companyGeocodeCache = {};
 
@@ -20099,6 +20229,9 @@ function applyTheme(mode) {
   document.documentElement.dataset.theme = resolved;
   updateThemeSegmentUI();
   if (typeof refreshActiveMapStyle === 'function') refreshActiveMapStyle();
+  // --accent/--text-muted change value between light/dark, so redraw
+  // boundaries to pick up the new stroke colors.
+  if (typeof refreshMunicipalityBoundaries === 'function') refreshMunicipalityBoundaries();
 }
 
 function setThemeMode(mode) {
@@ -20355,7 +20488,7 @@ async function runInitialLoadSequence() {
   ensureMunicipalitiesNear(initialLat, initialLon);
   await loadPinsByWindow();
 }
-runInitialLoadSequence().finally(hideMapLoadingOverlay);
+runInitialLoadSequence().finally(() => { hideMapLoadingOverlay(); refreshMunicipalityBoundaries(); });
 updateBottomMunicipalityBar(null);
 setupReportsRealtimeSync();
 openSharedReportFromUrl();
