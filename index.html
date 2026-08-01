@@ -2949,6 +2949,7 @@ input.uc-country-search-input{
 }
 .photo-status-badge.pending{ background:var(--accent); }
 .photo-status-badge.rejected{ background:var(--danger-strong); }
+.photo-status-badge.approved{ background:var(--success); }
 
 .photo-review-card, .flagged-report-card{
   display:flex; align-items:center; gap:var(--space-10); padding:10px; border-radius:var(--radius-md);
@@ -6750,6 +6751,7 @@ const T = {
   activityEvContactLogged:     { en:'Utility contact logged',     sr:'Zabeležen kontakt sa preduzećem' },
   activityFeedByPrefix:        { en:'by ',                        sr:'od ' },
   activityFeedUnknownActor:    { en:'unknown user',               sr:'nepoznat korisnik' },
+  activityFeedReportGone:      { en:'That report no longer exists.', sr:'Ta prijava više ne postoji.' },
   openAnalyticsBtnLabel:  { en:'Analytics',                        sr:'Analitika' },
   analyticsModalTitle:    { en:'Analytics',                        sr:'Analitika' },
   analyticsRangeDaysSuffix: { en:'d',                               sr:'d' },
@@ -7205,6 +7207,9 @@ const T = {
   detailPhotoTitle:       { en:'Photo',                                       sr:'Fotografija' },
   photoPendingBadge:      { en:'Pending review',                              sr:'Čeka proveru' },
   photoRejectedBadge:     { en:'Rejected',                                    sr:'Odbijeno' },
+  photoApprovedBadge:     { en:'Approved',                                    sr:'Odobreno' },
+  contactTypePhoneLabel:  { en:'phone',                                       sr:'telefon' },
+  contactTypeEmailLabel:  { en:'email',                                       sr:'imejl' },
   photoRejectedOwnerNote: { en:'Your photo didn\'t pass review, so it isn\'t shown publicly. The report itself is unaffected.', sr:'Vaša fotografija nije prošla proveru, pa nije javno prikazana. Sama prijava time nije pogođena.' },
   photoLoadFailed:        { en:'Could not load photo.',                       sr:'Fotografija nije mogla biti učitana.' },
   photoViewFullSize:       { en:'View photo full size',                        sr:'Prikaži fotografiju u punoj veličini' },
@@ -8705,8 +8710,10 @@ const MAP_STYLES = {
     // CachedTileLayer to inspect loaded tiles for that specific look and
     // fall back to Standard if it shows up, regardless of zoom level.
     light:{ url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', subdomains:'', maxNativeZoom:19, maxZoom:20,
-            attribution:'Esri, Maxar, Earthstar Geographics', ttbCheckNoDataTile:true },
-    dark:{ filter:'brightness(.55) contrast(1.15)' } // dim rather than invert — inverted satellite imagery looks broken
+            attribution:'Esri, Maxar, Earthstar Geographics', ttbCheckNoDataTile:true }
+    // Deliberately no `dark` filter here: it's real aerial photography, not
+    // themed UI, so it should look identical in light and dark mode rather
+    // than getting dimmed/tinted just because the app theme is dark.
   },
   hybrid:{
     nameEn:'Hybrid', nameSr:'Hibridna',
@@ -8717,8 +8724,8 @@ const MAP_STYLES = {
             attribution:'Esri, Maxar, Earthstar Geographics', ttbCheckNoDataTile:true,
             overlayUrl:'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
             overlaySubdomains:'', overlayMaxNativeZoom:19,
-            overlayAttribution:'Esri' },
-    dark:{ filter:'brightness(.55) contrast(1.15)' }
+            overlayAttribution:'Esri' }
+    // Same reasoning as Satellite above: no dark filter, real imagery stays as-is.
   }
 };
 const MAP_STYLE_ORDER = ['standard', 'streets', 'minimal', 'satellite', 'hybrid'];
@@ -13133,8 +13140,7 @@ function togglePinMode() {
     manualCoords = null;
     manualPinMunicipality = null;
     loadPinsByWindow();
-    if (userCoords) showMunicipalityBoundaryForPoint(userCoords.lat, userCoords.lon, userMarker, 'gps');
-    else renderMunicipalityBoundary(null, 'gps');
+    scheduleMapCenterMunicipalityUpdate();
   }
   updateProximityUi();
   checkFormReady();
@@ -13247,6 +13253,29 @@ function scheduleViewportReloadIfNeeded() {
 }
 map.on('moveend', scheduleViewportReloadIfNeeded);
 map.on('zoomend', scheduleViewportReloadIfNeeded);
+
+// Bottom bar contacts follow wherever the admin/user is currently looking on
+// the map, not just their GPS position -- so panning around to check a
+// different neighborhood shows that neighborhood's utility contacts. A
+// manually-dropped report pin still wins outright (that's a precise,
+// deliberate location pick), and this stays out of the way during
+// driving/navigation so it doesn't fight the route-following GPS updates.
+const MUNI_CENTER_SETTLE_MS = 400;
+const MUNI_CENTER_MAX_WAIT_MS = 3000;
+const runMapCenterMunicipalityUpdate = debounceWithMaxWait(() => {
+  if (manualCoords) return;
+  if (drivingMode || isNavigationActive()) return;
+  const center = map.getCenter();
+  if (!isValidLatLng(center.lat, center.lng)) return;
+  showMunicipalityBoundaryForPoint(center.lat, center.lng, null, 'center');
+}, MUNI_CENTER_SETTLE_MS, MUNI_CENTER_MAX_WAIT_MS);
+function scheduleMapCenterMunicipalityUpdate() {
+  if (pinMode) return;
+  if (isMapZooming()) return;
+  runMapCenterMunicipalityUpdate();
+}
+map.on('moveend', scheduleMapCenterMunicipalityUpdate);
+map.on('zoomend', scheduleMapCenterMunicipalityUpdate);
 
 const CATEGORY_COLORS = {
   'Water':        '#1e90ff',
@@ -13957,6 +13986,7 @@ function resetReportingForm() {
   manualCoords = null;
   manualPinMunicipality = null;
   updateProximityUi();
+  scheduleMapCenterMunicipalityUpdate();
 
   wizState.status = null;
   closeReportWizard();
@@ -15191,7 +15221,7 @@ let currentContactsMunicipality = null;
 
 function renderMunicipalityBoundary(muni, source) {
   currentUserMunicipality = muni || null;
-  if (source === 'gps' || source === 'pin') {
+  if (source === 'gps' || source === 'pin' || source === 'center') {
     currentContactsMunicipality = muni || null;
     updateBottomMunicipalityBar(currentContactsMunicipality);
   }
@@ -16048,6 +16078,14 @@ function activityFeedIconFor(item) {
   return (meta && meta.icon) ? meta.icon : categoryIcon(item.category);
 }
 
+const PHOTO_EVENT_TYPES = new Set([
+  'photo_submitted', 'photo_reviewed',
+  'fixed_photo_submitted', 'fixed_photo_reviewed',
+  'after_photo_submitted', 'after_photo_reviewed',
+]);
+const PHOTO_STATUS_BADGE_KEY = { pending: 'photoPendingBadge', approved: 'photoApprovedBadge', rejected: 'photoRejectedBadge' };
+const CONTACT_TYPE_LABEL_KEY = { phone: 'contactTypePhoneLabel', email: 'contactTypeEmailLabel' };
+
 function activityFeedLine2(item) {
   const parts = [];
   const catLabel = item.subcategory
@@ -16055,10 +16093,21 @@ function activityFeedLine2(item) {
     : translateCategory(item.category);
   parts.push(catLabel);
   if (item.municipality_name) parts.push(item.municipality_name);
+  if (item.event_type === 'contact_logged' && CONTACT_TYPE_LABEL_KEY[item.extra]) {
+    parts.push(t(CONTACT_TYPE_LABEL_KEY[item.extra]));
+  }
   const actor = item.actor_username ? (t('activityFeedByPrefix') + item.actor_username) : t('activityFeedUnknownActor');
   parts.push(actor);
   parts.push(formatDate(item.event_time));
   return parts.filter(Boolean).join(' · ');
+}
+
+function activityFeedCircleBg(cat) {
+  const hex = (categoryColor(cat) || '#aaaaaa').replace('#', '');
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+  return `rgba(${r},${g},${b},0.18)`;
 }
 
 function renderActivityFeedItem(item) {
@@ -16067,11 +16116,17 @@ function renderActivityFeedItem(item) {
   const flagBadge = item.event_type === 'flagged_for_review' && item.extra
     ? `<span class="activity-feed-flag-badge">${escapeHtml(item.extra)}</span>`
     : '';
+  const photoBadgeKey = PHOTO_EVENT_TYPES.has(item.event_type) ? PHOTO_STATUS_BADGE_KEY[item.extra] : null;
+  const photoBadge = photoBadgeKey
+    ? `<span class="photo-status-badge ${escapeHtml(item.extra)}">${t(photoBadgeKey)}</span>`
+    : '';
   return `
     <div class="activity-feed-item" onclick="openReportFromActivityFeed('${item.report_id}')">
-      <div class="activity-feed-icon"><img src="${activityFeedIconFor(item)}" alt=""></div>
+      <div class="activity-feed-icon" style="background:${activityFeedCircleBg(item.category)};">
+        <img class="icon-img" src="${activityFeedIconFor(item)}" alt="">
+      </div>
       <div class="activity-feed-body">
-        <div class="activity-feed-line1">${escapeHtml(label)}${flagBadge}</div>
+        <div class="activity-feed-line1">${escapeHtml(label)}${flagBadge}${photoBadge}</div>
         <div class="activity-feed-line2">${escapeHtml(activityFeedLine2(item))}</div>
       </div>
     </div>`;
@@ -16142,11 +16197,16 @@ async function openReportFromActivityFeed(reportId) {
   if (!report) {
     try {
       const { data, error } = await sb.from(TABLE).select('*').eq('id', reportId).maybeSingle();
-      if (error || !data) { console.error('Activity feed: report not found', error && error.message); return; }
+      if (error || !data) {
+        console.error('Activity feed: report not found', error && error.message);
+        toast(t('activityFeedReportGone'), 'error');
+        return;
+      }
       report = data;
       globalActiveData = globalActiveData.concat([report]);
     } catch (err) {
       console.error('Failed to fetch report from activity feed:', err.message || err);
+      toast(t('activityFeedReportGone'), 'error');
       return;
     }
   }
