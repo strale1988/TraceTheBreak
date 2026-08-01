@@ -8422,6 +8422,7 @@ function endZoomBurst() {
   if (typeof scheduleMarkerSyncOnSettle === 'function') scheduleMarkerSyncOnSettle();
   if (typeof scheduleViewportReloadIfNeeded === 'function') scheduleViewportReloadIfNeeded();
   if (typeof scheduleCompanyMarkersReload === 'function') scheduleCompanyMarkersReload();
+  if (typeof maybeRetryMapStyleAfterZoomOut === 'function') maybeRetryMapStyleAfterZoomOut();
 }
 map.on('zoomstart', () => {
   noteZoomActivity(rotationActive());
@@ -8560,6 +8561,7 @@ function tileLooksLikeNoDataPlaceholder(img) {
 // exactly one fallback instead of one per tile.
 let noDataTileFallbackActive = false;
 let noDataTileFallbackDebounceTimer = null;
+let noDataFallbackZoomAtTrigger = null; // zoom level we were at when we last fell back
 function reportNoDataTileSeen() {
   if (noDataTileFallbackDebounceTimer) return;
   noDataTileFallbackDebounceTimer = setTimeout(() => {
@@ -8568,9 +8570,25 @@ function reportNoDataTileSeen() {
     if (!['satellite', 'hybrid'].includes(resolvedId)) return; // user already switched away
     if (noDataTileFallbackActive) return;
     noDataTileFallbackActive = true;
+    noDataFallbackZoomAtTrigger = map.getZoom();
     setActiveMapStyle('standard');
     toast(t('mapStyleNoDataFallback'));
   }, 150);
+}
+
+// Called once a zoom gesture settles (see endZoomBurst below). If we're
+// currently on the Standard fallback because Satellite/Hybrid had no data at
+// some higher zoom, and the user has since zoomed OUT past that point, it's
+// worth trying Satellite/Hybrid again — imagery coverage reliably improves
+// at lower zoom (fewer, larger tiles covering the same gap), so this often
+// succeeds. If it's still no good, reportNoDataTileSeen() will simply trigger
+// again at the new (lower) zoom and try further out next time.
+function maybeRetryMapStyleAfterZoomOut() {
+  if (!noDataTileFallbackActive || noDataFallbackZoomAtTrigger == null) return;
+  if (map.getZoom() >= noDataFallbackZoomAtTrigger) return;
+  const resolvedId = resolveActiveMapStyleId();
+  if (!['satellite', 'hybrid'].includes(resolvedId)) return; // user isn't even trying to show one of these anymore
+  setActiveMapStyle(resolvedId); // resets noDataTileFallbackActive; tiles get re-checked as they load
 }
 
 const CachedTileLayer = L.TileLayer.extend({
