@@ -6752,6 +6752,7 @@ const T = {
   mapStyleAutoCar:   { en:'Auto (Standard)',             sr:'Automatski (Standardna)' },
   mapStyleAutoBike:  { en:'Auto (Standard)',             sr:'Automatski (Standardna)' },
   mapStyleAutoFoot:  { en:'Auto (Standard)',             sr:'Automatski (Standardna)' },
+  mapStyleNoDataFallback: { en:'No satellite imagery available here — showing Standard map', sr:'Ovde nema satelitskog snimka — prikazuje se Standardna mapa' },
   iconPackSectionTitle: { en:'Icon pack',                             sr:'Paket ikonica' },
   iconPackHint:      { en:'Changes how map pins and icons look. The app will reload after switching.', sr:'Menja izgled ikonica i pinova na mapi. Aplikacija će se ponovo učitati nakon promene.' },
   languageSectionTitle: { en:'Language',                 sr:'Jezik' },
@@ -8511,11 +8512,77 @@ async function fetchTileCached(url, attempt = 0) {
 // reads as a gap in the map, not an error.
 const BLANK_TILE_SRC = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
 
+// Esri's World_Imagery tiles return a genuine HTTP 200 even in areas with no
+// coverage — the "tile" is a static placeholder image (flat gray background
+// with "Map data not yet available" repeated across it) rather than an error
+// we could catch via onerror/status code. We can't fix Esri's coverage gaps,
+// but we can recognize that specific look: it's near-uniform gray with none
+// of the color variance a real aerial photo has. Downscaling the tile into a
+// tiny grid and checking how many sample points land in a narrow "flat gray"
+// band is a cheap way to catch it without reading full-resolution pixels.
+const NO_DATA_TILE_SAMPLE_GRID = 6; // 6x6 sample points per tile
+const NO_DATA_TILE_GRAY_MIN = 195;
+const NO_DATA_TILE_GRAY_MAX = 235;
+const NO_DATA_TILE_CHANNEL_DIFF_MAX = 10; // how close r/g/b must be to count as "gray"
+const NO_DATA_TILE_GRAY_FRACTION = 0.7; // fraction of sampled points that must look gray-placeholder
+
+function tileLooksLikeNoDataPlaceholder(img) {
+  try {
+    const size = img.naturalWidth || 256;
+    const canvas = document.createElement('canvas');
+    canvas.width = NO_DATA_TILE_SAMPLE_GRID;
+    canvas.height = NO_DATA_TILE_SAMPLE_GRID;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    // One drawImage call downscales the whole tile straight into the small
+    // grid — a representative sample without ever touching full-res pixels.
+    ctx.drawImage(img, 0, 0, size, size, 0, 0, NO_DATA_TILE_SAMPLE_GRID, NO_DATA_TILE_SAMPLE_GRID);
+    const { data } = ctx.getImageData(0, 0, NO_DATA_TILE_SAMPLE_GRID, NO_DATA_TILE_SAMPLE_GRID);
+    let grayCount = 0;
+    const totalPoints = NO_DATA_TILE_SAMPLE_GRID * NO_DATA_TILE_SAMPLE_GRID;
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i], g = data[i + 1], b = data[i + 2];
+      const maxC = Math.max(r, g, b), minC = Math.min(r, g, b);
+      if (maxC - minC <= NO_DATA_TILE_CHANNEL_DIFF_MAX && r >= NO_DATA_TILE_GRAY_MIN && r <= NO_DATA_TILE_GRAY_MAX) {
+        grayCount++;
+      }
+    }
+    return (grayCount / totalPoints) >= NO_DATA_TILE_GRAY_FRACTION;
+  } catch (e) {
+    // getImageData throws on a tainted canvas (e.g. the plain cross-origin
+    // <img> fallback path below, loaded without a CORS header). Skipping
+    // detection in that case is far better than breaking tile rendering.
+    return false;
+  }
+}
+
+// Debounced so a burst of several placeholder tiles landing together (very
+// likely once you're panned/zoomed into a genuinely uncovered area) triggers
+// exactly one fallback instead of one per tile.
+let noDataTileFallbackActive = false;
+let noDataTileFallbackDebounceTimer = null;
+function reportNoDataTileSeen() {
+  if (noDataTileFallbackDebounceTimer) return;
+  noDataTileFallbackDebounceTimer = setTimeout(() => {
+    noDataTileFallbackDebounceTimer = null;
+    const resolvedId = resolveActiveMapStyleId();
+    if (!['satellite', 'hybrid'].includes(resolvedId)) return; // user already switched away
+    if (noDataTileFallbackActive) return;
+    noDataTileFallbackActive = true;
+    setActiveMapStyle('standard');
+    toast(t('mapStyleNoDataFallback'));
+  }, 150);
+}
+
 const CachedTileLayer = L.TileLayer.extend({
   createTile(coords, done) {
     const img = document.createElement('img');
     img.setAttribute('role', 'presentation');
     const url = this.getTileUrl(coords);
+    const checkNoData = !!this.options.ttbCheckNoDataTile;
+    const finish = () => {
+      if (checkNoData && tileLooksLikeNoDataPlaceholder(img)) reportNoDataTileSeen();
+      done(null, img);
+    };
     const giveUpBlank = () => {
       img.onload = null;
       img.onerror = null;
@@ -8523,7 +8590,7 @@ const CachedTileLayer = L.TileLayer.extend({
       done(null, img); // report success (with blank content) so Leaflet doesn't retry forever and our zoom/tile-load bridging still sees this tile as settled
     };
     const fallbackToPlainImg = () => {
-      img.onload = () => done(null, img);
+      img.onload = finish;
       img.onerror = giveUpBlank;
       img.src = url;
     };
@@ -8532,7 +8599,7 @@ const CachedTileLayer = L.TileLayer.extend({
       .then(res => { if (!res.ok) throw new Error('tile-http-' + res.status); return res.blob(); })
       .then(blob => {
         const objectUrl = URL.createObjectURL(blob);
-        img.onload = () => { URL.revokeObjectURL(objectUrl); done(null, img); };
+        img.onload = () => { URL.revokeObjectURL(objectUrl); finish(); };
         img.onerror = () => { URL.revokeObjectURL(objectUrl); fallbackToPlainImg(); };
         img.src = objectUrl;
       })
@@ -8550,45 +8617,46 @@ const INVERT_DARK_FILTER = 'invert(1) hue-rotate(180deg) brightness(.92) contras
 const MAP_STYLES = {
   standard: {
     nameEn:'Standard', nameSr:'Standardna',
-    light:{ url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', subdomains:'abc', maxNativeZoom:19,
+    light:{ url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', subdomains:'abc', maxNativeZoom:19, maxZoom:20,
             attribution:'© OpenStreetMap contributors' },
     dark:{ filter: INVERT_DARK_FILTER }
   },
   streets:{
     nameEn:'Streets', nameSr:'Ulice',
-    light:{ url:'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', subdomains:'abcd', maxNativeZoom:20,
+    light:{ url:'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', subdomains:'abcd', maxNativeZoom:20, maxZoom:20,
             attribution:'© OpenStreetMap contributors © CARTO' },
     dark:{ filter: INVERT_DARK_FILTER }
   },
   minimal:{
     nameEn:'Minimal', nameSr:'Minimalna',
-    light:{ url:'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', subdomains:'abcd', maxNativeZoom:20,
+    light:{ url:'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', subdomains:'abcd', maxNativeZoom:20, maxZoom:20,
             attribution:'© OpenStreetMap contributors © CARTO' },
-    dark:{ url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', subdomains:'abcd', maxNativeZoom:20,
+    dark:{ url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', subdomains:'abcd', maxNativeZoom:20, maxZoom:20,
            attribution:'© OpenStreetMap contributors © CARTO' }
   },
   satellite: {
     nameEn:'Satellite', nameSr:'Satelitska',
-    // Real imagery tops out around z19 in most places (and lower in rural
-    // areas). We used to let Leaflet zoom well past that and stretch the
-    // last available tile — but past a couple of stretched levels, Esri's
-    // own servers stop stretching and start returning an actual placeholder
-    // tile with "Map data not yet available" baked into the image, which
-    // just looks broken. So: cap zoom at maxNativeZoom + 2 — enough room to
-    // get in close for a precise pin, but stopping before the placeholder
-    // tile shows up. The zoom control simply stops there instead of
-    // silently degrading.
-    light:{ url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', subdomains:'', maxNativeZoom:19, maxZoom:21,
-            attribution:'Esri, Maxar, Earthstar Geographics' },
+    // Real imagery tops out around z19 in most places (lower in rural areas).
+    // Capped at the same maxZoom:20 as every other style now, rather than
+    // letting Leaflet stretch further past native coverage. That still
+    // doesn't fully solve missing-imagery areas though — Esri's World_Imagery
+    // can lack coverage even well below z20 in some rural/sparse regions, and
+    // returns a real HTTP 200 "placeholder" tile (flat gray background with
+    // "Map data not yet available" baked into the image) rather than an
+    // error we could catch normally. ttbCheckNoDataTile below asks
+    // CachedTileLayer to inspect loaded tiles for that specific look and
+    // fall back to Standard if it shows up, regardless of zoom level.
+    light:{ url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', subdomains:'', maxNativeZoom:19, maxZoom:20,
+            attribution:'Esri, Maxar, Earthstar Geographics', ttbCheckNoDataTile:true },
     dark:{ filter:'brightness(.55) contrast(1.15)' } // dim rather than invert — inverted satellite imagery looks broken
   },
   hybrid:{
     nameEn:'Hybrid', nameSr:'Hibridna',
     // Same imagery as Satellite, with a transparent Esri reference layer
     // (place names, roads, borders) drawn on top so labels stay readable.
-    // Same zoom-cap reasoning as Satellite above.
-    light:{ url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', subdomains:'', maxNativeZoom:19, maxZoom:21,
-            attribution:'Esri, Maxar, Earthstar Geographics',
+    // Same zoom-cap and no-data-detection reasoning as Satellite above.
+    light:{ url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', subdomains:'', maxNativeZoom:19, maxZoom:20,
+            attribution:'Esri, Maxar, Earthstar Geographics', ttbCheckNoDataTile:true,
             overlayUrl:'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
             overlaySubdomains:'', overlayMaxNativeZoom:19,
             overlayAttribution:'Esri' },
@@ -8654,7 +8722,7 @@ function buildOneTileLayer(url, opts, fallbackMaxZoom) {
   return new CachedTileLayer(url, {
     attribution: opts.attribution,
     subdomains: opts.subdomains !== undefined ? opts.subdomains : 'abc',
-    maxZoom: opts.maxZoom || fallbackMaxZoom || 22,
+    maxZoom: opts.maxZoom || fallbackMaxZoom || 20,
     maxNativeZoom: opts.maxNativeZoom || 19,
     keepBuffer: 8,
     updateWhenZooming: false,
@@ -8664,7 +8732,8 @@ function buildOneTileLayer(url, opts, fallbackMaxZoom) {
     // zoomed past what a given tile provider actually supports — showing up as the
     // map tiles going blank instead of the intended "stretch the last good tile"
     // fallback below. Since this is a mobile-first app, that hit most phones.
-    detectRetina: false
+    detectRetina: false,
+    ttbCheckNoDataTile: !!opts.ttbCheckNoDataTile
   });
 }
 
@@ -8677,14 +8746,17 @@ function buildOneTileLayer(url, opts, fallbackMaxZoom) {
 function buildTileLayer(styleId, theme) {
   const style = MAP_STYLES[styleId] || MAP_STYLES.standard;
   const source = (theme === 'dark' && style.dark && style.dark.url) ? style.dark : style.light;
-  const base = buildOneTileLayer(source.url, source, 22);
+  const base = buildOneTileLayer(source.url, source, 20);
   if (!source.overlayUrl) return base;
   const overlay = buildOneTileLayer(source.overlayUrl, {
     attribution: source.overlayAttribution,
     subdomains: source.overlaySubdomains,
     maxZoom: source.maxZoom,
     maxNativeZoom: source.overlayMaxNativeZoom || source.maxNativeZoom
-  }, 22);
+    // Deliberately no ttbCheckNoDataTile here: this is the transparent
+    // labels/boundaries overlay, which is mostly empty space by design —
+    // it would constantly false-positive the no-data check.
+  }, 20);
   const group = L.layerGroup([base, overlay]);
   group._ttbBaseLayer = base;
   return group;
@@ -8712,6 +8784,10 @@ function setActiveMapStyle(styleId) {
     applyMapStyleFilter(resolved, theme);
     return;
   }
+  // A fresh activation of Satellite/Hybrid (as opposed to our own fallback
+  // switching *away* to Standard) means we should be willing to detect a
+  // no-data placeholder again for this view.
+  if (resolved === 'satellite' || resolved === 'hybrid') noDataTileFallbackActive = false;
   const previousLayer = activeTileLayer;
   activeMapStyleId = resolved;
   activeMapStyleTheme = theme;
