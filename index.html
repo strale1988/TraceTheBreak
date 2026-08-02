@@ -2758,6 +2758,14 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   padding:0 10px 8px 22px; margin-top:-2px;
 }
 .uc-muni-missing-label{ font-size:var(--fs-9-5); color:var(--text-muted); font-weight:var(--fw-semibold); }
+.acct-req-item{
+  background:var(--bg-surface-alt); border:1px solid var(--border-color); border-radius:var(--radius-lg); padding:10px 12px;
+  display:flex; flex-direction:column; gap:var(--space-4);
+}
+.acct-req-name{ font-weight:var(--fw-bold); font-size:var(--fs-13); }
+.acct-req-meta{ font-size:var(--fs-11); color:var(--text-muted); }
+.acct-req-actions{ display:flex; gap:var(--space-8); margin-top:6px; }
+.acct-req-actions button{ flex:1; padding:8px 10px; font-size:var(--fs-12); }
 .uc-cat-chip-missing{
   font-size:var(--fs-9-5); font-weight:var(--fw-bold); text-transform:uppercase; letter-spacing:.2px;
   padding:1px 6px; border-radius:var(--radius-lg); background:transparent;
@@ -3681,8 +3689,12 @@ span.flatpickr-weekday {
 
     <div class="detail-section" id="accountDangerSettingsSection">
       <div class="detail-section-title" id="accountDangerSectionTitle">Account</div>
-      <p class="detail-export-hint" id="deleteAccountHint">Permanently delete your account and personal data. Your existing reports stay visible to help the community, but are no longer linked to your username.</p>
-      <button type="button" class="detail-delete-btn" style="width:100%;" onclick="deleteMyAccount()" id="deleteAccountBtn">Delete my account</button>
+      <p class="detail-export-hint" id="deleteAccountHint">Delete your account and personal data. An admin will review your request. Your existing reports stay visible to help the community, but are no longer linked to your username.</p>
+      <button type="button" class="detail-delete-btn" style="width:100%;" onclick="requestAccountDeletion()" id="deleteAccountBtn">Delete my account</button>
+      <div id="deleteAccountPendingBox" style="display:none;">
+        <p class="detail-export-hint" id="deleteAccountPendingHint">Your account deletion request is pending admin review.</p>
+        <button type="button" class="settings-btn" style="width:100%;" onclick="cancelAccountDeletionRequest()" id="cancelDeletionBtn">Cancel request</button>
+      </div>
     </div>
 
     <div class="detail-section" id="timeWindowFilterSection" style="padding:0;overflow:hidden;display:none;">
@@ -4058,6 +4070,16 @@ span.flatpickr-weekday {
       <div class="activity-feed-list" id="activityFeedList"></div>
       <div class="detail-empty" id="activityFeedEmpty" style="display:none;"></div>
       <button type="button" class="settings-btn" id="activityFeedLoadMoreBtn" onclick="loadAdminActivityFeed(false)" style="display:none;">Load more</button>
+    </div>
+
+    <div class="admin-section detail-section" id="accountRequestsSection" style="display:none;">
+      <div class="admin-section-title detail-section-title" id="accountRequestsPendingTitle">Pending deletion requests</div>
+      <div class="uc-list" id="accountRequestsPendingList"></div>
+      <div class="detail-empty" id="accountRequestsPendingEmpty" style="display:none;"></div>
+
+      <div class="admin-section-title detail-section-title" id="accountRequestsDormantTitle" style="margin-top:14px;">Dormant accounts</div>
+      <div class="uc-list" id="accountRequestsDormantList"></div>
+      <div class="detail-empty" id="accountRequestsDormantEmpty" style="display:none;"></div>
     </div>
   </div>
 </div>
@@ -4515,8 +4537,14 @@ async function signOutUser() {
   refreshRenderedPopups();
 }
 
-async function deleteMyAccount() {
+// Account deletion is admin-mediated now: this only flags the account and
+// notifies admins (see request_account_deletion() RPC) — it does NOT sign
+// the user out or delete anything. An admin reviews it in Admin panel >
+// Account requests and confirms via admin-delete-account, which is the only
+// thing that actually deletes the account.
+async function requestAccountDeletion() {
   if (!currentSession || !currentProfile) return;
+  if (currentProfile.account_status === 'pending_deletion') return;
 
   const confirmed = await themedConfirm(t('deleteAccountConfirmMessage'), {
     okLabel: t('deleteAccountConfirmOk'),
@@ -4524,46 +4552,39 @@ async function deleteMyAccount() {
   });
   if (!confirmed) return;
 
-  const typed = await themedPrompt(t('deleteAccountTypePrompt'), '');
-  if (typed === null) return;
-  if (typed.trim().toUpperCase() !== 'DELETE') {
-    toast(t('deleteAccountTypeMismatch'), 'error');
-    return;
-  }
-
   const btn = document.getElementById('deleteAccountBtn');
   if (btn) btn.disabled = true;
 
   try {
-    const { error } = await sb.functions.invoke('delete-account');
+    const { data, error } = await sb.rpc('request_account_deletion');
     if (error) throw error;
+    if (!data || data.ok === false) throw new Error((data && data.reason) || 'request_failed');
 
-    // Clear any tester-mode overlay state so it doesn't leak into the next session.
-    testerAddedReports = [];
-    testerDeletedReportIds = new Set();
-    testerReportOverrides = {};
-
-    await sb.auth.signOut();
-    currentSession = null;
-    currentProfile = null;
-
-    hideLeaderboardModal();
-    hideSettingsModal();
-    hideReportDetailModal();
-    hideCompanyDetailModal();
-    hideLegalContentModal();
-    hideNotificationModal();
-    if (typeof drivingMode !== 'undefined' && drivingMode) toggleDrivingMode();
-    if (typeof heatmapActive !== 'undefined' && heatmapActive) toggleHeatmap();
-    clearNavigation();
-    if (pinMode || manualMarker) resetReportingForm();
-    setFollowMode(!!userCoords);
-
-    updateAuthUI();
-    refreshRenderedPopups();
-    toast(t('deleteAccountSuccess'), 'success');
+    currentProfile.account_status = 'pending_deletion';
+    currentProfile.deletion_requested_at = new Date().toISOString();
+    updateAccountDangerSection();
+    toast(t('deleteAccountRequestSuccess'), 'success');
   } catch (err) {
-    console.error('Account deletion failed:', err);
+    console.error('Account deletion request failed:', err);
+    toast(t('deleteAccountError'), 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function cancelAccountDeletionRequest() {
+  if (!currentSession || !currentProfile) return;
+  const btn = document.getElementById('cancelDeletionBtn');
+  if (btn) btn.disabled = true;
+  try {
+    const { error } = await sb.rpc('cancel_account_deletion');
+    if (error) throw error;
+    currentProfile.account_status = 'active';
+    currentProfile.deletion_requested_at = null;
+    updateAccountDangerSection();
+    toast(t('deleteAccountCancelSuccess'), 'success');
+  } catch (err) {
+    console.error('Cancel deletion request failed:', err);
     toast(t('deleteAccountError'), 'error');
   } finally {
     if (btn) btn.disabled = false;
@@ -4597,8 +4618,51 @@ async function loadProfile() {
     }
     updateAuthUI();
     syncPreferredLanguageToProfile(lang);
+    touchLastActiveHeartbeat();
   } catch (err) {
     console.error('Failed to load profile:', err.message);
+  }
+}
+
+// Bumps profiles.last_active_at so the dormancy job (mark-dormant-accounts,
+// 1 year of inactivity) sees this account as alive. Also auto-reactivates a
+// dormant account the moment its owner logs back in — fire-and-forget, never
+// blocks the UI, and silently no-ops if it fails (heartbeat, not critical).
+async function touchLastActiveHeartbeat() {
+  if (!currentSession) return;
+  try {
+    const { data, error } = await sb.rpc('touch_last_active');
+    if (error) throw error;
+    if (data && data.reactivated && currentProfile) {
+      currentProfile.account_status = 'active';
+      currentProfile.dormant_at = null;
+      currentProfile.dormant_warning_sent_at = null;
+      updateAccountDangerSection();
+      toast(t('accountReactivatedToast'), 'success');
+    }
+  } catch (err) {
+    console.error('touch_last_active failed:', err.message || err);
+  }
+}
+
+// Shows the right state in the Settings > Account section: normal delete
+// button (active), or a "pending review" box with a cancel option
+// (pending_deletion / dormant — dormant accounts can also just cancel back
+// to active, same as a pending deletion request, since both just mean "an
+// admin will look at this").
+function updateAccountDangerSection() {
+  const btn = document.getElementById('deleteAccountBtn');
+  const pendingBox = document.getElementById('deleteAccountPendingBox');
+  const pendingHint = document.getElementById('deleteAccountPendingHint');
+  if (!btn || !pendingBox) return;
+  const status = currentProfile && currentProfile.account_status;
+  if (status === 'pending_deletion' || status === 'dormant') {
+    btn.style.display = 'none';
+    pendingBox.style.display = 'block';
+    if (pendingHint) pendingHint.textContent = t(status === 'dormant' ? 'deleteAccountDormantHint' : 'deleteAccountPendingHint');
+  } else {
+    btn.style.display = '';
+    pendingBox.style.display = 'none';
   }
 }
 
@@ -4626,6 +4690,7 @@ function updateAuthUI() {
   [document.getElementById('leaderboardBtn'), document.getElementById('navigateModeBtn'), document.getElementById('heatmapBtn'), document.getElementById('notificationBtn')]
     .forEach(btn => { if (btn) btn.classList.toggle('map-btn-locked', !hasAccount); });
   updateSettingsAccountGate();
+  updateAccountDangerSection();
 
   if (currentSession && currentProfile && currentProfile.username) {
     updateAdminPanelButtonVisibility();
@@ -6835,14 +6900,28 @@ const T = {
   privacyPolicyBtn: { en:'Privacy Policy', sr:'Politika privatnosti' },
   legalContentLoadFailed: { en:'This could not be loaded right now. Please try again later.', sr:'Ovo trenutno nije moguće učitati. Pokušajte ponovo kasnije.' },
   accountDangerSectionTitle: { en:'Account', sr:'Nalog' },
-  deleteAccountHint: { en:'Permanently delete your account and personal data. Your existing reports stay visible to help the community, but are no longer linked to your username.', sr:'Trajno obrišite svoj nalog i lične podatke. Vaše postojeće prijave ostaju vidljive radi koristi zajednice, ali više nisu povezane sa vašim korisničkim imenom.' },
+  deleteAccountHint: { en:'Delete your account and personal data. An admin will review your request. Your existing reports stay visible to help the community, but are no longer linked to your username.', sr:'Obrišite svoj nalog i lične podatke. Administrator će pregledati vaš zahtev. Vaše postojeće prijave ostaju vidljive radi koristi zajednice, ali više nisu povezane sa vašim korisničkim imenom.' },
   deleteAccountBtn: { en:'Delete my account', sr:'Obriši moj nalog' },
-  deleteAccountConfirmMessage: { en:'This permanently deletes your account and sign-in. This cannot be undone. Your reports will stay on the map but will no longer show your username. Continue?', sr:'Ovo trajno briše vaš nalog i prijavu. Ova radnja se ne može poništiti. Vaše prijave ostaju na mapi, ali više neće prikazivati vaše korisničko ime. Nastaviti?' },
-  deleteAccountConfirmOk: { en:'Delete account', sr:'Obriši nalog' },
-  deleteAccountTypePrompt: { en:'Type DELETE to confirm.', sr:'Ukucajte DELETE da potvrdite.' },
-  deleteAccountTypeMismatch: { en:'That didn’t match — nothing was deleted.', sr:'To se nije poklopilo — ništa nije obrisano.' },
-  deleteAccountSuccess: { en:'Your account has been deleted.', sr:'Vaš nalog je obrisan.' },
-  deleteAccountError: { en:'Couldn’t delete your account. Please try again or contact support.', sr:'Nalog nije moguće obrisati. Pokušajte ponovo ili kontaktirajte podršku.' },
+  deleteAccountConfirmMessage: { en:'This sends a deletion request to an admin for review. Your account will be deleted once they confirm it — this cannot be undone at that point. Your reports will stay on the map but will no longer show your username. Continue?', sr:'Ovo šalje zahtev za brisanje administratoru na pregled. Vaš nalog će biti obrisan kada ga administrator potvrdi — u tom trenutku se to više ne može poništiti. Vaše prijave ostaju na mapi, ali više neće prikazivati vaše korisničko ime. Nastaviti?' },
+  deleteAccountConfirmOk: { en:'Request deletion', sr:'Zatraži brisanje' },
+  deleteAccountRequestSuccess: { en:'Deletion request sent. An admin will review it soon.', sr:'Zahtev za brisanje je poslat. Administrator će ga uskoro pregledati.' },
+  deleteAccountPendingHint: { en:'Your account deletion request is pending admin review.', sr:'Vaš zahtev za brisanje naloga čeka pregled administratora.' },
+  deleteAccountDormantHint: { en:'Your account has been inactive for a while and is pending admin review. Using the app again cancels this automatically.', sr:'Vaš nalog je duže vreme neaktivan i čeka pregled administratora. Ponovno korišćenje aplikacije automatski otkazuje ovo.' },
+  cancelDeletionBtn: { en:'Cancel request', sr:'Otkaži zahtev' },
+  deleteAccountCancelSuccess: { en:'Deletion request cancelled.', sr:'Zahtev za brisanje je otkazan.' },
+  deleteAccountError: { en:'Something went wrong. Please try again or contact support.', sr:'Nešto nije u redu. Pokušajte ponovo ili kontaktirajte podršku.' },
+  accountReactivatedToast: { en:'Welcome back — your account is active again.', sr:'Dobrodošli nazad — vaš nalog je ponovo aktivan.' },
+  accountRequestsPendingTitle: { en:'Pending deletion requests', sr:'Zahtevi za brisanje na čekanju' },
+  accountRequestsDormantTitle: { en:'Dormant accounts', sr:'Neaktivni nalozi' },
+  accountRequestsEmpty: { en:'Nothing here right now.', sr:'Trenutno nema ničega ovde.' },
+  accountRequestsRequestedOn: { en:'Requested on', sr:'Zatraženo' },
+  accountRequestsDormantSince: { en:'Dormant since', sr:'Neaktivan od' },
+  accountRequestsReactivateBtn: { en:'Reactivate', sr:'Reaktiviraj' },
+  accountRequestsConfirmDeleteBtn: { en:'Confirm delete', sr:'Potvrdi brisanje' },
+  accountRequestsConfirmDeleteMessage: { en:'This permanently deletes {{username}}\'s account and sign-in. This cannot be undone. Continue?', sr:'Ovo trajno briše nalog i prijavu korisnika {{username}}. Ova radnja se ne može poništiti. Nastaviti?' },
+  accountRequestsReactivateSuccess: { en:'Account reactivated.', sr:'Nalog je reaktiviran.' },
+  accountRequestsDeleteSuccess: { en:'Account deleted.', sr:'Nalog je obrisan.' },
+  accountRequestsActionError: { en:'Something went wrong. Please try again.', sr:'Nešto nije u redu. Pokušajte ponovo.' },
   reporterHiddenAdminSuffix: { en:'(hidden from public)', sr:'(sakriveno od javnosti)' },
   showUsernameOnMsg: { en:'Your username is now shown on your reports.', sr:'Vaše korisničko ime sada je prikazano na vašim prijavama.' },
   showUsernameOffMsg: { en:'Your username is now hidden on your reports.', sr:'Vaše korisničko ime je sada sakriveno na vašim prijavama.' },
@@ -8020,6 +8099,12 @@ function showAdminPanelModal() {
   loadUtilityCompaniesAdmin();
   loadAdminActivityFeed(true);
   resetAdminSearch();
+  const accountRequestsSection = document.getElementById('accountRequestsSection');
+  if (accountRequestsSection) {
+    const canManage = canManageAccountRequests();
+    accountRequestsSection.style.display = canManage ? '' : 'none';
+    if (canManage) loadAccountRequests();
+  }
   openOverlay('adminPanelModal', hideAdminPanelModal);
 }
 function hideAdminPanelModal() {
@@ -16262,7 +16347,94 @@ async function loadAdminActivityFeed(reset) {
   }
 }
 
-// Activity items can reference reports outside the admin's current map
+// Account requests: pending deletion (user asked to be deleted) and dormant
+// (1 year inactive, flagged by mark-dormant-accounts) queues. Global/
+// continental admins only (level 3+) — this isn't scoped to a municipality
+// or country the way most of the rest of the admin panel is, and deletion
+// is irreversible, so it's kept out of reach of level 1/2 admins.
+function canManageAccountRequests() {
+  return currentAdminLevel() >= 3;
+}
+
+async function loadAccountRequests() {
+  if (!canManageAccountRequests()) return;
+  const pendingTitleEl = document.getElementById('accountRequestsPendingTitle');
+  const dormantTitleEl = document.getElementById('accountRequestsDormantTitle');
+  if (pendingTitleEl) pendingTitleEl.textContent = t('accountRequestsPendingTitle');
+  if (dormantTitleEl) dormantTitleEl.textContent = t('accountRequestsDormantTitle');
+  try {
+    const [{ data: pending, error: pendingErr }, { data: dormant, error: dormantErr }] = await Promise.all([
+      sb.from(PROFILES_TABLE).select('id, username, deletion_requested_at').eq('account_status', 'pending_deletion').order('deletion_requested_at', { ascending: true }),
+      sb.from(PROFILES_TABLE).select('id, username, dormant_at, last_active_at').eq('account_status', 'dormant').order('dormant_at', { ascending: true }),
+    ]);
+    if (pendingErr) throw pendingErr;
+    if (dormantErr) throw dormantErr;
+    renderAccountRequestList('accountRequestsPendingList', 'accountRequestsPendingEmpty', pending || [], 'pending');
+    renderAccountRequestList('accountRequestsDormantList', 'accountRequestsDormantEmpty', dormant || [], 'dormant');
+  } catch (err) {
+    console.error('Failed to load account requests:', err.message || err);
+  }
+}
+
+function renderAccountRequestList(listId, emptyId, rows, kind) {
+  const listEl = document.getElementById(listId);
+  const emptyEl = document.getElementById(emptyId);
+  if (!listEl) return;
+  if (!rows.length) {
+    listEl.innerHTML = '';
+    if (emptyEl) { emptyEl.textContent = t('accountRequestsEmpty'); emptyEl.style.display = ''; }
+    return;
+  }
+  if (emptyEl) emptyEl.style.display = 'none';
+  listEl.innerHTML = rows.map(row => {
+    const dateStr = new Date(kind === 'pending' ? row.deletion_requested_at : row.dormant_at).toLocaleDateString(lang === 'sr' ? 'sr-RS' : 'en-GB');
+    const metaKey = kind === 'pending' ? 'accountRequestsRequestedOn' : 'accountRequestsDormantSince';
+    return `
+      <div class="acct-req-item">
+        <div class="acct-req-name">${escapeHtml(row.username || '—')}</div>
+        <div class="acct-req-meta">${t(metaKey)}: ${dateStr}</div>
+        <div class="acct-req-actions">
+          <button type="button" class="settings-btn" onclick="reactivateAccountFromAdmin('${row.id}')">${t('accountRequestsReactivateBtn')}</button>
+          <button type="button" class="detail-delete-btn" onclick="confirmDeleteAccountFromAdmin('${row.id}', '${escapeHtml(row.username || '')}')">${t('accountRequestsConfirmDeleteBtn')}</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function reactivateAccountFromAdmin(userId) {
+  if (!canManageAccountRequests()) return;
+  try {
+    const { data, error } = await sb.rpc('admin_reactivate_account', { p_user_id: userId });
+    if (error) throw error;
+    if (!data || data.ok === false) throw new Error((data && data.reason) || 'reactivate_failed');
+    toast(t('accountRequestsReactivateSuccess'), 'success');
+    loadAccountRequests();
+  } catch (err) {
+    console.error('Reactivate account failed:', err);
+    toast(t('accountRequestsActionError'), 'error');
+  }
+}
+
+async function confirmDeleteAccountFromAdmin(userId, username) {
+  if (!canManageAccountRequests()) return;
+  const confirmed = await themedConfirm(t('accountRequestsConfirmDeleteMessage').replace('{{username}}', username || ''), {
+    okLabel: t('accountRequestsConfirmDeleteBtn'),
+    cancelLabel: t('cancelBtn')
+  });
+  if (!confirmed) return;
+  try {
+    const { data, error } = await sb.functions.invoke('admin-delete-account', { body: { userId } });
+    if (error) throw error;
+    if (data && data.error) throw new Error(data.error);
+    toast(t('accountRequestsDeleteSuccess'), 'success');
+    loadAccountRequests();
+  } catch (err) {
+    console.error('Admin delete account failed:', err);
+    toast(t('accountRequestsActionError'), 'error');
+  }
+}
+
+
 // viewport (globalActiveData is viewport/filter scoped), so fetch the
 // single report on demand before handing off to the normal detail modal --
 // this way the feed reuses all existing edit/delete/status/photo-review UI
