@@ -2253,11 +2253,11 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   line-height:1.4;
   word-break:break-word;
   display:-webkit-box;
-  -webkit-line-clamp:2;
+  -webkit-line-clamp:4;
   -webkit-box-orient:vertical;
   overflow:hidden;
   text-overflow:ellipsis;
-  max-height:calc(1.4em * 2);
+  max-height:calc(1.4em * 4);
 }
 .popup-note-full{
   display:block;
@@ -18042,7 +18042,7 @@ function buildPopupHtml(report) {
   }
 
   const noteRowHtml = report.comment
-    ? `<div class="popup-note-row"><div class="popup-note">${escapeHtml(report.comment)}</div></div>`
+    ? `<div class="popup-note-row"><div class="popup-note">${escapeHtml(truncateForPopup(report.comment, 220))}</div></div>`
     : '';
 
   return `<div class="popup-inner popup-card">
@@ -19778,6 +19778,19 @@ function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
+}
+
+// Character-based truncation for the map popup's comment preview -- the CSS
+// line-clamp on .popup-note handles typical cases, but this guarantees a
+// hard cap regardless of line-clamp browser support, and avoids sending a
+// huge wall of text into the DOM for every visible pin. Cuts at the last
+// word boundary within range rather than mid-word where reasonable.
+function truncateForPopup(text, maxChars) {
+  if (!text || text.length <= maxChars) return text;
+  let cut = text.slice(0, maxChars);
+  const lastSpace = cut.lastIndexOf(' ');
+  if (lastSpace > maxChars * 0.6) cut = cut.slice(0, lastSpace);
+  return cut.trim() + '…';
 }
 
 const BOLD_UNICODE_MAP = (() => {
