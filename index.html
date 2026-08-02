@@ -9452,7 +9452,7 @@ function initOfflineMapSettingsUi() {
 // ---- Web Push notifications ------------------------------------------------
 // The VAPID public key is not secret; it's meant to travel to the client.
 // (Its matching private key lives only as an edge function secret in Supabase.)
-const VAPID_PUBLIC_KEY = 'BFmXDtHxCIQvrW11jB8d__aOXi0R-TBmHSpXlbRUxQ-Azvi0skmHP9k3LfFpgddI4Lbjyxv7mrswQFgdNdcRZRc';
+const VAPID_PUBLIC_KEY = 'BBz_1Cd0JiiLAWXQP-mPl3gHhMnsjNsABwpbt6Ldm6I05OzvlEzXaveFWqBKLpgfCac9Zil663dPZM05xr-yFjw';
 
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -15490,7 +15490,6 @@ function pointInRing(lat, lon, ring) {
   }
   return inside;
 }
-const _emptyBoundaryWarned = new Set();
 
 function pointInBoundary(lat, lon, boundary) {
   if (!boundary || !boundary.coordinates) return false;
@@ -15512,15 +15511,6 @@ function findMunicipalityInCache(lat, lon) {
   let best = null;
   for (const m of municipalityCache) {
     if (!bboxContains(m.bbox, lat, lon)) continue;
-    if (m.boundary && m.boundary.coordinates) {
-      const rings = m.boundary.type === 'MultiPolygon'
-        ? (m.boundary.coordinates || []).reduce((n, p) => n + (p && p.length ? 1 : 0), 0)
-        : m.boundary.coordinates.length;
-      if (!rings && !_emptyBoundaryWarned.has(m.id)) {
-        _emptyBoundaryWarned.add(m.id);
-        console.warn(`Municipality "${m.name}" (id ${m.id}) has a stored boundary with no rings — it will never match any point here and always falls through to the Nominatim name-match fallback. Re-run "Add municipality from map center" over it to fix.`);
-      }
-    }
     if (pointInBoundary(lat, lon, m.boundary)) {
       if (!best || (m.admin_level || 0) > (best.admin_level || 0)) best = m;
     }
