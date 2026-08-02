@@ -3679,6 +3679,12 @@ span.flatpickr-weekday {
       </div>
     </div>
 
+    <div class="detail-section" id="accountDangerSettingsSection">
+      <div class="detail-section-title" id="accountDangerSectionTitle">Account</div>
+      <p class="detail-export-hint" id="deleteAccountHint">Permanently delete your account and personal data. Your existing reports stay visible to help the community, but are no longer linked to your username.</p>
+      <button type="button" class="detail-delete-btn" style="width:100%;" onclick="deleteMyAccount()" id="deleteAccountBtn">Delete my account</button>
+    </div>
+
     <div class="detail-section" id="timeWindowFilterSection" style="padding:0;overflow:hidden;display:none;">
       <div class="filter-label-row" style="border-radius:0;">
         <span class="filter-title" id="filterTitleLabel">Time Window Filter</span>
@@ -4507,6 +4513,61 @@ async function signOutUser() {
 
   updateAuthUI();
   refreshRenderedPopups();
+}
+
+async function deleteMyAccount() {
+  if (!currentSession || !currentProfile) return;
+
+  const confirmed = await themedConfirm(t('deleteAccountConfirmMessage'), {
+    okLabel: t('deleteAccountConfirmOk'),
+    cancelLabel: t('cancelBtn')
+  });
+  if (!confirmed) return;
+
+  const typed = await themedPrompt(t('deleteAccountTypePrompt'), '');
+  if (typed === null) return;
+  if (typed.trim().toUpperCase() !== 'DELETE') {
+    toast(t('deleteAccountTypeMismatch'), 'error');
+    return;
+  }
+
+  const btn = document.getElementById('deleteAccountBtn');
+  if (btn) btn.disabled = true;
+
+  try {
+    const { error } = await sb.functions.invoke('delete-account');
+    if (error) throw error;
+
+    // Clear any tester-mode overlay state so it doesn't leak into the next session.
+    testerAddedReports = [];
+    testerDeletedReportIds = new Set();
+    testerReportOverrides = {};
+
+    await sb.auth.signOut();
+    currentSession = null;
+    currentProfile = null;
+
+    hideLeaderboardModal();
+    hideSettingsModal();
+    hideReportDetailModal();
+    hideCompanyDetailModal();
+    hideLegalContentModal();
+    hideNotificationModal();
+    if (typeof drivingMode !== 'undefined' && drivingMode) toggleDrivingMode();
+    if (typeof heatmapActive !== 'undefined' && heatmapActive) toggleHeatmap();
+    clearNavigation();
+    if (pinMode || manualMarker) resetReportingForm();
+    setFollowMode(!!userCoords);
+
+    updateAuthUI();
+    refreshRenderedPopups();
+    toast(t('deleteAccountSuccess'), 'success');
+  } catch (err) {
+    console.error('Account deletion failed:', err);
+    toast(t('deleteAccountError'), 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 async function loadProfile() {
@@ -6773,6 +6834,15 @@ const T = {
   termsOfServiceBtn: { en:'Terms of Service', sr:'Uslovi korišćenja' },
   privacyPolicyBtn: { en:'Privacy Policy', sr:'Politika privatnosti' },
   legalContentLoadFailed: { en:'This could not be loaded right now. Please try again later.', sr:'Ovo trenutno nije moguće učitati. Pokušajte ponovo kasnije.' },
+  accountDangerSectionTitle: { en:'Account', sr:'Nalog' },
+  deleteAccountHint: { en:'Permanently delete your account and personal data. Your existing reports stay visible to help the community, but are no longer linked to your username.', sr:'Trajno obrišite svoj nalog i lične podatke. Vaše postojeće prijave ostaju vidljive radi koristi zajednice, ali više nisu povezane sa vašim korisničkim imenom.' },
+  deleteAccountBtn: { en:'Delete my account', sr:'Obriši moj nalog' },
+  deleteAccountConfirmMessage: { en:'This permanently deletes your account and sign-in. This cannot be undone. Your reports will stay on the map but will no longer show your username. Continue?', sr:'Ovo trajno briše vaš nalog i prijavu. Ova radnja se ne može poništiti. Vaše prijave ostaju na mapi, ali više neće prikazivati vaše korisničko ime. Nastaviti?' },
+  deleteAccountConfirmOk: { en:'Delete account', sr:'Obriši nalog' },
+  deleteAccountTypePrompt: { en:'Type DELETE to confirm.', sr:'Ukucajte DELETE da potvrdite.' },
+  deleteAccountTypeMismatch: { en:'That didn’t match — nothing was deleted.', sr:'To se nije poklopilo — ništa nije obrisano.' },
+  deleteAccountSuccess: { en:'Your account has been deleted.', sr:'Vaš nalog je obrisan.' },
+  deleteAccountError: { en:'Couldn’t delete your account. Please try again or contact support.', sr:'Nalog nije moguće obrisati. Pokušajte ponovo ili kontaktirajte podršku.' },
   reporterHiddenAdminSuffix: { en:'(hidden from public)', sr:'(sakriveno od javnosti)' },
   showUsernameOnMsg: { en:'Your username is now shown on your reports.', sr:'Vaše korisničko ime sada je prikazano na vašim prijavama.' },
   showUsernameOffMsg: { en:'Your username is now hidden on your reports.', sr:'Vaše korisničko ime je sada sakriveno na vašim prijavama.' },
@@ -7610,6 +7680,12 @@ function applyLang(){
   if (legalTermsBtnEl) legalTermsBtnEl.textContent = t('termsOfServiceBtn');
   const legalPrivacyBtnEl = document.getElementById('legalPrivacyBtn');
   if (legalPrivacyBtnEl) legalPrivacyBtnEl.textContent = t('privacyPolicyBtn');
+  const accountDangerSectionTitleEl = document.getElementById('accountDangerSectionTitle');
+  if (accountDangerSectionTitleEl) accountDangerSectionTitleEl.textContent = t('accountDangerSectionTitle');
+  const deleteAccountHintEl = document.getElementById('deleteAccountHint');
+  if (deleteAccountHintEl) deleteAccountHintEl.textContent = t('deleteAccountHint');
+  const deleteAccountBtnEl = document.getElementById('deleteAccountBtn');
+  if (deleteAccountBtnEl) deleteAccountBtnEl.textContent = t('deleteAccountBtn');
   renderLegalCopyrightLine();
   if (document.getElementById('legalContentModal').style.display !== 'none' && legalContentModalOpenKey) {
     renderLegalContentModalBody(legalContentModalOpenKey);
