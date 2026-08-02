@@ -13624,6 +13624,11 @@ function priorityLabelText(p) {
 }
 function categoryColor(cat) { return CATEGORY_COLORS[cat] || '#aaaaaa'; }
 function categoryIcon(cat)  { return 'icons/reports/' + (CATEGORY_ICONS[cat] || CATEGORY_ICONS.Other); }
+function subcategoryIcon(cat, subcat) {
+  const group = (typeof WIZ_SUBCATEGORY_ICONS !== 'undefined') ? WIZ_SUBCATEGORY_ICONS[cat] : null;
+  const file = group && subcat ? group[subcat] : null;
+  return file ? ('icons/reports/' + file) : null;
+}
 
 let categoryMarkerFilter = null;
 
@@ -19761,10 +19766,10 @@ function upsertSectionLine(report) {
   return group;
 }
 
-function buildPinIconHtml(category, status, priority, confirmCount) {
+function buildPinIconHtml(category, subcategory, status, priority, confirmCount) {
   const catCol  = categoryColor(category);
   const sCol    = statusColor(status);
-  const iconSrc = categoryIcon(category);
+  const iconSrc = subcategoryIcon(category, subcategory) || categoryIcon(category);
   const opacity = status === 'fixed' ? 0.55 : 1;
   const pulseDuration = status === 'reported' ? 1.6 : 2.6;
   const pulseSize = priority === 'high' ? 34 : priority === 'low' ? 20 : 26;
@@ -19795,7 +19800,7 @@ function upsertMarker(report) {
 
   const dupGroup = duplicateGroupFor(report.id);
   const confirmCount = dupGroup ? dupGroup.count : 0;
-  const iconHtml = buildPinIconHtml(report.category, report.status, report.priority, confirmCount);
+  const iconHtml = buildPinIconHtml(report.category, report.subcategory, report.status, report.priority, confirmCount);
   const zOffset = report.status === 'fixed' ? -1000 : 0;
 
   let marker = markerById.get(report.id);
