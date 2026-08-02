@@ -3239,7 +3239,7 @@ span.flatpickr-weekday {
   </div>
 
   <div class="row report-comment-row" id="reportCommentRow">
-    <input id="comment" type="text" maxlength="300" placeholder="Optional notes..." oninput="checkFormReady()">
+    <input id="comment" type="text" placeholder="Optional notes..." oninput="checkFormReady()">
     <div class="photo-choice-dropdown" id="reportPhotoDropdown">
       <button type="button" class="icon-only-btn" id="reportPhotoAddBtn" title="Take photo" aria-label="Take photo" onclick="triggerReportPhotoCamera()">
         <img class="icon-img" src="icons/camera.png" alt="">
@@ -14252,7 +14252,7 @@ function openReportWizard() {
   wizState = { steps: wizStepsFor(null), step: 0, category: null, subcategory: null, priority: null, status: null };
   document.getElementById('reportWizard').style.display = 'flex';
   wizRender();
-  openOverlay('reportWizard', closeReportWizard);
+  openOverlay('reportWizard', handleWizardHardwareBack);
 }
 
 function closeReportWizard() {
@@ -14270,6 +14270,19 @@ function wizGoBack() {
   if (wizState.step === 0) { closeReportWizard(); return; }
   wizState.step -= 1;
   wizRender();
+}
+
+// Invoked when the hardware/browser back button is pressed while the wizard is
+// open (via the overlay stack). Unlike wizGoBack() (used by the on-screen ‹
+// button), this fires after the browser has already consumed the history entry
+// tied to the wizard, so if the wizard is still open afterwards (i.e. we only
+// stepped back rather than closing) we push a fresh entry to keep the next
+// back-press catchable too — same "re-arm" pattern used for the base overlay guard.
+function handleWizardHardwareBack() {
+  wizGoBack();
+  if (document.getElementById('reportWizard').style.display !== 'none') {
+    openOverlay('reportWizard', handleWizardHardwareBack);
+  }
 }
 
 function wizAdvance() {
@@ -19472,7 +19485,7 @@ function buildDetailEditFieldsHtml(report) {
     </div>
     <div class="detail-edit-field">
       <span class="detail-edit-field-label">${t('editCommentLabel')}</span>
-      <input type="text" id="detailEditComment-${report.id}" maxlength="300" value="${escapeHtml(report.comment || '')}" placeholder="${t('commentPH')}">
+      <input type="text" id="detailEditComment-${report.id}" value="${escapeHtml(report.comment || '')}" placeholder="${t('commentPH')}">
     </div>
     <div class="detail-edit-actions-row">
       <button type="button" style="background:var(--accent);color:var(--accent-contrast);" onclick="saveReportDetailEdits('${report.id}')">${t('saveBtn')}</button>
