@@ -2851,6 +2851,41 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 }
 .uc-group-chevron img{ width:100%; height:100%; display:block; filter:var(--icon-tint-filter); }
 details[open] > summary .uc-group-chevron{ transform:rotate(180deg);  }
+
+/* Settings modal: collapsible groups (collapsed by default) so the panel
+   doesn't turn into one long scroll now that there are many sub-sections. */
+.settings-group{
+  border:1px solid var(--border-color); border-radius:var(--radius-xl); overflow:hidden;
+  background:var(--bg-surface-alt);
+}
+.settings-group > summary{
+  list-style:none; cursor:pointer; padding:13px 14px;
+  display:flex; align-items:center; gap:var(--space-8);
+  font-weight:var(--fw-bold); font-size:var(--fs-13); color:var(--text-primary);
+}
+.settings-group > summary::-webkit-details-marker{ display:none; }
+.settings-group-icon{ width:15px; height:15px; flex-shrink:0; filter:var(--icon-tint-filter); opacity:.85; }
+.settings-group-sub{ font-weight:var(--fw-regular); font-size:var(--fs-11); color:var(--text-muted); }
+.settings-group-chevron{
+  display:inline-flex; align-items:center; justify-content:center;
+  width:9px; height:9px; flex-shrink:0; margin-left:auto;
+  transition:transform .15s ease; transform:rotate(90deg);
+}
+.settings-group-chevron img{ width:100%; height:100%; display:block; filter:var(--icon-tint-filter); }
+details.settings-group[open] > summary .settings-group-chevron{ transform:rotate(180deg); }
+.settings-group-body{ padding:0 12px 12px; display:flex; flex-direction:column; gap:12px; }
+.settings-group-body .detail-section{ background:var(--bg-surface); }
+
+/* Per-notification-type push toggle list */
+.notif-type-row{
+  display:flex; align-items:center; justify-content:space-between; gap:var(--space-10);
+  padding:8px 0; font-size:var(--fs-12-5);
+}
+.notif-type-row:not(:last-child){ border-bottom:1px solid var(--border-color); }
+.notif-type-row-text{ display:flex; flex-direction:column; gap:2px; min-width:0; }
+.notif-type-row-desc{ font-size:var(--fs-10-5); color:var(--text-muted); }
+.saved-area-row{ display:flex; gap:var(--space-8); flex-wrap:wrap; margin-top:10px; }
+.saved-area-status{ font-size:var(--fs-12); color:var(--text-secondary); margin-top:8px; }
 .uc-muni-items{
   display:flex; flex-direction:column; gap:var(--space-8); padding:0 10px 10px;
 }
@@ -3521,198 +3556,267 @@ span.flatpickr-weekday {
 
     <div id="settingsAccountGatedGroup">
 
-    <div class="detail-section" id="privacySettingsSection">
-      <div class="detail-section-title" id="privacySectionTitle">Privacy</div>
-      <label class="settings-toggle-row" id="showUsernameToggleRow">
-        <span id="showUsernameToggleLabel">Show my username on reports</span>
-        <span class="toggle-switch">
-          <input type="checkbox" id="showUsernameToggleInput" checked onchange="setShowUsernameOnReports(this.checked)">
-          <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
-        </span>
-      </label>
-      <p class="detail-export-hint" id="showUsernameHint">When off, your reports show a short ID instead of your username. Admins can still see who reported it, for moderation.</p>
-    </div>
+    <details class="settings-group" id="settingsGroupNotifications">
+      <summary>
+        <img class="settings-group-icon" src="icons/notification.png" alt="">
+        <span id="settingsGroupNotificationsTitle">Notifications & reminders</span>
+        <span class="settings-group-chevron"><img src="icons/arrow.png" alt=""></span>
+      </summary>
+      <div class="settings-group-body">
 
-    <div class="detail-section" id="themeSettingsSection">
-      <div class="detail-section-title" id="themeSectionTitle">Theme</div>
-      <div class="theme-segment" id="themeSegment">
-        <button type="button" class="theme-segment-btn" onclick="setThemeMode('light')" id="themeBtnLight">Light</button>
-        <button type="button" class="theme-segment-btn" onclick="setThemeMode('dark')" id="themeBtnDark">Dark</button>
-        <button type="button" class="theme-segment-btn" onclick="setThemeMode('auto')" id="themeBtnAuto">Auto</button>
-        <button type="button" class="theme-segment-btn" onclick="setThemeMode('smart')" id="themeBtnSmart">Smart</button>
+        <div class="detail-section" id="notificationLanguageSettingsSection">
+          <div class="detail-section-title" id="notificationLanguageSectionTitle">Notification language</div>
+          <p class="detail-export-hint" id="notificationLanguageSectionHint">Which language should we use for your notifications?</p>
+          <div class="theme-segment" id="notificationLanguageSegment">
+            <button type="button" class="theme-segment-btn" onclick="setNotificationLanguage('auto')" id="notificationLanguageBtnAuto">Automatic</button>
+            <button type="button" class="theme-segment-btn" onclick="setNotificationLanguage('en')" id="notificationLanguageBtnEn">English</button>
+            <button type="button" class="theme-segment-btn" onclick="setNotificationLanguage('sr')" id="notificationLanguageBtnSr">Srpski</button>
+          </div>
+          <label class="settings-toggle-row" id="pushNotifToggleRow">
+            <span id="pushNotifToggleLabel">Push notifications on this device</span>
+            <span class="toggle-switch">
+              <input type="checkbox" id="pushNotifToggleInput" onchange="setPushNotificationsEnabled(this.checked)">
+              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+            </span>
+          </label>
+          <p class="detail-export-hint" id="pushNotifToggleHint">Get notified even when the app isn't open. You'll be asked for browser permission the first time.</p>
+        </div>
+
+        <div class="detail-section" id="notifTypesSettingsSection">
+          <div class="detail-section-title" id="notifTypesSectionTitle">Push notification types</div>
+          <p class="detail-export-hint" id="notifTypesSectionHint">Turn off just the ones you don't want as push alerts. Everything still lands in your in-app inbox.</p>
+          <div id="notifTypeTogglesList"></div>
+        </div>
+
+        <div class="detail-section" id="savedAreaSettingsSection">
+          <div class="detail-section-title" id="savedAreaSectionTitle">Saved area alerts</div>
+          <p class="detail-export-hint" id="savedAreaSectionHint">Get a push notification when someone reports a new issue near an area you care about.</p>
+          <div id="savedAreaStatusText" class="saved-area-status"></div>
+          <div class="saved-area-row">
+            <button type="button" class="settings-btn" style="flex:1;" onclick="useCurrentLocationForSavedArea()" id="savedAreaUseLocationBtn">
+              <img class="icon-img icon-img-inline icon-tint-dark" src="icons/target.png" alt=""> <span id="savedAreaUseLocationBtnLabel">Use my current location</span>
+            </button>
+            <button type="button" class="settings-btn" style="flex:0 0 auto;" onclick="clearSavedArea()" id="savedAreaClearBtn">Clear</button>
+          </div>
+          <label class="settings-select-row" id="savedAreaRadiusRow" style="margin-top:10px;">
+            <span id="savedAreaRadiusLabel">Alert radius</span>
+            <select id="savedAreaRadiusSelect" onchange="setSavedAreaRadius(this.value)">
+              <option value="1">1 km</option>
+              <option value="2">2 km</option>
+              <option value="3">3 km</option>
+              <option value="5">5 km</option>
+              <option value="10">10 km</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="detail-section" id="nearbyCheckinSettingsSection">
+          <div class="detail-section-title" id="nearbyCheckinSectionTitle">Nearby issue check-ins</div>
+          <p class="detail-export-hint" id="nearbyCheckinSectionHint">When you pass close to an open report, we can ask if it's still there.</p>
+          <div class="theme-segment" id="nearbyCheckinFreqSegment">
+            <button type="button" class="theme-segment-btn" onclick="setNearbyCheckinFreq('off')" id="nearbyCheckinBtnOff">Off</button>
+            <button type="button" class="theme-segment-btn" onclick="setNearbyCheckinFreq('low')" id="nearbyCheckinBtnLow">Rarely</button>
+            <button type="button" class="theme-segment-btn" onclick="setNearbyCheckinFreq('normal')" id="nearbyCheckinBtnNormal">Normal</button>
+            <button type="button" class="theme-segment-btn" onclick="setNearbyCheckinFreq('high')" id="nearbyCheckinBtnHigh">Often</button>
+          </div>
+        </div>
+
+        <div class="detail-section" id="contactReminderSettingsSection">
+          <div class="detail-section-title" id="contactReminderSectionTitle">Contact reminders</div>
+          <p class="detail-export-hint" id="contactReminderSectionHint">If you haven't contacted the utility company about one of your open reports, we can nudge you.</p>
+          <div class="theme-segment" id="contactReminderFreqSegment">
+            <button type="button" class="theme-segment-btn" onclick="setContactReminderFreq('off')" id="contactReminderBtnOff">Off</button>
+            <button type="button" class="theme-segment-btn" onclick="setContactReminderFreq('weekly')" id="contactReminderBtnWeekly">Weekly</button>
+            <button type="button" class="theme-segment-btn" onclick="setContactReminderFreq('biweekly')" id="contactReminderBtnBiweekly">2 weeks</button>
+            <button type="button" class="theme-segment-btn" onclick="setContactReminderFreq('monthly')" id="contactReminderBtnMonthly">Monthly</button>
+          </div>
+        </div>
+
       </div>
-      <p class="detail-export-hint" id="themeSmartHint">Auto follows your device's light/dark setting. Smart adapts to ambient light where available, otherwise local time.</p>
-    </div>
+    </details>
 
-    <div class="detail-section" id="mapStyleSettingsSection">
-      <div class="detail-section-title" id="mapStyleSectionTitle">Map style</div>
-      <label class="settings-select-row" id="mapStyleDefaultRow">
-        <span id="mapStyleDefaultLabel">Default map style</span>
-        <select id="mapStyleDefaultSelect" onchange="setMapStyleDefault(this.value)"></select>
-      </label>
-      <p class="detail-export-hint" id="mapStyleHint">Used when you're not navigating. Light/dark theme is applied on top of whichever style you pick.</p>
-      <label class="settings-select-row" id="mapStyleCarRow">
-        <span id="mapStyleCarLabel">Driving map style</span>
-        <select id="mapStyleCarSelect" onchange="setNavMapStylePref('car', this.value)"></select>
-      </label>
-      <label class="settings-select-row" id="mapStyleBikeRow">
-        <span id="mapStyleBikeLabel">Cycling map style</span>
-        <select id="mapStyleBikeSelect" onchange="setNavMapStylePref('bike', this.value)"></select>
-      </label>
-      <label class="settings-select-row" id="mapStyleFootRow">
-        <span id="mapStyleFootLabel">Walking map style</span>
-        <select id="mapStyleFootSelect" onchange="setNavMapStylePref('foot', this.value)"></select>
-      </label>
-    </div>
+    <details class="settings-group" id="settingsGroupMap">
+      <summary>
+        <img class="settings-group-icon" src="icons/public.png" alt="">
+        <span id="settingsGroupMapTitle">Map & navigation</span>
+        <span class="settings-group-chevron"><img src="icons/arrow.png" alt=""></span>
+      </summary>
+      <div class="settings-group-body">
 
-    <div class="detail-section" id="iconPackSettingsSection">
-      <div class="detail-section-title" id="iconPackSectionTitle">Icon pack</div>
-      <div class="theme-segment" id="iconPackSegment"></div>
-      <p class="detail-export-hint" id="iconPackHint">Changes how map pins and icons look. The app will reload after switching.</p>
-    </div>
+        <div class="detail-section" id="mapStyleSettingsSection">
+          <div class="detail-section-title" id="mapStyleSectionTitle">Map style</div>
+          <label class="settings-select-row" id="mapStyleDefaultRow">
+            <span id="mapStyleDefaultLabel">Default map style</span>
+            <select id="mapStyleDefaultSelect" onchange="setMapStyleDefault(this.value)"></select>
+          </label>
+          <p class="detail-export-hint" id="mapStyleHint">Used when you're not navigating. Light/dark theme is applied on top of whichever style you pick.</p>
+          <label class="settings-select-row" id="mapStyleCarRow">
+            <span id="mapStyleCarLabel">Driving map style</span>
+            <select id="mapStyleCarSelect" onchange="setNavMapStylePref('car', this.value)"></select>
+          </label>
+          <label class="settings-select-row" id="mapStyleBikeRow">
+            <span id="mapStyleBikeLabel">Cycling map style</span>
+            <select id="mapStyleBikeSelect" onchange="setNavMapStylePref('bike', this.value)"></select>
+          </label>
+          <label class="settings-select-row" id="mapStyleFootRow">
+            <span id="mapStyleFootLabel">Walking map style</span>
+            <select id="mapStyleFootSelect" onchange="setNavMapStylePref('foot', this.value)"></select>
+          </label>
+        </div>
 
-    <div class="detail-section" id="mapFilterSettingsSection">
-      <div class="detail-section-title" id="mapFilterSectionTitle">Map</div>
-      <button type="button" class="settings-btn" onclick="toggleCategoryFilterModal()" id="mapFilterSettingsBtn">
-        <img class="icon-img icon-img-inline icon-tint-dark" src="icons/category-filter.png" alt=""> <span id="mapFilterSettingsBtnLabel">Filter categories</span>
-        <span class="settings-btn-active-dot" id="mapFilterActiveDot" style="display:none"></span>
-      </button>
-      <div class="detail-section-title" id="statusFilterSectionTitle" style="margin-top:14px;">Status shown on map</div>
-      <div class="theme-segment" id="statusFilterSettingsSegment"></div>
-      <label class="settings-toggle-row" id="pulseToggleRow">
-        <span id="pulseToggleLabel">Status pulse animation</span>
-        <span class="toggle-switch">
-          <input type="checkbox" id="pulseToggleInput" checked onchange="setPulseEnabled(this.checked)">
-          <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
-        </span>
-      </label>
-      <label class="settings-toggle-row" id="navBtnToggleRow">
-        <span id="navBtnToggleLabel">Show driving / navigation button on map</span>
-        <span class="toggle-switch">
-          <input type="checkbox" id="navBtnToggleInput" onchange="setNavBtnVisible(this.checked)">
-          <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
-        </span>
-      </label>
-      <label class="settings-toggle-row" id="heatmapBtnToggleRow">
-        <span id="heatmapBtnToggleLabel">Show heatmap button on map</span>
-        <span class="toggle-switch">
-          <input type="checkbox" id="heatmapBtnToggleInput" onchange="setHeatmapBtnVisible(this.checked)">
-          <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
-        </span>
-      </label>
-    </div>
+        <div class="detail-section" id="iconPackSettingsSection">
+          <div class="detail-section-title" id="iconPackSectionTitle">Icon pack</div>
+          <div class="theme-segment" id="iconPackSegment"></div>
+          <p class="detail-export-hint" id="iconPackHint">Changes how map pins and icons look. The app will reload after switching.</p>
+        </div>
 
-    <div class="detail-section" id="offlineMapSettingsSection">
-      <div class="detail-section-title" id="offlineMapSectionTitle">Offline maps</div>
-      <p class="detail-export-hint" id="offlineMapHint">Your map is cached automatically as you browse, so it still loads without signal.</p>
-      <label class="settings-toggle-row" id="offlineAutoCacheToggleRow">
-        <span id="offlineAutoCacheToggleLabel">Auto-cache map around areas you view</span>
-        <span class="toggle-switch">
-          <input type="checkbox" id="offlineAutoCacheToggleInput" checked onchange="setOfflineAutoCacheEnabled(this.checked)">
-          <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
-        </span>
-      </label>
-      <p class="detail-export-hint" id="offlineAutoCacheHint">Quietly extends your offline map outward, in the background, up to roughly a country's worth of coverage.</p>
-      <div class="dashboard-progress-text" id="offlineMapStorageText"></div>
-    </div>
+        <div class="detail-section" id="mapFilterSettingsSection">
+          <div class="detail-section-title" id="mapFilterSectionTitle">Map</div>
+          <button type="button" class="settings-btn" onclick="toggleCategoryFilterModal()" id="mapFilterSettingsBtn">
+            <img class="icon-img icon-img-inline icon-tint-dark" src="icons/category-filter.png" alt=""> <span id="mapFilterSettingsBtnLabel">Filter categories</span>
+            <span class="settings-btn-active-dot" id="mapFilterActiveDot" style="display:none"></span>
+          </button>
+          <div class="detail-section-title" id="statusFilterSectionTitle" style="margin-top:14px;">Status shown on map</div>
+          <div class="theme-segment" id="statusFilterSettingsSegment"></div>
+          <label class="settings-toggle-row" id="pulseToggleRow">
+            <span id="pulseToggleLabel">Status pulse animation</span>
+            <span class="toggle-switch">
+              <input type="checkbox" id="pulseToggleInput" checked onchange="setPulseEnabled(this.checked)">
+              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+            </span>
+          </label>
+          <label class="settings-toggle-row" id="navBtnToggleRow">
+            <span id="navBtnToggleLabel">Show driving / navigation button on map</span>
+            <span class="toggle-switch">
+              <input type="checkbox" id="navBtnToggleInput" onchange="setNavBtnVisible(this.checked)">
+              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+            </span>
+          </label>
+          <label class="settings-toggle-row" id="heatmapBtnToggleRow">
+            <span id="heatmapBtnToggleLabel">Show heatmap button on map</span>
+            <span class="toggle-switch">
+              <input type="checkbox" id="heatmapBtnToggleInput" onchange="setHeatmapBtnVisible(this.checked)">
+              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+            </span>
+          </label>
+        </div>
 
-    <div class="detail-section" id="drivingSafetySettingsSection">
-      <div class="detail-section-title" id="drivingSafetySectionTitle">Driving mode</div>
-      <label class="settings-toggle-row" id="soundToggleRow">
-        <span id="soundToggleLabel">Navigation & alert sounds</span>
-        <span class="toggle-switch">
-          <input type="checkbox" id="soundToggleInput" checked onchange="setSoundEnabled(this.checked)">
-          <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
-        </span>
-      </label>
-      <label class="settings-toggle-row" id="voiceNavToggleRow">
-        <span id="voiceNavToggleLabel">Voice-guided turn directions</span>
-        <span class="toggle-switch">
-          <input type="checkbox" id="voiceNavToggleInput" onchange="setVoiceNavEnabled(this.checked)">
-          <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
-        </span>
-      </label>
-      <label class="settings-toggle-row" id="drivingSafetyToggleRow">
-        <span id="drivingSafetyToggleLabel">Show safe-driving reminder when starting driving mode</span>
-        <span class="toggle-switch">
-          <input type="checkbox" id="drivingSafetyToggleInput" checked onchange="setDrivingSafetyReminderEnabled(this.checked)">
-          <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
-        </span>
-      </label>
-      <label class="settings-toggle-row" id="overspeedAlertToggleRow">
-        <span id="overspeedAlertToggleLabel">Warn me when I'm 5+ km/h over the speed limit</span>
-        <span class="toggle-switch">
-          <input type="checkbox" id="overspeedAlertToggleInput" checked onchange="setOverspeedAlertEnabled(this.checked)">
-          <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
-        </span>
-      </label>
-      <label class="settings-toggle-row" id="bumpDetectionToggleRow">
-        <span id="bumpDetectionToggleLabel">Detect potholes/bumps automatically while driving</span>
-        <span class="toggle-switch">
-          <input type="checkbox" id="bumpDetectionToggleInput" checked onchange="setBumpDetectionEnabled(this.checked)">
-          <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
-        </span>
-      </label>
-      <label class="settings-select-row" id="quickDefaultCarRow">
-        <span id="quickDefaultCarLabel">Default quick-report category (driving)</span>
-        <select id="quickDefaultCarSelect" onchange="setQuickDefaultCategoryPref('car', this.value)"></select>
-      </label>
-      <label class="settings-select-row" id="quickDefaultBikeRow">
-        <span id="quickDefaultBikeLabel">Default quick-report category (biking)</span>
-        <select id="quickDefaultBikeSelect" onchange="setQuickDefaultCategoryPref('bike', this.value)"></select>
-      </label>
-    </div>
+        <div class="detail-section" id="offlineMapSettingsSection">
+          <div class="detail-section-title" id="offlineMapSectionTitle">Offline maps</div>
+          <p class="detail-export-hint" id="offlineMapHint">Your map is cached automatically as you browse, so it still loads without signal.</p>
+          <label class="settings-toggle-row" id="offlineAutoCacheToggleRow">
+            <span id="offlineAutoCacheToggleLabel">Auto-cache map around areas you view</span>
+            <span class="toggle-switch">
+              <input type="checkbox" id="offlineAutoCacheToggleInput" checked onchange="setOfflineAutoCacheEnabled(this.checked)">
+              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+            </span>
+          </label>
+          <p class="detail-export-hint" id="offlineAutoCacheHint">Quietly extends your offline map outward, in the background, up to roughly a country's worth of coverage.</p>
+          <div class="dashboard-progress-text" id="offlineMapStorageText"></div>
+        </div>
 
-    <div class="detail-section" id="nearbyCheckinSettingsSection">
-      <div class="detail-section-title" id="nearbyCheckinSectionTitle">Nearby issue check-ins</div>
-      <p class="detail-export-hint" id="nearbyCheckinSectionHint">When you pass close to an open report, we can ask if it's still there.</p>
-      <div class="theme-segment" id="nearbyCheckinFreqSegment">
-        <button type="button" class="theme-segment-btn" onclick="setNearbyCheckinFreq('off')" id="nearbyCheckinBtnOff">Off</button>
-        <button type="button" class="theme-segment-btn" onclick="setNearbyCheckinFreq('low')" id="nearbyCheckinBtnLow">Rarely</button>
-        <button type="button" class="theme-segment-btn" onclick="setNearbyCheckinFreq('normal')" id="nearbyCheckinBtnNormal">Normal</button>
-        <button type="button" class="theme-segment-btn" onclick="setNearbyCheckinFreq('high')" id="nearbyCheckinBtnHigh">Often</button>
+        <div class="detail-section" id="drivingSafetySettingsSection">
+          <div class="detail-section-title" id="drivingSafetySectionTitle">Driving mode</div>
+          <label class="settings-toggle-row" id="soundToggleRow">
+            <span id="soundToggleLabel">Navigation & alert sounds</span>
+            <span class="toggle-switch">
+              <input type="checkbox" id="soundToggleInput" checked onchange="setSoundEnabled(this.checked)">
+              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+            </span>
+          </label>
+          <label class="settings-toggle-row" id="voiceNavToggleRow">
+            <span id="voiceNavToggleLabel">Voice-guided turn directions</span>
+            <span class="toggle-switch">
+              <input type="checkbox" id="voiceNavToggleInput" onchange="setVoiceNavEnabled(this.checked)">
+              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+            </span>
+          </label>
+          <label class="settings-toggle-row" id="drivingSafetyToggleRow">
+            <span id="drivingSafetyToggleLabel">Show safe-driving reminder when starting driving mode</span>
+            <span class="toggle-switch">
+              <input type="checkbox" id="drivingSafetyToggleInput" checked onchange="setDrivingSafetyReminderEnabled(this.checked)">
+              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+            </span>
+          </label>
+          <label class="settings-toggle-row" id="overspeedAlertToggleRow">
+            <span id="overspeedAlertToggleLabel">Warn me when I'm 5+ km/h over the speed limit</span>
+            <span class="toggle-switch">
+              <input type="checkbox" id="overspeedAlertToggleInput" checked onchange="setOverspeedAlertEnabled(this.checked)">
+              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+            </span>
+          </label>
+          <label class="settings-toggle-row" id="bumpDetectionToggleRow">
+            <span id="bumpDetectionToggleLabel">Detect potholes/bumps automatically while driving</span>
+            <span class="toggle-switch">
+              <input type="checkbox" id="bumpDetectionToggleInput" checked onchange="setBumpDetectionEnabled(this.checked)">
+              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+            </span>
+          </label>
+          <label class="settings-select-row" id="quickDefaultCarRow">
+            <span id="quickDefaultCarLabel">Default quick-report category (driving)</span>
+            <select id="quickDefaultCarSelect" onchange="setQuickDefaultCategoryPref('car', this.value)"></select>
+          </label>
+          <label class="settings-select-row" id="quickDefaultBikeRow">
+            <span id="quickDefaultBikeLabel">Default quick-report category (biking)</span>
+            <select id="quickDefaultBikeSelect" onchange="setQuickDefaultCategoryPref('bike', this.value)"></select>
+          </label>
+        </div>
+
       </div>
-    </div>
+    </details>
 
-    <div class="detail-section" id="contactReminderSettingsSection">
-      <div class="detail-section-title" id="contactReminderSectionTitle">Contact reminders</div>
-      <p class="detail-export-hint" id="contactReminderSectionHint">If you haven't contacted the utility company about one of your open reports, we can nudge you.</p>
-      <div class="theme-segment" id="contactReminderFreqSegment">
-        <button type="button" class="theme-segment-btn" onclick="setContactReminderFreq('off')" id="contactReminderBtnOff">Off</button>
-        <button type="button" class="theme-segment-btn" onclick="setContactReminderFreq('weekly')" id="contactReminderBtnWeekly">Weekly</button>
-        <button type="button" class="theme-segment-btn" onclick="setContactReminderFreq('biweekly')" id="contactReminderBtnBiweekly">2 weeks</button>
-        <button type="button" class="theme-segment-btn" onclick="setContactReminderFreq('monthly')" id="contactReminderBtnMonthly">Monthly</button>
-      </div>
-    </div>
+    <details class="settings-group" id="settingsGroupAccount">
+      <summary>
+        <img class="settings-group-icon" src="icons/user.png" alt="">
+        <span id="settingsGroupAccountTitle">Account & privacy</span>
+        <span class="settings-group-chevron"><img src="icons/arrow.png" alt=""></span>
+      </summary>
+      <div class="settings-group-body">
 
-    <div class="detail-section" id="notificationLanguageSettingsSection">
-      <div class="detail-section-title" id="notificationLanguageSectionTitle">Notification language</div>
-      <p class="detail-export-hint" id="notificationLanguageSectionHint">Which language should we use for your notifications?</p>
-      <div class="theme-segment" id="notificationLanguageSegment">
-        <button type="button" class="theme-segment-btn" onclick="setNotificationLanguage('auto')" id="notificationLanguageBtnAuto">Automatic</button>
-        <button type="button" class="theme-segment-btn" onclick="setNotificationLanguage('en')" id="notificationLanguageBtnEn">English</button>
-        <button type="button" class="theme-segment-btn" onclick="setNotificationLanguage('sr')" id="notificationLanguageBtnSr">Srpski</button>
-      </div>
-    </div>
+        <div class="detail-section" id="privacySettingsSection">
+          <div class="detail-section-title" id="privacySectionTitle">Privacy</div>
+          <label class="settings-toggle-row" id="showUsernameToggleRow">
+            <span id="showUsernameToggleLabel">Show my username on reports</span>
+            <span class="toggle-switch">
+              <input type="checkbox" id="showUsernameToggleInput" checked onchange="setShowUsernameOnReports(this.checked)">
+              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+            </span>
+          </label>
+          <p class="detail-export-hint" id="showUsernameHint">When off, your reports show a short ID instead of your username. Admins can still see who reported it, for moderation.</p>
+        </div>
 
-    <div class="detail-section" id="legalSettingsSection">
-      <div class="detail-section-title" id="legalSectionTitle">Legal</div>
-      <p class="detail-export-hint" id="legalCopyrightText">© tracethestuff.com</p>
-      <div style="display:flex; gap:var(--space-8);">
-        <button type="button" class="settings-btn" style="flex:1;" onclick="showLegalContentModal('terms_of_service')" id="legalTermsBtn">Terms of Service</button>
-        <button type="button" class="settings-btn" style="flex:1;" onclick="showLegalContentModal('privacy_policy')" id="legalPrivacyBtn">Privacy Policy</button>
-      </div>
-    </div>
+        <div class="detail-section" id="themeSettingsSection">
+          <div class="detail-section-title" id="themeSectionTitle">Theme</div>
+          <div class="theme-segment" id="themeSegment">
+            <button type="button" class="theme-segment-btn" onclick="setThemeMode('light')" id="themeBtnLight">Light</button>
+            <button type="button" class="theme-segment-btn" onclick="setThemeMode('dark')" id="themeBtnDark">Dark</button>
+            <button type="button" class="theme-segment-btn" onclick="setThemeMode('auto')" id="themeBtnAuto">Auto</button>
+            <button type="button" class="theme-segment-btn" onclick="setThemeMode('smart')" id="themeBtnSmart">Smart</button>
+          </div>
+          <p class="detail-export-hint" id="themeSmartHint">Auto follows your device's light/dark setting. Smart adapts to ambient light where available, otherwise local time.</p>
+        </div>
 
-    <div class="detail-section" id="accountDangerSettingsSection">
-      <div class="detail-section-title" id="accountDangerSectionTitle">Account</div>
-      <p class="detail-export-hint" id="deleteAccountHint">Delete your account and personal data. An admin will review your request. Your existing reports stay visible to help the community, but are no longer linked to your username.</p>
-      <button type="button" class="detail-delete-btn" style="width:100%;" onclick="requestAccountDeletion()" id="deleteAccountBtn">Delete my account</button>
-      <div id="deleteAccountPendingBox" style="display:none;">
-        <p class="detail-export-hint" id="deleteAccountPendingHint">Your account deletion request is pending admin review.</p>
-        <button type="button" class="settings-btn" style="width:100%;" onclick="cancelAccountDeletionRequest()" id="cancelDeletionBtn">Cancel request</button>
+        <div class="detail-section" id="legalSettingsSection">
+          <div class="detail-section-title" id="legalSectionTitle">Legal</div>
+          <p class="detail-export-hint" id="legalCopyrightText">© tracethestuff.com</p>
+          <div style="display:flex; gap:var(--space-8);">
+            <button type="button" class="settings-btn" style="flex:1;" onclick="showLegalContentModal('terms_of_service')" id="legalTermsBtn">Terms of Service</button>
+            <button type="button" class="settings-btn" style="flex:1;" onclick="showLegalContentModal('privacy_policy')" id="legalPrivacyBtn">Privacy Policy</button>
+          </div>
+        </div>
+
+        <div class="detail-section" id="accountDangerSettingsSection">
+          <div class="detail-section-title" id="accountDangerSectionTitle">Account</div>
+          <p class="detail-export-hint" id="deleteAccountHint">Delete your account and personal data. An admin will review your request. Your existing reports stay visible to help the community, but are no longer linked to your username.</p>
+          <button type="button" class="detail-delete-btn" style="width:100%;" onclick="requestAccountDeletion()" id="deleteAccountBtn">Delete my account</button>
+          <div id="deleteAccountPendingBox" style="display:none;">
+            <p class="detail-export-hint" id="deleteAccountPendingHint">Your account deletion request is pending admin review.</p>
+            <button type="button" class="settings-btn" style="width:100%;" onclick="cancelAccountDeletionRequest()" id="cancelDeletionBtn">Cancel request</button>
+          </div>
+        </div>
+
       </div>
-    </div>
+    </details>
 
     <div class="detail-section" id="timeWindowFilterSection" style="padding:0;overflow:hidden;display:none;">
       <div class="filter-label-row" style="border-radius:0;">
@@ -6992,6 +7096,33 @@ const T = {
   offlineMapSectionTitle: { en:'Offline maps',                     sr:'Mape van mreže' },
   offlineMapHint:         { en:"Your map is cached automatically as you browse, so it still loads without signal.", sr:'Vaša mapa se automatski kešira dok je pregledate, tako da radi i bez signala.' },
   offlineMapStorageUsed:  { en:'Offline data stored: {mb} MB',      sr:'Sačuvano podataka van mreže: {mb} MB' },
+  pushNotifToggleLabel:   { en:'Push notifications on this device', sr:'Push obaveštenja na ovom uređaju' },
+  pushNotifToggleHint:    { en:"Get notified even when the app isn't open. You'll be asked for browser permission the first time.", sr:'Obaveštavaćemo vas i kada aplikacija nije otvorena. Prvi put će vas pregledač pitati za dozvolu.' },
+  settingsGroupNotificationsTitle: { en:'Notifications & reminders', sr:'Obaveštenja i podsetnici' },
+  settingsGroupMapTitle:           { en:'Map & navigation',          sr:'Mapa i navigacija' },
+  settingsGroupAccountTitle:       { en:'Account & privacy',         sr:'Nalog i privatnost' },
+  notifTypesSectionTitle: { en:'Push notification types', sr:'Vrste push obaveštenja' },
+  notifTypesSectionHint:  { en:"Turn off just the ones you don't want as push alerts. Everything still lands in your in-app inbox.", sr:'Isključite samo one koje ne želite kao push obaveštenja. Sve i dalje stiže u vaš prijemno sanduče u aplikaciji.' },
+  notifTypeStatusChange:      { en:'Report status updates',            sr:'Promene statusa prijave' },
+  notifTypeStatusChangeDesc:  { en:'When one of your reports moves to "In progress" or back.', sr:'Kada jedna od vaših prijava pređe na status "U toku" ili nazad.' },
+  notifTypeReportFixed:       { en:'Your report was marked fixed',     sr:'Vaša prijava je označena kao rešena' },
+  notifTypeReportFixedDesc:   { en:'A little thank-you when your reported issue gets fixed.', sr:'Mala zahvalnica kada se prijavljeni problem reši.' },
+  notifTypeReportSubmitted:   { en:'Report forwarded confirmation',    sr:'Potvrda prosleđivanja prijave' },
+  notifTypeReportSubmittedDesc: { en:'Confirms your new report was forwarded to the responsible company.', sr:'Potvrđuje da je vaša nova prijava prosleđena nadležnoj kompaniji.' },
+  notifTypeNearbyReport:      { en:'New report near your saved area',  sr:'Nova prijava u vašoj sačuvanoj oblasti' },
+  notifTypeNearbyReportDesc:  { en:'Someone reported an issue close to the area you saved below.', sr:'Neko je prijavio problem blizu oblasti koju ste sačuvali ispod.' },
+  notifTypeAdminMessage:      { en:'Messages & announcements',         sr:'Poruke i obaveštenja' },
+  notifTypeAdminMessageDesc:  { en:'Direct messages or announcements from the TraceTheBreak team.', sr:'Direktne poruke ili obaveštenja od TraceTheBreak tima.' },
+  savedAreaSectionTitle: { en:'Saved area alerts', sr:'Obaveštenja za sačuvanu oblast' },
+  savedAreaSectionHint:  { en:'Get a push notification when someone reports a new issue near an area you care about.', sr:'Dobijte push obaveštenje kada neko prijavi novi problem blizu oblasti do koje vam je stalo.' },
+  savedAreaUseLocationBtn: { en:'Use my current location', sr:'Koristi moju trenutnu lokaciju' },
+  savedAreaClearBtn:       { en:'Clear',                   sr:'Ukloni' },
+  savedAreaRadiusLabel:    { en:'Alert radius',            sr:'Radius obaveštavanja' },
+  savedAreaNotSet:         { en:"You haven't saved an area yet.", sr:'Još uvek niste sačuvali oblast.' },
+  savedAreaSetLabel:       { en:'Watching within {radius} km of your saved point.', sr:'Pratimo u krugu od {radius} km oko vaše sačuvane tačke.' },
+  savedAreaSetSuccess:     { en:'Saved area updated.',     sr:'Sačuvana oblast je ažurirana.' },
+  savedAreaClearedMsg:     { en:'Saved area cleared.',     sr:'Sačuvana oblast je uklonjena.' },
+  savedAreaLocationFail:   { en:'Could not get your location. Check location permission and try again.', sr:'Nije moguće dobiti vašu lokaciju. Proverite dozvolu za lokaciju i pokušajte ponovo.' },
   offlineAutoCacheToggleLabel: { en:'Auto-cache map around areas you view', sr:'Automatski keširaj mapu oko oblasti koje pregledate' },
   offlineAutoCacheHint:   { en:"Quietly extends your offline map outward, in the background, up to roughly a country's worth of coverage.", sr:'U pozadini tiho proširuje vašu mapu van mreže, otprilike do pokrivenosti cele zemlje.' },
   mainCompassTitle:  { en:'Heading: tap to rotate the map with your direction of travel', sr:'Pravac: dodirnite da rotirate mapu prema pravcu kretanja' },
@@ -7841,6 +7972,32 @@ function applyLang(){
   if (offlineMapSectionTitleEl) offlineMapSectionTitleEl.textContent = t('offlineMapSectionTitle');
   const offlineMapHintEl = document.getElementById('offlineMapHint');
   if (offlineMapHintEl) offlineMapHintEl.textContent = t('offlineMapHint');
+  const pushNotifToggleLabelEl = document.getElementById('pushNotifToggleLabel');
+  if (pushNotifToggleLabelEl) pushNotifToggleLabelEl.textContent = t('pushNotifToggleLabel');
+  const pushNotifToggleHintEl = document.getElementById('pushNotifToggleHint');
+  if (pushNotifToggleHintEl) pushNotifToggleHintEl.textContent = t('pushNotifToggleHint');
+  const settingsGroupNotificationsTitleEl = document.getElementById('settingsGroupNotificationsTitle');
+  if (settingsGroupNotificationsTitleEl) settingsGroupNotificationsTitleEl.textContent = t('settingsGroupNotificationsTitle');
+  const settingsGroupMapTitleEl = document.getElementById('settingsGroupMapTitle');
+  if (settingsGroupMapTitleEl) settingsGroupMapTitleEl.textContent = t('settingsGroupMapTitle');
+  const settingsGroupAccountTitleEl = document.getElementById('settingsGroupAccountTitle');
+  if (settingsGroupAccountTitleEl) settingsGroupAccountTitleEl.textContent = t('settingsGroupAccountTitle');
+  const notifTypesSectionTitleEl = document.getElementById('notifTypesSectionTitle');
+  if (notifTypesSectionTitleEl) notifTypesSectionTitleEl.textContent = t('notifTypesSectionTitle');
+  const notifTypesSectionHintEl = document.getElementById('notifTypesSectionHint');
+  if (notifTypesSectionHintEl) notifTypesSectionHintEl.textContent = t('notifTypesSectionHint');
+  const savedAreaSectionTitleEl = document.getElementById('savedAreaSectionTitle');
+  if (savedAreaSectionTitleEl) savedAreaSectionTitleEl.textContent = t('savedAreaSectionTitle');
+  const savedAreaSectionHintEl = document.getElementById('savedAreaSectionHint');
+  if (savedAreaSectionHintEl) savedAreaSectionHintEl.textContent = t('savedAreaSectionHint');
+  const savedAreaUseLocationBtnLabelEl = document.getElementById('savedAreaUseLocationBtnLabel');
+  if (savedAreaUseLocationBtnLabelEl) savedAreaUseLocationBtnLabelEl.textContent = t('savedAreaUseLocationBtn');
+  const savedAreaClearBtnEl = document.getElementById('savedAreaClearBtn');
+  if (savedAreaClearBtnEl) savedAreaClearBtnEl.textContent = t('savedAreaClearBtn');
+  const savedAreaRadiusLabelEl = document.getElementById('savedAreaRadiusLabel');
+  if (savedAreaRadiusLabelEl) savedAreaRadiusLabelEl.textContent = t('savedAreaRadiusLabel');
+  renderNotifTypeToggles();
+  updateSavedAreaStatusText();
   const offlineAutoCacheToggleLabelEl = document.getElementById('offlineAutoCacheToggleLabel');
   if (offlineAutoCacheToggleLabelEl) offlineAutoCacheToggleLabelEl.textContent = t('offlineAutoCacheToggleLabel');
   const offlineAutoCacheHintEl = document.getElementById('offlineAutoCacheHint');
@@ -8117,6 +8274,9 @@ function showSettingsModal() {
   updateContactReminderSegmentUI();
   updateNotificationLanguageSegmentUI();
   initOfflineMapSettingsUi();
+  syncPushToggleUi();
+  renderNotifTypeToggles();
+  updateSavedAreaStatusText();
   openOverlay('settingsModal', hideSettingsModal);
 }
 function hideSettingsModal() {
@@ -9245,6 +9405,262 @@ function initOfflineMapSettingsUi() {
   const input = document.getElementById('offlineAutoCacheToggleInput');
   if (input) input.checked = isAutoCacheEnabled();
   updateOfflineMapStorageText();
+}
+
+// ---- Web Push notifications ------------------------------------------------
+// The VAPID public key is not secret; it's meant to travel to the client.
+// (Its matching private key lives only as an edge function secret in Supabase.)
+const VAPID_PUBLIC_KEY = 'BFmXDtHxCIQvrW11jB8d__aOXi0R-TBmHSpXlbRUxQ-Azvi0skmHP9k3LfFpgddI4Lbjyxv7mrswQFgdNdcRZRc';
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; i++) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
+}
+
+function pushSupported() {
+  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+}
+
+async function getExistingPushSubscription() {
+  if (!pushSupported()) return null;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    return await reg.pushManager.getSubscription();
+  } catch (e) { return null; }
+}
+
+// Called on load and whenever the settings modal opens, to keep the toggle
+// in sync with the real browser permission/subscription state (it can drift
+// if the user revokes notification permission from browser settings, etc).
+async function syncPushToggleUi() {
+  const row = document.getElementById('pushNotifToggleRow');
+  const input = document.getElementById('pushNotifToggleInput');
+  if (!row || !input) return;
+  if (!pushSupported() || !currentSession) {
+    row.style.display = 'none';
+    return;
+  }
+  row.style.display = '';
+  if (Notification.permission === 'denied') {
+    input.checked = false;
+    input.disabled = true;
+    return;
+  }
+  input.disabled = false;
+  const sub = await getExistingPushSubscription();
+  input.checked = !!sub;
+}
+
+async function subscribeToPush() {
+  const reg = await navigator.serviceWorker.ready;
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) {
+    sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+    });
+  }
+  const json = sub.toJSON();
+  const { error } = await sb.from('push_subscriptions').upsert({
+    user_id: currentSession.user.id,
+    endpoint: json.endpoint,
+    p256dh: json.keys.p256dh,
+    auth: json.keys.auth,
+    user_agent: navigator.userAgent,
+  }, { onConflict: 'endpoint' });
+  if (error) throw error;
+}
+
+async function unsubscribeFromPush() {
+  const sub = await getExistingPushSubscription();
+  if (sub) {
+    const endpoint = sub.endpoint;
+    await sub.unsubscribe().catch(() => {});
+    if (currentSession) {
+      await sb.from('push_subscriptions').delete().eq('endpoint', endpoint).eq('user_id', currentSession.user.id);
+    }
+  }
+}
+
+async function setPushNotificationsEnabled(enabled) {
+  const input = document.getElementById('pushNotifToggleInput');
+  if (!pushSupported()) {
+    toast(lang === 'sr' ? 'Push obaveštenja nisu podržana u ovom pregledaču.' : 'Push notifications are not supported in this browser.', 'error');
+    if (input) input.checked = false;
+    return;
+  }
+  if (!currentSession) {
+    if (input) input.checked = false;
+    return;
+  }
+  if (enabled) {
+    try {
+      if (Notification.permission === 'denied') {
+        toast(lang === 'sr' ? 'Dozvola za obaveštenja je blokirana u podešavanjima pregledača.' : 'Notification permission is blocked in your browser settings.', 'error');
+        if (input) input.checked = false;
+        return;
+      }
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        if (input) input.checked = false;
+        return;
+      }
+      await subscribeToPush();
+    } catch (err) {
+      console.error('Push subscribe failed:', err);
+      toast(lang === 'sr' ? 'Nije uspelo uključivanje push obaveštenja.' : 'Failed to enable push notifications.', 'error');
+      if (input) input.checked = false;
+    }
+  } else {
+    try {
+      await unsubscribeFromPush();
+    } catch (err) {
+      console.error('Push unsubscribe failed:', err);
+    }
+  }
+}
+
+// ---- Per-type push notification preferences --------------------------------
+// Stored as profiles.disabled_push_types (text[]). A type absent from that
+// array is enabled by default, so new types added later are opt-out, not
+// opt-in — nobody silently stops getting a notification kind that didn't
+// exist when they last touched this screen.
+const NOTIF_TYPES = [
+  { key: 'status_change',        labelKey: 'notifTypeStatusChange',      descKey: 'notifTypeStatusChangeDesc' },
+  { key: 'report_fixed_thankyou',labelKey: 'notifTypeReportFixed',       descKey: 'notifTypeReportFixedDesc' },
+  { key: 'report_submitted',     labelKey: 'notifTypeReportSubmitted',   descKey: 'notifTypeReportSubmittedDesc' },
+  { key: 'nearby_new_report',    labelKey: 'notifTypeNearbyReport',      descKey: 'notifTypeNearbyReportDesc' },
+  { key: 'admin_message',        labelKey: 'notifTypeAdminMessage',      descKey: 'notifTypeAdminMessageDesc' },
+];
+
+function renderNotifTypeToggles() {
+  const list = document.getElementById('notifTypeTogglesList');
+  if (!list) return;
+  const disabled = (currentProfile && currentProfile.disabled_push_types) || [];
+  list.innerHTML = NOTIF_TYPES.map(nt => `
+    <label class="notif-type-row">
+      <span class="notif-type-row-text">
+        <span>${t(nt.labelKey)}</span>
+        <span class="notif-type-row-desc">${t(nt.descKey)}</span>
+      </span>
+      <span class="toggle-switch">
+        <input type="checkbox" ${disabled.includes(nt.key) ? '' : 'checked'} onchange="toggleNotifTypePush('${nt.key}', this.checked)">
+        <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+      </span>
+    </label>
+  `).join('');
+}
+
+async function toggleNotifTypePush(typeKey, enabled) {
+  if (!currentSession || !currentProfile) return;
+  const prev = (currentProfile.disabled_push_types || []).slice();
+  const next = enabled
+    ? prev.filter(k => k !== typeKey)
+    : (prev.includes(typeKey) ? prev : [...prev, typeKey]);
+  currentProfile.disabled_push_types = next;
+  try {
+    const { error } = await sb.from(PROFILES_TABLE)
+      .update({ disabled_push_types: next })
+      .eq('id', currentSession.user.id);
+    if (error) throw error;
+  } catch (err) {
+    console.error('Failed to update push notification preference:', err.message);
+    currentProfile.disabled_push_types = prev;
+    renderNotifTypeToggles();
+    toast(t('settingsSaveFailed'), 'error');
+  }
+}
+
+// ---- Saved area (for the "new report near your saved area" push type) -----
+function updateSavedAreaStatusText() {
+  const el = document.getElementById('savedAreaStatusText');
+  const radiusSelect = document.getElementById('savedAreaRadiusSelect');
+  if (!el) return;
+  const hasArea = currentProfile && currentProfile.saved_area_lat != null && currentProfile.saved_area_lon != null;
+  const radius = (currentProfile && currentProfile.saved_area_radius_km) || 3;
+  if (radiusSelect) radiusSelect.value = String(radius);
+  el.textContent = hasArea
+    ? t('savedAreaSetLabel').replace('{radius}', radius)
+    : t('savedAreaNotSet');
+}
+
+function useCurrentLocationForSavedArea() {
+  if (!currentSession || !currentProfile) return;
+  if (!navigator.geolocation) {
+    toast(t('savedAreaLocationFail'), 'error');
+    return;
+  }
+  const btn = document.getElementById('savedAreaUseLocationBtn');
+  if (btn) btn.disabled = true;
+  navigator.geolocation.getCurrentPosition(async (pos) => {
+    try {
+      const lat = pos.coords.latitude;
+      const lon = pos.coords.longitude;
+      const { error } = await sb.from(PROFILES_TABLE)
+        .update({ saved_area_lat: lat, saved_area_lon: lon })
+        .eq('id', currentSession.user.id);
+      if (error) throw error;
+      currentProfile.saved_area_lat = lat;
+      currentProfile.saved_area_lon = lon;
+      updateSavedAreaStatusText();
+      toast(t('savedAreaSetSuccess'), 'success');
+    } catch (err) {
+      console.error('Failed to save area:', err.message);
+      toast(t('settingsSaveFailed'), 'error');
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }, () => {
+    if (btn) btn.disabled = false;
+    toast(t('savedAreaLocationFail'), 'error');
+  }, { enableHighAccuracy: false, timeout: 10000 });
+}
+
+async function clearSavedArea() {
+  if (!currentSession || !currentProfile) return;
+  const prev = {
+    lat: currentProfile.saved_area_lat,
+    lon: currentProfile.saved_area_lon,
+  };
+  currentProfile.saved_area_lat = null;
+  currentProfile.saved_area_lon = null;
+  updateSavedAreaStatusText();
+  try {
+    const { error } = await sb.from(PROFILES_TABLE)
+      .update({ saved_area_lat: null, saved_area_lon: null })
+      .eq('id', currentSession.user.id);
+    if (error) throw error;
+    toast(t('savedAreaClearedMsg'), 'success');
+  } catch (err) {
+    console.error('Failed to clear saved area:', err.message);
+    currentProfile.saved_area_lat = prev.lat;
+    currentProfile.saved_area_lon = prev.lon;
+    updateSavedAreaStatusText();
+    toast(t('settingsSaveFailed'), 'error');
+  }
+}
+
+async function setSavedAreaRadius(value) {
+  if (!currentSession || !currentProfile) return;
+  const prev = currentProfile.saved_area_radius_km;
+  const radiusKm = Number(value) || 3;
+  currentProfile.saved_area_radius_km = radiusKm;
+  updateSavedAreaStatusText();
+  try {
+    const { error } = await sb.from(PROFILES_TABLE)
+      .update({ saved_area_radius_km: radiusKm })
+      .eq('id', currentSession.user.id);
+    if (error) throw error;
+  } catch (err) {
+    console.error('Failed to update saved area radius:', err.message);
+    currentProfile.saved_area_radius_km = prev;
+    updateSavedAreaStatusText();
+    toast(t('settingsSaveFailed'), 'error');
+  }
 }
 
 const ICON_CACHE_NAME = 'ttb-icons-v2';
@@ -20712,6 +21128,7 @@ authReady.then(() => {
   if (!currentSession) showHelpModal();
   updateOfflineQueueBadge();
   syncOfflineQueue(false);
+  syncPushToggleUi();
 });
 
 </script>
