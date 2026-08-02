@@ -6852,7 +6852,10 @@ async function initAuth() {
   }
   updateAuthUI();
   stripAuthHashFromUrl();
-  if (currentSession) setupQuestProgressRealtimeSync(currentSession.user.id);
+  if (currentSession) {
+    setupQuestProgressRealtimeSync(currentSession.user.id);
+    setupNotificationsRealtimeSync(currentSession.user.id);
+  }
 
   sb.auth.onAuthStateChange(async (event, session) => {
     currentSession = session;
@@ -6860,10 +6863,12 @@ async function initAuth() {
       await loadProfile();
       stripAuthHashFromUrl();
       setupQuestProgressRealtimeSync(session.user.id);
+      setupNotificationsRealtimeSync(session.user.id);
     } else {
       currentProfile = null;
       updateAuthUI();
       teardownQuestProgressRealtimeSync();
+      teardownNotificationsRealtimeSync();
     }
   });
 }
@@ -6917,6 +6922,43 @@ function teardownQuestProgressRealtimeSync() {
     questProgressRealtimeChannel = null;
   }
   questProgressRealtimeUid = null;
+}
+
+// Live badge count + in-app chime for the notifications inbox. This only
+// covers the app being open in a tab (foreground or background) — actual
+// push notifications when the browser/app isn't open are handled by the
+// service worker's 'push' event instead (see sw.js), not this channel.
+let notificationsRealtimeChannel = null;
+let notificationsRealtimeUid = null;
+
+function setupNotificationsRealtimeSync(uid) {
+  if (!uid) return;
+  if (notificationsRealtimeChannel && notificationsRealtimeUid === uid) return; // already subscribed for this user
+  teardownNotificationsRealtimeSync();
+  notificationsRealtimeUid = uid;
+  notificationsRealtimeChannel = sb.channel('notifications-live-sync-' + uid)
+    .on('postgres_changes', {
+      event: 'INSERT', schema: 'public', table: 'notifications', filter: 'recipient_id=eq.' + uid
+    }, () => {
+      try {
+        if (!currentSession || currentSession.user.id !== uid) return;
+        playNotificationChime();
+        refreshUnreadNotificationCount();
+        const notifModal = document.getElementById('notificationModal');
+        if (notifModal && notifModal.style.display !== 'none') renderNotificationModalBody();
+      } catch (err) {
+        console.error('Realtime notification sync error:', err);
+      }
+    })
+    .subscribe();
+}
+
+function teardownNotificationsRealtimeSync() {
+  if (notificationsRealtimeChannel) {
+    sb.removeChannel(notificationsRealtimeChannel);
+    notificationsRealtimeChannel = null;
+  }
+  notificationsRealtimeUid = null;
 }
 
 function stripAuthHashFromUrl() {
@@ -11155,6 +11197,10 @@ function playMissedTurnChime() {
 function playNearbyReportChime() {
   playTone(660, 90, 0, 0.14);
   playTone(660, 90, 160, 0.14);
+}
+function playNotificationChime() {
+  playTone(784, 100, 0, 0.16);
+  playTone(988, 140, 120, 0.16);
 }
 function initSoundSettingsUi() {
   const input = document.getElementById('soundToggleInput');
