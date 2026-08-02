@@ -2675,9 +2675,12 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 .detail-edit-btn, .detail-delete-btn{
   border:none; border-radius:7px; padding:5px 9px; font-size:var(--fs-11); font-weight:var(--fw-bold); cursor:pointer;
   -webkit-tap-highlight-color:transparent;
+  display:inline-flex; align-items:center; gap:4px;
 }
 .detail-edit-btn{ background:var(--bg-surface-alt); color:var(--text-primary); border:1px solid var(--border-color-strong); }
 .detail-delete-btn{ background:var(--danger-strong); color:#fff; }
+.detail-delete-btn .icon-img{ width:14px; height:14px; filter:brightness(0) invert(1); }
+.detail-edit-btn .icon-img{ width:14px; height:14px; filter:var(--icon-tint-filter); }
 .detail-edit-field{ display:flex; flex-direction:column; gap:3px; margin-bottom:8px; }
 .detail-edit-field:last-of-type{ margin-bottom:0; }
 .detail-edit-field-label{
@@ -19406,10 +19409,10 @@ function buildDetailStatusReadonlyHtml(report, reporterName) {
     <div class="detail-section-title-row">
       <div class="detail-section-title">${t('popupStatus')}</div>
       ${hasFullPower ? `<div class="detail-edit-actions">
-        <button type="button" class="detail-edit-btn" onclick="enterReportDetailEditMode('${report.id}')">${t('editBtn')}</button>
-        <button type="button" class="detail-delete-btn" onclick="deleteReport('${report.id}', false)">${t('deleteBtn')}</button>
+        <button type="button" class="detail-edit-btn" onclick="enterReportDetailEditMode('${report.id}')"><img class="icon-img" src="icons/edit.png" alt="">${t('editBtn')}</button>
+        <button type="button" class="detail-delete-btn" onclick="deleteReport('${report.id}', false)"><img class="icon-img" src="icons/reports/waste.png" alt="">${t('deleteBtn')}</button>
       </div>` : (canDelete ? `<div class="detail-edit-actions">
-        <button type="button" class="detail-delete-btn" onclick="deleteReport('${report.id}')">${t('deleteBtn')}</button>
+        <button type="button" class="detail-delete-btn" onclick="deleteReport('${report.id}')"><img class="icon-img" src="icons/reports/waste.png" alt="">${t('deleteBtn')}</button>
       </div>` : (isOwner && wasSentToCompany ? `<p class="detail-export-hint" style="margin:0; text-align:right;">${t('deleteLockedAfterSentNote')}</p>` : ''))}
     </div>
     <div class="detail-row"><span class="detail-row-label">${t('popupStatus')}</span><span class="status-pill" style="background:${statusColor(report.status)};">${statusLabel(report.status)}</span></div>
