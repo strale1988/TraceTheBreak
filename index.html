@@ -11413,7 +11413,21 @@ function customDragPointerUp(e) {
   customDragActive = false;
   customDragLast = null;
   customDragPointerId = null;
-  startPanFlingFromSamples(customDragSamples);
+  // customDragSamples only grows on pointermove, so if the finger slows to a
+  // stop and is held briefly before lifting, the newest sample can be stale
+  // by tens/hundreds of ms — startPanFlingFromSamples would then measure
+  // velocity from before the stop and glide the map as if released while
+  // still moving fast. Record one more sample at the actual release moment
+  // so a deliberate stop-then-lift correctly reads as near-zero velocity.
+  // pointercancel is skipped entirely: its coordinates aren't meaningful and
+  // an interrupted gesture shouldn't fling at all.
+  const isCancel = e && e.type === 'pointercancel';
+  if (!isCancel && e && typeof e.clientX === 'number') {
+    const now = performance.now();
+    customDragSamples.push({ t: now, x: e.clientX, y: e.clientY });
+    while (customDragSamples.length > 1 && now - customDragSamples[0].t > PAN_VELOCITY_SAMPLE_MS) customDragSamples.shift();
+  }
+  if (!isCancel) startPanFlingFromSamples(customDragSamples);
   customDragSamples = [];
   // Restores Leaflet's native single-finger dragging once nothing manual
   // is driving the map anymore (north-up state). While rotated this is a
