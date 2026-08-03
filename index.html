@@ -10,6 +10,42 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
 
+  <!--
+    Content-Security-Policy: pragmatic first pass.
+    'unsafe-inline' is kept for script-src/style-src because the app currently
+    relies on onclick="..." handlers and inline style="..." attributes
+    throughout the markup. This CSP still meaningfully reduces risk by
+    locking down which origins can load script/style/image/connect traffic,
+    blocking <object>/<embed>, blocking base-tag hijacking, and blocking
+    framing/clickjacking and form-action redirection to other origins.
+    Removing 'unsafe-inline' fully requires migrating onclick handlers to
+    addEventListener + a nonce-based policy — a larger follow-up.
+  -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' https://unpkg.com https://cdn.jsdelivr.net 'unsafe-inline';
+    style-src 'self' https://unpkg.com https://cdn.jsdelivr.net 'unsafe-inline';
+    img-src 'self' data: blob:
+      https://*.tile.openstreetmap.org
+      https://*.basemaps.cartocdn.com
+      https://server.arcgisonline.com
+      https://fnkqmwweljsupbmerbkh.supabase.co;
+    font-src 'self' data:;
+    connect-src 'self'
+      https://fnkqmwweljsupbmerbkh.supabase.co
+      wss://fnkqmwweljsupbmerbkh.supabase.co
+      https://nominatim.openstreetmap.org
+      https://overpass-api.de
+      https://routing.openstreetmap.de
+      https://ipapi.co
+      https://ipwho.is;
+    object-src 'none';
+    base-uri 'self';
+    frame-ancestors 'self';
+    form-action 'self';
+    manifest-src 'self';
+  ">
+
   <link rel="icon" type="image/png" href="./icons/TraceTheBreak.png">
   <meta property="og:image" content="./icons/TraceTheBreak.png"/>
 
@@ -26,11 +62,11 @@
   <link rel="preload" as="image" href="icons/user.png">
   <link rel="preload" as="image" href="icons/notification.png">
 
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" integrity="sha384-pmjIAcz2bAn0xukfxADbZIb3t8oRT9Sv0rvO+BR5Csr6Dhqq+nZs59P0pPKQJkEV" crossorigin="anonymous"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" integrity="sha384-wgw+aLYNQ7dlhK47ZPK7FRACiq7ROZwgFNg0m04avm4CaXS+Z9Y7nMu8yNjBKYC+" crossorigin="anonymous"/>
 
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css" integrity="sha384-RkASv+6KfBMW9eknReJIJ6b3UnjKOKC5bOUaNgIY778NFbQ8MtWq9Lr/khUgqtTt" crossorigin="anonymous">
   <script>window.__ttbSplashShownAt = Date.now();</script>
   <script>
     (function(){
@@ -58,7 +94,7 @@
       } catch (e) {}
     })();
   </script>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.min.css">
 </head>
 <body class="notranslate" translate="no">
 
@@ -1170,15 +1206,15 @@
   </div>
 </div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
-<script src="https://unpkg.com/@supabase/supabase-js@2.108.1/dist/umd/supabase.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/sr.js"></script>
-<script src="https://unpkg.com/libphonenumber-js@1.10.51/bundle/libphonenumber-js.min.js"></script>
-<script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-<script src="app.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" integrity="sha384-eXVCORTRlv4FUUgS/xmOyr66XBVraen8ATNLMESp92FKXLAMiKkerixTiBvXriZr" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js" integrity="sha384-mFKkGiGvT5vo1fEyGCD3hshDdKmW3wzXW/x+fWriYJArD0R3gawT6lMvLboM22c0" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@supabase/supabase-js@2.108.1/dist/umd/supabase.js" integrity="sha384-EjUdIVmzWliPzdzhxZ9ZoO0etXLKWuUPUftAGxP6qH6Lm4oLwoLaJR0Ba4pIDiDL" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js" integrity="sha384-5JqMv4L/Xa0hfvtF06qboNdhvuYXUku9ZrhZh3bSk8VXF0A/RuSLHpLsSV9Zqhl6" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/sr.js" integrity="sha384-e1SMLHNoe+JiilHNAt+QcepR/LJ5TGCRYT0yCN+dFKCYt4iZok/y8KJFpSCMuO02" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/libphonenumber-js@1.10.51/bundle/libphonenumber-js.min.js" integrity="sha384-DpiLMmtK16j/3wW3U8+q2VvDkUO678U04tewx61Yb/OIcb++cL9rGCKMqRpjJODr" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous"></script>
+<script src="app.min.js"></script>
 
 <div class="global-offline-banner" id="globalOfflineBanner" style="display:none" onclick="syncOfflineQueue(true)" title="Tap to retry now">
   <span class="offline-queue-dot"></span>

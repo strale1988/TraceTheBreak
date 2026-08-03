@@ -1,0 +1,17 @@
+{
+  "name": "tracethebreak",
+  "private": true,
+  "scripts": {
+    "build": "terser app.js -c -m -o app.min.js --comments false && cleancss -o style.min.css style.css"
+  },
+  "devDependencies": {
+    "clean-css-cli": "^5.6.3",
+    "terser": "^5.31.0"
+  },
+  "notes": [
+    "app.js and style.css are the source files — keep editing those.",
+    "Run `npm install && npm run build` to regenerate app.min.js / style.min.css before deploying.",
+    "index.html loads the .min files in production; the mangle setting stays at its default (toplevel names are NOT renamed), which is required because many functions are called from onclick=\"...\" attributes in index.html.",
+    "If you ever bump a CDN library version (leaflet, flatpickr, supabase-js, etc.), you must regenerate the integrity= hash in index.html for that resource, or the browser will refuse to load it."
+  ]
+}
