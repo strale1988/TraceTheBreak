@@ -80,6 +80,7 @@ const UTILITY_COMPANIES_TABLE = 'utility_companies';
 const COUNTRIES_TABLE = 'countries';
 const REPORT_CONTACT_EVENTS_TABLE = 'report_contact_events';
 const MUNICIPALITY_STATS_TABLE = 'municipality_report_stats';
+const UTILITY_COMPANY_STATS_TABLE = 'utility_company_report_stats';
 
 // ---------------------------------------------------------------------------
 // TESTER MODE — sandbox for accounts flagged `is_tester` on their profile.
@@ -3436,6 +3437,7 @@ const T = {
   muniStatsDaysUnit:          { en:'{n} days',           sr:'{n} dana' },
   muniStatsNoRepairData:      { en:'No repair data yet', sr:'Još nema podataka o popravkama' },
   muniStatsSectionLabel:      { en:'Municipality stats', sr:'Statistika opštine' },
+  companyStatsSectionLabel:   { en:'Company stats',      sr:'Statistika preduzeća' },
 
   adminSearchPH:          { en:'Search reports…',                      sr:'Pretraži prijave…' },
   waitingListSectionTitle:{ en:'Waiting for review',                  sr:'Čeka na proveru' },
@@ -3475,7 +3477,6 @@ const T = {
   pushPromptNo:           { en:'Not now',                                sr:'Ne sada' },
   queueTypePhoto:         { en:'Photo pending',                       sr:'Fotografija na čekanju' },
   queueTypeStale:         { en:'Aging, no activity',                  sr:'Zastarelo, bez aktivnosti' },
-  soundSectionTitle:      { en:'Sound',                               sr:'Zvuk' },
   soundToggleLabel:       { en:'Navigation & alert sounds',           sr:'Zvukovi za navigaciju i upozorenja' },
   voiceNavToggleLabel:    { en:'Voice-guided turn directions',        sr:'Glasovno navođenje skretanja' },
   drivingSafetySectionTitle: { en:'Driving mode',                                            sr:'Režim vožnje' },
@@ -3516,7 +3517,6 @@ const T = {
   leaderboardTitle:        { en:'Rankings',                           sr:'Rang lista' },
   signOutBtn:               { en:'Sign out',                          sr:'Odjavi se' },
   dashboardSignedOutHint:   { en:'Sign in to see your dashboard.',    sr:'Prijavite se da biste videli svoju tablu.' },
-  adminDashboardLadderTitle:{ en:'Admin Authority',                   sr:'Administratorska ovlašćenja' },
 };
 
 function t(k){ return T[k]?.[lang] ?? k; }
@@ -3855,8 +3855,6 @@ function applyLang(){
   const offlineAutoCacheHintEl = document.getElementById('offlineAutoCacheHint');
   if (offlineAutoCacheHintEl) offlineAutoCacheHintEl.textContent = t('offlineAutoCacheHint');
   updateOfflineMapStorageText();
-  const soundSectionTitleEl = document.getElementById('soundSectionTitle');
-  if (soundSectionTitleEl) soundSectionTitleEl.textContent = t('soundSectionTitle');
   const soundToggleLabelEl = document.getElementById('soundToggleLabel');
   if (soundToggleLabelEl) soundToggleLabelEl.textContent = t('soundToggleLabel');
   const voiceNavToggleLabelEl = document.getElementById('voiceNavToggleLabel');
@@ -3937,8 +3935,6 @@ function applyLang(){
   if (dashSignOutBtnEl) dashSignOutBtnEl.textContent = t('signOutBtn');
   const dashSignedOutHintEl = document.getElementById('dashboardSignedOutHint');
   if (dashSignedOutHintEl) dashSignedOutHintEl.textContent = t('dashboardSignedOutHint');
-  const adminDashLadderTitleEl = document.getElementById('adminDashboardLadderTitle');
-  if (adminDashLadderTitleEl) adminDashLadderTitleEl.textContent = t('adminDashboardLadderTitle');
 
   const lockedMsgEl = document.getElementById('lockedMsgText');
   if (lockedMsgEl) lockedMsgEl.textContent = lang === 'sr' ? 'Prijavite se da osigurate vaše prijave i profil.' : 'Sign in to secure your profile and reports.';
@@ -6567,7 +6563,6 @@ function onNavStateChange(prev, next) {
 
   if (next === NavState.IDLE) {
     setFollowMode(false);
-    pendingAutoRefollow = false;
     cancelAutoRefollowTimer();
   }
 }
@@ -6629,7 +6624,6 @@ const ROAD_SNAP_MIN_INTERVAL_MS = 1200;
 const ROAD_SNAP_FALLBACK_MS     = 1800;
 let roadSnapFetching        = false;
 let lastRoadSnapAt          = 0;
-let snappedUserCoords       = null;
 let roadSnapFallbackTimer   = null;
 
 const DEST_SNAP_MAX_ACCEPT_M = 60;
@@ -6683,7 +6677,6 @@ function snapUserToRoadThenShow(lat, lon) {
           const sideBearing = (currentHeading + 90) % 360;
           snapped = offsetLatLng(snapped.lat, snapped.lon, sideBearing, roadSideOffsetM());
         }
-        snappedUserCoords = snapped;
       }
       if (roadSnapFallbackTimer) clearTimeout(roadSnapFallbackTimer);
       showDrivingPosition(useSnap ? snapped.lat : lat, useSnap ? snapped.lon : lon, fixToken);
@@ -7508,12 +7501,9 @@ function toggleFollowMode() {
   setFollowMode(!followMode);
   if (followMode && userCoords) {
     followMapTo(userCoords.lat, userCoords.lon);
-    pendingAutoRefollow = false;
     cancelAutoRefollowTimer();
   }
 }
-
-let pendingAutoRefollow = false; // true once follow mode was auto-disabled by a manual gesture; used only by the follow button, not a timer
 
 // Auto re-follow: once the map has been idle (no active gesture, and no
 // overlay covering it) for AUTO_REFOLLOW_DELAY_MS, follow mode quietly turns
@@ -7547,14 +7537,12 @@ function performAutoRefollow() {
   autoRefollowTimerId = null;
   if (followMode || !userCoords || overlayStack.length > 0) return;
   setFollowMode(true);
-  pendingAutoRefollow = false;
   map.setView([userCoords.lat, userCoords.lon], map.getZoom(), { animate: true });
 }
 
 function onUserMapInteractionStart() {
   cancelAutoRefollowTimer();
   if (followMode) {
-    pendingAutoRefollow = true;
     setFollowMode(false);
   }
 }
@@ -8099,7 +8087,6 @@ function toggleDrivingMode(mode) {
 
   if (drivingMode) {
 
-    snappedUserCoords = null;
     navLastRouteAt = 0;
     navLastRouteFrom = null;
     bumpBaselineMag = null;
@@ -8178,7 +8165,6 @@ function switchTravelMode(nextMode) {
   updateTravelModeSwitchBtn();
   if (typeof refreshActiveMapStyle === 'function') refreshActiveMapStyle();
   resetQuickGrids();
-  snappedUserCoords = null;
   navLastRouteAt = 0;
   navLastRouteFrom = null;
   currentSpeedLimitKmh = null;
@@ -11873,11 +11859,9 @@ async function loadBottomMuniStats(muni) {
   }
 }
 
-let currentUserMunicipality = null;
 let currentContactsMunicipality = null;
 
 function renderMunicipalityBoundary(muni, source) {
-  currentUserMunicipality = muni || null;
   if (source === 'gps' || source === 'pin' || source === 'center') {
     currentContactsMunicipality = muni || null;
     updateBottomMunicipalityBar(currentContactsMunicipality);
@@ -12000,6 +11984,29 @@ async function getMunicipalityStats(municipalityId) {
     }
   })();
   municipalityStatsFetchInFlight.set(municipalityId, promise);
+  return promise;
+}
+
+const utilityCompanyStatsCache = new Map();
+const utilityCompanyStatsFetchInFlight = new Map();
+async function getUtilityCompanyStats(companyId) {
+  if (utilityCompanyStatsCache.has(companyId)) return utilityCompanyStatsCache.get(companyId);
+  if (utilityCompanyStatsFetchInFlight.has(companyId)) return utilityCompanyStatsFetchInFlight.get(companyId);
+  const promise = (async () => {
+    try {
+      const { data, error } = await sb.from(UTILITY_COMPANY_STATS_TABLE).select('*')
+        .eq('company_id', companyId).maybeSingle();
+      if (error) throw error;
+      utilityCompanyStatsCache.set(companyId, data || null);
+      return data || null;
+    } catch (err) {
+      console.error('Failed to load utility company stats:', err.message);
+      return null;
+    } finally {
+      utilityCompanyStatsFetchInFlight.delete(companyId);
+    }
+  })();
+  utilityCompanyStatsFetchInFlight.set(companyId, promise);
   return promise;
 }
 
@@ -12454,6 +12461,7 @@ async function showCompanyDetailModal(id) {
       ${catsHtml}
       ${renderContactRows(c)}
     </div>
+    <div id="companyDetailCompanyStatsSection"></div>
     ${muniSectionHtml}
     <div id="companyDetailStatsSection"></div>
   `;
@@ -12462,11 +12470,24 @@ async function showCompanyDetailModal(id) {
   modal.style.display = 'flex';
   openOverlay('companyDetailModal', hideCompanyDetailModal);
 
-  if (c.municipality_id != null) {
-    const stats = await getMunicipalityStats(c.municipality_id);
-    if (requestId !== companyDetailStatsRequestId) return;
+  const [companyStats, muniStats] = await Promise.all([
+    getUtilityCompanyStats(c.id),
+    c.municipality_id != null ? getMunicipalityStats(c.municipality_id) : Promise.resolve(null)
+  ]);
+  if (requestId !== companyDetailStatsRequestId) return;
 
-    const statsHtml = buildMuniStatsGridHtml(stats);
+  const companyStatsHtml = buildMuniStatsGridHtml(companyStats);
+  const companyStatsSectionEl = document.getElementById('companyDetailCompanyStatsSection');
+  if (companyStatsSectionEl && companyStatsHtml) {
+    companyStatsSectionEl.innerHTML = `
+      <div class="detail-section">
+        <div class="detail-section-title">${t('companyStatsSectionLabel')}</div>
+        ${companyStatsHtml}
+      </div>`;
+  }
+
+  if (c.municipality_id != null) {
+    const statsHtml = buildMuniStatsGridHtml(muniStats);
     const statsSectionEl = document.getElementById('companyDetailStatsSection');
     if (statsSectionEl && statsHtml) {
       statsSectionEl.innerHTML = `
@@ -14434,7 +14455,6 @@ function buildPopupHtml(report) {
   const catCol = categoryColor(report.category);
   const sCol   = statusColor(report.status);
   const isOwner = !!(currentSession && report.owner_id === currentSession.user.id);
-  const isAdmin = !!(currentProfile && currentProfile.is_admin);
   const reporterName = reporterDisplayName(report);
   const dupGroup = duplicateGroupFor(report.id);
   const groupIdsJson = escapeHtml(JSON.stringify(dupGroup ? dupGroup.ids : [report.id]));
