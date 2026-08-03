@@ -1,4 +1,3 @@
-
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').then(() => {
@@ -2916,7 +2915,6 @@ const T = {
   mapStyleAutoCar:   { en:'Auto (Standard)',             sr:'Automatski (Standardna)' },
   mapStyleAutoBike:  { en:'Auto (Standard)',             sr:'Automatski (Standardna)' },
   mapStyleAutoFoot:  { en:'Auto (Standard)',             sr:'Automatski (Standardna)' },
-  mapStyleNoDataFallback: { en:'No satellite imagery available here — showing Standard map', sr:'Ovde nema satelitskog snimka — prikazuje se Standardna mapa' },
   iconPackSectionTitle: { en:'Icon pack',                             sr:'Paket ikonica' },
   iconPackHint:      { en:'Changes how map pins and icons look. The app will reload after switching.', sr:'Menja izgled ikonica i pinova na mapi. Aplikacija će se ponovo učitati nakon promene.' },
   languageSectionTitle: { en:'Language',                 sr:'Jezik' },
@@ -4674,7 +4672,6 @@ function endZoomBurst() {
   if (typeof scheduleMarkerSyncOnSettle === 'function') scheduleMarkerSyncOnSettle();
   if (typeof scheduleViewportReloadIfNeeded === 'function') scheduleViewportReloadIfNeeded();
   if (typeof scheduleCompanyMarkersReload === 'function') scheduleCompanyMarkersReload();
-  if (typeof maybeRetryMapStyleAfterZoomOut === 'function') maybeRetryMapStyleAfterZoomOut();
 }
 map.on('zoomstart', () => {
   noteZoomActivity(rotationActive());
@@ -4808,39 +4805,81 @@ function tileLooksLikeNoDataPlaceholder(img) {
   }
 }
 
-// Debounced so a burst of several placeholder tiles landing together (very
-// likely once you're panned/zoomed into a genuinely uncovered area) triggers
-// exactly one fallback instead of one per tile.
-let noDataTileFallbackActive = false;
-let noDataTileFallbackDebounceTimer = null;
-let noDataFallbackZoomAtTrigger = null; // zoom level we were at when we last fell back
-function reportNoDataTileSeen() {
-  if (noDataTileFallbackDebounceTimer) return;
-  noDataTileFallbackDebounceTimer = setTimeout(() => {
-    noDataTileFallbackDebounceTimer = null;
-    const resolvedId = resolveActiveMapStyleId();
-    if (!['satellite', 'hybrid'].includes(resolvedId)) return; // user already switched away
-    if (noDataTileFallbackActive) return;
-    noDataTileFallbackActive = true;
-    noDataFallbackZoomAtTrigger = map.getZoom();
-    setActiveMapStyle('standard');
-    toast(t('mapStyleNoDataFallback'));
-  }, 150);
+// Instead of yanking the whole map back to Standard style when a tile turns
+// out to be Esri's "no data" placeholder, we keep the user on Satellite/
+// Hybrid and just go looking for real imagery at a coarser zoom level. Each
+// step up covers 4x the ground in the same tile, so we crop the quadrant
+// this tile corresponds to and stretch it back up to full tile size. It's
+// blurry — genuinely lower resolution than what was requested — but it's
+// real aerial photography rather than a flat gray "not available" graphic,
+// which is what actually matters for reading terrain/roads/rough position.
+// Capped at a handful of levels so a hole with literally no coverage at any
+// usable zoom (open ocean, poles) doesn't recurse forever or fetch z0.
+const NO_DATA_FALLBACK_MAX_LEVELS = 6;
+
+// Leaflet's own layer.getTileUrl(coords) ignores coords.z and always builds
+// the URL for the layer's *current* active zoom (see _getZoomForUrl in
+// Leaflet's source — it reads this._tileZoom, not the z on the object you
+// pass in). That's no good here since we specifically need a URL for a
+// coarser ancestor zoom, so this builds the tile URL by hand instead.
+function buildTileUrlForZoom(layer, x, y, z) {
+  const data = Object.assign({}, layer.options, {
+    r: '',
+    s: layer._getSubdomain({ x, y }),
+    x, y, z
+  });
+  return L.Util.template(layer._url, data);
 }
 
-// Called once a zoom gesture settles (see endZoomBurst below). If we're
-// currently on the Standard fallback because Satellite/Hybrid had no data at
-// some higher zoom, and the user has since zoomed OUT past that point, it's
-// worth trying Satellite/Hybrid again — imagery coverage reliably improves
-// at lower zoom (fewer, larger tiles covering the same gap), so this often
-// succeeds. If it's still no good, reportNoDataTileSeen() will simply trigger
-// again at the new (lower) zoom and try further out next time.
-function maybeRetryMapStyleAfterZoomOut() {
-  if (!noDataTileFallbackActive || noDataFallbackZoomAtTrigger == null) return;
-  if (map.getZoom() >= noDataFallbackZoomAtTrigger) return;
-  const resolvedId = resolveActiveMapStyleId();
-  if (!['satellite', 'hybrid'].includes(resolvedId)) return; // user isn't even trying to show one of these anymore
-  setActiveMapStyle(resolvedId); // resets noDataTileFallbackActive; tiles get re-checked as they load
+function resolveNoDataTile(layer, coords, tileSize, onResolved) {
+  let levels = 1;
+
+  const tryLevel = () => {
+    if (levels > NO_DATA_FALLBACK_MAX_LEVELS || coords.z - levels < 0) {
+      onResolved(null); // give up — caller just leaves the placeholder tile showing
+      return;
+    }
+    const scale = Math.pow(2, levels);
+    const pz = coords.z - levels;
+    const px = Math.floor(coords.x / scale);
+    const py = Math.floor(coords.y / scale);
+    const url = buildTileUrlForZoom(layer, px, py, pz);
+    fetchTileCached(url)
+      .then(res => { if (!res.ok) throw new Error('tile-http-' + res.status); return res.blob(); })
+      .then(blob => new Promise((resolve, reject) => {
+        const objectUrl = URL.createObjectURL(blob);
+        const ancestorImg = new Image();
+        ancestorImg.onload = () => resolve({ ancestorImg, objectUrl });
+        ancestorImg.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error('ancestor-tile-load-failed')); };
+        ancestorImg.src = objectUrl;
+      }))
+      .then(({ ancestorImg, objectUrl }) => {
+        if (tileLooksLikeNoDataPlaceholder(ancestorImg)) {
+          URL.revokeObjectURL(objectUrl);
+          levels++;
+          tryLevel();
+          return;
+        }
+        // Crop the quadrant of the ancestor tile that this tile corresponds
+        // to, then scale it up to full tile size.
+        const cropSize = tileSize / scale;
+        const offsetX = (coords.x - px * scale) * cropSize;
+        const offsetY = (coords.y - py * scale) * cropSize;
+        const canvas = document.createElement('canvas');
+        canvas.width = tileSize;
+        canvas.height = tileSize;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(ancestorImg, offsetX, offsetY, cropSize, cropSize, 0, 0, tileSize, tileSize);
+        URL.revokeObjectURL(objectUrl);
+        canvas.toBlob(croppedBlob => {
+          if (!croppedBlob) { onResolved(null); return; }
+          onResolved(URL.createObjectURL(croppedBlob));
+        });
+      })
+      .catch(() => { levels++; tryLevel(); });
+  };
+
+  tryLevel();
 }
 
 const CachedTileLayer = L.TileLayer.extend({
@@ -4849,8 +4888,17 @@ const CachedTileLayer = L.TileLayer.extend({
     img.setAttribute('role', 'presentation');
     const url = this.getTileUrl(coords);
     const checkNoData = !!this.options.ttbCheckNoDataTile;
+    const tileSize = this.getTileSize().x;
     const finish = () => {
-      if (checkNoData && tileLooksLikeNoDataPlaceholder(img)) reportNoDataTileSeen();
+      if (checkNoData && tileLooksLikeNoDataPlaceholder(img)) {
+        resolveNoDataTile(this, coords, tileSize, (fallbackUrl) => {
+          if (!fallbackUrl) { done(null, img); return; }
+          img.onload = () => { URL.revokeObjectURL(fallbackUrl); done(null, img); };
+          img.onerror = () => { done(null, img); }; // show whatever's there rather than block forever
+          img.src = fallbackUrl;
+        });
+        return;
+      }
       done(null, img);
     };
     const giveUpBlank = () => {
@@ -4914,8 +4962,10 @@ const MAP_STYLES = {
     // returns a real HTTP 200 "placeholder" tile (flat gray background with
     // "Map data not yet available" baked into the image) rather than an
     // error we could catch normally. ttbCheckNoDataTile below asks
-    // CachedTileLayer to inspect loaded tiles for that specific look and
-    // fall back to Standard if it shows up, regardless of zoom level.
+    // CachedTileLayer to inspect loaded tiles for that specific look and,
+    // if it shows up, substitute a stretched crop of the nearest coarser
+    // zoom level that has real imagery (see resolveNoDataTile) instead of
+    // switching the whole map away from this style.
     light:{ url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', subdomains:'', maxNativeZoom:19, maxZoom:20,
             attribution:'Esri, Maxar, Earthstar Geographics', ttbCheckNoDataTile:true }
     // Deliberately no `dark` filter here: it's real aerial photography, not
@@ -5056,10 +5106,6 @@ function setActiveMapStyle(styleId) {
     applyMapStyleFilter(resolved, theme);
     return;
   }
-  // A fresh activation of Satellite/Hybrid (as opposed to our own fallback
-  // switching *away* to Standard) means we should be willing to detect a
-  // no-data placeholder again for this view.
-  if (resolved === 'satellite' || resolved === 'hybrid') noDataTileFallbackActive = false;
   const previousLayer = activeTileLayer;
   activeMapStyleId = resolved;
   activeMapStyleTheme = theme;
@@ -17066,4 +17112,3 @@ authReady.then(() => {
   syncOfflineQueue(false);
   syncPushToggleUi();
 });
-
