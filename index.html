@@ -6983,7 +6983,8 @@ function setupNotificationsRealtimeSync(uid) {
   notificationsRealtimeChannel = sb.channel('notifications-live-sync-' + uid)
     .on('postgres_changes', {
       event: 'INSERT', schema: 'public', table: 'notifications', filter: 'recipient_id=eq.' + uid
-    }, () => {
+    }, (payload) => {
+      console.log('[notifications realtime] new notification received:', payload);
       try {
         if (!currentSession || currentSession.user.id !== uid) return;
         playNotificationChime();
@@ -6994,7 +6995,13 @@ function setupNotificationsRealtimeSync(uid) {
         console.error('Realtime notification sync error:', err);
       }
     })
-    .subscribe();
+    .subscribe((status, err) => {
+      if (status === 'SUBSCRIBED') {
+        console.log('[notifications realtime] connected for user', uid);
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        console.error('[notifications realtime] failed to connect:', status, err);
+      }
+    });
 }
 
 function teardownNotificationsRealtimeSync() {
