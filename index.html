@@ -17,9 +17,20 @@
     throughout the markup. This CSP still meaningfully reduces risk by
     locking down which origins can load script/style/image/connect traffic,
     blocking <object>/<embed>, blocking base-tag hijacking, and blocking
-    framing/clickjacking and form-action redirection to other origins.
+    form-action redirection to other origins.
     Removing 'unsafe-inline' fully requires migrating onclick handlers to
     addEventListener + a nonce-based policy — a larger follow-up.
+
+    NOTE: map tiles (OSM, CartoDB, Esri World_Imagery) are loaded via
+    fetchTileCached()'s fetch(), not plain <img src>, for offline caching —
+    so those hosts must be listed under connect-src, not just img-src.
+
+    NOTE: frame-ancestors, and sandboxing in general, is ignored when CSP is
+    delivered via a <meta> tag (browsers only honor it from an HTTP response
+    header). If you can set headers at the server/CDN level, move this whole
+    policy there and add frame-ancestors 'self' (plus an X-Frame-Options:
+    SAMEORIGIN fallback for older browsers) — that's the only way to actually
+    get clickjacking protection.
   -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
@@ -38,10 +49,15 @@
       https://overpass-api.de
       https://routing.openstreetmap.de
       https://ipapi.co
-      https://ipwho.is;
+      https://ipwho.is
+      https://*.tile.openstreetmap.org
+      https://tile.openstreetmap.org
+      https://*.basemaps.cartocdn.com
+      https://server.arcgisonline.com
+      https://unpkg.com
+      https://cdn.jsdelivr.net;
     object-src 'none';
     base-uri 'self';
-    frame-ancestors 'self';
     form-action 'self';
     manifest-src 'self';
   ">
