@@ -10112,7 +10112,16 @@ let markerById    = new Map();
 let sectionPinById = new Map();
 let dateRangeOnlyData = [];
 
-const DUPLICATE_MERGE_RADIUS_M = 15;
+// Kept tight on purpose: this only needs to catch the same physical issue
+// reported twice (GPS jitter on a phone is typically well under this), not
+// "roughly the same spot". Two reports on opposite sides of a street --
+// opposite curbs, opposite lanes, a sign across the road from another sign
+// -- are almost always farther apart than this once you account for the
+// road width plus sidewalks/verges on both sides, so they should NOT match.
+// If real duplicates ever slip through at this radius in a specific area,
+// that's a sign it needs tuning per-category (e.g. wide highways vs.
+// narrow lanes), not a reason to loosen it back up broadly.
+const DUPLICATE_MERGE_RADIUS_M = 8;
 let duplicateGroupByReportId = new Map();
 
 let _duplicateGroupsComputedForVersion = -1;
@@ -10130,9 +10139,19 @@ function recomputeDuplicateGroups() {
 
   const groups = [];
   candidates.forEach(r => {
+    // Same category AND same subcategory (e.g. "Road/signage" no longer
+    // matches "Road/pothole" just because both are Road) -- and close to
+    // EVERY report already in the group, not just the first one filed.
+    // Matching only against the anchor let groups "drift": A near B, B near
+    // C, but A and C themselves too far apart (or on opposite sides of the
+    // street) to actually be the same issue -- that chain no longer links up.
     const group = groups.find(g =>
       g.anchor.category === r.category &&
-      distMeters({ lat: g.anchor.latitude, lon: g.anchor.longitude }, { lat: r.latitude, lon: r.longitude }) <= DUPLICATE_MERGE_RADIUS_M
+      (g.anchor.subcategory || null) === (r.subcategory || null) &&
+      g.ids.every(id => {
+        const member = candidates.find(c => c.id === id);
+        return member && distMeters({ lat: member.latitude, lon: member.longitude }, { lat: r.latitude, lon: r.longitude }) <= DUPLICATE_MERGE_RADIUS_M;
+      })
     );
     if (group) group.ids.push(r.id);
     else groups.push({ anchor: r, ids: [r.id] });
@@ -15088,12 +15107,18 @@ function wizRenderDetails(body) {
   renderWizDuplicateNotice();
 }
 
-const DUPLICATE_REPORT_RADIUS_M = 40;
+// Matches the same "same category isn't enough" + "keep the radius tight
+// enough that opposite sides of a street don't qualify" reasoning as
+// DUPLICATE_MERGE_RADIUS_M above -- this just shows an advisory heads-up
+// while filing, but a false "already reported" nudge is exactly what sends
+// someone away thinking a genuinely new issue (e.g. sign damage on the far
+// side of the road) is already logged.
+const DUPLICATE_REPORT_RADIUS_M = 15;
 const DUPLICATE_REPORT_MAX_SHOWN = 3;
-function findNearbyDuplicateReports(lat, lon, category) {
+function findNearbyDuplicateReports(lat, lon, category, subcategory) {
   if (!isValidLatLng(lat, lon) || !category) return [];
   return globalActiveData
-    .filter(r => r.category === category && r.status !== 'fixed' && isValidLatLng(r.latitude, r.longitude))
+    .filter(r => r.category === category && (r.subcategory || null) === (subcategory || null) && r.status !== 'fixed' && isValidLatLng(r.latitude, r.longitude))
     .map(r => ({ r, d: distMeters({ lat, lon }, { lat: r.latitude, lon: r.longitude }) }))
     .filter(x => x.d <= DUPLICATE_REPORT_RADIUS_M)
     .sort((a, b) => a.d - b.d)
@@ -15106,7 +15131,7 @@ function renderWizDuplicateNotice() {
   if (!slot) return;
   const coords = pinMode && manualCoords ? manualCoords : userCoords;
   if (!coords) { slot.innerHTML = ''; return; }
-  const dupes = findNearbyDuplicateReports(coords.lat, coords.lon, wizState.category);
+  const dupes = findNearbyDuplicateReports(coords.lat, coords.lon, wizState.category, wizState.subcategory);
   if (!dupes.length) { slot.innerHTML = ''; return; }
   slot.innerHTML = `<div class="wiz-duplicate-notice">
     <div class="wiz-duplicate-notice-title">${t('duplicateNoticeTitle').replace('{n}', dupes.length)}</div>
