@@ -10044,9 +10044,25 @@ function makeClusterIcon(cluster) {
     iconSize: [wrapSize, wrapSize]
   });
 }
+// Leaflet.markercluster groups markers purely by screen-pixel distance, with
+// zero idea what's underneath -- it doesn't know if two pins are 5m apart on
+// the same sidewalk or on opposite sides of a two-lane road. A flat 50px
+// radius is fine at a city-wide zoom (that's real decluttering, not
+// precision people rely on), but the SAME 50px at a street-level zoom can
+// correspond to 60-80+ real-world meters, which is exactly wide enough to
+// bundle a sign on one side of the street with a sign on the other into a
+// single bubble. So the radius now shrinks as you zoom in: generous while
+// zoomed out, tight by the time buildings/street names are legible, so pins
+// split apart into individuals right around the zoom level where people can
+// actually tell the two sides of a street apart.
+function reportsClusterRadius(zoom) {
+  if (zoom <= 13) return 50;
+  if (zoom <= 15) return 30;
+  return 12;
+}
 const pinCluster = L.markerClusterGroup({
-  maxClusterRadius: 50,
-  disableClusteringAtZoom: 17,
+  maxClusterRadius: reportsClusterRadius,
+  disableClusteringAtZoom: 16,
   spiderfyOnMaxZoom: true,
   showCoverageOnHover: false,
   // Fly/split (regroup) animation is OFF. It was only ever meant to run
