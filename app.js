@@ -8923,17 +8923,89 @@ let overlayStack = [];
 let suppressOverlayPopstate = false;
 let closingViaOverlayStack = false;
 
+// ---- Modal accessibility: focus trap, dialog semantics, focus restore ----
+// Centralized here (rather than in each show*/hide* function) since every
+// modal already funnels through openOverlay/closeOverlay.
+const MODAL_FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), textarea:not([disabled]), ' +
+  'input:not([disabled]):not([type="hidden"]), select:not([disabled]), ' +
+  '[tabindex]:not([tabindex="-1"])';
+
+function getModalDialogPanel(wrapperEl) {
+  // The centered "generic-modal-overlay" dialogs are a full-screen backdrop
+  // with a smaller ".generic-modal" panel inside — that panel is the actual
+  // dialog surface. Fullscreen modals have no separate panel; the wrapper
+  // itself is the dialog surface.
+  if (wrapperEl.classList.contains('generic-modal-overlay')) {
+    return wrapperEl.querySelector('.generic-modal') || wrapperEl;
+  }
+  return wrapperEl;
+}
+
+function getModalFocusables(panelEl) {
+  return Array.from(panelEl.querySelectorAll(MODAL_FOCUSABLE_SELECTOR))
+    .filter(el => el.offsetParent !== null); // skip hidden/collapsed controls
+}
+
+function setupModalA11y(key) {
+  const wrapperEl = document.getElementById(key);
+  if (!wrapperEl) return;
+  const panel = getModalDialogPanel(wrapperEl);
+
+  panel.setAttribute('role', 'dialog');
+  panel.setAttribute('aria-modal', 'true');
+
+  const heading = panel.querySelector('h1, h2, h3');
+  if (heading) {
+    if (!heading.id) heading.id = key + 'A11yHeading';
+    panel.setAttribute('aria-labelledby', heading.id);
+  }
+
+  const focusables = getModalFocusables(panel);
+  if (focusables.length) {
+    focusables[0].focus();
+  } else {
+    panel.setAttribute('tabindex', '-1');
+    panel.focus();
+  }
+}
+
+// Tab/Shift+Tab is confined to the topmost open modal's panel so keyboard
+// focus can never land on the map or report form underneath it.
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Tab' || !overlayStack.length) return;
+  const top = overlayStack[overlayStack.length - 1];
+  const wrapperEl = document.getElementById(top.key);
+  if (!wrapperEl) return;
+  const panel = getModalDialogPanel(wrapperEl);
+  const focusables = getModalFocusables(panel);
+  if (!focusables.length) { e.preventDefault(); return; }
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+  const active = document.activeElement;
+  if (e.shiftKey) {
+    if (active === first || !panel.contains(active)) { e.preventDefault(); last.focus(); }
+  } else {
+    if (active === last || !panel.contains(active)) { e.preventDefault(); first.focus(); }
+  }
+});
+
 function openOverlay(key, closeFn) {
   if (overlayStack.some(o => o.key === key)) return;
   const wasEmpty = overlayStack.length === 0;
-  overlayStack.push({ key, closeFn });
+  const triggerEl = document.activeElement && document.activeElement !== document.body
+    ? document.activeElement
+    : null;
+  overlayStack.push({ key, closeFn, triggerEl });
   history.pushState({ overlayKey: key }, '');
 
   if (wasEmpty) cancelAutoRefollowTimer();
+  setupModalA11y(key);
 }
 function closeOverlay(key) {
   const idx = overlayStack.findIndex(o => o.key === key);
   if (idx === -1) return;
+  const entry = overlayStack[idx];
   overlayStack.splice(idx, 1);
   if (!suppressOverlayPopstate) {
     closingViaOverlayStack = true;
@@ -8941,6 +9013,12 @@ function closeOverlay(key) {
   }
 
   if (overlayStack.length === 0) scheduleAutoRefollow();
+
+  // Return focus to whatever triggered this modal (e.g. the button that
+  // opened it), rather than leaving it stranded on a now-hidden element.
+  if (entry && entry.triggerEl && document.contains(entry.triggerEl) && typeof entry.triggerEl.focus === 'function') {
+    entry.triggerEl.focus();
+  }
 }
 window.addEventListener('popstate', () => {
   if (closingViaOverlayStack) {

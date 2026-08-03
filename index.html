@@ -117,15 +117,15 @@
 <header>
   <div class="header-top">
     <div class="left-controls">
-      <button class="help-icon-btn" id="fullscreenBtn" title="Fullscreen / Preko celog ekrana" onclick="toggleFullscreen()"><img class="icon-img" id="fullscreenBtnIcon" src="icons/fullscreen-enter.png" alt="Fullscreen"></button>
-      <button class="help-icon-btn" id="settingsBtn" title="Settings" onclick="showSettingsModal()"><img class="icon-img" src="icons/settings.png" alt="Settings"></button>
+      <button class="help-icon-btn" id="fullscreenBtn" title="Fullscreen / Preko celog ekrana" aria-label="Fullscreen" onclick="toggleFullscreen()"><img class="icon-img" id="fullscreenBtnIcon" src="icons/fullscreen-enter.png" alt="Fullscreen"></button>
+      <button class="help-icon-btn" id="settingsBtn" title="Settings" aria-label="Settings" onclick="showSettingsModal()"><img class="icon-img" src="icons/settings.png" alt="Settings"></button>
     </div>
     <div class="center-controls">
-      <button class="help-icon-btn" id="adminPanelBtn" title="Admin panel" style="display:none" onclick="showAdminPanelModal()"><img class="icon-img" id="adminPanelBtnIcon" src="icons/badges/badge-admin-admin-3.png" alt="Admin panel"></button>
+      <button class="help-icon-btn" id="adminPanelBtn" title="Admin panel" aria-label="Admin panel" style="display:none" onclick="showAdminPanelModal()"><img class="icon-img" id="adminPanelBtnIcon" src="icons/badges/badge-admin-admin-3.png" alt="Admin panel"></button>
     </div>
     <div class="right-controls">
-      <button class="help-icon-btn notification-btn" id="notificationBtn" title="Notifications" onclick="showNotificationModal()"><img class="icon-img" src="icons/notification.png" alt="Notifications"><span class="notification-badge" id="notificationBadge" style="display:none">0</span></button>
-      <button class="help-icon-btn" id="leaderboardBtn" title="Rankings" onclick="showLeaderboardModal()"><img class="icon-img" src="icons/user.png" alt="Rankings"></button>
+      <button class="help-icon-btn notification-btn" id="notificationBtn" title="Notifications" aria-label="Notifications" onclick="showNotificationModal()"><img class="icon-img" src="icons/notification.png" alt="Notifications"><span class="notification-badge" id="notificationBadge" style="display:none">0</span></button>
+      <button class="help-icon-btn" id="leaderboardBtn" title="Rankings" aria-label="Rankings" onclick="showLeaderboardModal()"><img class="icon-img" src="icons/user.png" alt="Rankings"></button>
     </div>
   </div>
 </header>
@@ -148,7 +148,7 @@
 <div id="bottomMuniBar" class="bottom-muni-bar" style="display:flex">
   <img class="icon-img bottom-muni-bar-pin" src="icons/pin.png" alt="">
   <span id="bottomMuniBarName" class="bottom-muni-bar-name">-</span>
-  <button class="help-icon-btn is-disabled" id="municipalityContactsBtn" title="Contacts" disabled onclick="showMunicipalityContactsModal()"><img class="icon-img" src="icons/phone.png" alt="Contacts"></button>
+  <button class="help-icon-btn is-disabled" id="municipalityContactsBtn" title="Contacts" aria-label="Contacts" disabled onclick="showMunicipalityContactsModal()"><img class="icon-img" src="icons/phone.png" alt="Contacts"></button>
 </div>
 <div id="bottomMuniStatsRow" class="bottom-muni-stats-row" style="display:flex"></div>
 <div id="mapLegend" class="map-legend-pill">
