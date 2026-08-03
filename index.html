@@ -4255,6 +4255,7 @@ span.flatpickr-weekday {
           <span id="notificationTargetUserLabel">Specific user</span>
         </label>
       </div>
+      <div id="notificationScopeHint" class="detail-export-hint" style="margin-top:6px;"></div>
       <div id="notificationUsernameWrap" style="display:none;margin-top:8px;">
         <input type="text" id="notificationUsernameInput" placeholder="Username" autocomplete="off" style="width:100%;box-sizing:border-box;" oninput="handleNotificationUsernameInput()">
         <div id="notificationUsernameResults" class="navigate-results"></div>
@@ -5848,6 +5849,7 @@ function renderNotificationModalBody() {
     resetAdminSearch();
     loadWaitingListAdmin();
     startWaitingListAutoRefresh();
+    updateNotificationScopeUi();
   } else {
     composePanel.style.display = 'none';
     wlTitle.style.display = 'none';
@@ -5857,6 +5859,47 @@ function renderNotificationModalBody() {
   }
   userList.style.display = 'block';
   loadUserNotifications();
+}
+
+// Shows the admin who they're actually about to reach when they broadcast —
+// their moderation scope (municipality/country/continent/global), derived
+// from the same admin_level/admin_municipality_id/admin_country_code/
+// admin_continent fields used for report moderation, plus a live estimate
+// of how many users that resolves to right now (send_broadcast_notification
+// enforces the same scope server-side, so this is a preview, not the source
+// of truth).
+async function updateNotificationScopeUi() {
+  const hintEl = document.getElementById('notificationScopeHint');
+  const allRadio = document.getElementById('notificationTargetAll');
+  if (!hintEl || !allRadio) return;
+  const lvl = currentAdminLevel();
+  if (lvl >= 4) {
+    hintEl.textContent = t('notificationScopeGlobal');
+    allRadio.disabled = false;
+  } else {
+    const scopeLabel = currentAdminTag();
+    if (!scopeLabel || scopeLabel === t('adminTagUnset')) {
+      hintEl.textContent = t('notificationScopeUnset');
+      allRadio.disabled = true;
+      if (allRadio.checked) {
+        allRadio.checked = false;
+        document.getElementById('notificationTargetUser').checked = true;
+        onNotificationTargetChange();
+      }
+      return;
+    }
+    allRadio.disabled = false;
+    const key = lvl === 1 ? 'notificationScopeMuni' : lvl === 2 ? 'notificationScopeCountry' : 'notificationScopeContinent';
+    hintEl.textContent = t(key).replace('{scope}', scopeLabel);
+  }
+  try {
+    const { data, error } = await sb.rpc('admin_broadcast_recipient_count');
+    if (!error && typeof data === 'number') {
+      hintEl.textContent += t('notificationScopeCount').replace('{count}', data);
+    }
+  } catch (err) {
+    console.error('Failed to load broadcast recipient count:', err.message || err);
+  }
 }
 
 function onNotificationTargetChange() {
@@ -5926,6 +5969,7 @@ async function sendNotificationFromAdmin() {
     if (error) throw error;
     if (data && data.ok === false) {
       if (data.reason === 'user_not_found') toast(t('notificationUserNotFound'), 'error');
+      else if (data.reason === 'user_out_of_scope') toast(t('notificationUserOutOfScope'), 'error');
       else toast(t('notificationSendFailed'), 'error');
       return;
     }
@@ -7660,6 +7704,13 @@ const T = {
   notificationEmptyMessage:{ en:'Write a message first.',                sr:'Prvo napišite poruku.' },
   notificationNoUsername: { en:'Enter a username to send to.',          sr:'Unesite korisničko ime primaoca.' },
   notificationUserNotFound:{ en:'No user with that username.',          sr:'Ne postoji korisnik sa tim imenom.' },
+  notificationUserOutOfScope:{ en:'That user is outside your admin scope, so you can\'t message them directly.', sr:'Taj korisnik je van vašeg administratorskog opsega, pa mu ne možete direktno poslati poruku.' },
+  notificationScopeGlobal:   { en:'Sends to everyone, worldwide.',      sr:'Šalje se svima, širom sveta.' },
+  notificationScopeContinent:{ en:'Sends to users located in {scope}, or with a saved alert area there.', sr:'Šalje se korisnicima koji se nalaze u {scope}, ili imaju sačuvano područje upozorenja tamo.' },
+  notificationScopeCountry:  { en:'Sends to users located in {scope}, or with a saved alert area there.', sr:'Šalje se korisnicima koji se nalaze u {scope}, ili imaju sačuvano područje upozorenja tamo.' },
+  notificationScopeMuni:     { en:'Sends to users located in {scope}, or with a saved alert area there.', sr:'Šalje se korisnicima koji se nalaze u {scope}, ili imaju sačuvano područje upozorenja tamo.' },
+  notificationScopeUnset:    { en:'Your admin scope isn\'t set yet — ask a global admin to assign one before broadcasting.', sr:'Vaš administratorski opseg još nije podešen — zamolite globalnog administratora da vam ga dodeli pre slanja.' },
+  notificationScopeCount:    { en:' (~{count} users)', sr:' (~{count} korisnika)' },
   notificationInboxSectionTitle:{ en:'Your notifications',              sr:'Vaša obaveštenja' },
   notificationsEmpty:     { en:'No notifications yet.',                 sr:'Još nema obaveštenja.' },
   notificationLoadFailed: { en:'Could not load notifications.',         sr:'Obaveštenja nisu mogla biti učitana.' },
