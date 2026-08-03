@@ -25,7 +25,7 @@
   <link rel="preload" as="image" href="icons/fullscreen-enter.png">
   <link rel="preload" as="image" href="icons/user.png">
   <link rel="preload" as="image" href="icons/notification.png">
-  <link rel="preload" as="image" href="icons/walking.png">
+
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
@@ -3489,6 +3489,10 @@ span.flatpickr-weekday {
   <div class="generic-modal" id="contactConfirmModalInner"></div>
 </div>
 
+<div id="pushPromptModal" class="generic-modal-overlay" style="display:none">
+  <div class="generic-modal" id="pushPromptModalInner"></div>
+</div>
+
 <div id="postReportContactModal" class="generic-modal-overlay" style="display:none">
   <div class="generic-modal" id="postReportContactModalInner"></div>
 </div>
@@ -6899,6 +6903,7 @@ async function initAuth() {
   if (currentSession) {
     setupQuestProgressRealtimeSync(currentSession.user.id);
     setupNotificationsRealtimeSync(currentSession.user.id);
+    setTimeout(maybeShowPushPrompt, 1500);
   }
 
   sb.auth.onAuthStateChange(async (event, session) => {
@@ -6908,6 +6913,7 @@ async function initAuth() {
       stripAuthHashFromUrl();
       setupQuestProgressRealtimeSync(session.user.id);
       setupNotificationsRealtimeSync(session.user.id);
+      setTimeout(maybeShowPushPrompt, 1500);
     } else {
       currentProfile = null;
       updateAuthUI();
@@ -6984,7 +6990,6 @@ function setupNotificationsRealtimeSync(uid) {
     .on('postgres_changes', {
       event: 'INSERT', schema: 'public', table: 'notifications', filter: 'recipient_id=eq.' + uid
     }, (payload) => {
-      console.log('[notifications realtime] new notification received:', payload);
       try {
         if (!currentSession || currentSession.user.id !== uid) return;
         playNotificationChime();
@@ -6996,9 +7001,7 @@ function setupNotificationsRealtimeSync(uid) {
       }
     })
     .subscribe((status, err) => {
-      if (status === 'SUBSCRIBED') {
-        console.log('[notifications realtime] connected for user', uid);
-      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
         console.error('[notifications realtime] failed to connect:', status, err);
       }
     });
@@ -7721,6 +7724,10 @@ const T = {
   notificationInboxSectionTitle:{ en:'Your notifications',              sr:'Vaša obaveštenja' },
   notificationsEmpty:     { en:'No notifications yet.',                 sr:'Još nema obaveštenja.' },
   notificationLoadFailed: { en:'Could not load notifications.',         sr:'Obaveštenja nisu mogla biti učitana.' },
+  pushPromptTitle:        { en:'Turn on notifications?',                sr:'Uključiti obaveštenja?' },
+  pushPromptDesc:         { en:'Get notified when your reports are updated, or when there\'s activity nearby.', sr:'Budite obavešteni kada se vaše prijave ažuriraju ili kada ima aktivnosti u blizini.' },
+  pushPromptYes:          { en:'Turn on',                                sr:'Uključi' },
+  pushPromptNo:           { en:'Not now',                                sr:'Ne sada' },
   queueTypePhoto:         { en:'Photo pending',                       sr:'Fotografija na čekanju' },
   queueTypeStale:         { en:'Aging, no activity',                  sr:'Zastarelo, bez aktivnosti' },
   soundSectionTitle:      { en:'Sound',                               sr:'Zvuk' },
@@ -9553,6 +9560,56 @@ async function syncPushToggleUi() {
   input.disabled = false;
   const sub = await getExistingPushSubscription();
   input.checked = !!sub;
+}
+
+const PUSH_PROMPT_DISMISSED_KEY = 'ttb_push_prompt_dismissed';
+
+function showPushPrompt() {
+  const modal = document.getElementById('pushPromptModal');
+  const inner = document.getElementById('pushPromptModalInner');
+  if (!modal || !inner) return;
+  inner.innerHTML = `
+    <h2>${t('pushPromptTitle')}</h2>
+    <p>${t('pushPromptDesc')}</p>
+    <div style="display:flex;gap:var(--space-8);">
+      <button type="button" class="settings-btn" style="flex:1;" onclick="respondToPushPrompt(false)">${t('pushPromptNo')}</button>
+      <button type="button" style="background:var(--accent);color:white;flex:1;border:none;border-radius:14px;padding:12px 20px;font-size:var(--fs-14);font-weight:var(--fw-semibold);cursor:pointer;min-height:44px;" onclick="respondToPushPrompt(true)">${t('pushPromptYes')}</button>
+    </div>
+  `;
+  bringModalToFront(modal);
+  modal.style.display = 'flex';
+  openOverlay('pushPromptModal', hidePushPrompt);
+}
+
+function hidePushPrompt() {
+  const modal = document.getElementById('pushPromptModal');
+  if (modal) modal.style.display = 'none';
+  closeOverlay('pushPromptModal');
+}
+
+async function respondToPushPrompt(accepted) {
+  try { localStorage.setItem(PUSH_PROMPT_DISMISSED_KEY, '1'); } catch (err) {}
+  hidePushPrompt();
+  const input = document.getElementById('pushNotifToggleInput');
+  await setPushNotificationsEnabled(accepted);
+  if (input) input.checked = accepted && Notification.permission === 'granted';
+}
+
+// Asks a signed-in user once (per device) whether they want push notifications,
+// instead of leaving the toggle off by default and buried in settings. Only
+// asks if: push is supported here, permission hasn't already been decided at
+// the browser level, they don't already have a subscription, we haven't
+// asked on this device before, and nothing else is already on screen.
+async function maybeShowPushPrompt() {
+  if (!currentSession || !pushSupported()) return;
+  if (Notification.permission !== 'default') return;
+  let alreadyAsked = false;
+  try { alreadyAsked = localStorage.getItem(PUSH_PROMPT_DISMISSED_KEY) === '1'; } catch (err) {}
+  if (alreadyAsked) return;
+  const existing = await getExistingPushSubscription();
+  if (existing) return;
+  if (overlayStack.length > 0) return;
+  showPushPrompt();
 }
 
 async function subscribeToPush() {
@@ -13561,7 +13618,6 @@ function startWatching() {
         accuracy > GPS_MAX_ACCEPTABLE_ACCURACY_M &&
         lastAcceptedFix && (pos.timestamp - lastAcceptedFix.t) < GPS_STALE_FIX_MS
       ) {
-        console.warn(`Ignored low-accuracy GPS fix: ±${Math.round(accuracy)}m`);
         showGpsIssuePill(t('gpsIssuePillWeak').replace('{acc}', String(Math.round(accuracy))));
         return;
       }
