@@ -435,6 +435,7 @@ header p{ font-size:var(--fs-11); opacity:.7; margin-top:2px; }
 .notification-item.unread{ border-color:var(--accent); }
 .notification-item-top{ display:flex; align-items:center; justify-content:space-between; gap:var(--space-8); }
 .notification-item-sender{ font-size:var(--fs-11-5); font-weight:var(--fw-semibold); color:var(--text-secondary); }
+.notification-item-admin-tag{ font-size:var(--fs-10); font-weight:var(--fw-semibold); color:var(--accent); background:color-mix(in srgb, var(--accent) 14%, transparent); border-radius:6px; padding:1px 6px; text-transform:uppercase; letter-spacing:.02em; }
 .notification-item-dot{ width:8px; height:8px; border-radius:50%; background:var(--accent); flex-shrink:0; }
 .notification-item-message{ font-size:var(--fs-13); color:var(--text-primary); white-space:pre-wrap; }
 .notification-item-meta{ font-size:var(--fs-10-5); color:var(--text-muted); }
@@ -4272,9 +4273,16 @@ span.flatpickr-weekday {
     <input type="text" id="adminSearchInput" oninput="onAdminSearchInput()" placeholder="Search reports…" style="display:none;width:100%;box-sizing:border-box;margin-bottom:10px;" autocomplete="off">
     <div id="notificationWaitingList"></div>
 
-    <div class="admin-section-title detail-section-title" id="notificationInboxSectionTitle" style="display:none;margin-top:18px;">Your notifications</div>
+    <div class="admin-section-title detail-section-title" id="notificationInboxSectionTitle" style="display:none;margin-top:18px;align-items:center;justify-content:space-between;gap:8px;">
+      <span id="notificationInboxSectionTitleText">Your notifications</span>
+      <button type="button" id="notificationClearBtn" onclick="showClearNotificationsConfirm()" style="display:none;background:none;border:none;color:var(--text-secondary);font-size:var(--fs-12-5);font-weight:var(--fw-semibold);cursor:pointer;padding:4px 0;">Clear</button>
+    </div>
     <div id="notificationUserList"></div>
   </div>
+
+<div id="clearNotifsConfirmModal" class="generic-modal-overlay" style="display:none">
+  <div class="generic-modal" id="clearNotifsConfirmModalInner"></div>
+</div>
 
 </div>
 
@@ -5842,14 +5850,18 @@ function renderNotificationModalBody() {
   document.getElementById('notificationSendBtn').textContent = t('notificationSendBtn');
   if (wlTitle) wlTitle.textContent = t('waitingListSectionTitle');
   if (wlSearch) wlSearch.placeholder = t('adminSearchPH');
-  if (inboxTitle) inboxTitle.textContent = t('notificationInboxSectionTitle');
+  if (inboxTitle) {
+    const inboxTitleText = document.getElementById('notificationInboxSectionTitleText');
+    if (inboxTitleText) inboxTitleText.textContent = t('notificationInboxSectionTitle');
+  }
+  const clearBtn = document.getElementById('notificationClearBtn');
+  if (clearBtn) clearBtn.textContent = t('notificationClearBtn');
 
   if (isAdmin) {
     composePanel.style.display = 'block';
     wlTitle.style.display = 'block';
     wlList.style.display = 'block';
     if (wlSearch) wlSearch.style.display = 'block';
-    inboxTitle.style.display = 'block';
     resetAdminSearch();
     loadWaitingListAdmin();
     startWaitingListAutoRefresh();
@@ -5859,8 +5871,8 @@ function renderNotificationModalBody() {
     wlTitle.style.display = 'none';
     wlList.style.display = 'none';
     if (wlSearch) wlSearch.style.display = 'none';
-    inboxTitle.style.display = 'none';
   }
+  if (inboxTitle) inboxTitle.style.display = 'flex';
   userList.style.display = 'block';
   loadUserNotifications();
 }
@@ -6012,6 +6024,8 @@ async function loadUserNotifications(silent) {
 function renderUserNotifications() {
   const listEl = document.getElementById('notificationUserList');
   if (!listEl) return;
+  const clearBtn = document.getElementById('notificationClearBtn');
+  if (clearBtn) clearBtn.style.display = userNotificationsCache.length ? '' : 'none';
   if (!userNotificationsCache.length) {
     listEl.innerHTML = `<div class="detail-empty">${t('notificationsEmpty')}</div>`;
     return;
@@ -6024,12 +6038,52 @@ function renderUserNotifications() {
     <div class="notification-item${n.is_read ? '' : ' unread'}"${clickable ? ` onclick="openNotificationReportTarget('${reportId}')" style="cursor:pointer;"` : ''}>
       <div class="notification-item-top">
         <span class="notification-item-sender">${escapeHtml(n.sender_username || t('detailUnknown'))}</span>
+        ${n.notif_type === 'admin_message' ? `<span class="notification-item-admin-tag">${t('notificationAdminTag')}</span>` : ''}
         ${n.is_read ? '' : '<span class="notification-item-dot"></span>'}
       </div>
       <div class="notification-item-message">${escapeHtml(n.message)}</div>
       <div class="notification-item-meta">${formatDate(n.created_at)}</div>
     </div>`;
   }).join('');
+}
+
+function showClearNotificationsConfirm() {
+  const modal = document.getElementById('clearNotifsConfirmModal');
+  const inner = document.getElementById('clearNotifsConfirmModalInner');
+  if (!modal || !inner) return;
+  inner.innerHTML = `
+    <h2>${t('notificationClearConfirmTitle')}</h2>
+    <p>${t('notificationClearConfirmDesc')}</p>
+    <div style="display:flex;gap:var(--space-8);">
+      <button type="button" class="settings-btn" style="flex:1;" onclick="hideClearNotificationsConfirm()">${t('contactConfirmNoBtn')}</button>
+      <button type="button" style="background:var(--danger, #d33);color:white;flex:1;border:none;border-radius:14px;padding:12px 20px;font-size:var(--fs-14);font-weight:var(--fw-semibold);cursor:pointer;min-height:44px;" onclick="confirmClearNotifications()">${t('notificationClearBtn')}</button>
+    </div>
+  `;
+  bringModalToFront(modal);
+  modal.style.display = 'flex';
+  openOverlay('clearNotifsConfirmModal', hideClearNotificationsConfirm);
+}
+
+function hideClearNotificationsConfirm() {
+  const modal = document.getElementById('clearNotifsConfirmModal');
+  if (modal) modal.style.display = 'none';
+  closeOverlay('clearNotifsConfirmModal');
+}
+
+async function confirmClearNotifications() {
+  hideClearNotificationsConfirm();
+  if (!currentSession) return;
+  try {
+    const { error } = await sb.from('notifications').delete().eq('recipient_id', currentSession.user.id);
+    if (error) throw error;
+    userNotificationsCache = [];
+    renderUserNotifications();
+    refreshUnreadNotificationCount();
+    toast(t('notificationCleared'), 'success');
+  } catch (err) {
+    console.error('Failed to clear notifications:', err.message || err);
+    toast(t('notificationClearFailed'), 'error');
+  }
 }
 
 async function openNotificationReportTarget(reportId) {
@@ -7724,6 +7778,12 @@ const T = {
   notificationInboxSectionTitle:{ en:'Your notifications',              sr:'Vaša obaveštenja' },
   notificationsEmpty:     { en:'No notifications yet.',                 sr:'Još nema obaveštenja.' },
   notificationLoadFailed: { en:'Could not load notifications.',         sr:'Obaveštenja nisu mogla biti učitana.' },
+  notificationAdminTag:   { en:'Admin',                                 sr:'Administrator' },
+  notificationClearBtn:      { en:'Clear',                              sr:'Obriši' },
+  notificationClearConfirmTitle:{ en:'Clear all notifications?',        sr:'Obrisati sva obaveštenja?' },
+  notificationClearConfirmDesc: { en:'This removes all your notifications and can\'t be undone.', sr:'Ovo trajno uklanja sva vaša obaveštenja i ne može se poništiti.' },
+  notificationCleared:       { en:'Notifications cleared.',             sr:'Obaveštenja su obrisana.' },
+  notificationClearFailed:   { en:'Could not clear notifications.',     sr:'Obaveštenja nisu mogla biti obrisana.' },
   pushPromptTitle:        { en:'Turn on notifications?',                sr:'Uključiti obaveštenja?' },
   pushPromptDesc:         { en:'Get notified when your reports are updated, or when there\'s activity nearby.', sr:'Budite obavešteni kada se vaše prijave ažuriraju ili kada ima aktivnosti u blizini.' },
   pushPromptYes:          { en:'Turn on',                                sr:'Uključi' },
