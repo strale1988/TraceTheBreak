@@ -425,7 +425,7 @@
     "myReportsFilterProgress": "მიმდინარე",
     "myReportsFilterFixed": "მოგვარებული",
     "myReportsEmpty": "თქვენ ჯერ არ გამოგიგზავნიათ შეტყობინებები.",
-    "myReportsFilterError": "ამ ფილტრით შეტყობინებები არ მოიძებნა.",
+    "myReportsEmptyFiltered": "ამ ფილტრით შეტყობინებები არ მოიძებნა.",
     "myReportsLoading": "თქვენი შეტყობინებები იტვირთება…",
     "myReportsError": "ვერ მოხერხდა თქვენი შეტყობინებების ჩატვირთვა. შეეხეთ თავიდან ცდისთვის.",
     "myReportsCountSuffix": "შეტყობინება",

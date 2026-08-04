@@ -344,7 +344,7 @@
     "companyNotifyNotYet": "Zatím neodesláno",
     "companyLastReminderLabel": "Poslední připomenutí odesláno",
     "companyNotifyReminderNote": "Připomenutí se automaticky odesílá každých 7 dní, dokud nebude problém vyřešen.",
-    "testerModeActionSimulate": "Režim testeru (nic se neuloží)",
+    "testerModeActionSimulated": "Režim testeru (nic se neuloží)",
     "deleteLockedAfterSentNote": "Toto hlášení již bylo odesláno správci sítí, takže jej nelze smazat.",
     "deleteBtn": "Smazat",
     "saveBtn": "Uložit",
