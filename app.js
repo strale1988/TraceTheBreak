@@ -577,7 +577,7 @@ function getOnboardingSteps() {
     { id: null,             titleKey: 'onboardingStepSendTitle',        textKey: 'onboardingStepSendText' },
     { id: 'pinMapBtn',      titleKey: 'onboardingStepPinTitle',         textKey: 'onboardingStepPinText' },
     { id: 'notificationBtn', titleKey: 'onboardingStepNotifTitle',      textKey: 'onboardingStepNotifText' },
-    { id: 'navigateModeBtn', titleKey: 'onboardingStepDrivingTitle',     textKey: 'onboardingStepDrivingText' },
+    { id: 'navigateModeBtn', titleKey: 'onboardingStepNavTitle',         textKey: 'onboardingStepNavText' },
     { id: 'leaderboardBtn', titleKey: 'onboardingStepLeaderboardTitle', textKey: 'onboardingStepLeaderboardText' }
   ];
 }
@@ -3505,8 +3505,8 @@ const T = {
   onboardingStepPinText:          { en:'Drop a pin to fine-tune the exact spot on the map if your GPS location isn\'t precise enough (once placed, the pin is used for your report instead of the GPS dot).', sr:'Postavi pribadaču da precizno odabereš tačno mesto na mapi ako GPS lokacija nije dovoljno tačna (kada je postaviš, prijava koristi lokaciju pribadače umesto GPS tačke).' },
   onboardingStepNotifTitle:       { en:'Stay in the loop',                                   sr:'Budi u toku' },
   onboardingStepNotifText:        { en:'Get notified here when the status of your report changes (like when your issue gets fixed).', sr:'Ovde dobijaš obaveštenje kad se status tvoje prijave promeni (na primer kad tvoj problem bude rešen).' },
-  onboardingStepDrivingTitle:     { en:'Driving mode',                                       sr:'Režim vožnje' },
-  onboardingStepDrivingText:      { en:'Turn this on to quickly report road issues (potholes, damaged pavement, signage) with one big tap while you drive.', sr:'Uključi ovo da brzo prijaviš probleme na putu (rupe, oštećen kolovoz, signalizaciju) jednim dodirom velikog dugmeta dok voziš.' },
+  onboardingStepNavTitle:         { en:'Driving, biking & walking mode',                     sr:'Režim vožnje, bicikla i hodanja' },
+  onboardingStepNavText:          { en:'Turn this on to navigate by car, bike, or foot — tap again to cycle between them — and quickly report road issues (potholes, damaged pavement, signage) with one big tap along the way.', sr:'Uključi ovo da navigiraš autom, biciklom ili peške — ponovnim dodirom menjaš režim — i brzo prijaviš probleme na putu (rupe, oštećen kolovoz, signalizaciju) jednim dodirom velikog dugmeta usput.' },
   onboardingStepLeaderboardTitle: { en:'Your dashboard',                                     sr:'Tvoja kontrolna tabla' },
   onboardingStepLeaderboardText:  { en:'Track your own reports and stats here.',              sr:'Prati svoje prijave i statistiku ovde.' },
   onboardingNextBtn:              { en:'Next',                                               sr:'Dalje' },
