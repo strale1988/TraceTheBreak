@@ -2976,39 +2976,6 @@ async function setShowUsernameOnReports(checked) {
   }
 }
 
-// Persists the notification-language preference. NULL means "automatic":
-// notifications follow whatever preferred_language is (which itself tracks
-// the in-app language toggle) — see ttb_notify_lang() in Postgres, which
-// falls back to preferred_language and then to English if neither is set
-// or recognized. Notification emails are only translated server-side for
-// English/Serbian today, independent of how many languages this file has.
-function updateNotificationLanguageSegmentUI() {
-  const pref = (currentProfile && currentProfile.notification_language) || 'auto';
-  [['auto', 'notificationLanguageBtnAuto'], ['en', 'notificationLanguageBtnEn'], ['sr', 'notificationLanguageBtnSr']].forEach(([val, id]) => {
-    const btn = document.getElementById(id);
-    if (btn) btn.classList.toggle('active', pref === val);
-  });
-}
-
-async function setNotificationLanguage(pref) {
-  if (!currentSession || !currentProfile) return;
-  const prevPref = currentProfile.notification_language || 'auto';
-  const dbValue = pref === 'auto' ? null : pref;
-  currentProfile.notification_language = dbValue;
-  updateNotificationLanguageSegmentUI();
-  try {
-    const { error } = await sb.from(PROFILES_TABLE)
-      .update({ notification_language: dbValue })
-      .eq('id', currentSession.user.id);
-    if (error) throw error;
-  } catch (err) {
-    console.error('Failed to update notification language preference:', err.message);
-    currentProfile.notification_language = prevPref === 'auto' ? null : prevPref;
-    updateNotificationLanguageSegmentUI();
-    toast(t('settingsSaveFailed'), 'error');
-  }
-}
-
 // Heuristic country -> language mapping for auto-detect. Only used when the
 // target language actually has a file loaded (see countryCodeToLang); a
 // detected language we don't have yet just falls back to English rather
@@ -3305,16 +3272,6 @@ function applyLang(){
   if (nearbyCheckinBtnNormalEl) nearbyCheckinBtnNormalEl.textContent = t('nearbyCheckinFreqNormal');
   const nearbyCheckinBtnHighEl = document.getElementById('nearbyCheckinBtnHigh');
   if (nearbyCheckinBtnHighEl) nearbyCheckinBtnHighEl.textContent = t('nearbyCheckinFreqHigh');
-  const notifLangTitleEl = document.getElementById('notificationLanguageSectionTitle');
-  if (notifLangTitleEl) notifLangTitleEl.textContent = t('notificationLanguageSectionTitle');
-  const notifLangHintEl = document.getElementById('notificationLanguageSectionHint');
-  if (notifLangHintEl) notifLangHintEl.textContent = t('notificationLanguageSectionHint');
-  const notifLangBtnAutoEl = document.getElementById('notificationLanguageBtnAuto');
-  if (notifLangBtnAutoEl) notifLangBtnAutoEl.textContent = t('notificationLanguageAuto');
-  const notifLangBtnEnEl = document.getElementById('notificationLanguageBtnEn');
-  if (notifLangBtnEnEl) notifLangBtnEnEl.textContent = t('notificationLanguageEn');
-  const notifLangBtnSrEl = document.getElementById('notificationLanguageBtnSr');
-  if (notifLangBtnSrEl) notifLangBtnSrEl.textContent = t('notificationLanguageSr');
   document.getElementById('mainMapCompass').title = t('mainCompassTitle');
   updateCommentPlaceholder();
   document.getElementById('dateRangePicker').placeholder  = t('calendarPH');
@@ -3540,7 +3497,6 @@ function showSettingsModal() {
   initMapButtonToggleUi();
   updateNearbyCheckinSegmentUI();
   updateContactReminderSegmentUI();
-  updateNotificationLanguageSegmentUI();
   initOfflineMapSettingsUi();
   syncPushToggleUi();
   renderNotifTypeToggles();
