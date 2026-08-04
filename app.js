@@ -9485,6 +9485,16 @@ const REPORT_PHOTO_JPEG_QUALITY = 0.72;
 const REPORT_PHOTO_MAX_INPUT_BYTES = 15 * 1024 * 1024;
 const REPORT_PHOTO_SIGNED_URL_TTL = 300;
 
+// Small transformed size used anywhere we show a photo as a list/queue
+// thumbnail rather than the full image. Keeps repeated list refreshes
+// (e.g. the 15s admin waiting-list poll) from re-downloading full-size
+// photos for a tiny thumb.
+const REPORT_PHOTO_THUMB_TRANSFORM = { width: 160, height: 160, resize: 'cover' };
+// How long a thumb signed URL stays valid — deliberately much longer than
+// the 15s waiting-list refresh interval, so that loop reuses the same URL
+// (and the browser's own HTTP cache) instead of re-signing every tick.
+const REPORT_PHOTO_THUMB_URL_TTL = 900;
+
 let pendingReportPhotoBlob = null;
 let pendingReportPhotoPreviewUrl = null;
 
@@ -9695,13 +9705,13 @@ async function renderReportGallery(reportId) {
       </div>
     </div>`).join('');
   photos.forEach(p => {
-    getReportPhotoSignedUrl(p.photo_path).then(url => {
+    getReportPhotoSignedUrl(p.photo_path, null, 'thumb').then(url => {
       const item = document.getElementById(`gallery-item-${p.id}`);
       if (!item) return;
       const canDelete = !!currentSession && (currentSession.user.id === p.uploader_id || (currentProfile && currentProfile.is_admin));
       const deleteBtn = canDelete ? `<button type="button" class="detail-gallery-delete" onclick="deleteGalleryPhoto('${p.id}','${escapeHtml(p.photo_path)}','${reportId}')" aria-label="${t('deleteBtn')}" title="${t('deleteBtn')}">✕</button>` : '';
       const thumbHtml = url
-        ? `<img src="${url}" alt="${t('photoViewFullSize')}" class="detail-gallery-thumb" role="button" tabindex="0" onclick="window.open('${url}','_blank')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.open('${url}','_blank');}">${deleteBtn}`
+        ? `<img src="${url}" alt="${t('photoViewFullSize')}" class="detail-gallery-thumb" role="button" tabindex="0" onclick="openFullSizeReportPhoto('${escapeHtml(p.photo_path)}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openFullSizeReportPhoto('${escapeHtml(p.photo_path)}');}">${deleteBtn}`
         : `<div class="detail-empty">${t('photoLoadFailed')}</div>`;
       const caption = item.querySelector('.detail-gallery-caption');
       item.innerHTML = thumbHtml + (caption ? caption.outerHTML : '');
@@ -9804,16 +9814,40 @@ function refreshReportViews(reportId) {
   }
 }
 
-async function getReportPhotoSignedUrl(path, ttlSeconds) {
+// Cache of already-signed photo URLs, keyed by path+variant, so that
+// repeated renders (list re-renders, polling refreshes, re-opening the
+// same modal) reuse an existing URL instead of asking Storage to sign a
+// new one — which would also force the browser to re-download the image,
+// since a fresh signed URL always has a different token/cache key.
+const reportPhotoUrlCache = new Map();
+
+async function getReportPhotoSignedUrl(path, ttlSeconds, variant) {
   if (!path) return null;
+  const ttl = ttlSeconds || (variant === 'thumb' ? REPORT_PHOTO_THUMB_URL_TTL : REPORT_PHOTO_SIGNED_URL_TTL);
+  const cacheKey = `${path}::${variant || 'full'}`;
+  const cached = reportPhotoUrlCache.get(cacheKey);
+  const now = Date.now();
+  // Reuse the cached URL until shortly before it actually expires.
+  if (cached && cached.expiresAt - now > 15000) return cached.url;
   try {
-    const { data, error } = await sb.storage.from(REPORT_PHOTO_BUCKET).createSignedUrl(path, ttlSeconds || REPORT_PHOTO_SIGNED_URL_TTL);
+    const signOptions = variant === 'thumb' ? { transform: REPORT_PHOTO_THUMB_TRANSFORM } : undefined;
+    const { data, error } = await sb.storage.from(REPORT_PHOTO_BUCKET).createSignedUrl(path, ttl, signOptions);
     if (error) throw error;
-    return data && data.signedUrl;
+    const url = data && data.signedUrl;
+    if (url) reportPhotoUrlCache.set(cacheKey, { url, expiresAt: now + ttl * 1000 });
+    return url;
   } catch (err) {
     console.error('Failed to sign photo URL:', err.message || err);
     return null;
   }
+}
+
+// Used by thumbnail images (which load a small transformed variant) to
+// fetch the full-size signed URL only when the user actually clicks
+// through to view it at full resolution.
+async function openFullSizeReportPhoto(path) {
+  const url = await getReportPhotoSignedUrl(path);
+  if (url) window.open(url, '_blank');
 }
 
 function resetReportingForm() {
@@ -12483,20 +12517,22 @@ function renderWaitingListInto(containerId) {
 
   filtered.forEach(item => {
     if (item.reasons.includes('photo')) {
-      getReportPhotoSignedUrl(item.report.photo_path).then(url => {
+      const path = item.report.photo_path;
+      getReportPhotoSignedUrl(path, null, 'thumb').then(url => {
         const thumb = document.getElementById('photo-review-thumb-' + containerId + '-' + item.report.id);
         if (!thumb) return;
         thumb.innerHTML = url
-          ? `<img src="${url}" alt="${t('photoViewFullSize')}" role="button" tabindex="0" onclick="window.open('${url}','_blank')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.open('${url}','_blank');}">`
+          ? `<img src="${url}" alt="${t('photoViewFullSize')}" role="button" tabindex="0" onclick="openFullSizeReportPhoto('${escapeHtml(path)}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openFullSizeReportPhoto('${escapeHtml(path)}');}">`
           : `<div class="detail-empty">${t('photoLoadFailed')}</div>`;
       });
     }
     if (item.reasons.includes('after_photo')) {
-      getReportPhotoSignedUrl(item.report.after_photo_path).then(url => {
+      const path = item.report.after_photo_path;
+      getReportPhotoSignedUrl(path, null, 'thumb').then(url => {
         const thumb = document.getElementById('after-photo-review-thumb-' + containerId + '-' + item.report.id);
         if (!thumb) return;
         thumb.innerHTML = url
-          ? `<img src="${url}" alt="${t('photoViewFullSize')}" role="button" tabindex="0" onclick="window.open('${url}','_blank')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.open('${url}','_blank');}">`
+          ? `<img src="${url}" alt="${t('photoViewFullSize')}" role="button" tabindex="0" onclick="openFullSizeReportPhoto('${escapeHtml(path)}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openFullSizeReportPhoto('${escapeHtml(path)}');}">`
           : `<div class="detail-empty">${t('photoLoadFailed')}</div>`;
       });
     }
