@@ -2952,7 +2952,9 @@ input.uc-country-search-input{
 .detail-gallery-thumb{ width:88px; height:88px; object-fit:cover; border-radius:var(--radius-md); display:block; cursor:pointer; background:var(--bg-surface-alt); }
 .detail-gallery-thumb:focus-visible,
 .detail-photo-img:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
-.detail-gallery-caption{ font-size:var(--fs-9-5); color:var(--text-muted); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.detail-gallery-caption{ margin-top:3px; }
+.detail-gallery-caption-name{ font-size:var(--fs-9-5); color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.detail-gallery-caption-date{ font-size:var(--fs-9-5); color:var(--text-muted); opacity:.7; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .detail-gallery-delete{
   position:absolute; top:3px; right:3px;
   width:20px; height:20px; border-radius:50%;

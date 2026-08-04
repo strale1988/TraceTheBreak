@@ -1723,8 +1723,7 @@ function renderUserNotifications() {
     return `
     <div class="notification-item${n.is_read ? '' : ' unread'}"${clickable ? ` onclick="openNotificationReportTarget('${reportId}')" style="cursor:pointer;"` : ''}>
       <div class="notification-item-top">
-        <span class="notification-item-sender">${escapeHtml(n.sender_username || t('detailUnknown'))}</span>
-        ${n.notif_type === 'admin_message' ? `<span class="notification-item-admin-tag">${t('notificationAdminTag')}</span>` : ''}
+        <span class="notification-item-sender">${escapeHtml(n.notif_type === 'admin_message' ? t('notificationAdminTag') : (n.sender_username || t('detailUnknown')))}</span>
         ${n.is_read ? '' : '<span class="notification-item-dot"></span>'}
       </div>
       <div class="notification-item-message">${escapeHtml(n.message)}</div>
@@ -2799,6 +2798,7 @@ const EUROPEAN_LANGUAGES = [
   { code: 'bs', nativeName: 'Bosanski' },
   { code: 'bg', nativeName: 'Български' },
   { code: 'ca', nativeName: 'Català' },
+  { code: 'cnr', nativeName: 'Crnogorski' },
   { code: 'hr', nativeName: 'Hrvatski' },
   { code: 'cs', nativeName: 'Čeština' },
   { code: 'da', nativeName: 'Dansk' },
@@ -2819,7 +2819,7 @@ const EUROPEAN_LANGUAGES = [
   { code: 'lb', nativeName: 'Lëtzebuergesch' },
   { code: 'mk', nativeName: 'Македонски' },
   { code: 'mt', nativeName: 'Malti' },
-  { code: 'nb', nativeName: 'Norsk' },
+  { code: 'no', nativeName: 'Norsk' },
   { code: 'pl', nativeName: 'Polski' },
   { code: 'pt', nativeName: 'Português' },
   { code: 'ro', nativeName: 'Română' },
@@ -9919,7 +9919,10 @@ async function renderReportGallery(reportId) {
   strip.innerHTML = photos.map(p => `
     <div class="detail-gallery-item" id="gallery-item-${p.id}">
       <div class="detail-loading" style="width:88px;height:88px;display:flex;align-items:center;justify-content:center;">${t('detailLoading')}</div>
-      <div class="detail-gallery-caption">${escapeHtml(p.uploader_username || t('detailUnknown'))}</div>
+      <div class="detail-gallery-caption">
+        <div class="detail-gallery-caption-name">${escapeHtml(p.uploader_username || t('detailUnknown'))}</div>
+        <div class="detail-gallery-caption-date">${formatDate(p.created_at)}</div>
+      </div>
     </div>`).join('');
   photos.forEach(p => {
     getReportPhotoSignedUrl(p.photo_path).then(url => {
@@ -9989,6 +9992,33 @@ async function maybeOfferAfterPhoto(reportId) {
   const isAdmin = !!(currentProfile && currentProfile.is_admin);
   if (!isOwner && !isAdmin) return;
   if (await themedConfirm(t('afterPhotoPrompt'))) addAfterPhotoToReport(reportId);
+}
+
+// Shows an "aging, no activity" badge on a report's Details view when it's
+// still in the 'reported' state, was created 30+ days ago, and nobody has
+// contacted a utility about it or voted on its status since. This used to
+// be surfaced as a standing entry in the admin notifications feed; now it's
+// only computed on demand for whichever report is currently open.
+async function renderStaleBadgeForDetail(report) {
+  const badge = document.getElementById('detailStaleBadge-' + report.id);
+  if (!badge) return;
+  if (report.status !== 'reported') return;
+  const ageMs = Date.now() - new Date(report.created_at).getTime();
+  if (ageMs < STALE_REPORT_DAYS * 24 * 60 * 60 * 1000) return;
+  try {
+    const [contactRes, voteRes] = await Promise.all([
+      sb.from(REPORT_CONTACT_EVENTS_TABLE).select('report_id').eq('report_id', report.id).limit(1),
+      sb.from('report_status_vote_progress').select('report_id').eq('report_id', report.id).limit(1)
+    ]);
+    if (contactRes.error) throw contactRes.error;
+    if (voteRes.error) throw voteRes.error;
+    const touched = (contactRes.data && contactRes.data.length) || (voteRes.data && voteRes.data.length);
+    if (touched) return;
+    const stillOpen = document.getElementById('detailStaleBadge-' + report.id);
+    if (stillOpen) stillOpen.innerHTML = ` <span class="photo-status-badge" style="background:var(--accent);">${escapeHtml(t('queueTypeStale'))}</span>`;
+  } catch (err) {
+    console.error('Failed to check report staleness:', err.message || err);
+  }
 }
 
 function refreshReportViews(reportId) {
@@ -12583,37 +12613,12 @@ async function loadWaitingListAdmin() {
     console.error('Failed to load report flags:', err.message);
   }
 
-  try {
-    const staleBefore = new Date(Date.now() - STALE_REPORT_DAYS * 24 * 60 * 60 * 1000).toISOString();
-    const { data: staleCandidates, error: staleErr } = await sb.from(TABLE).select('*')
-      .eq('status', 'reported')
-      .lt('created_at', staleBefore)
-      .order('created_at', { ascending: true })
-      .limit(WAITING_LIST_FETCH_LIMIT);
-    if (staleErr) throw staleErr;
-    if (staleCandidates && staleCandidates.length) {
-      const ids = staleCandidates.map(r => r.id);
-      const [contactRes, voteRes] = await Promise.all([
-        sb.from(REPORT_CONTACT_EVENTS_TABLE).select('report_id').in('report_id', ids),
-        sb.from('report_status_vote_progress').select('report_id').in('report_id', ids)
-      ]);
-      if (contactRes.error) throw contactRes.error;
-      if (voteRes.error) throw voteRes.error;
-      const touchedIds = new Set([
-        ...(contactRes.data || []).map(r => r.report_id),
-        ...(voteRes.data || []).map(r => r.report_id)
-      ]);
-      staleCandidates
-        .filter(r => !touchedIds.has(r.id))
-        .slice(0, WAITING_LIST_FETCH_LIMIT)
-        .forEach(r => addReason(r, 'stale', r.created_at));
-    }
-  } catch (err) {
-    console.error('Failed to load stale reports:', err.message);
-  }
+  // Aging/no-activity reports used to be surfaced here too (reason: 'stale'),
+  // but that cluttered the notifications feed. That signal now lives on the
+  // report's own Details view instead — see renderStaleBadgeForDetail().
 
   waitingListCache = Array.from(items.values())
-    .filter(item => item.reasons.includes('photo') || item.reasons.includes('after_photo') || item.reasons.includes('user_flag') || item.reasons.includes('stale') || hasFullPowerOverReport(item.report))
+    .filter(item => item.reasons.includes('photo') || item.reasons.includes('after_photo') || item.reasons.includes('user_flag') || hasFullPowerOverReport(item.report))
     .sort((a, b) => a.waitingSince - b.waitingSince)
     .slice(0, WAITING_LIST_DISPLAY_LIMIT);
   renderWaitingList();
@@ -12645,7 +12650,7 @@ function reportSummaryTitle(r) {
     : translateCategory(r.category);
 }
 
-const WAITING_REASON_LABEL = { photo: 'queueTypePhoto', after_photo: 'queueTypeAfterPhoto', rejected_photo: 'flagReasonRejectedPhoto', user_flag: 'reportFlagsSectionTitle', stale: 'queueTypeStale' };
+const WAITING_REASON_LABEL = { photo: 'queueTypePhoto', after_photo: 'queueTypeAfterPhoto', rejected_photo: 'flagReasonRejectedPhoto', user_flag: 'reportFlagsSectionTitle' };
 
 const WAITING_LIST_CONTAINER_IDS = ['notificationWaitingList'];
 
@@ -14187,6 +14192,7 @@ async function showReportDetailModal(reportId) {
   }
 
   renderReportGallery(report.id);
+  renderStaleBadgeForDetail(report);
 
   fetchAddressForPoint(report.latitude, report.longitude).then(addr => {
     const streetEl = document.getElementById('detailStreetValue');
@@ -15418,7 +15424,7 @@ function buildDetailStatusReadonlyHtml(report, reporterName) {
         <button type="button" class="detail-delete-btn" onclick="deleteReport('${report.id}')"><img class="icon-img" src="icons/reports/waste.png" alt="">${t('deleteBtn')}</button>
       </div>` : (isOwner && wasSentToCompany ? `<p class="detail-export-hint" style="margin:0; text-align:right;">${t('deleteLockedAfterSentNote')}</p>` : ''))}
     </div>
-    <div class="detail-row"><span class="detail-row-label">${t('popupStatus')}</span><span class="status-pill" style="background:${statusColor(report.status)};">${statusLabel(report.status)}</span></div>
+    <div class="detail-row"><span class="detail-row-label">${t('popupStatus')}</span><span class="status-pill" style="background:${statusColor(report.status)};">${statusLabel(report.status)}</span><span id="detailStaleBadge-${report.id}"></span></div>
     <div class="detail-row"><span class="detail-row-label">${t('priorityLabel')}</span><span class="status-pill" style="background:${priorityColor(report.priority)};">${priorityLabelText(report.priority)}</span></div>
     <div class="detail-row"><span class="detail-row-label">${t('reportedByLabel')}</span><span class="detail-row-value">${escapeHtml(reporterName)}</span>${reporterBanControlHtml(report)}</div>
     ${(() => { const g = duplicateGroupFor(report.id); return g ? `<div class="detail-row"><span class="detail-row-label">✓</span><span class="detail-row-value">${t('confirmedByLabel').replace('{n}', g.count)}</span></div>` : ''; })()}
