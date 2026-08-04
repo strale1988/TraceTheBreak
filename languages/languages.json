@@ -1,35 +1,7 @@
 [
   {
-    "code": "en",
-    "nativeName": "English"
-  },
-  {
-    "code": "sr-Lat",
-    "nativeName": "Srpski"
-  },
-  {
-    "code": "sr-Cyrl",
-    "nativeName": "Српски (ћирилица)"
-  },
-  {
-    "code": "sq",
-    "nativeName": "Shqip"
-  },
-  {
-    "code": "eu",
-    "nativeName": "Euskara"
-  },
-  {
-    "code": "be",
-    "nativeName": "Беларуская"
-  },
-  {
     "code": "bs",
     "nativeName": "Bosanski"
-  },
-  {
-    "code": "bg",
-    "nativeName": "Български"
   },
   {
     "code": "ca",
@@ -40,60 +12,48 @@
     "nativeName": "Crnogorski"
   },
   {
-    "code": "hr",
-    "nativeName": "Hrvatski"
-  },
-  {
-    "code": "cs",
-    "nativeName": "Čeština"
+    "code": "cy",
+    "nativeName": "Cymraeg"
   },
   {
     "code": "da",
     "nativeName": "Dansk"
   },
   {
-    "code": "nl",
-    "nativeName": "Nederlands"
+    "code": "de",
+    "nativeName": "Deutsch"
   },
   {
     "code": "et",
     "nativeName": "Eesti"
   },
   {
-    "code": "fi",
-    "nativeName": "Suomi"
+    "code": "en",
+    "nativeName": "English"
+  },
+  {
+    "code": "es",
+    "nativeName": "Español"
+  },
+  {
+    "code": "eu",
+    "nativeName": "Euskara"
   },
   {
     "code": "fr",
     "nativeName": "Français"
   },
   {
+    "code": "ga",
+    "nativeName": "Gaeilge"
+  },
+  {
     "code": "gl",
     "nativeName": "Galego"
   },
   {
-    "code": "ka",
-    "nativeName": "ქართული"
-  },
-  {
-    "code": "de",
-    "nativeName": "Deutsch"
-  },
-  {
-    "code": "el",
-    "nativeName": "Ελληνικά"
-  },
-  {
-    "code": "hu",
-    "nativeName": "Magyar"
-  },
-  {
-    "code": "is",
-    "nativeName": "Íslenska"
-  },
-  {
-    "code": "ga",
-    "nativeName": "Gaeilge"
+    "code": "hr",
+    "nativeName": "Hrvatski"
   },
   {
     "code": "it",
@@ -112,12 +72,16 @@
     "nativeName": "Lëtzebuergesch"
   },
   {
-    "code": "mk",
-    "nativeName": "Македонски"
+    "code": "hu",
+    "nativeName": "Magyar"
   },
   {
     "code": "mt",
     "nativeName": "Malti"
+  },
+  {
+    "code": "nl",
+    "nativeName": "Nederlands"
   },
   {
     "code": "no",
@@ -136,8 +100,8 @@
     "nativeName": "Română"
   },
   {
-    "code": "ru",
-    "nativeName": "Русский"
+    "code": "sq",
+    "nativeName": "Shqip"
   },
   {
     "code": "sk",
@@ -148,8 +112,12 @@
     "nativeName": "Slovenščina"
   },
   {
-    "code": "es",
-    "nativeName": "Español"
+    "code": "sr-Lat",
+    "nativeName": "Srpski (latinica)"
+  },
+  {
+    "code": "fi",
+    "nativeName": "Suomi"
   },
   {
     "code": "sv",
@@ -160,11 +128,43 @@
     "nativeName": "Türkçe"
   },
   {
+    "code": "is",
+    "nativeName": "Íslenska"
+  },
+  {
+    "code": "cs",
+    "nativeName": "Čeština"
+  },
+  {
+    "code": "el",
+    "nativeName": "Ελληνικά"
+  },
+  {
+    "code": "be",
+    "nativeName": "Беларуская"
+  },
+  {
+    "code": "bg",
+    "nativeName": "Български"
+  },
+  {
+    "code": "mk",
+    "nativeName": "Македонски"
+  },
+  {
+    "code": "ru",
+    "nativeName": "Русский"
+  },
+  {
+    "code": "sr-Cyrl",
+    "nativeName": "Српски (ћирилица)"
+  },
+  {
     "code": "uk",
     "nativeName": "Українська"
   },
   {
-    "code": "cy",
-    "nativeName": "Cymraeg"
+    "code": "ka",
+    "nativeName": "ქართული"
   }
 ]
