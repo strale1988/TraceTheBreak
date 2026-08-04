@@ -130,7 +130,7 @@ function showTesterModeToast() {
   const now = Date.now();
   if (now - testerModeToastShownAt < 1200) return;
   testerModeToastShownAt = now;
-  try { toast('🧪 ' + (t('testerModeActionSimulated') || 'Tester mode — nothing saved'), 'success'); } catch (e) {}
+  try { toast('🧪 ' + (t('testerModeActionSimulated') || 'Tester mode (nothing saved)'), 'success'); } catch (e) {}
 }
 
 function ensureTesterModeBanner() {
@@ -140,7 +140,7 @@ function ensureTesterModeBanner() {
       el = document.createElement('div');
       el.id = 'testerModeBanner';
       el.style.cssText = 'position:fixed; top:0; left:0; right:0; z-index:99999; background:#5847e6; color:#fff; text-align:center; font-size:12.5px; font-weight:600; padding:6px 10px; box-shadow:0 2px 6px rgba(0,0,0,.25);';
-      el.textContent = '🧪 Tester mode — nothing you do here is saved for real';
+      el.textContent = '🧪 Tester mode (nothing you do here is saved for real)';
       document.body.appendChild(el);
     }
   } else if (el) {
@@ -2867,7 +2867,7 @@ const T = {
   accountDangerSectionTitle: { en:'Account', sr:'Nalog' },
   deleteAccountHint: { en:'Delete your account and personal data. An admin will review your request. Your existing reports stay visible to help the community, but are no longer linked to your username.', sr:'Obrišite svoj nalog i lične podatke. Administrator će pregledati vaš zahtev. Vaše postojeće prijave ostaju vidljive radi koristi zajednice, ali više nisu povezane sa vašim korisničkim imenom.' },
   deleteAccountBtn: { en:'Delete my account', sr:'Obriši moj nalog' },
-  deleteAccountConfirmMessage: { en:'This sends a deletion request to an admin for review. Your account will be deleted once they confirm it — this cannot be undone at that point. Your reports will stay on the map but will no longer show your username. Continue?', sr:'Ovo šalje zahtev za brisanje administratoru na pregled. Vaš nalog će biti obrisan kada ga administrator potvrdi — u tom trenutku se to više ne može poništiti. Vaše prijave ostaju na mapi, ali više neće prikazivati vaše korisničko ime. Nastaviti?' },
+  deleteAccountConfirmMessage: { en:'This sends a deletion request to an admin for review. Your account will be deleted once they confirm it (this cannot be undone at that point). Your reports will stay on the map but will no longer show your username. Continue?', sr:'Ovo šalje zahtev za brisanje administratoru na pregled. Vaš nalog će biti obrisan kada ga administrator potvrdi (u tom trenutku se to više ne može poništiti). Vaše prijave ostaju na mapi, ali više neće prikazivati vaše korisničko ime. Nastaviti?' },
   deleteAccountConfirmOk: { en:'Request deletion', sr:'Zatraži brisanje' },
   deleteAccountRequestSuccess: { en:'Deletion request sent. An admin will review it soon.', sr:'Zahtev za brisanje je poslat. Administrator će ga uskoro pregledati.' },
   deleteAccountPendingHint: { en:'Your account deletion request is pending admin review.', sr:'Vaš zahtev za brisanje naloga čeka pregled administratora.' },
@@ -2875,7 +2875,7 @@ const T = {
   cancelDeletionBtn: { en:'Cancel request', sr:'Otkaži zahtev' },
   deleteAccountCancelSuccess: { en:'Deletion request cancelled.', sr:'Zahtev za brisanje je otkazan.' },
   deleteAccountError: { en:'Something went wrong. Please try again or contact support.', sr:'Nešto nije u redu. Pokušajte ponovo ili kontaktirajte podršku.' },
-  accountReactivatedToast: { en:'Welcome back — your account is active again.', sr:'Dobrodošli nazad — vaš nalog je ponovo aktivan.' },
+  accountReactivatedToast: { en:'Welcome back! Your account is active again.', sr:'Dobrodošli nazad! Vaš nalog je ponovo aktivan.' },
   accountRequestsPendingTitle: { en:'Pending deletion requests', sr:'Zahtevi za brisanje na čekanju' },
   accountRequestsDormantTitle: { en:'Dormant accounts', sr:'Neaktivni nalozi' },
   accountRequestsEmpty: { en:'Nothing here right now.', sr:'Trenutno nema ničega ovde.' },
@@ -3064,7 +3064,7 @@ const T = {
   dashboardQuestHistoryEmpty:{ en:'No completed quests yet.', sr:'Još nema završenih izazova.' },
   dashboardQuestHistoryError:{ en:'Could not load quest history.', sr:'Istorija izazova nije mogla da se učita.' },
   dashboardQuestsLoadError:  { en:"Couldn't load quests.", sr:'Izazovi nisu mogli da se učitaju.' },
-  dashboardQuestsRefreshFailed: { en:"Couldn't refresh quests — showing last known progress.", sr:'Izazovi nisu mogli da se osveže — prikazuje se poslednje poznato stanje.' },
+  dashboardQuestsRefreshFailed: { en:"Couldn't refresh quests (showing last known progress).", sr:'Izazovi nisu mogli da se osveže (prikazuje se poslednje poznato stanje).' },
   dashboardStreakLoadError: { en:"Couldn't load your streak.", sr:'Niz nije mogao da se učita.' },
   retryBtn:                  { en:'Retry',              sr:'Pokušaj ponovo' },
   adminDashboardActivityTitle:   { en:'Moderation Stats',        sr:'Statistika moderacije' },
@@ -3075,7 +3075,7 @@ const T = {
   adminDashboardStatNight:       { en:'Night shift resolves',    sr:'Noćna rešenja' },
   adminDigestHistoryTitle:    { en:'Weekly Digest History',   sr:'Istorija nedeljnih izveštaja' },
   adminDigestHistoryLoading:  { en:'Loading digest history...', sr:'Učitavanje istorije izveštaja...' },
-  adminDigestHistoryEmpty:    { en:"No digest has gone out yet — you'll see them here once the weekly send starts.", sr:'Još nijedan izveštaj nije poslat — pojaviće se ovde čim počne nedeljno slanje.' },
+  adminDigestHistoryEmpty:    { en:"No digest has gone out yet (you'll see them here once the weekly send starts).", sr:'Još nijedan izveštaj nije poslat (pojaviće se ovde čim počne nedeljno slanje).' },
   adminDigestHistoryError:    { en:'Could not load digest history.', sr:'Istorija izveštaja nije mogla da se učita.' },
   adminDigestStatusSent:      { en:'Sent',                    sr:'Poslato' },
   adminDigestStatusSkipped:   { en:'No open reports',         sr:'Nema otvorenih prijava' },
@@ -3105,7 +3105,7 @@ const T = {
   companyNotifyNotYet:        { en:'Not sent yet',                                          sr:'Još nije poslato' },
   companyLastReminderLabel:   { en:'Last reminder sent',                                    sr:'Poslednji podsetnik poslat' },
   companyNotifyReminderNote:  { en:'A reminder is automatically re-sent every 7 days until this is fixed.', sr:'Podsetnik se automatski ponovo šalje svakih 7 dana dok se ne reši.' },
-  testerModeActionSimulated:  { en:'Tester mode — nothing saved',                           sr:'Test režim — ništa nije sačuvano' },
+  testerModeActionSimulated:  { en:'Tester mode (nothing saved)',                           sr:'Test režim (ništa nije sačuvano)' },
   deleteLockedAfterSentNote:  { en:'This report has already been sent to the utility company, so it can no longer be deleted.', sr:'Ova prijava je već poslata nadležnoj kompaniji, pa se više ne može obrisati.' },
   deleteBtn:     { en:'Delete',                                    sr:'Obriši' },
   saveBtn:       { en:'Save',                                      sr:'Sačuvaj' },
@@ -3459,7 +3459,7 @@ const T = {
   notificationScopeContinent:{ en:'Sends to users located in {scope}, or with a saved alert area there.', sr:'Šalje se korisnicima koji se nalaze u {scope}, ili imaju sačuvano područje upozorenja tamo.' },
   notificationScopeCountry:  { en:'Sends to users located in {scope}, or with a saved alert area there.', sr:'Šalje se korisnicima koji se nalaze u {scope}, ili imaju sačuvano područje upozorenja tamo.' },
   notificationScopeMuni:     { en:'Sends to users located in {scope}, or with a saved alert area there.', sr:'Šalje se korisnicima koji se nalaze u {scope}, ili imaju sačuvano područje upozorenja tamo.' },
-  notificationScopeUnset:    { en:'Your admin scope isn\'t set yet — ask a global admin to assign one before broadcasting.', sr:'Vaš administratorski opseg još nije podešen — zamolite globalnog administratora da vam ga dodeli pre slanja.' },
+  notificationScopeUnset:    { en:'Your admin scope isn\'t set yet (ask a global admin to assign one before broadcasting).', sr:'Vaš administratorski opseg još nije podešen (zamolite globalnog administratora da vam ga dodeli pre slanja).' },
   notificationScopeCount:    { en:' (~{count} users)', sr:' (~{count} korisnika)' },
   notificationInboxSectionTitle:{ en:'Your notifications',              sr:'Vaša obaveštenja' },
   notificationsEmpty:     { en:'No notifications yet.',                 sr:'Još nema obaveštenja.' },
@@ -3506,7 +3506,7 @@ const T = {
   onboardingStepNotifTitle:       { en:'Stay in the loop',                                   sr:'Budi u toku' },
   onboardingStepNotifText:        { en:'Get notified here when the status of your report changes (like when your issue gets fixed).', sr:'Ovde dobijaš obaveštenje kad se status tvoje prijave promeni (na primer kad tvoj problem bude rešen).' },
   onboardingStepNavTitle:         { en:'Driving, biking & walking mode',                     sr:'Režim vožnje, bicikla i hodanja' },
-  onboardingStepNavText:          { en:'Turn this on to navigate by car, bike, or foot — tap again to cycle between them — and quickly report road issues (potholes, damaged pavement, signage) with one big tap along the way.', sr:'Uključi ovo da navigiraš autom, biciklom ili peške — ponovnim dodirom menjaš režim — i brzo prijaviš probleme na putu (rupe, oštećen kolovoz, signalizaciju) jednim dodirom velikog dugmeta usput.' },
+  onboardingStepNavText:          { en:'Turn this on to navigate by car, bike, or foot (tap again to cycle between them), and quickly report road issues (potholes, damaged pavement, signage) with one big tap along the way.', sr:'Uključi ovo da navigiraš autom, biciklom ili peške (ponovnim dodirom menjaš režim), i brzo prijaviš probleme na putu (rupe, oštećen kolovoz, signalizaciju) jednim dodirom velikog dugmeta usput.' },
   onboardingStepLeaderboardTitle: { en:'Your dashboard',                                     sr:'Tvoja kontrolna tabla' },
   onboardingStepLeaderboardText:  { en:'Track your own reports and stats here.',              sr:'Prati svoje prijave i statistiku ovde.' },
   onboardingNextBtn:              { en:'Next',                                               sr:'Dalje' },
