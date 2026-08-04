@@ -8988,14 +8988,18 @@ function openOverlay(key, closeFn) {
   if (wasEmpty) cancelAutoRefollowTimer();
   setupModalA11y(key);
 }
-function closeOverlay(key) {
+function closeOverlay(key, extraHistorySteps) {
   const idx = overlayStack.findIndex(o => o.key === key);
   if (idx === -1) return;
   const entry = overlayStack[idx];
   overlayStack.splice(idx, 1);
   if (!suppressOverlayPopstate) {
     closingViaOverlayStack = true;
-    history.back();
+    if (extraHistorySteps > 0) {
+      history.go(-(extraHistorySteps + 1));
+    } else {
+      history.back();
+    }
   }
 
   if (overlayStack.length === 0) scheduleAutoRefollow();
@@ -9007,6 +9011,21 @@ function closeOverlay(key) {
   }
 }
 window.addEventListener('popstate', () => {
+  if (wizSuppressPopstate) {
+    wizSuppressPopstate = false;
+    return;
+  }
+  // A wizard step-forward pushed this entry (see wizAdvance), so unwinding it
+  // is just "go back one step and re-render" -- no need to touch overlayStack
+  // at all, since the wizard's own single entry there still represents the
+  // modal as a whole and was never popped for these in-between steps.
+  const wizardEl = document.getElementById('reportWizard');
+  if (wizardEl && wizardEl.style.display !== 'none' && wizHistoryDepth > 0) {
+    wizHistoryDepth -= 1;
+    wizState.step -= 1;
+    wizRender();
+    return;
+  }
   if (closingViaOverlayStack) {
     closingViaOverlayStack = false;
     return;
@@ -10703,45 +10722,58 @@ function reportFabTap() {
   openReportWizard();
 }
 
+// Each forward step inside the wizard pushes its own history entry (see
+// wizAdvance), so that stepping back through the flow -- one press, one step
+// -- is handled by the browser's own history mechanics rather than by us
+// racing to re-push a replacement entry from inside the popstate handler
+// itself. wizHistoryDepth tracks how many of those step-entries are
+// currently "open" so the popstate listener (installed further down, near
+// openOverlay/closeOverlay) knows whether an incoming back-press belongs to
+// the wizard or to whatever's underneath it.
+let wizHistoryDepth = 0;
+let wizSuppressPopstate = false;
+
 function openReportWizard() {
   wizState = { steps: wizStepsFor(null), step: 0, category: null, subcategory: null, priority: null, status: null };
+  wizHistoryDepth = 0;
   document.getElementById('reportWizard').style.display = 'flex';
   wizRender();
-  openOverlay('reportWizard', handleWizardHardwareBack);
+  openOverlay('reportWizard', closeReportWizard);
 }
 
 function closeReportWizard() {
   const overlay = document.getElementById('reportWizard');
   if (overlay) overlay.style.display = 'none';
   wizReturnRelocatedNodes();
+  const extraHistorySteps = wizHistoryDepth;
+  wizHistoryDepth = 0;
   if (wizOwnsPinDrop) {
     wizOwnsPinDrop = false;
     resetReportingForm();
   }
-  closeOverlay('reportWizard');
+  closeOverlay('reportWizard', extraHistorySteps);
 }
 
+// On-screen ‹ button. Mirrors whatever wizAdvance() did to get to the current
+// step: if that step's forward move pushed a history entry, undo it with a
+// matching history.back() (suppressed so the resulting popstate doesn't also
+// try to process it) so the browser's back-button count stays in sync with
+// wizState.step no matter which control the person actually taps.
 function wizGoBack() {
   if (wizState.step === 0) { closeReportWizard(); return; }
   wizState.step -= 1;
   wizRender();
-}
-
-// Invoked when the hardware/browser back button is pressed while the wizard is
-// open (via the overlay stack). Unlike wizGoBack() (used by the on-screen ‹
-// button), this fires after the browser has already consumed the history entry
-// tied to the wizard, so if the wizard is still open afterwards (i.e. we only
-// stepped back rather than closing) we push a fresh entry to keep the next
-// back-press catchable too — same "re-arm" pattern used for the base overlay guard.
-function handleWizardHardwareBack() {
-  wizGoBack();
-  if (document.getElementById('reportWizard').style.display !== 'none') {
-    openOverlay('reportWizard', handleWizardHardwareBack);
+  if (wizHistoryDepth > 0) {
+    wizHistoryDepth -= 1;
+    wizSuppressPopstate = true;
+    history.back();
   }
 }
 
 function wizAdvance() {
   wizState.step += 1;
+  wizHistoryDepth += 1;
+  history.pushState({ wizStep: wizState.step }, '');
   wizRender();
 }
 
