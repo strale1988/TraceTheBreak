@@ -3464,6 +3464,7 @@ function applyLang(){
     renderDashboardTab();
   }
   updateProximityUi();
+  loadLegalContent();
 }
 
 function showHelpModal() {
@@ -16465,35 +16466,46 @@ function hideMapLoadingOverlay() {
   }, remaining);
 }
 
-// Legal content (copyright line, Terms of Service, Privacy Policy) is stored in the
-// `legal_content` Supabase table (key -> {en, sr} jsonb) rather than hardcoded here, so it
-// can be edited or translated into new languages without an app redeploy. A small hardcoded
-// fallback is kept below in case the fetch fails or a row/language is missing.
+// Legal content (copyright line, Terms of Service, Privacy Policy) lives in
+// languages/legal/<code>.json — one file per language, terms + policy
+// together in the same file since they're usually translated as a set.
+// Translators work the same way they do for UI strings: copy
+// languages/legal/en.json, translate the three values, save as
+// languages/legal/<code>.json. Falls back to the English legal file (then
+// to the hardcoded strings below) if a translation doesn't exist yet or the
+// fetch fails, so nothing ever renders blank.
 let legalContent = {};
+let legalContentLoadedForLang = null;
 let legalContentModalOpenKey = null;
 
 const LEGAL_CONTENT_FALLBACK = {
-  copyright_footer: { en: '© TraceTheBreak · tracethestuff.com', sr: '© TraceTheBreak · tracethestuff.com' },
-  terms_of_service: { en: 'Terms of Service content is not available right now.', sr: 'Uslovi korišćenja trenutno nisu dostupni.' },
-  privacy_policy:   { en: 'Privacy Policy content is not available right now.', sr: 'Politika privatnosti trenutno nije dostupna.' }
+  copyright_footer: '© TraceTheBreak · tracethestuff.com',
+  terms_of_service: 'Terms of Service content is not available right now.',
+  privacy_policy:   'Privacy Policy content is not available right now.'
 };
 
+async function fetchLegalContentFile(code) {
+  try {
+    const res = await fetch(`languages/legal/${code}.json`, { cache: 'no-store' });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return (data && typeof data === 'object') ? data : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 function legalText(key) {
-  const fromDb = legalContent[key];
-  if (fromDb && (fromDb[lang] || fromDb.en)) return fromDb[lang] || fromDb.en;
-  const fb = LEGAL_CONTENT_FALLBACK[key];
-  return fb ? (fb[lang] || fb.en) : '';
+  if (legalContent[key]) return legalContent[key];
+  return LEGAL_CONTENT_FALLBACK[key] || '';
 }
 
 async function loadLegalContent() {
-  try {
-    const { data, error } = await sb.from('legal_content').select('key, value');
-    if (error) throw error;
-    legalContent = {};
-    (data || []).forEach(row => { legalContent[row.key] = row.value || {}; });
-  } catch (err) {
-    console.error('Failed to load legal content:', err.message || err);
-  }
+  if (legalContentLoadedForLang === lang) { renderLegalCopyrightLine(); return; }
+  let data = await fetchLegalContentFile(lang);
+  if (!data && lang !== DEFAULT_LANG) data = await fetchLegalContentFile(DEFAULT_LANG);
+  legalContent = data || {};
+  legalContentLoadedForLang = lang;
   renderLegalCopyrightLine();
   if (document.getElementById('legalContentModal').style.display !== 'none' && legalContentModalOpenKey) {
     renderLegalContentModalBody(legalContentModalOpenKey);
@@ -16532,7 +16544,6 @@ discoverIconPacks().finally(initIconPackRewrite);
 initTheme();
 initCalendarFilter();
 initLang();
-loadLegalContent();
 
 const INITIAL_LOCATION_ZOOM = 13;
 const INITIAL_LOCATION_FIX_TIMEOUT_MS = 2500;
