@@ -699,7 +699,7 @@ const USER_LEVELS = [
   { level:5, threshold:25, weight:3,   nameEn:'Community Hero',        nameSr:'Heroj zajednice' },
 ];
 
-function levelName(lvl) { return lang === 'sr' ? lvl.nameSr : lvl.nameEn; }
+function levelName(lvl) { return isSerbianLang() ? lvl.nameSr : lvl.nameEn; }
 function levelForPoints(points) {
   let current = USER_LEVELS[0];
   for (const lvl of USER_LEVELS) { if (points >= lvl.threshold) current = lvl; }
@@ -850,8 +850,8 @@ const USER_BADGES_EXTRA = [
     descEn:'Unlock every badge.', descSr:'Otključajte svaku značku.',
     category:'Secret', check: (p, s) => s.allEarned },
 ];
-function badgeName(b) { return lang === 'sr' ? b.nameSr : b.nameEn; }
-function badgeDesc(b) { return lang === 'sr' ? b.descSr : b.descEn; }
+function badgeName(b) { return isSerbianLang() ? b.nameSr : b.nameEn; }
+function badgeDesc(b) { return isSerbianLang() ? b.descSr : b.descEn; }
 function isBadgeEarned(badge, profile, stats) { return !!badge.check(profile, stats); }
 
 function badgeProgressDetail(badge, profile, stats) {
@@ -1063,7 +1063,7 @@ function adminLevelInfo(lvl) { return ADMIN_LEVELS.find(a => a.level === lvl) ||
 function adminLevelName(lvl) {
   const info = adminLevelInfo(lvl);
   if (!info) return '';
-  return lang === 'sr' ? info.nameSr : info.nameEn;
+  return isSerbianLang() ? info.nameSr : info.nameEn;
 }
 
 function currentAdminLevel() {
@@ -1230,7 +1230,7 @@ function adminXpLevelForXp(xp) {
   return cur;
 }
 function nextAdminXpLevel(lvl) { return ADMIN_XP_LEVELS.find(l => l.level === lvl.level + 1) || null; }
-function adminXpLevelName(lvl) { return lang === 'sr' ? lvl.nameSr : lvl.nameEn; }
+function adminXpLevelName(lvl) { return isSerbianLang() ? lvl.nameSr : lvl.nameEn; }
 
 async function getAdminModerationStats() {
   const empty = {
@@ -1969,7 +1969,7 @@ function renderWeeklyChart(elId, breakdown) {
   const el = document.getElementById(elId);
   if (!el) return;
   const counts = breakdown || [0, 0, 0, 0, 0, 0, 0];
-  const labels = lang === 'sr' ? WEEKDAY_LABELS_SR : WEEKDAY_LABELS_EN;
+  const labels = isSerbianLang() ? WEEKDAY_LABELS_SR : WEEKDAY_LABELS_EN;
   const max = Math.max(1, ...counts);
   el.innerHTML = counts.map((c, i) => {
     const pct = Math.max(4, Math.round((c / max) * 100));
@@ -2201,8 +2201,8 @@ function renderDashboardQuests(withPeriods, progressRows, listEl) {
     const target = (rule.config && rule.config.target) || 1;
     const complete = !!row && row.status === 'completed';
     const fraction = target > 0 ? Math.max(0, Math.min(1, count / target)) : 0;
-    const title = (lang === 'sr' ? rule.title_sr : rule.title_en) || rule.key;
-    const desc = lang === 'sr' ? rule.description_sr : rule.description_en;
+    const title = (isSerbianLang() ? rule.title_sr : rule.title_en) || rule.key;
+    const desc = isSerbianLang() ? rule.description_sr : rule.description_en;
 
     return `<div class="dashboard-quest-card${complete ? ' is-complete' : ''}">
       <div class="dashboard-quest-top">
@@ -2272,7 +2272,7 @@ async function loadDashboardQuestHistory() {
       // engagement_rules RLS only lets non-admins read active=true rows, so a
       // retired quest's title/points won't resolve here — fall back to a
       // readable version of the key rather than the raw snake_case string.
-      const title = rule ? (lang === 'sr' ? rule.title_sr : rule.title_en)
+      const title = rule ? (isSerbianLang() ? rule.title_sr : rule.title_en)
         : row.rule_key.replace(/^(weekly|daily)_/, '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
       const points = rule ? rule.points_reward : null;
       return `<div class="dashboard-quest-history-item">
@@ -2811,6 +2811,10 @@ async function loadLanguageManifest() {
     const data = await res.json();
     if (!Array.isArray(data) || !data.length) throw new Error('languages.json empty/invalid');
     EUROPEAN_LANGUAGES = data.filter(l => l && typeof l.code === 'string' && typeof l.nativeName === 'string');
+    // Alphabetical by each language's own native name (locale-aware, so
+    // diacritics like Č/Š/Ž sort next to their base letter rather than at
+    // the end) -- keeps the dropdown ordered without hand-sorting the JSON.
+    EUROPEAN_LANGUAGES.sort((a, b) => a.nativeName.localeCompare(b.nativeName, undefined, { sensitivity: 'base' }));
   } catch (e) {
     console.error('Failed to load languages/languages.json, falling back to English only:', e.message);
     EUROPEAN_LANGUAGES = [{ code: 'en', nativeName: 'English' }];
@@ -2868,6 +2872,15 @@ let globalActiveData = [];
 let activeDataVersion = 0;
 function markActiveDataChanged() { activeDataVersion++; }
 let fp = null;
+
+// Serbian is offered in two scripts (sr-Lat / sr-Cyrl). Anywhere the app
+// falls back to Serbian-language DB columns, date/number locales, TTS, etc.
+// both codes should count as "Serbian" -- plus the legacy 'sr' code some
+// users may still have saved in localStorage from before the split.
+function isSerbianLang(l) {
+  l = l || lang;
+  return l === 'sr' || l === 'sr-Lat' || l === 'sr-Cyrl';
+}
 
 function renderLangSelect() {
   const sel = document.getElementById('langSelect');
@@ -2967,7 +2980,7 @@ async function setShowUsernameOnReports(checked) {
 // than failing. A few multi-lingual countries (e.g. Switzerland, Belgium)
 // are mapped to a single dominant language for simplicity.
 const COUNTRY_TO_LANG = {
-  rs:'sr', me:'sr', ba:'sr',
+  rs:'sr-Lat', me:'sr-Lat', ba:'sr-Lat',
   al:'sq', xk:'sq',
   by:'be',
   bg:'bg',
@@ -3027,7 +3040,7 @@ async function detectLanguageWithoutCoords() {
 
   try {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    if (tz && LANG_AUTO_TIMEZONE_MAP_SR.includes(tz) && AVAILABLE_LANG_CODES.includes('sr')) return 'sr';
+    if (tz && LANG_AUTO_TIMEZONE_MAP_SR.includes(tz) && AVAILABLE_LANG_CODES.includes('sr-Lat')) return 'sr-Lat';
   } catch (err) {
  }
 
@@ -3430,7 +3443,7 @@ function analyticsGroupByArea(rows) {
   const counts = {};
   rows.forEach(r => {
     const muni = r.municipality_id != null ? getMunicipalityById(r.municipality_id) : null;
-    const name = muni ? (lang === 'sr' ? muni.name : (muni.name_en || muni.name)) : (t('analyticsUnknownArea') || 'Unknown area');
+    const name = muni ? (isSerbianLang() ? muni.name : (muni.name_en || muni.name)) : (t('analyticsUnknownArea') || 'Unknown area');
     counts[name] = (counts[name] || 0) + 1;
   });
   return Object.keys(counts).map(key => ({ key, count: counts[key] }))
@@ -3519,7 +3532,7 @@ function initCalendarFilter(optionalDefaultDates) {
     mode: "range",
     theme: "dark",
     dateFormat: "d.m.Y",
-    locale: lang === 'sr' ? flatpickr.l10ns.sr : 'default',
+    locale: isSerbianLang() ? flatpickr.l10ns.sr : 'default',
     defaultDate: initialDates,
     onClose: async function(selectedDates) {
       if (selectedDates.length === 2) await loadPinsByWindow();
@@ -4084,7 +4097,7 @@ const MAP_STYLE_NAV_PREFIX = 'ttb_map_style_nav_';
 function mapStyleName(id) {
   const s = MAP_STYLES[id];
   if (!s) return id;
-  return lang === 'sr' ? s.nameSr : s.nameEn;
+  return isSerbianLang() ? s.nameSr : s.nameEn;
 }
 
 let mapStyleDefault = localStorage.getItem(MAP_STYLE_DEFAULT_KEY) || MAP_STYLE_SMART_DEFAULTS.overview;
@@ -6266,7 +6279,7 @@ function speakNavInstruction(text) {
     // still-speaking older one is stale and shouldn't talk over it.
     window.speechSynthesis.cancel();
     const utter = new SpeechSynthesisUtterance(text);
-    utter.lang = lang === 'sr' ? 'sr-RS' : 'en-US';
+    utter.lang = isSerbianLang() ? 'sr-RS' : 'en-US';
     window.speechSynthesis.speak(utter);
   } catch (err) {
     console.warn('speakNavInstruction failed:', err.message);
@@ -7789,7 +7802,7 @@ function renderQuickSubcategoryTiles(grid, cat, modeKey) {
   const backLabel = t('bikeQuickBack') || 'Back';
   const backTile = `<div class="quick-tile quick-tile-back" onclick="quickGridGoBack('${modeKey}')" title="${backLabel}" aria-label="${backLabel}"><div class="quick-tile-icon" style="-webkit-mask-image:url('icons/arrow.png');mask-image:url('icons/arrow.png');"></div><span class="quick-tile-label">${backLabel}</span></div>`;
   const subTiles = list.map(s => {
-    const subLabel = lang === 'sr' ? s.sr : s.en;
+    const subLabel = isSerbianLang() ? s.sr : s.en;
     const iconFile = icons[s.key];
     const iconHtml = iconFile ? `<div class="quick-tile-icon" style="-webkit-mask-image:url('icons/reports/${iconFile}');mask-image:url('icons/reports/${iconFile}');"></div>` : '';
     return `<div class="quick-tile" style="background:${categoryColor(cat)};" onclick="handleQuickSubcategoryTap('${modeKey}','${cat}','${s.key}')" title="${subLabel}" aria-label="${subLabel}">${iconHtml}<span class="quick-tile-label">${subLabel}</span></div>`;
@@ -9396,7 +9409,7 @@ function subcategoryLabel(cat, subKey) {
   if (!subKey) return '';
   const list = SUBCATEGORIES[cat] || [];
   const found = list.find(s => s.key === subKey);
-  return found ? (lang === 'sr' ? found.sr : found.en) : subKey;
+  return found ? (isSerbianLang() ? found.sr : found.en) : subKey;
 }
 function populateSubcategoryOptions(selectEl, cat, selectedKey) {
   const list = SUBCATEGORIES[cat] || [];
@@ -9406,7 +9419,7 @@ function populateSubcategoryOptions(selectEl, cat, selectedKey) {
   }
   const placeholder = t('subcategoryDetailPlaceholder');
   selectEl.innerHTML = `<option value="">${placeholder}</option>` +
-    list.map(s => `<option value="${s.key}" ${s.key === selectedKey ? 'selected' : ''}>${lang === 'sr' ? s.sr : s.en}</option>`).join('');
+    list.map(s => `<option value="${s.key}" ${s.key === selectedKey ? 'selected' : ''}>${isSerbianLang() ? s.sr : s.en}</option>`).join('');
   return true;
 }
 function onCategoryChange() {
@@ -9432,7 +9445,7 @@ function statusLabel(s) {
 function translateCategory(cat) {
   const labelsEn = { Water:'Water', Electricity:'Electricity', Sewage:'Sewage', Gas:'Gas', Heating:'Heating', Road:'Road', Streetlight:'Streetlight', Waste:'Waste', Walkways:'Walkways', BikeLanes:'Bike Lanes', GreenSpaces:'Green Spaces', Parking:'Frequent Parking Violations', Suggestion:'Suggest an Improvement', Forest:'Forest', FarmersMarket:'Farmers Market', Other:'Other' };
   const labelsSr = { Water:'Voda', Electricity:'Struja', Sewage:'Kanalizacija', Gas:'Gas', Heating:'Grejanje', Road:'Put', Streetlight:'Ulična rasveta', Waste:'Otpad', Walkways:'Pešačke staze', BikeLanes:'Biciklističke staze', GreenSpaces:'Zelene površine', Parking:'Često Nepropisno parkiranje', Suggestion:'Predlog za poboljšanje', Forest:'Šuma', FarmersMarket:'Pijaca', Other:'Ostalo' };
-  return (lang === 'sr' ? labelsSr[cat] : labelsEn[cat]) || cat;
+  return (isSerbianLang() ? labelsSr[cat] : labelsEn[cat]) || cat;
 }
 
 function categorySearchText(cat) {
@@ -9998,7 +10011,7 @@ function wizRenderSubcategory(body) {
       ${list.map(s => `
         <div class="wiz-tile wiz-tile-colored" style="background:${categoryColor(wizState.category)};border-color:${categoryColor(wizState.category)};" onclick="wizSelectSubcategory('${s.key}')">
           ${icons[s.key] ? `<div class="wiz-tile-icon" style="-webkit-mask-image:url('icons/reports/${icons[s.key]}');mask-image:url('icons/reports/${icons[s.key]}');"></div>` : ""}
-          <span>${lang === 'sr' ? s.sr : s.en}</span>
+          <span>${isSerbianLang() ? s.sr : s.en}</span>
         </div>`).join('')}
     </div>`;
 }
@@ -10995,7 +11008,7 @@ function showMunicipalityLabel(muni) {
   const bar = document.getElementById('bottomMuniBar');
   const nameEl = document.getElementById('bottomMuniBarName');
   if (!bar || !nameEl) return;
-  nameEl.textContent = muni ? (lang === 'sr' ? muni.name : (muni.name_en || muni.name)) : '-';
+  nameEl.textContent = muni ? (isSerbianLang() ? muni.name : (muni.name_en || muni.name)) : '-';
   bar.style.display = 'flex';
 }
 
@@ -11754,7 +11767,7 @@ let ucHomeCountryCode = null;
 
 function municipalityDisplayName(m) {
   if (!m) return '';
-  return (lang === 'sr' ? m.name : (m.name_en || m.name)) || m.name;
+  return (isSerbianLang() ? m.name : (m.name_en || m.name)) || m.name;
 }
 function canManageContactsForMunicipality(municipalityId) {
   if (!currentProfile || !currentProfile.is_admin) return false;
@@ -12101,7 +12114,7 @@ function renderAccountRequestList(listId, emptyId, rows, kind) {
   }
   if (emptyEl) emptyEl.style.display = 'none';
   listEl.innerHTML = rows.map(row => {
-    const dateStr = new Date(kind === 'pending' ? row.deletion_requested_at : row.dormant_at).toLocaleDateString(lang === 'sr' ? 'sr-RS' : 'en-GB');
+    const dateStr = new Date(kind === 'pending' ? row.deletion_requested_at : row.dormant_at).toLocaleDateString(isSerbianLang() ? 'sr-RS' : 'en-GB');
     const metaKey = kind === 'pending' ? 'accountRequestsRequestedOn' : 'accountRequestsDormantSince';
     return `
       <div class="acct-req-item">
@@ -12714,7 +12727,7 @@ function populateUcMunicipalitySelect() {
     ? municipalityCache.filter(m => m.country_code === ucOpenCountryCode && isMunicipalityInAdminDomain(m))
     : [];
 
-  const collator = new Intl.Collator(lang === 'sr' ? 'sr' : 'en');
+  const collator = new Intl.Collator(isSerbianLang() ? 'sr' : 'en');
   const decorated = selectable.map(m => ({ m, name: municipalityDisplayName(m) }));
   decorated.sort((a, b) => collator.compare(a.name, b.name));
 
@@ -12858,7 +12871,7 @@ function countryDisplayName(code) {
   if (!code) return t('detailUnknown');
   try {
     if (!_countryNameDisplay || _countryNameDisplay._lang !== lang) {
-      _countryNameDisplay = new Intl.DisplayNames([lang === 'sr' ? 'sr' : 'en'], { type: 'region' });
+      _countryNameDisplay = new Intl.DisplayNames([isSerbianLang() ? 'sr' : 'en'], { type: 'region' });
       _countryNameDisplay._lang = lang;
     }
     return _countryNameDisplay.of(code) || code;
@@ -14543,7 +14556,7 @@ function showContactReminderModal(reports) {
     (t('contactReminderIntroText') || '').replace('{n}', reports.length);
   const listEl = document.getElementById('contactReminderList');
   listEl.innerHTML = reports.map(r => {
-    const dateStr = new Date(r.created_at).toLocaleDateString(lang === 'sr' ? 'sr-RS' : 'en-GB');
+    const dateStr = new Date(r.created_at).toLocaleDateString(isSerbianLang() ? 'sr-RS' : 'en-GB');
     const label = r.comment ? escapeHtml(r.comment) : translateCategory(r.category);
     return `
     <div class="detail-row" style="cursor:pointer;" onclick="openReportFromContactReminder('${r.id}')">
@@ -16185,7 +16198,7 @@ function initIconPackRewrite() {
 function renderIconPackSegment() {
   const seg = document.getElementById('iconPackSegment');
   if (!seg) return;
-  seg.innerHTML = ICON_PACKS.map(p => `<button type="button" class="theme-segment-btn${p.id === iconPack ? ' active' : ''}" onclick="setIconPack('${p.id}')">${escapeHtml(lang === 'sr' ? p.nameSr : p.nameEn)}</button>`).join('');
+  seg.innerHTML = ICON_PACKS.map(p => `<button type="button" class="theme-segment-btn${p.id === iconPack ? ' active' : ''}" onclick="setIconPack('${p.id}')">${escapeHtml(isSerbianLang() ? p.nameSr : p.nameEn)}</button>`).join('');
 }
 
 function setIconPack(packId) {
