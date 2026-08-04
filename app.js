@@ -2789,49 +2789,33 @@ function stripAuthHashFromUrl() {
 // can actually load a file for (checked at startup — see discoverLanguages)
 // are enabled; the rest are shown disabled as a hint that a translation
 // would be welcome.
-const EUROPEAN_LANGUAGES = [
-  { code: 'en', nativeName: 'English' },
-  { code: 'sr', nativeName: 'Srpski' },
-  { code: 'sq', nativeName: 'Shqip' },
-  { code: 'eu', nativeName: 'Euskara' },
-  { code: 'be', nativeName: 'Беларуская' },
-  { code: 'bs', nativeName: 'Bosanski' },
-  { code: 'bg', nativeName: 'Български' },
-  { code: 'ca', nativeName: 'Català' },
-  { code: 'cnr', nativeName: 'Crnogorski' },
-  { code: 'hr', nativeName: 'Hrvatski' },
-  { code: 'cs', nativeName: 'Čeština' },
-  { code: 'da', nativeName: 'Dansk' },
-  { code: 'nl', nativeName: 'Nederlands' },
-  { code: 'et', nativeName: 'Eesti' },
-  { code: 'fi', nativeName: 'Suomi' },
-  { code: 'fr', nativeName: 'Français' },
-  { code: 'gl', nativeName: 'Galego' },
-  { code: 'ka', nativeName: 'ქართული' },
-  { code: 'de', nativeName: 'Deutsch' },
-  { code: 'el', nativeName: 'Ελληνικά' },
-  { code: 'hu', nativeName: 'Magyar' },
-  { code: 'is', nativeName: 'Íslenska' },
-  { code: 'ga', nativeName: 'Gaeilge' },
-  { code: 'it', nativeName: 'Italiano' },
-  { code: 'lv', nativeName: 'Latviešu' },
-  { code: 'lt', nativeName: 'Lietuvių' },
-  { code: 'lb', nativeName: 'Lëtzebuergesch' },
-  { code: 'mk', nativeName: 'Македонски' },
-  { code: 'mt', nativeName: 'Malti' },
-  { code: 'no', nativeName: 'Norsk' },
-  { code: 'pl', nativeName: 'Polski' },
-  { code: 'pt', nativeName: 'Português' },
-  { code: 'ro', nativeName: 'Română' },
-  { code: 'ru', nativeName: 'Русский' },
-  { code: 'sk', nativeName: 'Slovenčina' },
-  { code: 'sl', nativeName: 'Slovenščina' },
-  { code: 'es', nativeName: 'Español' },
-  { code: 'sv', nativeName: 'Svenska' },
-  { code: 'tr', nativeName: 'Türkçe' },
-  { code: 'uk', nativeName: 'Українська' },
-  { code: 'cy', nativeName: 'Cymraeg' },
-];
+// The full list of languages the app *knows how to list* -- code + native
+// display name -- now lives in languages/languages.json instead of here, so
+// adding a brand-new language code no longer requires touching app.js at
+// all: add the entry to languages.json, drop in languages/<code>.json (and
+// optionally languages/legal/<code>.json), done.
+//
+// TO ADD A NEW LANGUAGE:
+//  1. Add { "code": "xx", "nativeName": "..." } to languages/languages.json
+//  2. Copy languages/en.json to languages/<code>.json and translate "strings"
+//  3. (optional) Copy languages/legal/en.json to languages/legal/<code>.json
+// On the next page load the app fetches languages.json, then probes for a
+// matching languages/<code>.json file per entry -- found files are enabled
+// and listed in the language dropdown, missing ones show up disabled.
+let EUROPEAN_LANGUAGES = [];
+
+async function loadLanguageManifest() {
+  try {
+    const res = await fetch('languages/languages.json', { cache: 'no-store' });
+    if (!res.ok) throw new Error('languages.json ' + res.status);
+    const data = await res.json();
+    if (!Array.isArray(data) || !data.length) throw new Error('languages.json empty/invalid');
+    EUROPEAN_LANGUAGES = data.filter(l => l && typeof l.code === 'string' && typeof l.nativeName === 'string');
+  } catch (e) {
+    console.error('Failed to load languages/languages.json, falling back to English only:', e.message);
+    EUROPEAN_LANGUAGES = [{ code: 'en', nativeName: 'English' }];
+  }
+}
 
 const DEFAULT_LANG = 'en'; // base/fallback language — always ships with the app
 
@@ -2865,6 +2849,7 @@ async function loadLanguageFile(code) {
 // what makes new languages appear automatically: nothing here needs to
 // change when a translation file is added or removed from /languages.
 async function discoverLanguages() {
+  await loadLanguageManifest();
   await Promise.all(EUROPEAN_LANGUAGES.map(l => loadLanguageFile(l.code)));
   if (!AVAILABLE_LANG_CODES.includes(DEFAULT_LANG)) AVAILABLE_LANG_CODES.push(DEFAULT_LANG);
   renderLangSelect();
@@ -3108,173 +3093,42 @@ async function initLang(){
 }
 
 function applyLang(){
-  const rotateTitleEl = document.getElementById('rotateDeviceTitle');
-  if (rotateTitleEl) rotateTitleEl.textContent = t('rotateDeviceTitle');
-  const rotateTextEl = document.getElementById('rotateDeviceText');
-  if (rotateTextEl) rotateTextEl.textContent = t('rotateDeviceText');
-  const mapLoadingTextEl = document.getElementById('mapLoadingText');
-  if (mapLoadingTextEl) mapLoadingTextEl.textContent = t('loadingMap');
-  const pinsLoadingPillTextEl = document.getElementById('pinsLoadingPillText');
-  if (pinsLoadingPillTextEl) pinsLoadingPillTextEl.textContent = t('pinsLoadingPill');
-  document.getElementById('reportBtnLabel').textContent   = t('reportBtn');
-  document.getElementById('reportPhotoAddBtn').title       = t('reportPhotoAddBtn');
-  document.getElementById('reportPhotoAddBtn').setAttribute('aria-label', t('reportPhotoAddBtn'));
-  document.getElementById('reportPhotoGalleryBtn').title   = t('reportPhotoGalleryBtn');
-  document.getElementById('reportPhotoGalleryBtn').setAttribute('aria-label', t('reportPhotoGalleryBtn'));
+  // Generic pass: any element in index.html tagged with data-i18n / data-i18n-title /
+  // data-i18n-placeholder / data-i18n-aria-label gets its text/attr set from the current
+  // language's string table automatically. Adding a new translated element to the HTML
+  // needs ONLY that data attribute -- no matching line has to be added here.
+  document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.getAttribute('data-i18n')); });
+  document.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = t(el.getAttribute('data-i18n-title')); });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => { el.placeholder = t(el.getAttribute('data-i18n-placeholder')); });
+  document.querySelectorAll('[data-i18n-aria-label]').forEach(el => { el.setAttribute('aria-label', t(el.getAttribute('data-i18n-aria-label'))); });
+
+  // Everything below still needs code: dynamic lists (render*()), strings built from
+  // multiple pieces (icon + text), or elements not always present in the DOM.
   renderQuickGrid('car');
   renderQuickGrid('bike');
-  const offlineRetryEl = document.getElementById('offlineQueueRetryLabel');
-  if (offlineRetryEl) offlineRetryEl.textContent = t('offlineQueueRetry');
-  const globalOfflineRetryEl = document.getElementById('globalOfflineBannerRetryLabel');
-  if (globalOfflineRetryEl) globalOfflineRetryEl.textContent = t('offlineQueueRetry');
   updateOfflineQueueBadge();
 
-  const lbBtn = document.getElementById('leaderboardBtn');
-  if (lbBtn) lbBtn.title = t('leaderboardBtnTitle');
-  const adminPanelBtnEl = document.getElementById('adminPanelBtn');
-  if (adminPanelBtnEl) adminPanelBtnEl.title = t('adminPanelBtnTitle');
-  const notifBtn = document.getElementById('notificationBtn');
-  if (notifBtn) notifBtn.title = t('notificationBtnTitle');
   if (document.getElementById('notificationModal').style.display !== 'none') renderNotificationModalBody();
   const lbTitleEl = document.getElementById('leaderboardModalTitle');
   if (lbTitleEl) lbTitleEl.innerHTML = '<img class="icon-img icon-img-inline" src="icons/trophy.png" alt=""> ' + t('leaderboardTitle');
   if (document.getElementById('leaderboardModal').style.display !== 'none') {
     renderDashboardTab();
   }
-  document.getElementById('csvLabel').textContent         = t('csvLabel');
-  document.getElementById('filterTitleLabel').textContent = t('timeFilter');
-  document.getElementById('settingsBtn').title = t('settingsBtnTitle');
-  const municipalityContactsBtnEl = document.getElementById('municipalityContactsBtn');
-  if (municipalityContactsBtnEl) municipalityContactsBtnEl.title = t('municipalityContactsBtnTitle');
-  document.getElementById('settingsModalTitle').textContent = t('settingsModalTitle');
-  const settingsSignInGateMsgTextEl = document.getElementById('settingsSignInGateMsgText');
-  if (settingsSignInGateMsgTextEl) settingsSignInGateMsgTextEl.textContent = t('settingsSignInGateMsgText');
-  document.getElementById('themeSectionTitle').textContent = t('themeSectionTitle');
-  const privacySectionTitleEl = document.getElementById('privacySectionTitle');
-  if (privacySectionTitleEl) privacySectionTitleEl.textContent = t('privacySectionTitle');
-  const showUsernameToggleLabelEl = document.getElementById('showUsernameToggleLabel');
-  if (showUsernameToggleLabelEl) showUsernameToggleLabelEl.textContent = t('showUsernameToggleLabel');
-  const showUsernameHintEl = document.getElementById('showUsernameHint');
-  if (showUsernameHintEl) showUsernameHintEl.textContent = t('showUsernameHint');
-  const legalSectionTitleEl = document.getElementById('legalSectionTitle');
-  if (legalSectionTitleEl) legalSectionTitleEl.textContent = t('legalSectionTitle');
-  const legalTermsBtnEl = document.getElementById('legalTermsBtn');
-  if (legalTermsBtnEl) legalTermsBtnEl.textContent = t('termsOfServiceBtn');
-  const legalPrivacyBtnEl = document.getElementById('legalPrivacyBtn');
-  if (legalPrivacyBtnEl) legalPrivacyBtnEl.textContent = t('privacyPolicyBtn');
-  const accountDangerSectionTitleEl = document.getElementById('accountDangerSectionTitle');
-  if (accountDangerSectionTitleEl) accountDangerSectionTitleEl.textContent = t('accountDangerSectionTitle');
-  const deleteAccountHintEl = document.getElementById('deleteAccountHint');
-  if (deleteAccountHintEl) deleteAccountHintEl.textContent = t('deleteAccountHint');
-  const deleteAccountBtnEl = document.getElementById('deleteAccountBtn');
-  if (deleteAccountBtnEl) deleteAccountBtnEl.textContent = t('deleteAccountBtn');
   renderLegalCopyrightLine();
   if (document.getElementById('legalContentModal').style.display !== 'none' && legalContentModalOpenKey) {
     renderLegalContentModalBody(legalContentModalOpenKey);
   }
-  document.getElementById('themeBtnLight').textContent = t('themeLight');
-  document.getElementById('themeBtnDark').textContent = t('themeDark');
-  document.getElementById('themeBtnAuto').textContent = t('themeAuto');
-  document.getElementById('themeBtnSmart').textContent = t('themeSmart');
-  document.getElementById('themeSmartHint').textContent = t('themeSmartHint');
-  document.getElementById('mapStyleSectionTitle').textContent = t('mapStyleSectionTitle');
-  document.getElementById('mapStyleHint').textContent = t('mapStyleHint');
-  document.getElementById('mapStyleDefaultLabel').textContent = t('mapStyleDefaultLabel');
-  document.getElementById('mapStyleCarLabel').textContent = t('mapStyleCarLabel');
-  document.getElementById('mapStyleBikeLabel').textContent = t('mapStyleBikeLabel');
-  document.getElementById('mapStyleFootLabel').textContent = t('mapStyleFootLabel');
   populateMapStyleSelects();
-  document.getElementById('iconPackSectionTitle').textContent = t('iconPackSectionTitle');
-  document.getElementById('iconPackHint').textContent = t('iconPackHint');
   renderIconPackSegment();
-  const statusFilterSectionTitleEl = document.getElementById('statusFilterSectionTitle');
-  if (statusFilterSectionTitleEl) statusFilterSectionTitleEl.textContent = t('statusFilterSectionTitle');
   renderStatusFilterSettings();
-  document.getElementById('languageSectionTitle').textContent = t('languageSectionTitle');
-  const langBtnAutoLabelEl = document.getElementById('langBtnAutoLabel');
-  if (langBtnAutoLabelEl) langBtnAutoLabelEl.textContent = t('langBtnAutoLabel');
-  const langAutoHintEl = document.getElementById('langAutoHint');
-  if (langAutoHintEl) langAutoHintEl.textContent = t('langAutoHint');
   renderLangSelect();
-  document.getElementById('helpSectionTitle').textContent = t('helpSectionTitle');
   document.getElementById('settingsHelpBtn').lastChild.textContent = ' ' + t('settingsHelpBtn');
-  const replayTourLabelEl = document.getElementById('settingsReplayTourBtnLabel');
-  if (replayTourLabelEl) replayTourLabelEl.textContent = t('settingsReplayTourBtn');
-  document.getElementById('mapFilterSectionTitle').textContent = t('mapFilterSectionTitle');
-  document.getElementById('mapFilterSettingsBtnLabel').textContent = t('categoryFilterBtnTitle');
-  document.getElementById('pulseToggleLabel').textContent = t('pulseToggleLabel');
-  const navBtnToggleLabelEl = document.getElementById('navBtnToggleLabel');
-  if (navBtnToggleLabelEl) navBtnToggleLabelEl.textContent = t('navBtnToggleLabel');
-  const heatmapBtnToggleLabelEl = document.getElementById('heatmapBtnToggleLabel');
-  if (heatmapBtnToggleLabelEl) heatmapBtnToggleLabelEl.textContent = t('heatmapBtnToggleLabel');
-  const offlineMapSectionTitleEl = document.getElementById('offlineMapSectionTitle');
-  if (offlineMapSectionTitleEl) offlineMapSectionTitleEl.textContent = t('offlineMapSectionTitle');
-  const offlineMapHintEl = document.getElementById('offlineMapHint');
-  if (offlineMapHintEl) offlineMapHintEl.textContent = t('offlineMapHint');
-  const pushNotifToggleLabelEl = document.getElementById('pushNotifToggleLabel');
-  if (pushNotifToggleLabelEl) pushNotifToggleLabelEl.textContent = t('pushNotifToggleLabel');
-  const pushNotifToggleHintEl = document.getElementById('pushNotifToggleHint');
-  if (pushNotifToggleHintEl) pushNotifToggleHintEl.textContent = t('pushNotifToggleHint');
-  const settingsGroupNotificationsTitleEl = document.getElementById('settingsGroupNotificationsTitle');
-  if (settingsGroupNotificationsTitleEl) settingsGroupNotificationsTitleEl.textContent = t('settingsGroupNotificationsTitle');
-  const settingsGroupMapTitleEl = document.getElementById('settingsGroupMapTitle');
-  if (settingsGroupMapTitleEl) settingsGroupMapTitleEl.textContent = t('settingsGroupMapTitle');
-  const settingsGroupAccountTitleEl = document.getElementById('settingsGroupAccountTitle');
-  if (settingsGroupAccountTitleEl) settingsGroupAccountTitleEl.textContent = t('settingsGroupAccountTitle');
-  const notifTypesSectionTitleEl = document.getElementById('notifTypesSectionTitle');
-  if (notifTypesSectionTitleEl) notifTypesSectionTitleEl.textContent = t('notifTypesSectionTitle');
-  const notifTypesSectionHintEl = document.getElementById('notifTypesSectionHint');
-  if (notifTypesSectionHintEl) notifTypesSectionHintEl.textContent = t('notifTypesSectionHint');
-  const savedAreaSectionTitleEl = document.getElementById('savedAreaSectionTitle');
-  if (savedAreaSectionTitleEl) savedAreaSectionTitleEl.textContent = t('savedAreaSectionTitle');
-  const savedAreaSectionHintEl = document.getElementById('savedAreaSectionHint');
-  if (savedAreaSectionHintEl) savedAreaSectionHintEl.textContent = t('savedAreaSectionHint');
-  const savedAreaUseLocationBtnLabelEl = document.getElementById('savedAreaUseLocationBtnLabel');
-  if (savedAreaUseLocationBtnLabelEl) savedAreaUseLocationBtnLabelEl.textContent = t('savedAreaUseLocationBtn');
-  const savedAreaClearBtnEl = document.getElementById('savedAreaClearBtn');
-  if (savedAreaClearBtnEl) savedAreaClearBtnEl.textContent = t('savedAreaClearBtn');
-  const savedAreaRadiusLabelEl = document.getElementById('savedAreaRadiusLabel');
-  if (savedAreaRadiusLabelEl) savedAreaRadiusLabelEl.textContent = t('savedAreaRadiusLabel');
   renderNotifTypeToggles();
   updateSavedAreaStatusText();
-  const offlineAutoCacheToggleLabelEl = document.getElementById('offlineAutoCacheToggleLabel');
-  if (offlineAutoCacheToggleLabelEl) offlineAutoCacheToggleLabelEl.textContent = t('offlineAutoCacheToggleLabel');
-  const offlineAutoCacheHintEl = document.getElementById('offlineAutoCacheHint');
-  if (offlineAutoCacheHintEl) offlineAutoCacheHintEl.textContent = t('offlineAutoCacheHint');
   updateOfflineMapStorageText();
-  const soundToggleLabelEl = document.getElementById('soundToggleLabel');
-  if (soundToggleLabelEl) soundToggleLabelEl.textContent = t('soundToggleLabel');
-  const voiceNavToggleLabelEl = document.getElementById('voiceNavToggleLabel');
-  if (voiceNavToggleLabelEl) voiceNavToggleLabelEl.textContent = t('voiceNavToggleLabel');
-  const drivingSafetySectionTitleEl = document.getElementById('drivingSafetySectionTitle');
-  if (drivingSafetySectionTitleEl) drivingSafetySectionTitleEl.textContent = t('drivingSafetySectionTitle');
-  const drivingSafetyToggleLabelEl = document.getElementById('drivingSafetyToggleLabel');
-  if (drivingSafetyToggleLabelEl) drivingSafetyToggleLabelEl.textContent = t('drivingSafetyToggleLabel');
-  const overspeedAlertToggleLabelEl = document.getElementById('overspeedAlertToggleLabel');
-  if (overspeedAlertToggleLabelEl) overspeedAlertToggleLabelEl.textContent = t('overspeedAlertToggleLabel');
-  const bumpDetectionToggleLabelEl = document.getElementById('bumpDetectionToggleLabel');
-  if (bumpDetectionToggleLabelEl) bumpDetectionToggleLabelEl.textContent = t('bumpDetectionToggleLabel');
-  const quickDefaultCarLabelEl = document.getElementById('quickDefaultCarLabel');
-  if (quickDefaultCarLabelEl) quickDefaultCarLabelEl.textContent = t('quickDefaultCarLabel');
-  const quickDefaultBikeLabelEl = document.getElementById('quickDefaultBikeLabel');
-  if (quickDefaultBikeLabelEl) quickDefaultBikeLabelEl.textContent = t('quickDefaultBikeLabel');
   populateQuickDefaultSelect('car');
   populateQuickDefaultSelect('bike');
-  const nearbyCheckinTitleEl = document.getElementById('nearbyCheckinSectionTitle');
-  if (nearbyCheckinTitleEl) nearbyCheckinTitleEl.textContent = t('nearbyCheckinSectionTitle');
-  const nearbyCheckinHintEl = document.getElementById('nearbyCheckinSectionHint');
-  if (nearbyCheckinHintEl) nearbyCheckinHintEl.textContent = t('nearbyCheckinSectionHint');
-  const nearbyCheckinBtnOffEl = document.getElementById('nearbyCheckinBtnOff');
-  if (nearbyCheckinBtnOffEl) nearbyCheckinBtnOffEl.textContent = t('nearbyCheckinFreqOff');
-  const nearbyCheckinBtnLowEl = document.getElementById('nearbyCheckinBtnLow');
-  if (nearbyCheckinBtnLowEl) nearbyCheckinBtnLowEl.textContent = t('nearbyCheckinFreqLow');
-  const nearbyCheckinBtnNormalEl = document.getElementById('nearbyCheckinBtnNormal');
-  if (nearbyCheckinBtnNormalEl) nearbyCheckinBtnNormalEl.textContent = t('nearbyCheckinFreqNormal');
-  const nearbyCheckinBtnHighEl = document.getElementById('nearbyCheckinBtnHigh');
-  if (nearbyCheckinBtnHighEl) nearbyCheckinBtnHighEl.textContent = t('nearbyCheckinFreqHigh');
-  document.getElementById('mainMapCompass').title = t('mainCompassTitle');
   updateCommentPlaceholder();
-  document.getElementById('dateRangePicker').placeholder  = t('calendarPH');
   document.getElementById('category').options[0].text     = t('catPH');
 
   const catEl = document.getElementById('category');
@@ -3308,42 +3162,19 @@ function applyLang(){
 
   const dashIdAdminPillEl = document.getElementById('dashboardIdentityAdminPill');
   if (dashIdAdminPillEl) dashIdAdminPillEl.textContent = '\u2605 ' + t('adminBadge');
-  const dashSignOutBtnEl = document.getElementById('dashboardSignOutBtn');
-  if (dashSignOutBtnEl) dashSignOutBtnEl.textContent = t('signOutBtn');
-  const dashSignedOutHintEl = document.getElementById('dashboardSignedOutHint');
-  if (dashSignedOutHintEl) dashSignedOutHintEl.textContent = t('dashboardSignedOutHint');
 
-  const lockedMsgEl = document.getElementById('lockedMsgText');
-  if (lockedMsgEl) lockedMsgEl.textContent = t('lockedMsgText');
 
-  const chosenUsernameInput = document.getElementById('chosenUsernameInput');
-  if (chosenUsernameInput) chosenUsernameInput.placeholder = t('chosenUsernamePlaceholder');
-  const chooseUsernameMsgEl = document.getElementById('chooseUsernameMsgText');
-  if (chooseUsernameMsgEl) chooseUsernameMsgEl.textContent = t('chooseUsernameMsgText');
-  const submitUsernameBtnLabel = document.getElementById('submitUsernameBtnLabel');
-  if (submitUsernameBtnLabel) submitUsernameBtnLabel.textContent = t('submitUsernameBtnLabel');
 
   buildHelpModalContent();
   refreshRenderedPopups();
 
-  const openAnalyticsBtnLabelEl = document.getElementById('openAnalyticsBtnLabel');
-  if (openAnalyticsBtnLabelEl) openAnalyticsBtnLabelEl.textContent = t('openAnalyticsBtnLabel');
   if (document.getElementById('analyticsModal').style.display !== 'none') {
-    document.getElementById('analyticsModalTitle').textContent = t('analyticsModalTitle');
-    document.getElementById('analyticsTrendTitle').textContent = t('analyticsTrendTitle');
-    document.getElementById('analyticsCategoryTitle').textContent = t('analyticsCategoryTitle');
-    document.getElementById('analyticsAreaTitle').textContent = t('analyticsAreaTitle');
     renderAnalyticsRangeChips();
     loadAndRenderAnalytics();
   }
 
   if (currentProfile && currentProfile.is_admin && document.getElementById('adminPanelModal').style.display !== 'none') {
-    document.getElementById('adminPanelModalTitle').textContent = t('adminPanelModalTitle');
     renderAdminActivityFeed();
-    const titleEl = document.getElementById('ucSectionTitle');
-    if (titleEl) titleEl.textContent = t('ucSectionTitle');
-    const ucSearchEl = document.getElementById('ucSearchInput');
-    if (ucSearchEl) ucSearchEl.placeholder = t('ucSearchPH');
     populateUcMunicipalitySelect();
     populateUcCatChecks();
     applyUcFormTranslations();
@@ -3353,53 +3184,10 @@ function applyLang(){
 
   updateDrivingGpsStatus();
   updateSectionButtonUI();
-  document.getElementById('drivingCenterBtn').title = t('followTitle');
-  document.getElementById('navigateModeBtn').title = t('navigateBtnTitle');
   updateTravelModeSwitchBtn();
 
-  document.getElementById('navigateSearchInput').placeholder = t('navigateSearchPH');
-  document.getElementById('navigateClearBtn').title = t('navigateCloseTitle');
-  document.getElementById('navigatePinBtn').title = t('navigatePinBtnTitle');
-  document.getElementById('navigateTimeLabel').textContent = t('navigateTimeLabel');
-  document.getElementById('navigateDistLabel').textContent = t('navigateDistLabel');
-  document.getElementById('navigateEtaLabel').textContent = t('navigateEtaLabel');
-  document.getElementById('navigatePinHint').textContent = t('navigatePinHint');
   updateNavStatusText();
 
-  const desktopBlockedEl = document.getElementById('desktopBlockedMsgText');
-  if (desktopBlockedEl) desktopBlockedEl.textContent = t('desktopBlockedMsg');
-  const dashTitleEl = document.getElementById('dashboardSectionTitle');
-  if (dashTitleEl) dashTitleEl.textContent = t('dashboardSectionTitle');
-  const dashPtsLabel = document.getElementById('dashboardStatPointsLabel');
-  if (dashPtsLabel) dashPtsLabel.textContent = t('dashboardStatPoints');
-  const dashSuccLabel = document.getElementById('dashboardStatSuccessfulLabel');
-  if (dashSuccLabel) dashSuccLabel.textContent = t('dashboardStatSuccessful');
-  const dashWeightLabel = document.getElementById('dashboardStatWeightLabel');
-  if (dashWeightLabel) dashWeightLabel.textContent = t('dashboardStatWeight');
-  const dashActivityTitleEl = document.getElementById('dashboardActivityTitle');
-  if (dashActivityTitleEl) dashActivityTitleEl.textContent = t('dashboardActivityTitle');
-  const dashReportsLabel = document.getElementById('dashboardStatReportsLabel');
-  if (dashReportsLabel) dashReportsLabel.textContent = t('dashboardStatReports');
-  const dashPhotosLabel = document.getElementById('dashboardStatPhotosLabel');
-  if (dashPhotosLabel) dashPhotosLabel.textContent = t('dashboardStatPhotos');
-  const dashCommentsLabel = document.getElementById('dashboardStatCommentsLabel');
-  if (dashCommentsLabel) dashCommentsLabel.textContent = t('dashboardStatComments');
-  const dashCitiesLabel = document.getElementById('dashboardStatCitiesLabel');
-  if (dashCitiesLabel) dashCitiesLabel.textContent = t('dashboardStatCities');
-  const dashVotesLabel = document.getElementById('dashboardStatVotesLabel');
-  if (dashVotesLabel) dashVotesLabel.textContent = t('dashboardStatVotes');
-  const dashBadgesTitleEl = document.getElementById('dashboardBadgesTitle');
-  if (dashBadgesTitleEl) dashBadgesTitleEl.textContent = t('dashboardBadgesTitle');
-  const dashWeekTitleEl = document.getElementById('dashboardWeekTitle');
-  if (dashWeekTitleEl) dashWeekTitleEl.textContent = t('dashboardWeekTitle');
-  const dashStreakDaysLabelEl = document.getElementById('dashboardStreakDaysLabel');
-  if (dashStreakDaysLabelEl) dashStreakDaysLabelEl.textContent = t('dashboardStreakDaysLabel');
-  const dashStreakBestLabelEl = document.getElementById('dashboardStreakBestLabel');
-  if (dashStreakBestLabelEl) dashStreakBestLabelEl.textContent = t('dashboardStreakBestLabel');
-  const dashQuestsTitleEl = document.getElementById('dashboardQuestsTitle');
-  if (dashQuestsTitleEl) dashQuestsTitleEl.textContent = t('dashboardQuestsTitle');
-  const adminDashQuestsTitleEl = document.getElementById('adminDashboardQuestsTitle');
-  if (adminDashQuestsTitleEl) adminDashQuestsTitleEl.textContent = t('adminDashboardQuestsTitle');
   const historyBtnEl = document.getElementById('dashboardQuestHistoryToggle');
   if (historyBtnEl) {
     const historyPanelEl = document.getElementById('dashboardQuestHistory');
@@ -3410,56 +3198,8 @@ function applyLang(){
   if (document.getElementById('dashboardQuestsList') && currentSession && currentProfile && !currentProfile.is_admin) {
     loadDashboardStreakAndQuests();
   }
-  const myReportsTitleEl = document.getElementById('myReportsTitle');
-  if (myReportsTitleEl) myReportsTitleEl.textContent = t('myReportsTitle');
-  const myReportsFilterAllBtnEl = document.getElementById('myReportsFilterAllBtn');
-  if (myReportsFilterAllBtnEl) myReportsFilterAllBtnEl.textContent = t('myReportsFilterAll');
-  const myReportsFilterReportedBtnEl = document.getElementById('myReportsFilterReportedBtn');
-  if (myReportsFilterReportedBtnEl) myReportsFilterReportedBtnEl.textContent = t('myReportsFilterReported');
-  const myReportsFilterProgressBtnEl = document.getElementById('myReportsFilterProgressBtn');
-  if (myReportsFilterProgressBtnEl) myReportsFilterProgressBtnEl.textContent = t('myReportsFilterProgress');
-  const myReportsFilterFixedBtnEl = document.getElementById('myReportsFilterFixedBtn');
-  if (myReportsFilterFixedBtnEl) myReportsFilterFixedBtnEl.textContent = t('myReportsFilterFixed');
   renderMyReportsList();
-  const heatmapBtnEl = document.getElementById('heatmapBtn');
-  if (heatmapBtnEl) heatmapBtnEl.title = t('heatmapBtnTitle');
-  const categoryFilterPanelTitleEl = document.getElementById('categoryFilterPanelTitle');
-  if (categoryFilterPanelTitleEl) categoryFilterPanelTitleEl.textContent = t('categoryFilterPanelTitle');
-  const categoryFilterAllLabelEl = document.getElementById('categoryFilterAllLabel');
-  if (categoryFilterAllLabelEl) categoryFilterAllLabelEl.textContent = t('categoryFilterAllLabel');
   populateCategoryFilterList();
-  const adminDashTitleEl = document.getElementById('adminDashboardSectionTitle');
-  if (adminDashTitleEl) adminDashTitleEl.textContent = t('adminDashboardSectionTitle');
-  const adminDashTagLabel = document.getElementById('adminDashboardTagLabel');
-  if (adminDashTagLabel) adminDashTagLabel.textContent = t('adminDashboardTagLabel');
-  const adminDashResolvedLabel = document.getElementById('adminDashboardResolvedLabel');
-  if (adminDashResolvedLabel) adminDashResolvedLabel.textContent = t('adminDashboardResolvedLabel');
-  const adminDashActivityTitleEl = document.getElementById('adminDashboardActivityTitle');
-  if (adminDashActivityTitleEl) adminDashActivityTitleEl.textContent = t('adminDashboardActivityTitle');
-  const adminDashReviewedLabel = document.getElementById('adminDashboardStatReviewedLabel');
-  if (adminDashReviewedLabel) adminDashReviewedLabel.textContent = t('adminDashboardStatReviewed');
-  const adminDashFastLabel = document.getElementById('adminDashboardStatFastLabel');
-  if (adminDashFastLabel) adminDashFastLabel.textContent = t('adminDashboardStatFast');
-  const adminDashStreakLabel = document.getElementById('adminDashboardStatStreakLabel');
-  if (adminDashStreakLabel) adminDashStreakLabel.textContent = t('adminDashboardStatStreak');
-  const adminDashBusiestLabel = document.getElementById('adminDashboardStatBusiestLabel');
-  if (adminDashBusiestLabel) adminDashBusiestLabel.textContent = t('adminDashboardStatBusiest');
-  const adminDashNightLabel = document.getElementById('adminDashboardStatNightLabel');
-  if (adminDashNightLabel) adminDashNightLabel.textContent = t('adminDashboardStatNight');
-  const adminDigestHistoryTitleEl = document.getElementById('adminDigestHistoryTitle');
-  if (adminDigestHistoryTitleEl) adminDigestHistoryTitleEl.textContent = t('adminDigestHistoryTitle');
-  const dashCityTitleEl = document.getElementById('dashboardCityTitle');
-  if (dashCityTitleEl) dashCityTitleEl.textContent = t('dashboardCityTitle');
-  const dashNextBadgeLabelEl = document.getElementById('dashboardNextBadgeLabel');
-  if (dashNextBadgeLabelEl) dashNextBadgeLabelEl.textContent = t('dashboardNextBadgeLabel');
-  const adminDashNextBadgeLabelEl = document.getElementById('adminDashboardNextBadgeLabel');
-  if (adminDashNextBadgeLabelEl) adminDashNextBadgeLabelEl.textContent = t('dashboardNextBadgeLabel');
-  const adminDashWeekTitleEl = document.getElementById('adminDashboardWeekTitle');
-  if (adminDashWeekTitleEl) adminDashWeekTitleEl.textContent = t('dashboardWeekTitle');
-  const adminDashXpTitleEl = document.getElementById('adminDashboardXpTitle');
-  if (adminDashXpTitleEl) adminDashXpTitleEl.textContent = t('adminDashboardXpTitle');
-  const adminDashBadgesTitleEl = document.getElementById('adminDashboardBadgesTitle');
-  if (adminDashBadgesTitleEl) adminDashBadgesTitleEl.textContent = t('adminDashboardBadgesTitle');
   if (document.getElementById('leaderboardModal').style.display !== 'none') {
     renderDashboardTab();
   }

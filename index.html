@@ -118,14 +118,14 @@
   <div class="header-top">
     <div class="left-controls">
       <button class="help-icon-btn" id="fullscreenBtn" title="Fullscreen / Preko celog ekrana" aria-label="Fullscreen" onclick="toggleFullscreen()"><img class="icon-img" id="fullscreenBtnIcon" src="icons/fullscreen-enter.png" alt="Fullscreen"></button>
-      <button class="help-icon-btn" id="settingsBtn" title="Settings" aria-label="Settings" onclick="showSettingsModal()"><img class="icon-img" src="icons/settings.png" alt="Settings"></button>
+      <button class="help-icon-btn" id="settingsBtn" data-i18n-title="settingsBtnTitle" title="Settings" aria-label="Settings" onclick="showSettingsModal()"><img class="icon-img" src="icons/settings.png" alt="Settings"></button>
     </div>
     <div class="center-controls">
-      <button class="help-icon-btn" id="adminPanelBtn" title="Admin panel" aria-label="Admin panel" style="display:none" onclick="showAdminPanelModal()"><img class="icon-img" id="adminPanelBtnIcon" src="icons/badges/badge-admin-admin-3.png" alt="Admin panel"></button>
+      <button class="help-icon-btn" id="adminPanelBtn" data-i18n-title="adminPanelBtnTitle" title="Admin panel" aria-label="Admin panel" style="display:none" onclick="showAdminPanelModal()"><img class="icon-img" id="adminPanelBtnIcon" src="icons/badges/badge-admin-admin-3.png" alt="Admin panel"></button>
     </div>
     <div class="right-controls">
-      <button class="help-icon-btn notification-btn" id="notificationBtn" title="Notifications" aria-label="Notifications" onclick="showNotificationModal()"><img class="icon-img" src="icons/notification.png" alt="Notifications"><span class="notification-badge" id="notificationBadge" style="display:none">0</span></button>
-      <button class="help-icon-btn" id="leaderboardBtn" title="Rankings" aria-label="Rankings" onclick="showLeaderboardModal()"><img class="icon-img" src="icons/user.png" alt="Rankings"></button>
+      <button class="help-icon-btn notification-btn" id="notificationBtn" data-i18n-title="notificationBtnTitle" title="Notifications" aria-label="Notifications" onclick="showNotificationModal()"><img class="icon-img" src="icons/notification.png" alt="Notifications"><span class="notification-badge" id="notificationBadge" style="display:none">0</span></button>
+      <button class="help-icon-btn" id="leaderboardBtn" data-i18n-title="leaderboardBtnTitle" title="Rankings" aria-label="Rankings" onclick="showLeaderboardModal()"><img class="icon-img" src="icons/user.png" alt="Rankings"></button>
     </div>
   </div>
 </header>
@@ -142,13 +142,13 @@
     <span class="map-loading-halo map-loading-halo-2"></span>
     <img src="./icons/TraceTheBreak.png" alt="TraceTheBreak" class="map-loading-logo">
   </div>
-  <div class="map-loading-text" id="mapLoadingText"></div>
+  <div class="map-loading-text" id="mapLoadingText" data-i18n="loadingMap"></div>
 </div>
 <div class="legend-row">
 <div id="bottomMuniBar" class="bottom-muni-bar" style="display:flex">
   <img class="icon-img bottom-muni-bar-pin" src="icons/pin.png" alt="">
   <span id="bottomMuniBarName" class="bottom-muni-bar-name">-</span>
-  <button class="help-icon-btn is-disabled" id="municipalityContactsBtn" title="Contacts" aria-label="Contacts" disabled onclick="showMunicipalityContactsModal()"><img class="icon-img" src="icons/phone.png" alt="Contacts"></button>
+  <button class="help-icon-btn is-disabled" id="municipalityContactsBtn" data-i18n-title="municipalityContactsBtnTitle" title="Contacts" aria-label="Contacts" disabled onclick="showMunicipalityContactsModal()"><img class="icon-img" src="icons/phone.png" alt="Contacts"></button>
 </div>
 <div id="bottomMuniStatsRow" class="bottom-muni-stats-row" style="display:flex"></div>
 <div id="mapLegend" class="map-legend-pill">
@@ -198,10 +198,10 @@
   <div class="row report-comment-row" id="reportCommentRow">
     <input id="comment" type="text" placeholder="Optional notes..." oninput="checkFormReady()">
     <div class="photo-choice-dropdown" id="reportPhotoDropdown">
-      <button type="button" class="icon-only-btn" id="reportPhotoAddBtn" title="Take photo" aria-label="Take photo" onclick="triggerReportPhotoCamera()">
+      <button type="button" class="icon-only-btn" id="reportPhotoAddBtn" data-i18n-title="reportPhotoAddBtn" data-i18n-aria-label="reportPhotoAddBtn" title="Take photo" aria-label="Take photo" onclick="triggerReportPhotoCamera()">
         <img class="icon-img" src="icons/camera.png" alt="">
       </button>
-      <button type="button" class="icon-only-btn" id="reportPhotoGalleryBtn" title="Choose from gallery" aria-label="Choose from gallery" onclick="triggerReportPhotoGallery()">
+      <button type="button" class="icon-only-btn" id="reportPhotoGalleryBtn" data-i18n-title="reportPhotoGalleryBtn" data-i18n-aria-label="reportPhotoGalleryBtn" title="Choose from gallery" aria-label="Choose from gallery" onclick="triggerReportPhotoGallery()">
         <img class="icon-img" src="icons/gallery.png" alt="">
       </button>
     </div>
@@ -217,13 +217,13 @@
   <div class="offline-queue-badge" id="offlineQueueBadge" style="display:none" onclick="syncOfflineQueue(true)" title="Tap to retry now">
     <span class="offline-queue-dot"></span>
     <span id="offlineQueueBadgeText"></span>
-    <span class="offline-queue-retry" id="offlineQueueRetryLabel">Retry</span>
+    <span class="offline-queue-retry" id="offlineQueueRetryLabel" data-i18n="offlineQueueRetry">Retry</span>
   </div>
 
   <div class="row" id="reportSubmitRow" style="align-items:stretch;">
     <button class="report-btn" id="reportBtn" onclick="reportBreak()"
             style="width:100%;font-size:var(--fs-14);" disabled>
-         <span id="reportBtnLabel">REPORT BREAK</span>
+         <span id="reportBtnLabel" data-i18n="reportBtn">REPORT BREAK</span>
     </button>
   </div>
 </div>
@@ -238,11 +238,11 @@
 </div>
 
 <div class="panel locked-panel" id="desktopBlockedPanel" style="display:none">
-  <p id="desktopBlockedMsgText">Reporting is available on mobile only, so every report can be verified on-site.</p>
+  <p id="desktopBlockedMsgText" data-i18n="desktopBlockedMsg">Reporting is available on mobile only, so every report can be verified on-site.</p>
 </div>
 
 <div class="panel locked-panel" id="lockedFormPanel" style="display:flex">
-  <p id="lockedMsgText">Sign in to secure your profile and reports.</p>
+  <p id="lockedMsgText" data-i18n="lockedMsgText">Sign in to secure your profile and reports.</p>
 
   <button type="button" class="oauth-btn oauth-google" onclick="signInWithProvider('google')">
     <img class="icon-img" src="icons/google.png" alt=""><span>Continue with Google</span>
@@ -256,10 +256,10 @@
 </div>
 
 <div class="panel" id="chooseUsernamePanel">
-  <p id="chooseUsernameMsgText">Choose a public username to finish setting up your account.</p>
-  <input type="text" id="chosenUsernameInput" placeholder="Username" autocomplete="off" style="width:100%; height:40px;">
+  <p id="chooseUsernameMsgText" data-i18n="chooseUsernameMsgText">Choose a public username to finish setting up your account.</p>
+  <input type="text" id="chosenUsernameInput" data-i18n-placeholder="chosenUsernamePlaceholder" placeholder="Username" autocomplete="off" style="width:100%; height:40px;">
   <button class="export-btn" id="submitUsernameBtn" style="width:100%; font-size:var(--fs-13); font-weight:bold; height:40px;" onclick="submitUsername()">
-    <span id="submitUsernameBtnLabel">Save username</span>
+    <span id="submitUsernameBtnLabel" data-i18n="submitUsernameBtnLabel">Save username</span>
   </button>
 </div>
 
@@ -268,11 +268,11 @@
 <div id="bottomRightStack" class="bottomright-stack">
   <div id="followLocationBtn" class="pin-map-btn" style="display:none" title="Follow my location" onclick="toggleFollowMode()" role="button" tabindex="0" aria-label="Follow my location" aria-pressed="false" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleFollowMode();}"><img class="icon-img" src="icons/target.png" alt=""></div>
   <div id="pinMapBtn" class="pin-map-btn" style="display:none" title="Set location manually" onclick="togglePinMode()" role="button" tabindex="0" aria-label="Set location manually" aria-pressed="false" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();togglePinMode();}"><img class="icon-img" src="icons/pin.png" alt="Pin"></div>
-  <div id="navigateModeBtn" class="pin-map-btn" style="display:none" title="Navigate" onclick="enterNavigationMode()" role="button" tabindex="0" aria-label="Navigate" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();enterNavigationMode();}"><svg class="icon-img nav-arrow-btn-icon" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 2.2 L19.3 20 L12 15.6 L4.7 20 Z" fill="currentColor"/></svg></div>
-  <div id="heatmapBtn" class="pin-map-btn heatmap-btn" style="display:none" title="Heatmap" onclick="toggleHeatmap()" role="button" tabindex="0" aria-label="Heatmap" aria-pressed="false" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleHeatmap();}">
+  <div id="navigateModeBtn" data-i18n-title="navigateBtnTitle" class="pin-map-btn" style="display:none" title="Navigate" onclick="enterNavigationMode()" role="button" tabindex="0" aria-label="Navigate" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();enterNavigationMode();}"><svg class="icon-img nav-arrow-btn-icon" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 2.2 L19.3 20 L12 15.6 L4.7 20 Z" fill="currentColor"/></svg></div>
+  <div id="heatmapBtn" data-i18n-title="heatmapBtnTitle" class="pin-map-btn heatmap-btn" style="display:none" title="Heatmap" onclick="toggleHeatmap()" role="button" tabindex="0" aria-label="Heatmap" aria-pressed="false" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleHeatmap();}">
     <img class="icon-img" src="icons/heatmap.png" alt="Heatmap">
   </div>
-  <div id="mainMapCompass" class="map-compass heading-up-disabled" style="display:none" title="Heading: tap to rotate the map with your direction of travel" onclick="toggleWalkingCompassMode()" role="button" tabindex="0" aria-label="Rotate map with direction of travel" aria-pressed="false" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleWalkingCompassMode();}">
+  <div id="mainMapCompass" data-i18n-title="mainCompassTitle" class="map-compass heading-up-disabled" style="display:none" title="Heading: tap to rotate the map with your direction of travel" onclick="toggleWalkingCompassMode()" role="button" tabindex="0" aria-label="Rotate map with direction of travel" aria-pressed="false" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleWalkingCompassMode();}">
     <div class="compass-face">
       <div class="compass-needle" id="mainCompassNeedle">
         <svg viewBox="0 0 24 24"><path d="M12 2 L16 13 L12 11 L8 13 Z" fill="#ff4b4b"/><path d="M12 22 L16 13 L12 15 L8 13 Z" fill="#ccc"/></svg>
@@ -280,7 +280,7 @@
     </div>
   </div>
 </div>
-<button type="button" id="navigateClearBtn" class="driving-nav-close-btn" onclick="clearNavigation()" title="Close" style="display:none">✕</button>
+<button type="button" id="navigateClearBtn" data-i18n-title="navigateCloseTitle" class="driving-nav-close-btn" onclick="clearNavigation()" title="Close" style="display:none">✕</button>
 <button type="button" class="report-fab-btn" id="reportFabBtn" style="display:none" disabled title="Report a break" aria-label="Report a break" onclick="reportFabTap()">
   <img src="icons/reports/report_new.png" alt="">
 </button>
@@ -288,13 +288,13 @@
 
 <div id="navigatePanel" class="navigate-panel">
   <div class="navigate-row">
-    <input type="text" id="navigateSearchInput" placeholder="Search destination..."
+    <input type="text" id="navigateSearchInput" data-i18n-placeholder="navigateSearchPH" placeholder="Search destination..."
            oninput="handleNavigateSearchInput()"
            onkeydown="if(event.key==='Enter'){event.preventDefault();searchDestination();}">
-    <div class="navigate-search-btn" id="navigatePinBtn" onclick="toggleNavPinMode()" title="Place destination pin manually"><img class="icon-img" src="icons/pin.png" alt="Pin"></div>
+    <div class="navigate-search-btn" id="navigatePinBtn" data-i18n-title="navigatePinBtnTitle" onclick="toggleNavPinMode()" title="Place destination pin manually"><img class="icon-img" src="icons/pin.png" alt="Pin"></div>
     <div class="navigate-close-btn" onclick="closeNavigatePanel()">✕</div>
   </div>
-  <div id="navigatePinHint" class="navigate-pin-hint" style="display:none">Tap the map to drop a destination pin</div>
+  <div id="navigatePinHint" data-i18n="navigatePinHint" class="navigate-pin-hint" style="display:none">Tap the map to drop a destination pin</div>
   <div id="navigateResults" class="navigate-results"></div>
 </div>
 <div class="driving-left-stack">
@@ -332,7 +332,7 @@
         </div>
       </div>
     </div>
-    <button class="driving-search-btn" id="drivingCenterBtn" onclick="toggleFollowMode()" title="Center on me" aria-label="Recenter and follow my location" aria-pressed="false"><img class="icon-img" src="icons/target.png" alt=""></button>
+    <button class="driving-search-btn" id="drivingCenterBtn" data-i18n-title="followTitle" onclick="toggleFollowMode()" title="Center on me" aria-label="Recenter and follow my location" aria-pressed="false"><img class="icon-img" src="icons/target.png" alt=""></button>
   </div>
 </div>
 
@@ -343,15 +343,15 @@
     <div id="navigateActiveInfo" class="driving-nav-active-info">
       <div class="driving-nav-stat">
         <span class="driving-nav-stat-value" id="navigateTimeText">--</span>
-        <span class="driving-nav-stat-label" id="navigateTimeLabel">Remaining</span>
+        <span class="driving-nav-stat-label" id="navigateTimeLabel" data-i18n="navigateTimeLabel">Remaining</span>
       </div>
       <div class="driving-nav-stat">
         <span class="driving-nav-stat-value" id="navigateDistanceText">--</span>
-        <span class="driving-nav-stat-label" id="navigateDistLabel">Distance</span>
+        <span class="driving-nav-stat-label" id="navigateDistLabel" data-i18n="navigateDistLabel">Distance</span>
       </div>
       <div class="driving-nav-stat">
         <span class="driving-nav-stat-value" id="navigateEtaText">--</span>
-        <span class="driving-nav-stat-label" id="navigateEtaLabel">Arrival</span>
+        <span class="driving-nav-stat-label" id="navigateEtaLabel" data-i18n="navigateEtaLabel">Arrival</span>
       </div>
     </div>
   </div>
@@ -370,7 +370,7 @@
 
 <div id="toastContainer"></div>
 <div id="gpsIssuePill"><span class="gps-issue-dot"></span><span id="gpsIssuePillText"></span></div>
-<div id="pinsLoadingPill"><span class="pins-loading-dot"></span><span id="pinsLoadingPillText"></span></div>
+<div id="pinsLoadingPill"><span class="pins-loading-dot"></span><span id="pinsLoadingPillText" data-i18n="pinsLoadingPill"></span></div>
 
 <div id="gpsModal" class="generic-modal-overlay" style="display:none">
   <div class="generic-modal">
@@ -440,32 +440,32 @@
 
 <div id="settingsModal" class="fullscreen-modal-overlay" style="display:none">
   <div class="fullscreen-modal-header">
-    <h2 id="settingsModalTitle">Settings</h2>
+    <h2 id="settingsModalTitle" data-i18n="settingsModalTitle">Settings</h2>
     <button class="fullscreen-modal-close" onclick="hideSettingsModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
   </div>
   <div class="fullscreen-modal-body">
 
     <div class="detail-section" id="helpSettingsSection">
-      <div class="detail-section-title" id="helpSectionTitle">Help</div>
+      <div class="detail-section-title" id="helpSectionTitle" data-i18n="helpSectionTitle">Help</div>
       <button type="button" class="settings-btn" style="width:100%;" onclick="showHelpModal()" id="settingsHelpBtn">
         <img class="icon-img icon-img-inline icon-tint-dark" src="icons/help.png" alt=""> How to use TraceTheBreak
       </button>
       <button type="button" class="settings-btn" style="width:100%; margin-top:8px;" onclick="hideSettingsModal(); startOnboardingTour(true);" id="settingsReplayTourBtn">
-        <img class="icon-img icon-img-inline icon-tint-dark" src="icons/pin.png" alt=""> <span id="settingsReplayTourBtnLabel">Show quick tour again</span>
+        <img class="icon-img icon-img-inline icon-tint-dark" src="icons/pin.png" alt=""> <span id="settingsReplayTourBtnLabel" data-i18n="settingsReplayTourBtn">Show quick tour again</span>
       </button>
     </div>
 
     <div class="detail-section" id="languageSettingsSection">
-      <div class="detail-section-title" id="languageSectionTitle">Language</div>
+      <div class="detail-section-title" id="languageSectionTitle" data-i18n="languageSectionTitle">Language</div>
       <div class="lang-select-row" id="langSelectRow">
         <select class="lang-select" id="langSelect" onchange="setLang(this.value)"></select>
-        <button type="button" class="theme-segment-btn lang-auto-btn" onclick="setLang('auto')" id="langAutoBtn"><img class="icon-img icon-img-inline" src="icons/pin.png" alt=""> <span id="langBtnAutoLabel">Auto</span></button>
+        <button type="button" class="theme-segment-btn lang-auto-btn" onclick="setLang('auto')" id="langAutoBtn"><img class="icon-img icon-img-inline" src="icons/pin.png" alt=""> <span id="langBtnAutoLabel" data-i18n="langBtnAutoLabel">Auto</span></button>
       </div>
-      <p class="detail-export-hint" id="langAutoHint">We'll set the language based on your location.</p>
+      <p class="detail-export-hint" id="langAutoHint" data-i18n="langAutoHint">We'll set the language based on your location.</p>
     </div>
 
     <div class="detail-section locked-panel" id="settingsSignInGate" style="display:none">
-      <p id="settingsSignInGateMsgText">Sign in to customize theme, map, and driving settings.</p>
+      <p id="settingsSignInGateMsgText" data-i18n="settingsSignInGateMsgText">Sign in to customize theme, map, and driving settings.</p>
       <button type="button" class="oauth-btn oauth-google" onclick="signInWithProvider('google')">
         <img class="icon-img" src="icons/google.png" alt=""><span>Continue with Google</span>
       </button>
@@ -482,40 +482,40 @@
     <details class="settings-group" id="settingsGroupNotifications">
       <summary>
         <img class="settings-group-icon" src="icons/notification.png" alt="">
-        <span id="settingsGroupNotificationsTitle">Notifications & reminders</span>
+        <span id="settingsGroupNotificationsTitle" data-i18n="settingsGroupNotificationsTitle">Notifications & reminders</span>
         <span class="settings-group-chevron"><img src="icons/arrow.png" alt=""></span>
       </summary>
       <div class="settings-group-body">
 
         <div class="detail-section" id="pushNotificationSettingsSection">
           <label class="settings-toggle-row" id="pushNotifToggleRow">
-            <span id="pushNotifToggleLabel">Push notifications on this device</span>
+            <span id="pushNotifToggleLabel" data-i18n="pushNotifToggleLabel">Push notifications on this device</span>
             <span class="toggle-switch">
               <input type="checkbox" id="pushNotifToggleInput" onchange="setPushNotificationsEnabled(this.checked)">
               <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
             </span>
           </label>
-          <p class="detail-export-hint" id="pushNotifToggleHint">Get notified even when the app isn't open. You'll be asked for browser permission the first time.</p>
+          <p class="detail-export-hint" id="pushNotifToggleHint" data-i18n="pushNotifToggleHint">Get notified even when the app isn't open. You'll be asked for browser permission the first time.</p>
         </div>
 
         <div class="detail-section" id="notifTypesSettingsSection">
-          <div class="detail-section-title" id="notifTypesSectionTitle">Push notification types</div>
-          <p class="detail-export-hint" id="notifTypesSectionHint">Turn off just the ones you don't want as push alerts. Everything still lands in your in-app inbox.</p>
+          <div class="detail-section-title" id="notifTypesSectionTitle" data-i18n="notifTypesSectionTitle">Push notification types</div>
+          <p class="detail-export-hint" id="notifTypesSectionHint" data-i18n="notifTypesSectionHint">Turn off just the ones you don't want as push alerts. Everything still lands in your in-app inbox.</p>
           <div id="notifTypeTogglesList"></div>
         </div>
 
         <div class="detail-section" id="savedAreaSettingsSection">
-          <div class="detail-section-title" id="savedAreaSectionTitle">Saved area alerts</div>
-          <p class="detail-export-hint" id="savedAreaSectionHint">Get a push notification when someone reports a new issue near an area you care about.</p>
+          <div class="detail-section-title" id="savedAreaSectionTitle" data-i18n="savedAreaSectionTitle">Saved area alerts</div>
+          <p class="detail-export-hint" id="savedAreaSectionHint" data-i18n="savedAreaSectionHint">Get a push notification when someone reports a new issue near an area you care about.</p>
           <div id="savedAreaStatusText" class="saved-area-status"></div>
           <div class="saved-area-row">
             <button type="button" class="settings-btn" style="flex:1;" onclick="useCurrentLocationForSavedArea()" id="savedAreaUseLocationBtn">
-              <img class="icon-img icon-img-inline icon-tint-dark" src="icons/target.png" alt=""> <span id="savedAreaUseLocationBtnLabel">Use my current location</span>
+              <img class="icon-img icon-img-inline icon-tint-dark" src="icons/target.png" alt=""> <span id="savedAreaUseLocationBtnLabel" data-i18n="savedAreaUseLocationBtn">Use my current location</span>
             </button>
-            <button type="button" class="settings-btn" style="flex:0 0 auto;" onclick="clearSavedArea()" id="savedAreaClearBtn">Clear</button>
+            <button type="button" class="settings-btn" style="flex:0 0 auto;" onclick="clearSavedArea()" id="savedAreaClearBtn" data-i18n="savedAreaClearBtn">Clear</button>
           </div>
           <label class="settings-select-row" id="savedAreaRadiusRow" style="margin-top:10px;">
-            <span id="savedAreaRadiusLabel">Alert radius</span>
+            <span id="savedAreaRadiusLabel" data-i18n="savedAreaRadiusLabel">Alert radius</span>
             <select id="savedAreaRadiusSelect" onchange="setSavedAreaRadius(this.value)">
               <option value="1">1 km</option>
               <option value="2">2 km</option>
@@ -527,13 +527,13 @@
         </div>
 
         <div class="detail-section" id="nearbyCheckinSettingsSection">
-          <div class="detail-section-title" id="nearbyCheckinSectionTitle">Nearby issue check-ins</div>
-          <p class="detail-export-hint" id="nearbyCheckinSectionHint">When you pass close to an open report, we can ask if it's still there.</p>
+          <div class="detail-section-title" id="nearbyCheckinSectionTitle" data-i18n="nearbyCheckinSectionTitle">Nearby issue check-ins</div>
+          <p class="detail-export-hint" id="nearbyCheckinSectionHint" data-i18n="nearbyCheckinSectionHint">When you pass close to an open report, we can ask if it's still there.</p>
           <div class="theme-segment" id="nearbyCheckinFreqSegment">
-            <button type="button" class="theme-segment-btn" onclick="setNearbyCheckinFreq('off')" id="nearbyCheckinBtnOff">Off</button>
-            <button type="button" class="theme-segment-btn" onclick="setNearbyCheckinFreq('low')" id="nearbyCheckinBtnLow">Rarely</button>
-            <button type="button" class="theme-segment-btn" onclick="setNearbyCheckinFreq('normal')" id="nearbyCheckinBtnNormal">Normal</button>
-            <button type="button" class="theme-segment-btn" onclick="setNearbyCheckinFreq('high')" id="nearbyCheckinBtnHigh">Often</button>
+            <button type="button" class="theme-segment-btn" onclick="setNearbyCheckinFreq('off')" id="nearbyCheckinBtnOff" data-i18n="nearbyCheckinFreqOff">Off</button>
+            <button type="button" class="theme-segment-btn" onclick="setNearbyCheckinFreq('low')" id="nearbyCheckinBtnLow" data-i18n="nearbyCheckinFreqLow">Rarely</button>
+            <button type="button" class="theme-segment-btn" onclick="setNearbyCheckinFreq('normal')" id="nearbyCheckinBtnNormal" data-i18n="nearbyCheckinFreqNormal">Normal</button>
+            <button type="button" class="theme-segment-btn" onclick="setNearbyCheckinFreq('high')" id="nearbyCheckinBtnHigh" data-i18n="nearbyCheckinFreqHigh">Often</button>
           </div>
         </div>
 
@@ -554,62 +554,62 @@
     <details class="settings-group" id="settingsGroupMap">
       <summary>
         <img class="settings-group-icon" src="icons/public.png" alt="">
-        <span id="settingsGroupMapTitle">Map & navigation</span>
+        <span id="settingsGroupMapTitle" data-i18n="settingsGroupMapTitle">Map & navigation</span>
         <span class="settings-group-chevron"><img src="icons/arrow.png" alt=""></span>
       </summary>
       <div class="settings-group-body">
 
         <div class="detail-section" id="mapStyleSettingsSection">
-          <div class="detail-section-title" id="mapStyleSectionTitle">Map style</div>
+          <div class="detail-section-title" id="mapStyleSectionTitle" data-i18n="mapStyleSectionTitle">Map style</div>
           <label class="settings-select-row" id="mapStyleDefaultRow">
-            <span id="mapStyleDefaultLabel">Default map style</span>
+            <span id="mapStyleDefaultLabel" data-i18n="mapStyleDefaultLabel">Default map style</span>
             <select id="mapStyleDefaultSelect" onchange="setMapStyleDefault(this.value)"></select>
           </label>
-          <p class="detail-export-hint" id="mapStyleHint">Used when you're not navigating. Light/dark theme is applied on top of whichever style you pick.</p>
+          <p class="detail-export-hint" id="mapStyleHint" data-i18n="mapStyleHint">Used when you're not navigating. Light/dark theme is applied on top of whichever style you pick.</p>
           <label class="settings-select-row" id="mapStyleCarRow">
-            <span id="mapStyleCarLabel">Driving map style</span>
+            <span id="mapStyleCarLabel" data-i18n="mapStyleCarLabel">Driving map style</span>
             <select id="mapStyleCarSelect" onchange="setNavMapStylePref('car', this.value)"></select>
           </label>
           <label class="settings-select-row" id="mapStyleBikeRow">
-            <span id="mapStyleBikeLabel">Cycling map style</span>
+            <span id="mapStyleBikeLabel" data-i18n="mapStyleBikeLabel">Cycling map style</span>
             <select id="mapStyleBikeSelect" onchange="setNavMapStylePref('bike', this.value)"></select>
           </label>
           <label class="settings-select-row" id="mapStyleFootRow">
-            <span id="mapStyleFootLabel">Walking map style</span>
+            <span id="mapStyleFootLabel" data-i18n="mapStyleFootLabel">Walking map style</span>
             <select id="mapStyleFootSelect" onchange="setNavMapStylePref('foot', this.value)"></select>
           </label>
         </div>
 
         <div class="detail-section" id="iconPackSettingsSection" style="display:none;">
-          <div class="detail-section-title" id="iconPackSectionTitle">Icon pack</div>
+          <div class="detail-section-title" id="iconPackSectionTitle" data-i18n="iconPackSectionTitle">Icon pack</div>
           <div class="theme-segment" id="iconPackSegment"></div>
-          <p class="detail-export-hint" id="iconPackHint">Changes how map pins and icons look. The app will reload after switching.</p>
+          <p class="detail-export-hint" id="iconPackHint" data-i18n="iconPackHint">Changes how map pins and icons look. The app will reload after switching.</p>
         </div>
 
         <div class="detail-section" id="mapFilterSettingsSection">
-          <div class="detail-section-title" id="mapFilterSectionTitle">Map</div>
+          <div class="detail-section-title" id="mapFilterSectionTitle" data-i18n="mapFilterSectionTitle">Map</div>
           <button type="button" class="settings-btn" onclick="toggleCategoryFilterModal()" id="mapFilterSettingsBtn">
-            <img class="icon-img icon-img-inline icon-tint-dark" src="icons/category-filter.png" alt=""> <span id="mapFilterSettingsBtnLabel">Filter categories</span>
+            <img class="icon-img icon-img-inline icon-tint-dark" src="icons/category-filter.png" alt=""> <span id="mapFilterSettingsBtnLabel" data-i18n="categoryFilterBtnTitle">Filter categories</span>
             <span class="settings-btn-active-dot" id="mapFilterActiveDot" style="display:none"></span>
           </button>
-          <div class="detail-section-title" id="statusFilterSectionTitle" style="margin-top:14px;">Status shown on map</div>
+          <div class="detail-section-title" id="statusFilterSectionTitle" data-i18n="statusFilterSectionTitle" style="margin-top:14px;">Status shown on map</div>
           <div class="theme-segment" id="statusFilterSettingsSegment"></div>
           <label class="settings-toggle-row" id="pulseToggleRow">
-            <span id="pulseToggleLabel">Status pulse animation</span>
+            <span id="pulseToggleLabel" data-i18n="pulseToggleLabel">Status pulse animation</span>
             <span class="toggle-switch">
               <input type="checkbox" id="pulseToggleInput" checked onchange="setPulseEnabled(this.checked)">
               <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
             </span>
           </label>
           <label class="settings-toggle-row" id="navBtnToggleRow">
-            <span id="navBtnToggleLabel">Show driving / navigation button on map</span>
+            <span id="navBtnToggleLabel" data-i18n="navBtnToggleLabel">Show driving / navigation button on map</span>
             <span class="toggle-switch">
               <input type="checkbox" id="navBtnToggleInput" onchange="setNavBtnVisible(this.checked)">
               <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
             </span>
           </label>
           <label class="settings-toggle-row" id="heatmapBtnToggleRow">
-            <span id="heatmapBtnToggleLabel">Show heatmap button on map</span>
+            <span id="heatmapBtnToggleLabel" data-i18n="heatmapBtnToggleLabel">Show heatmap button on map</span>
             <span class="toggle-switch">
               <input type="checkbox" id="heatmapBtnToggleInput" onchange="setHeatmapBtnVisible(this.checked)">
               <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
@@ -618,62 +618,62 @@
         </div>
 
         <div class="detail-section" id="offlineMapSettingsSection">
-          <div class="detail-section-title" id="offlineMapSectionTitle">Offline maps</div>
-          <p class="detail-export-hint" id="offlineMapHint">Your map is cached automatically as you browse, so it still loads without signal.</p>
+          <div class="detail-section-title" id="offlineMapSectionTitle" data-i18n="offlineMapSectionTitle">Offline maps</div>
+          <p class="detail-export-hint" id="offlineMapHint" data-i18n="offlineMapHint">Your map is cached automatically as you browse, so it still loads without signal.</p>
           <label class="settings-toggle-row" id="offlineAutoCacheToggleRow">
-            <span id="offlineAutoCacheToggleLabel">Auto-cache map around areas you view</span>
+            <span id="offlineAutoCacheToggleLabel" data-i18n="offlineAutoCacheToggleLabel">Auto-cache map around areas you view</span>
             <span class="toggle-switch">
               <input type="checkbox" id="offlineAutoCacheToggleInput" checked onchange="setOfflineAutoCacheEnabled(this.checked)">
               <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
             </span>
           </label>
-          <p class="detail-export-hint" id="offlineAutoCacheHint">Quietly extends your offline map outward, in the background, up to roughly a country's worth of coverage.</p>
+          <p class="detail-export-hint" id="offlineAutoCacheHint" data-i18n="offlineAutoCacheHint">Quietly extends your offline map outward, in the background, up to roughly a country's worth of coverage.</p>
           <div class="dashboard-progress-text" id="offlineMapStorageText"></div>
         </div>
 
         <div class="detail-section" id="drivingSafetySettingsSection">
-          <div class="detail-section-title" id="drivingSafetySectionTitle">Driving mode</div>
+          <div class="detail-section-title" id="drivingSafetySectionTitle" data-i18n="drivingSafetySectionTitle">Driving mode</div>
           <label class="settings-toggle-row" id="soundToggleRow">
-            <span id="soundToggleLabel">Navigation & alert sounds</span>
+            <span id="soundToggleLabel" data-i18n="soundToggleLabel">Navigation & alert sounds</span>
             <span class="toggle-switch">
               <input type="checkbox" id="soundToggleInput" checked onchange="setSoundEnabled(this.checked)">
               <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
             </span>
           </label>
           <label class="settings-toggle-row" id="voiceNavToggleRow">
-            <span id="voiceNavToggleLabel">Voice-guided turn directions</span>
+            <span id="voiceNavToggleLabel" data-i18n="voiceNavToggleLabel">Voice-guided turn directions</span>
             <span class="toggle-switch">
               <input type="checkbox" id="voiceNavToggleInput" onchange="setVoiceNavEnabled(this.checked)">
               <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
             </span>
           </label>
           <label class="settings-toggle-row" id="drivingSafetyToggleRow">
-            <span id="drivingSafetyToggleLabel">Show safe-driving reminder when starting driving mode</span>
+            <span id="drivingSafetyToggleLabel" data-i18n="drivingSafetyToggleLabel">Show safe-driving reminder when starting driving mode</span>
             <span class="toggle-switch">
               <input type="checkbox" id="drivingSafetyToggleInput" checked onchange="setDrivingSafetyReminderEnabled(this.checked)">
               <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
             </span>
           </label>
           <label class="settings-toggle-row" id="overspeedAlertToggleRow">
-            <span id="overspeedAlertToggleLabel">Warn me when I'm 5+ km/h over the speed limit</span>
+            <span id="overspeedAlertToggleLabel" data-i18n="overspeedAlertToggleLabel">Warn me when I'm 5+ km/h over the speed limit</span>
             <span class="toggle-switch">
               <input type="checkbox" id="overspeedAlertToggleInput" checked onchange="setOverspeedAlertEnabled(this.checked)">
               <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
             </span>
           </label>
           <label class="settings-toggle-row" id="bumpDetectionToggleRow">
-            <span id="bumpDetectionToggleLabel">Detect potholes/bumps automatically while driving</span>
+            <span id="bumpDetectionToggleLabel" data-i18n="bumpDetectionToggleLabel">Detect potholes/bumps automatically while driving</span>
             <span class="toggle-switch">
               <input type="checkbox" id="bumpDetectionToggleInput" checked onchange="setBumpDetectionEnabled(this.checked)">
               <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
             </span>
           </label>
           <label class="settings-select-row" id="quickDefaultCarRow">
-            <span id="quickDefaultCarLabel">Default quick-report category (driving)</span>
+            <span id="quickDefaultCarLabel" data-i18n="quickDefaultCarLabel">Default quick-report category (driving)</span>
             <select id="quickDefaultCarSelect" onchange="setQuickDefaultCategoryPref('car', this.value)"></select>
           </label>
           <label class="settings-select-row" id="quickDefaultBikeRow">
-            <span id="quickDefaultBikeLabel">Default quick-report category (biking)</span>
+            <span id="quickDefaultBikeLabel" data-i18n="quickDefaultBikeLabel">Default quick-report category (biking)</span>
             <select id="quickDefaultBikeSelect" onchange="setQuickDefaultCategoryPref('bike', this.value)"></select>
           </label>
         </div>
@@ -684,47 +684,47 @@
     <details class="settings-group" id="settingsGroupAccount">
       <summary>
         <img class="settings-group-icon" src="icons/user.png" alt="">
-        <span id="settingsGroupAccountTitle">Account & privacy</span>
+        <span id="settingsGroupAccountTitle" data-i18n="settingsGroupAccountTitle">Account & privacy</span>
         <span class="settings-group-chevron"><img src="icons/arrow.png" alt=""></span>
       </summary>
       <div class="settings-group-body">
 
         <div class="detail-section" id="privacySettingsSection">
-          <div class="detail-section-title" id="privacySectionTitle">Privacy</div>
+          <div class="detail-section-title" id="privacySectionTitle" data-i18n="privacySectionTitle">Privacy</div>
           <label class="settings-toggle-row" id="showUsernameToggleRow">
-            <span id="showUsernameToggleLabel">Show my username on reports</span>
+            <span id="showUsernameToggleLabel" data-i18n="showUsernameToggleLabel">Show my username on reports</span>
             <span class="toggle-switch">
               <input type="checkbox" id="showUsernameToggleInput" checked onchange="setShowUsernameOnReports(this.checked)">
               <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
             </span>
           </label>
-          <p class="detail-export-hint" id="showUsernameHint">When off, your reports show a short ID instead of your username. Admins can still see who reported it, for moderation.</p>
+          <p class="detail-export-hint" id="showUsernameHint" data-i18n="showUsernameHint">When off, your reports show a short ID instead of your username. Admins can still see who reported it, for moderation.</p>
         </div>
 
         <div class="detail-section" id="themeSettingsSection">
-          <div class="detail-section-title" id="themeSectionTitle">Theme</div>
+          <div class="detail-section-title" id="themeSectionTitle" data-i18n="themeSectionTitle">Theme</div>
           <div class="theme-segment" id="themeSegment">
-            <button type="button" class="theme-segment-btn" onclick="setThemeMode('light')" id="themeBtnLight">Light</button>
-            <button type="button" class="theme-segment-btn" onclick="setThemeMode('dark')" id="themeBtnDark">Dark</button>
-            <button type="button" class="theme-segment-btn" onclick="setThemeMode('auto')" id="themeBtnAuto">Auto</button>
-            <button type="button" class="theme-segment-btn" onclick="setThemeMode('smart')" id="themeBtnSmart">Smart</button>
+            <button type="button" class="theme-segment-btn" onclick="setThemeMode('light')" id="themeBtnLight" data-i18n="themeLight">Light</button>
+            <button type="button" class="theme-segment-btn" onclick="setThemeMode('dark')" id="themeBtnDark" data-i18n="themeDark">Dark</button>
+            <button type="button" class="theme-segment-btn" onclick="setThemeMode('auto')" id="themeBtnAuto" data-i18n="themeAuto">Auto</button>
+            <button type="button" class="theme-segment-btn" onclick="setThemeMode('smart')" id="themeBtnSmart" data-i18n="themeSmart">Smart</button>
           </div>
-          <p class="detail-export-hint" id="themeSmartHint">Auto follows your device's light/dark setting. Smart adapts to ambient light where available, otherwise local time.</p>
+          <p class="detail-export-hint" id="themeSmartHint" data-i18n="themeSmartHint">Auto follows your device's light/dark setting. Smart adapts to ambient light where available, otherwise local time.</p>
         </div>
 
         <div class="detail-section" id="legalSettingsSection">
-          <div class="detail-section-title" id="legalSectionTitle">Legal</div>
+          <div class="detail-section-title" id="legalSectionTitle" data-i18n="legalSectionTitle">Legal</div>
           <p class="detail-export-hint" id="legalCopyrightText">© tracethestuff.com</p>
           <div style="display:flex; gap:var(--space-8);">
-            <button type="button" class="settings-btn" style="flex:1;" onclick="showLegalContentModal('terms_of_service')" id="legalTermsBtn">Terms of Service</button>
-            <button type="button" class="settings-btn" style="flex:1;" onclick="showLegalContentModal('privacy_policy')" id="legalPrivacyBtn">Privacy Policy</button>
+            <button type="button" class="settings-btn" style="flex:1;" onclick="showLegalContentModal('terms_of_service')" id="legalTermsBtn" data-i18n="termsOfServiceBtn">Terms of Service</button>
+            <button type="button" class="settings-btn" style="flex:1;" onclick="showLegalContentModal('privacy_policy')" id="legalPrivacyBtn" data-i18n="privacyPolicyBtn">Privacy Policy</button>
           </div>
         </div>
 
         <div class="detail-section" id="accountDangerSettingsSection">
-          <div class="detail-section-title" id="accountDangerSectionTitle">Account</div>
-          <p class="detail-export-hint" id="deleteAccountHint">Delete your account and personal data. An admin will review your request. Your existing reports stay visible to help the community, but are no longer linked to your username.</p>
-          <button type="button" class="detail-delete-btn" style="width:100%;" onclick="requestAccountDeletion()" id="deleteAccountBtn">Delete my account</button>
+          <div class="detail-section-title" id="accountDangerSectionTitle" data-i18n="accountDangerSectionTitle">Account</div>
+          <p class="detail-export-hint" id="deleteAccountHint" data-i18n="deleteAccountHint">Delete your account and personal data. An admin will review your request. Your existing reports stay visible to help the community, but are no longer linked to your username.</p>
+          <button type="button" class="detail-delete-btn" style="width:100%;" onclick="requestAccountDeletion()" id="deleteAccountBtn" data-i18n="deleteAccountBtn">Delete my account</button>
           <div id="deleteAccountPendingBox" style="display:none;">
             <p class="detail-export-hint" id="deleteAccountPendingHint">Your account deletion request is pending admin review.</p>
             <button type="button" class="settings-btn" style="width:100%;" onclick="cancelAccountDeletionRequest()" id="cancelDeletionBtn">Cancel request</button>
@@ -736,16 +736,16 @@
 
     <div class="detail-section" id="timeWindowFilterSection" style="padding:0;overflow:hidden;display:none;">
       <div class="filter-label-row" style="border-radius:0;">
-        <span class="filter-title" id="filterTitleLabel">Time Window Filter</span>
+        <span class="filter-title" id="filterTitleLabel" data-i18n="timeFilter">Time Window Filter</span>
       </div>
 
       <div class="filter-select-row" style="border-bottom:none;">
         <div class="select-wrap">
-          <input type="text" id="dateRangePicker" placeholder="Select date range..." readonly>
+          <input type="text" id="dateRangePicker" data-i18n-placeholder="calendarPH" placeholder="Select date range..." readonly>
         </div>
         <button class="export-btn" onclick="downloadCSV()"
                 style="flex:0 0 auto;width:auto;min-width:0;font-size:var(--fs-12);padding:0 12px;align-self:stretch;white-space:nowrap;">
-          <span id="csvLabel">CSV</span>
+          <span id="csvLabel" data-i18n="csvLabel">CSV</span>
         </button>
       </div>
     </div>
@@ -830,13 +830,13 @@
       <span class="admin-pill" id="dashboardIdentityAdminPill" style="display:none">★ ADMIN</span>
     </div>
     <h2 id="leaderboardModalTitle"><img class="icon-img icon-img-inline" src="icons/trophy.png" alt=""> Rankings</h2>
-    <button type="button" class="settings-btn dashboard-signout-btn" id="dashboardSignOutBtn" onclick="signOutUser()" style="display:none">Sign out</button>
+    <button type="button" class="settings-btn dashboard-signout-btn" id="dashboardSignOutBtn" data-i18n="signOutBtn" onclick="signOutUser()" style="display:none">Sign out</button>
     <button class="fullscreen-modal-close" onclick="hideLeaderboardModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
   </div>
   <div class="fullscreen-modal-body" style="gap:var(--space-12);">
     <div id="leaderboardDashboardTab" style="display:flex; flex-direction:column; gap:var(--space-12);">
       <div class="detail-section dashboard-section" id="dashboardSection" style="display:none">
-        <div class="detail-section-title" id="dashboardSectionTitle">My Dashboard</div>
+        <div class="detail-section-title" id="dashboardSectionTitle" data-i18n="dashboardSectionTitle">My Dashboard</div>
         <div class="profile-progress-track"><div class="profile-progress-fill" id="dashboardProgressFill"></div></div>
         <div class="dashboard-progress-text" id="dashboardProgressText"></div>
         <div class="dashboard-streak-card" id="dashboardStreakCard" style="display:none">
@@ -844,13 +844,13 @@
           <div class="dashboard-streak-info">
             <div class="dashboard-streak-count">
               <span class="dashboard-streak-count-num" id="dashboardStreakDays">0</span>
-              <span class="dashboard-streak-count-label" id="dashboardStreakDaysLabel">day streak</span>
+              <span class="dashboard-streak-count-label" id="dashboardStreakDaysLabel" data-i18n="dashboardStreakDaysLabel">day streak</span>
             </div>
             <div class="dashboard-streak-sub" id="dashboardStreakSub"></div>
           </div>
           <div class="dashboard-streak-best">
             <span class="dashboard-streak-best-num" id="dashboardStreakBest">0</span>
-            <span class="dashboard-streak-best-label" id="dashboardStreakBestLabel">Best</span>
+            <span class="dashboard-streak-best-label" id="dashboardStreakBestLabel" data-i18n="dashboardStreakBestLabel">Best</span>
           </div>
         </div>
         <div class="dashboard-stats-grid">
@@ -858,67 +858,67 @@
             <span class="dashboard-stat-icon-glyph" style="background-color:#f0b429;-webkit-mask:url('icons/badges/badge-civic-voice.png') center/contain no-repeat;mask:url('icons/badges/badge-civic-voice.png') center/contain no-repeat;"></span>
             <div class="dashboard-stat-body">
               <div class="dashboard-stat-value" id="dashboardStatPoints">0</div>
-              <div class="dashboard-stat-label" id="dashboardStatPointsLabel">Civic points</div>
+              <div class="dashboard-stat-label" id="dashboardStatPointsLabel" data-i18n="dashboardStatPoints">Civic points</div>
             </div>
           </div>
           <div class="dashboard-stat-box">
             <span class="dashboard-stat-icon-glyph" style="background-color:#5ec98a;-webkit-mask:url('icons/badges/badge-problem-solver.png') center/contain no-repeat;mask:url('icons/badges/badge-problem-solver.png') center/contain no-repeat;"></span>
             <div class="dashboard-stat-body">
               <div class="dashboard-stat-value" id="dashboardStatSuccessful">0</div>
-              <div class="dashboard-stat-label" id="dashboardStatSuccessfulLabel">Successful votes</div>
+              <div class="dashboard-stat-label" id="dashboardStatSuccessfulLabel" data-i18n="dashboardStatSuccessful">Successful votes</div>
             </div>
           </div>
           <div class="dashboard-stat-box">
             <span class="dashboard-stat-icon-glyph" style="background-color:#c084fc;-webkit-mask:url('icons/badges/badge-local-legend.png') center/contain no-repeat;mask:url('icons/badges/badge-local-legend.png') center/contain no-repeat;"></span>
             <div class="dashboard-stat-body">
               <div class="dashboard-stat-value" id="dashboardStatWeight">x1</div>
-              <div class="dashboard-stat-label" id="dashboardStatWeightLabel">Your vote weight</div>
+              <div class="dashboard-stat-label" id="dashboardStatWeightLabel" data-i18n="dashboardStatWeight">Your vote weight</div>
             </div>
           </div>
         </div>
-        <div class="dashboard-badges-title" id="dashboardActivityTitle">Activity</div>
+        <div class="dashboard-badges-title" id="dashboardActivityTitle" data-i18n="dashboardActivityTitle">Activity</div>
         <div class="dashboard-stats-grid-3">
           <div class="dashboard-stat-box dashboard-stat-box-sm">
             <span class="dashboard-stat-icon-glyph" style="background-color:#f87171;-webkit-mask:url('icons/badges/badge-street-scout.png') center/contain no-repeat;mask:url('icons/badges/badge-street-scout.png') center/contain no-repeat;"></span>
             <div class="dashboard-stat-body">
               <div class="dashboard-stat-value" id="dashboardStatReports">0</div>
-              <div class="dashboard-stat-label" id="dashboardStatReportsLabel">Reports filed</div>
+              <div class="dashboard-stat-label" id="dashboardStatReportsLabel" data-i18n="dashboardStatReports">Reports filed</div>
             </div>
           </div>
           <div class="dashboard-stat-box dashboard-stat-box-sm">
             <span class="dashboard-stat-icon-glyph" style="background-color:#93c5fd;-webkit-mask:url('icons/badges/badge-photo-expert.png') center/contain no-repeat;mask:url('icons/badges/badge-photo-expert.png') center/contain no-repeat;"></span>
             <div class="dashboard-stat-body">
               <div class="dashboard-stat-value" id="dashboardStatPhotos">0</div>
-              <div class="dashboard-stat-label" id="dashboardStatPhotosLabel">Photos added</div>
+              <div class="dashboard-stat-label" id="dashboardStatPhotosLabel" data-i18n="dashboardStatPhotos">Photos added</div>
             </div>
           </div>
           <div class="dashboard-stat-box dashboard-stat-box-sm">
             <span class="dashboard-stat-icon-glyph" style="background-color:#5eead4;-webkit-mask:url('icons/badges/badge-conversation-starter.png') center/contain no-repeat;mask:url('icons/badges/badge-conversation-starter.png') center/contain no-repeat;"></span>
             <div class="dashboard-stat-body">
               <div class="dashboard-stat-value" id="dashboardStatComments">0</div>
-              <div class="dashboard-stat-label" id="dashboardStatCommentsLabel">Comments left</div>
+              <div class="dashboard-stat-label" id="dashboardStatCommentsLabel" data-i18n="dashboardStatComments">Comments left</div>
             </div>
           </div>
           <div class="dashboard-stat-box dashboard-stat-box-sm">
             <span class="dashboard-stat-icon-glyph" style="background-color:#f472b6;-webkit-mask:url('icons/badges/badge-world-traveler.png') center/contain no-repeat;mask:url('icons/badges/badge-world-traveler.png') center/contain no-repeat;"></span>
             <div class="dashboard-stat-body">
               <div class="dashboard-stat-value" id="dashboardStatCities">0</div>
-              <div class="dashboard-stat-label" id="dashboardStatCitiesLabel">Cities covered</div>
+              <div class="dashboard-stat-label" id="dashboardStatCitiesLabel" data-i18n="dashboardStatCities">Cities covered</div>
             </div>
           </div>
           <div class="dashboard-stat-box dashboard-stat-box-sm">
             <span class="dashboard-stat-icon-glyph" style="background-color:#fb923c;-webkit-mask:url('icons/badges/badge-the-upvoter.png') center/contain no-repeat;mask:url('icons/badges/badge-the-upvoter.png') center/contain no-repeat;"></span>
             <div class="dashboard-stat-body">
               <div class="dashboard-stat-value" id="dashboardStatVotes">0</div>
-              <div class="dashboard-stat-label" id="dashboardStatVotesLabel">Votes cast</div>
+              <div class="dashboard-stat-label" id="dashboardStatVotesLabel" data-i18n="dashboardStatVotes">Votes cast</div>
             </div>
           </div>
         </div>
-        <div class="dashboard-badges-title" id="dashboardWeekTitle">This Week</div>
+        <div class="dashboard-badges-title" id="dashboardWeekTitle" data-i18n="dashboardWeekTitle">This Week</div>
         <div class="weekly-chart" id="dashboardWeeklyChart"></div>
 
         <div class="dashboard-badges-title-row">
-          <div class="dashboard-badges-title" id="dashboardQuestsTitle">Quests</div>
+          <div class="dashboard-badges-title" id="dashboardQuestsTitle" data-i18n="dashboardQuestsTitle">Quests</div>
           <button type="button" class="dashboard-quest-history-toggle" id="dashboardQuestHistoryToggle">History</button>
         </div>
         <div class="dashboard-quests" id="dashboardQuestsList"></div>
@@ -926,7 +926,7 @@
           <div class="dashboard-quest-history-list" id="dashboardQuestHistoryList"></div>
         </div>
 
-        <div class="dashboard-badges-title" id="dashboardCityTitle">City Contribution</div>
+        <div class="dashboard-badges-title" id="dashboardCityTitle" data-i18n="dashboardCityTitle">City Contribution</div>
         <div class="dashboard-city-card" id="dashboardCityCard" style="display:none">
           <div class="dashboard-city-ring-wrap">
             <svg viewBox="0 0 100 100" class="dashboard-city-ring">
@@ -942,13 +942,13 @@
         </div>
 
         <div class="dashboard-badges-title-row">
-          <span class="dashboard-badges-title" id="dashboardBadgesTitle">Badges</span>
+          <span class="dashboard-badges-title" id="dashboardBadgesTitle" data-i18n="dashboardBadgesTitle">Badges</span>
           <span class="dashboard-badges-count" id="dashboardBadgesCount"></span>
         </div>
         <div class="dashboard-next-badge" id="dashboardNextBadgeCard" style="display:none">
           <div class="dashboard-next-badge-icon" id="dashboardNextBadgeIcon"></div>
           <div class="dashboard-next-badge-info">
-            <div class="dashboard-next-badge-label" id="dashboardNextBadgeLabel">Next badge</div>
+            <div class="dashboard-next-badge-label" id="dashboardNextBadgeLabel" data-i18n="dashboardNextBadgeLabel">Next badge</div>
             <div class="dashboard-next-badge-name" id="dashboardNextBadgeName"></div>
             <div class="profile-progress-track"><div class="profile-progress-fill" id="dashboardNextBadgeFill"></div></div>
             <div class="dashboard-next-badge-text" id="dashboardNextBadgeText"></div>
@@ -958,72 +958,72 @@
       </div>
 
       <div class="detail-section dashboard-section" id="adminDashboardSection" style="display:none">
-        <div class="detail-section-title" id="adminDashboardSectionTitle" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        <div class="detail-section-title" id="adminDashboardSectionTitle" data-i18n="adminDashboardSectionTitle" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
           <span>My Admin Role</span>
-          <button type="button" class="settings-btn" id="openAnalyticsBtn" onclick="openAnalyticsModal()" style="margin:0;padding:6px 12px;font-size:var(--fs-12-5);width:auto;flex:none;"><img class="icon-img icon-img-inline" src="icons/analytics.png" alt=""> <span id="openAnalyticsBtnLabel">Analytics</span></button>
+          <button type="button" class="settings-btn" id="openAnalyticsBtn" onclick="openAnalyticsModal()" style="margin:0;padding:6px 12px;font-size:var(--fs-12-5);width:auto;flex:none;"><img class="icon-img icon-img-inline" src="icons/analytics.png" alt=""> <span id="openAnalyticsBtnLabel" data-i18n="openAnalyticsBtnLabel">Analytics</span></button>
         </div>
         <div class="dashboard-stats-grid">
           <div class="dashboard-stat-box">
             <span class="dashboard-stat-icon-glyph" style="background-color:#f472b6;-webkit-mask:url('icons/badges/badge-admin-district-keeper.png') center/contain no-repeat;mask:url('icons/badges/badge-admin-district-keeper.png') center/contain no-repeat;"></span>
             <div class="dashboard-stat-body">
               <div class="dashboard-stat-value" id="adminDashboardTagValue" style="font-size:var(--fs-14);">—</div>
-              <div class="dashboard-stat-label" id="adminDashboardTagLabel">Responsible for</div>
+              <div class="dashboard-stat-label" id="adminDashboardTagLabel" data-i18n="adminDashboardTagLabel">Responsible for</div>
             </div>
           </div>
           <div class="dashboard-stat-box">
             <span class="dashboard-stat-icon-glyph" style="background-color:#f87171;-webkit-mask:url('icons/badges/badge-veteran-moderator.png') center/contain no-repeat;mask:url('icons/badges/badge-veteran-moderator.png') center/contain no-repeat;"></span>
             <div class="dashboard-stat-body">
               <div class="dashboard-stat-value" id="adminDashboardResolvedValue">0</div>
-              <div class="dashboard-stat-label" id="adminDashboardResolvedLabel">Flags resolved</div>
+              <div class="dashboard-stat-label" id="adminDashboardResolvedLabel" data-i18n="adminDashboardResolvedLabel">Flags resolved</div>
             </div>
           </div>
         </div>
-        <div class="dashboard-badges-title" id="adminDashboardActivityTitle">Moderation Stats</div>
+        <div class="dashboard-badges-title" id="adminDashboardActivityTitle" data-i18n="adminDashboardActivityTitle">Moderation Stats</div>
         <div class="dashboard-stats-grid-3">
           <div class="dashboard-stat-box dashboard-stat-box-sm">
             <span class="dashboard-stat-icon-glyph" style="background-color:#93c5fd;-webkit-mask:url('icons/badges/badge-admin-cleanup-crew.png') center/contain no-repeat;mask:url('icons/badges/badge-admin-cleanup-crew.png') center/contain no-repeat;"></span>
             <div class="dashboard-stat-body">
               <div class="dashboard-stat-value" id="adminDashboardStatReviewed">0</div>
-              <div class="dashboard-stat-label" id="adminDashboardStatReviewedLabel">Reports reviewed</div>
+              <div class="dashboard-stat-label" id="adminDashboardStatReviewedLabel" data-i18n="adminDashboardStatReviewed">Reports reviewed</div>
             </div>
           </div>
           <div class="dashboard-stat-box dashboard-stat-box-sm">
             <span class="dashboard-stat-icon-glyph" style="background-color:#f0b429;-webkit-mask:url('icons/badges/badge-admin-fast-responder.png') center/contain no-repeat;mask:url('icons/badges/badge-admin-fast-responder.png') center/contain no-repeat;"></span>
             <div class="dashboard-stat-body">
               <div class="dashboard-stat-value" id="adminDashboardStatFast">0</div>
-              <div class="dashboard-stat-label" id="adminDashboardStatFastLabel">Fast resolves (&lt;1h)</div>
+              <div class="dashboard-stat-label" id="adminDashboardStatFastLabel" data-i18n="adminDashboardStatFast">Fast resolves (&lt;1h)</div>
             </div>
           </div>
           <div class="dashboard-stat-box dashboard-stat-box-sm">
             <span class="dashboard-stat-icon-glyph" style="background-color:#c084fc;-webkit-mask:url('icons/badges/badge-admin-on-duty.png') center/contain no-repeat;mask:url('icons/badges/badge-admin-on-duty.png') center/contain no-repeat;"></span>
             <div class="dashboard-stat-body">
               <div class="dashboard-stat-value" id="adminDashboardStatStreak">0</div>
-              <div class="dashboard-stat-label" id="adminDashboardStatStreakLabel">Longest streak (days)</div>
+              <div class="dashboard-stat-label" id="adminDashboardStatStreakLabel" data-i18n="adminDashboardStatStreak">Longest streak (days)</div>
             </div>
           </div>
           <div class="dashboard-stat-box dashboard-stat-box-sm">
             <span class="dashboard-stat-icon-glyph" style="background-color:#5eead4;-webkit-mask:url('icons/badges/badge-admin-lightning-review.png') center/contain no-repeat;mask:url('icons/badges/badge-admin-lightning-review.png') center/contain no-repeat;"></span>
             <div class="dashboard-stat-body">
               <div class="dashboard-stat-value" id="adminDashboardStatBusiest">0</div>
-              <div class="dashboard-stat-label" id="adminDashboardStatBusiestLabel">Busiest day</div>
+              <div class="dashboard-stat-label" id="adminDashboardStatBusiestLabel" data-i18n="adminDashboardStatBusiest">Busiest day</div>
             </div>
           </div>
           <div class="dashboard-stat-box dashboard-stat-box-sm">
             <span class="dashboard-stat-icon-glyph" style="background-color:#fb923c;-webkit-mask:url('icons/badges/badge-admin-night-shift.png') center/contain no-repeat;mask:url('icons/badges/badge-admin-night-shift.png') center/contain no-repeat;"></span>
             <div class="dashboard-stat-body">
               <div class="dashboard-stat-value" id="adminDashboardStatNight">0</div>
-              <div class="dashboard-stat-label" id="adminDashboardStatNightLabel">Night shift resolves</div>
+              <div class="dashboard-stat-label" id="adminDashboardStatNightLabel" data-i18n="adminDashboardStatNight">Night shift resolves</div>
             </div>
           </div>
         </div>
-        <div class="dashboard-badges-title" id="adminDigestHistoryTitle" style="display:none;">Weekly Digest History</div>
+        <div class="dashboard-badges-title" id="adminDigestHistoryTitle" data-i18n="adminDigestHistoryTitle" style="display:none;">Weekly Digest History</div>
         <div id="adminDigestHistoryList" style="display:none; flex-direction:column; gap:6px;"></div>
-        <div class="dashboard-badges-title" id="adminDashboardQuestsTitle">Quests</div>
+        <div class="dashboard-badges-title" id="adminDashboardQuestsTitle" data-i18n="adminDashboardQuestsTitle">Quests</div>
         <div class="dashboard-quests" id="adminQuestsList"></div>
-        <div class="dashboard-badges-title" id="adminDashboardWeekTitle">This Week</div>
+        <div class="dashboard-badges-title" id="adminDashboardWeekTitle" data-i18n="dashboardWeekTitle">This Week</div>
         <div class="weekly-chart" id="adminDashboardWeeklyChart"></div>
         <div class="dashboard-progress-text" id="adminDashboardScopeNote"></div>
-        <div class="dashboard-badges-title" id="adminDashboardXpTitle">Prestige Rank</div>
+        <div class="dashboard-badges-title" id="adminDashboardXpTitle" data-i18n="adminDashboardXpTitle">Prestige Rank</div>
         <div class="dashboard-level-row">
           <span class="tier-pill dashboard-level-pill" id="adminDashboardXpPill">1</span>
           <span class="dashboard-level-name" id="adminDashboardXpName"></span>
@@ -1031,13 +1031,13 @@
         <div class="profile-progress-track"><div class="profile-progress-fill" id="adminDashboardXpFill"></div></div>
         <div class="dashboard-progress-text" id="adminDashboardXpText"></div>
         <div class="dashboard-badges-title-row">
-          <span class="dashboard-badges-title" id="adminDashboardBadgesTitle">Admin achievements</span>
+          <span class="dashboard-badges-title" id="adminDashboardBadgesTitle" data-i18n="adminDashboardBadgesTitle">Admin achievements</span>
           <span class="dashboard-badges-count" id="adminDashboardBadgesCount"></span>
         </div>
         <div class="dashboard-next-badge" id="adminDashboardNextBadgeCard" style="display:none">
           <div class="dashboard-next-badge-icon" id="adminDashboardNextBadgeIcon"></div>
           <div class="dashboard-next-badge-info">
-            <div class="dashboard-next-badge-label" id="adminDashboardNextBadgeLabel">Next badge</div>
+            <div class="dashboard-next-badge-label" id="adminDashboardNextBadgeLabel" data-i18n="dashboardNextBadgeLabel">Next badge</div>
             <div class="dashboard-next-badge-name" id="adminDashboardNextBadgeName"></div>
             <div class="profile-progress-track"><div class="profile-progress-fill" id="adminDashboardNextBadgeFill"></div></div>
             <div class="dashboard-next-badge-text" id="adminDashboardNextBadgeText"></div>
@@ -1048,21 +1048,21 @@
 
       <div class="detail-section dashboard-section" id="myReportsSection" style="display:none">
         <div class="dashboard-badges-title-row">
-          <span class="dashboard-badges-title" id="myReportsTitle">My Reports</span>
+          <span class="dashboard-badges-title" id="myReportsTitle" data-i18n="myReportsTitle">My Reports</span>
           <span class="dashboard-badges-count" id="myReportsCount"></span>
         </div>
         <div class="theme-segment my-reports-filter-row" id="myReportsFilterRow">
-          <button type="button" class="theme-segment-btn active" data-filter="all" onclick="setMyReportsFilter('all')" id="myReportsFilterAllBtn">All</button>
-          <button type="button" class="theme-segment-btn" data-filter="reported" onclick="setMyReportsFilter('reported')" id="myReportsFilterReportedBtn">Reported</button>
-          <button type="button" class="theme-segment-btn" data-filter="in_progress" onclick="setMyReportsFilter('in_progress')" id="myReportsFilterProgressBtn">In progress</button>
-          <button type="button" class="theme-segment-btn" data-filter="fixed" onclick="setMyReportsFilter('fixed')" id="myReportsFilterFixedBtn">Fixed</button>
+          <button type="button" class="theme-segment-btn active" data-filter="all" onclick="setMyReportsFilter('all')" id="myReportsFilterAllBtn" data-i18n="myReportsFilterAll">All</button>
+          <button type="button" class="theme-segment-btn" data-filter="reported" onclick="setMyReportsFilter('reported')" id="myReportsFilterReportedBtn" data-i18n="myReportsFilterReported">Reported</button>
+          <button type="button" class="theme-segment-btn" data-filter="in_progress" onclick="setMyReportsFilter('in_progress')" id="myReportsFilterProgressBtn" data-i18n="myReportsFilterProgress">In progress</button>
+          <button type="button" class="theme-segment-btn" data-filter="fixed" onclick="setMyReportsFilter('fixed')" id="myReportsFilterFixedBtn" data-i18n="myReportsFilterFixed">Fixed</button>
         </div>
         <div class="my-reports-list" id="myReportsList"></div>
         <div class="my-reports-empty" id="myReportsEmpty" style="display:none"></div>
         <div class="my-reports-loading" id="myReportsLoading" style="display:none"></div>
       </div>
 
-      <div class="dashboard-signed-out-hint" id="dashboardSignedOutHint" style="display:none">Sign in to see your dashboard.</div>
+      <div class="dashboard-signed-out-hint" id="dashboardSignedOutHint" data-i18n="dashboardSignedOutHint" style="display:none">Sign in to see your dashboard.</div>
     </div>
 
   </div>
@@ -1070,13 +1070,13 @@
 
 <div id="adminPanelModal" class="fullscreen-modal-overlay" style="display:none">
   <div class="fullscreen-modal-header">
-    <h2 id="adminPanelModalTitle">Admin panel</h2>
+    <h2 id="adminPanelModalTitle" data-i18n="adminPanelModalTitle">Admin panel</h2>
     <button class="fullscreen-modal-close" onclick="hideAdminPanelModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
   </div>
   <div class="fullscreen-modal-body">
     <div class="admin-section detail-section" id="adminPanelSection" style="border-top:none;">
-      <div class="admin-section-title detail-section-title" id="ucSectionTitle">Utility company contacts</div>
-      <input type="text" id="ucSearchInput" oninput="renderUcList()" placeholder="Search contacts…" style="width:100%;box-sizing:border-box;margin-bottom:10px;">
+      <div class="admin-section-title detail-section-title" id="ucSectionTitle" data-i18n="ucSectionTitle">Utility company contacts</div>
+      <input type="text" id="ucSearchInput" data-i18n-placeholder="ucSearchPH" oninput="renderUcList()" placeholder="Search contacts…" style="width:100%;box-sizing:border-box;margin-bottom:10px;">
       <div class="uc-list" id="ucList"></div>
       <button type="button" class="settings-btn" onclick="backfillUcCoordinates()" id="ucGeocodeBackfillBtn">Geocode missing addresses</button>
       <button type="button" class="settings-btn" onclick="fixAllMunicipalityBoundaries()" id="ucFixBoundariesBtn"><img class="icon-img icon-img-inline icon-tint-dark" src="icons/pin.png" alt="Pin"> Fix all municipality boundaries</button>
@@ -1131,7 +1131,7 @@
 
 <div id="analyticsModal" class="fullscreen-modal-overlay" style="display:none">
   <div class="fullscreen-modal-header">
-    <h2 id="analyticsModalTitle">Analytics</h2>
+    <h2 id="analyticsModalTitle" data-i18n="analyticsModalTitle">Analytics</h2>
     <button class="fullscreen-modal-close" onclick="closeAnalyticsModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
   </div>
   <div class="fullscreen-modal-body">
@@ -1139,13 +1139,13 @@
       <div class="analytics-range-row" id="analyticsRangeRow"></div>
       <div class="dashboard-stats-grid" id="analyticsSummaryGrid"></div>
 
-      <div class="dashboard-badges-title" id="analyticsTrendTitle">Trend</div>
+      <div class="dashboard-badges-title" id="analyticsTrendTitle" data-i18n="analyticsTrendTitle">Trend</div>
       <div class="weekly-chart analytics-trend-chart" id="analyticsTrendChart"></div>
 
-      <div class="dashboard-badges-title" id="analyticsCategoryTitle">By category</div>
+      <div class="dashboard-badges-title" id="analyticsCategoryTitle" data-i18n="analyticsCategoryTitle">By category</div>
       <div class="analytics-bar-list" id="analyticsCategoryList"></div>
 
-      <div class="dashboard-badges-title" id="analyticsAreaTitle">Top areas</div>
+      <div class="dashboard-badges-title" id="analyticsAreaTitle" data-i18n="analyticsAreaTitle">Top areas</div>
       <div class="analytics-bar-list" id="analyticsAreaList"></div>
 
       <div class="detail-empty" id="analyticsEmpty" style="display:none;"></div>
@@ -1199,7 +1199,7 @@
 
 <div id="categoryFilterModal" class="fullscreen-modal-overlay" style="display:none">
   <div class="fullscreen-modal-header">
-    <h2 id="categoryFilterPanelTitle">Show on map</h2>
+    <h2 id="categoryFilterPanelTitle" data-i18n="categoryFilterPanelTitle">Show on map</h2>
     <button class="fullscreen-modal-close" onclick="hideCategoryFilterModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
   </div>
   <div class="fullscreen-modal-body">
@@ -1207,7 +1207,7 @@
       <label class="cat-filter-row">
         <input type="checkbox" id="categoryFilterAll" checked onchange="onCategoryFilterAllToggle(this.checked)">
         <span class="cat-filter-dot" style="background:var(--text-muted)"></span>
-        <span id="categoryFilterAllLabel">All categories</span>
+        <span id="categoryFilterAllLabel" data-i18n="categoryFilterAllLabel">All categories</span>
       </label>
       <div id="categoryFilterList"></div>
     </div>
@@ -1227,7 +1227,7 @@
 <div class="global-offline-banner" id="globalOfflineBanner" style="display:none" onclick="syncOfflineQueue(true)" title="Tap to retry now">
   <span class="offline-queue-dot"></span>
   <span id="globalOfflineBannerText"></span>
-  <span class="global-offline-banner-retry" id="globalOfflineBannerRetryLabel">Retry</span>
+  <span class="global-offline-banner-retry" id="globalOfflineBannerRetryLabel" data-i18n="offlineQueueRetry">Retry</span>
 </div>
 
 <div id="mobilePopupOverlay"></div>
@@ -1247,8 +1247,8 @@
 
   <div class="rotate-device-overlay" id="rotateDeviceOverlay">
     <img class="rd-icon" src="icons/rotate-device.png" alt="">
-    <div class="rd-title" id="rotateDeviceTitle"></div>
-    <div class="rd-text" id="rotateDeviceText"></div>
+    <div class="rd-title" id="rotateDeviceTitle" data-i18n="rotateDeviceTitle"></div>
+    <div class="rd-text" id="rotateDeviceText" data-i18n="rotateDeviceText"></div>
   </div>
 </body>
 </html>
