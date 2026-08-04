@@ -4759,6 +4759,135 @@ async function fetchTileCached(url, attempt = 0) {
 // reads as a gap in the map, not an error.
 const BLANK_TILE_SRC = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
 
+// --- Per-tile overzoom for Esri's "no imagery" placeholder -------------
+// Esri's World_Imagery service doesn't 404 when it has no aerial coverage
+// for a tile — it returns a flat gray placeholder image instead, which
+// happens a lot above z14-ish in rural/sparse areas. Previously the only
+// fallback for "no real imagery here" was Leaflet's *global* overzoom past
+// maxNativeZoom (stretching the last native tile once you zoom in further
+// than the provider supports at all). This handles the other case: a
+// single tile, still within native zoom, that individually has no data.
+// Detect that specific tile, climb to the nearest ancestor zoom that DOES
+// have real imagery for that spot, and stretch the matching crop in —
+// real per-tile overzoom, not a map-wide style change.
+//
+// Detection is pixel-based rather than a byte hash: real aerial photos
+// always have sensor/compression grain, so a tile that decodes as
+// essentially flat, mid-gray is almost certainly the placeholder rather
+// than genuine imagery (even a calm lake or fresh snow isn't this uniform).
+const NODATA_GRAY_MIN = 140;
+const NODATA_GRAY_MAX = 235;
+const NODATA_CHROMA_TOL = 4;        // max |r-g|, |g-b| to still count as "gray"
+const NODATA_GRAY_FRACTION = 0.85;  // fraction of sampled pixels that must be gray + mid-value
+const NODATA_STDDEV_MAX = 10;       // allowed spread among those gray samples
+
+// First placeholder hit we confirm via full pixel decode gets its blob
+// byte-size remembered here, so later placeholder tiles (very common
+// together — a whole no-coverage region is many sibling tiles) can be
+// recognized from response size alone, skipping the decode+sample cost.
+const knownPlaceholderByteSizes = new Set();
+
+function looksLikeEsriNoDataTile(bitmap) {
+  const size = 16; // downsample to a 16x16 grid — cheap, evenly-spaced sample
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(bitmap, 0, 0, size, size);
+  const { data } = ctx.getImageData(0, 0, size, size);
+  let grayCount = 0;
+  const grayValues = [];
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i], g = data[i + 1], b = data[i + 2];
+    const isGray = Math.abs(r - g) <= NODATA_CHROMA_TOL && Math.abs(g - b) <= NODATA_CHROMA_TOL;
+    const midValue = r >= NODATA_GRAY_MIN && r <= NODATA_GRAY_MAX;
+    if (isGray && midValue) { grayCount++; grayValues.push(r); }
+  }
+  const total = data.length / 4;
+  if (grayCount / total < NODATA_GRAY_FRACTION) return false;
+  const mean = grayValues.reduce((a, v) => a + v, 0) / grayValues.length;
+  const variance = grayValues.reduce((a, v) => a + (v - mean) * (v - mean), 0) / grayValues.length;
+  return Math.sqrt(variance) <= NODATA_STDDEV_MAX;
+}
+
+async function isPlaceholderBlob(blob) {
+  if (knownPlaceholderByteSizes.has(blob.size)) return true; // fast path
+  let bitmap;
+  try { bitmap = await createImageBitmap(blob); } catch (e) { return false; }
+  const isPlaceholder = looksLikeEsriNoDataTile(bitmap);
+  if (isPlaceholder) knownPlaceholderByteSizes.add(blob.size);
+  bitmap.close && bitmap.close();
+  return isPlaceholder;
+}
+
+// Decoded ancestor tiles get cached by URL (in addition to fetchTileCached's
+// own Cache Storage layer) so a whole sparse-coverage region — often dozens
+// of sibling tiles missing the same ancestor — doesn't redecode that same
+// parent image over and over.
+const ancestorBitmapCache = new Map(); // url -> Promise<ImageBitmap|null>
+const ANCESTOR_BITMAP_CACHE_MAX = 200;
+
+function fetchTileBitmap(url) {
+  if (ancestorBitmapCache.has(url)) return ancestorBitmapCache.get(url);
+  const p = (async () => {
+    try {
+      const res = await fetchTileCached(url);
+      if (!res.ok) return null;
+      const blob = await res.blob();
+      if (await isPlaceholderBlob(blob)) return null; // ancestor is itself a placeholder
+      return await createImageBitmap(blob);
+    } catch (e) {
+      return null;
+    }
+  })();
+  if (ancestorBitmapCache.size >= ANCESTOR_BITMAP_CACHE_MAX) {
+    const oldestKey = ancestorBitmapCache.keys().next().value;
+    ancestorBitmapCache.delete(oldestKey);
+  }
+  ancestorBitmapCache.set(url, p);
+  return p;
+}
+
+// Builds a raw tile URL for an arbitrary z/x/y against a layer's own URL
+// template, bypassing Leaflet's normal getTileUrl() zoom clamping so we can
+// explicitly ask for an off-schedule, lower (ancestor) zoom level.
+function rawTileUrl(layer, z, x, y) {
+  const data = L.extend({}, layer.options, { x, y, z });
+  if (typeof layer._getSubdomain === 'function') data.s = layer._getSubdomain({ x, y, z });
+  return L.Util.template(layer._url, data);
+}
+
+const OVERZOOM_MAX_CLIMB = 10; // ancestor levels to try before giving up
+const OVERZOOM_TILE_SIZE = 256;
+
+// Climbs z-1, z-2, ... looking for an ancestor tile with real coverage,
+// then returns a canvas holding the matching crop of that ancestor,
+// stretched to full tile size. Returns null if no ancestor up to the
+// climb limit has real imagery either (in which case the caller falls
+// back to showing Esri's own placeholder tile, never a blank gap).
+async function buildOverzoomFallbackTile(layer, coords) {
+  const { x, y, z } = coords;
+  for (let climbed = 1; climbed <= OVERZOOM_MAX_CLIMB && z - climbed >= 0; climbed++) {
+    const pz = z - climbed;
+    const factor = Math.pow(2, climbed);
+    const px = Math.floor(x / factor);
+    const py = Math.floor(y / factor);
+    const bitmap = await fetchTileBitmap(rawTileUrl(layer, pz, px, py));
+    if (!bitmap) continue; // fetch failed, or that ancestor is also a placeholder — climb further
+    const cropSize = OVERZOOM_TILE_SIZE / factor;
+    const sx = (x - px * factor) * cropSize;
+    const sy = (y - py * factor) * cropSize;
+    const canvas = document.createElement('canvas');
+    canvas.width = OVERZOOM_TILE_SIZE;
+    canvas.height = OVERZOOM_TILE_SIZE;
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(bitmap, sx, sy, cropSize, cropSize, 0, 0, OVERZOOM_TILE_SIZE, OVERZOOM_TILE_SIZE);
+    return canvas;
+  }
+  return null;
+}
+
 const CachedTileLayer = L.TileLayer.extend({
   createTile(coords, done) {
     const img = document.createElement('img');
@@ -4778,14 +4907,29 @@ const CachedTileLayer = L.TileLayer.extend({
       img.onerror = giveUpBlank;
       img.src = url;
     };
+    const showBlob = (blob) => {
+      const objectUrl = URL.createObjectURL(blob);
+      img.onload = () => { URL.revokeObjectURL(objectUrl); finish(); };
+      img.onerror = () => { URL.revokeObjectURL(objectUrl); fallbackToPlainImg(); };
+      img.src = objectUrl;
+    };
+    const showCanvas = (canvas) => {
+      canvas.toBlob(blob => {
+        if (!blob) { fallbackToPlainImg(); return; } // shouldn't happen, but never worse than the old behavior
+        showBlob(blob);
+      });
+    };
     if (!('caches' in window)) { fallbackToPlainImg(); return img; }
     fetchTileCached(url)
       .then(res => { if (!res.ok) throw new Error('tile-http-' + res.status); return res.blob(); })
-      .then(blob => {
-        const objectUrl = URL.createObjectURL(blob);
-        img.onload = () => { URL.revokeObjectURL(objectUrl); finish(); };
-        img.onerror = () => { URL.revokeObjectURL(objectUrl); fallbackToPlainImg(); };
-        img.src = objectUrl;
+      .then(async blob => {
+        if (this.options.overzoomFallback && await isPlaceholderBlob(blob)) {
+          const fallbackCanvas = await buildOverzoomFallbackTile(this, coords);
+          if (fallbackCanvas) { showCanvas(fallbackCanvas); return; }
+          // No ancestor up to the climb limit had real imagery either —
+          // show Esri's own placeholder rather than a blank gap.
+        }
+        showBlob(blob);
       })
       .catch(fallbackToPlainImg);
     return img;
@@ -4820,15 +4964,20 @@ const MAP_STYLES = {
   },
   satellite: {
     nameEn:'Satellite', nameSr:'Satelitska',
-    // Real imagery tops out around z19 in most places (lower in rural areas,
-    // and Esri's World_Imagery can lack coverage entirely in some rural/
-    // sparse regions). Rather than switching away to Standard when that
-    // happens, we just keep the user on Satellite and let Leaflet upscale
-    // the best tile it already has (or show whatever placeholder Esri
-    // returns) for zoom levels past maxNativeZoom — worse resolution, but
-    // never a surprise style change out from under the person.
+    // Real imagery tops out around z19 in most places (lower in rural
+    // areas). Two overzoom mechanisms cover that, stacked:
+    //  1. Past maxNativeZoom, Leaflet's own built-in overzoom just keeps
+    //     requesting the z19 tile and stretches it further per zoom level.
+    //  2. Within native zoom, individual tiles can still come back as
+    //     Esri's flat gray "no imagery" placeholder (common in sparse rural
+    //     regions even at z14-17). CachedTileLayer's overzoomFallback below
+    //     detects that per-tile and climbs to the nearest ancestor zoom
+    //     that DOES have coverage, stretching just that crop in.
+    // Either way we keep the user on Satellite rather than switching them
+    // to Standard out from under themselves — worse resolution sometimes,
+    // but never a surprise style change.
     light:{ url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', subdomains:'', maxNativeZoom:19, maxZoom:22,
-            attribution:'Esri, Maxar, Earthstar Geographics' }
+            attribution:'Esri, Maxar, Earthstar Geographics', overzoomFallback:true }
     // Deliberately no `dark` filter here: it's real aerial photography, not
     // themed UI, so it should look identical in light and dark mode rather
     // than getting dimmed/tinted just because the app theme is dark.
@@ -4839,7 +4988,7 @@ const MAP_STYLES = {
     // (place names, roads, borders) drawn on top so labels stay readable.
     // Same zoom-cap reasoning as Satellite above.
     light:{ url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', subdomains:'', maxNativeZoom:19, maxZoom:22,
-            attribution:'Esri, Maxar, Earthstar Geographics',
+            attribution:'Esri, Maxar, Earthstar Geographics', overzoomFallback:true,
             overlayUrl:'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
             overlaySubdomains:'', overlayMaxNativeZoom:19,
             overlayAttribution:'Esri' }
@@ -4915,7 +5064,11 @@ function buildOneTileLayer(url, opts, fallbackMaxZoom) {
     // zoomed past what a given tile provider actually supports — showing up as the
     // map tiles going blank instead of the intended "stretch the last good tile"
     // fallback below. Since this is a mobile-first app, that hit most phones.
-    detectRetina: false
+    detectRetina: false,
+    // Per-tile placeholder detection + ancestor-crop overzoom (see the
+    // satellite/hybrid style definitions above) — off by default, only the
+    // Esri imagery sources opt in.
+    overzoomFallback: !!opts.overzoomFallback
   });
 }
 
