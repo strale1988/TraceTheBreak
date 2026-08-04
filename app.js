@@ -2838,13 +2838,20 @@ function t(k) {
 async function loadLanguageFile(code) {
   try {
     const res = await fetch(`languages/${code}.json`, { cache: 'no-store' });
-    if (!res.ok) return false;
+    if (!res.ok) {
+      console.warn(`Language file languages/${code}.json not found (HTTP ${res.status})`);
+      return false;
+    }
     const data = await res.json();
-    if (!data || typeof data !== 'object' || !data.strings) return false;
+    if (!data || typeof data !== 'object' || !data.strings) {
+      console.warn(`Language file languages/${code}.json loaded but is missing a "strings" object`);
+      return false;
+    }
     LANG_STRINGS[code] = data.strings;
     if (!AVAILABLE_LANG_CODES.includes(code)) AVAILABLE_LANG_CODES.push(code);
     return true;
   } catch (e) {
+    console.warn(`Language file languages/${code}.json failed to load/parse:`, e.message);
     return false;
   }
 }
@@ -2864,8 +2871,16 @@ const LANG_PREF_STORAGE_KEY = 'ttb_lang_pref';
 let langPref = (function () {
   try { return localStorage.getItem(LANG_PREF_STORAGE_KEY) || localStorage.getItem(LANG_STORAGE_KEY) || 'auto'; } catch (e) { return 'auto'; }
 })();
+// Migrates the legacy 'sr' code (saved by anyone who picked Serbian before
+// the Latin/Cyrillic split) to 'sr-Lat' so their choice keeps working. Without
+// this, AVAILABLE_LANG_CODES never contains plain 'sr' anymore (only
+// 'sr-Lat'/'sr-Cyrl'), so a returning user's saved language silently fails
+// to match and they get bumped to English with no explanation.
+function migrateLegacyLangCode(code) {
+  return code === 'sr' ? 'sr-Lat' : code;
+}
 let lang = (function () {
-  try { return localStorage.getItem(LANG_STORAGE_KEY) || DEFAULT_LANG; } catch (e) { return DEFAULT_LANG; }
+  try { return migrateLegacyLangCode(localStorage.getItem(LANG_STORAGE_KEY)) || DEFAULT_LANG; } catch (e) { return DEFAULT_LANG; }
 })();
 let globalActiveData = [];
 
@@ -3100,6 +3115,7 @@ async function initLang(){
     await detectLanguageByLocation();
   } else {
     if (!AVAILABLE_LANG_CODES.includes(lang)) lang = DEFAULT_LANG;
+    try { localStorage.setItem(LANG_STORAGE_KEY, lang); } catch (e) {}
     renderLangSelect();
     applyLang();
   }
