@@ -457,10 +457,9 @@
 
     <div class="detail-section" id="languageSettingsSection">
       <div class="detail-section-title" id="languageSectionTitle">Language</div>
-      <div class="theme-segment" id="langSegment">
-        <button type="button" class="theme-segment-btn lang-btn" onclick="setLang('en')" id="langBtnEn">English</button>
-        <button type="button" class="theme-segment-btn lang-btn active" onclick="setLang('sr')" id="langBtnSr">Srpski</button>
-        <button type="button" class="theme-segment-btn lang-btn" onclick="setLang('auto')" id="langBtnAuto"><img class="icon-img icon-img-inline" src="icons/pin.png" alt=""> <span id="langBtnAutoLabel">Auto</span></button>
+      <div class="lang-select-row" id="langSelectRow">
+        <select class="lang-select" id="langSelect" onchange="setLang(this.value)"></select>
+        <button type="button" class="theme-segment-btn lang-auto-btn" onclick="setLang('auto')" id="langAutoBtn"><img class="icon-img icon-img-inline" src="icons/pin.png" alt=""> <span id="langBtnAutoLabel">Auto</span></button>
       </div>
       <p class="detail-export-hint" id="langAutoHint">We'll set the language based on your location.</p>
     </div>

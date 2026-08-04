@@ -12,6 +12,8 @@
     "app.js and style.css are the source files — keep editing those.",
     "Run `npm install && npm run build` to regenerate app.min.js / style.min.css before deploying.",
     "index.html loads the .min files in production; the mangle setting stays at its default (toplevel names are NOT renamed), which is required because many functions are called from onclick=\"...\" attributes in index.html.",
-    "If you ever bump a CDN library version (leaflet, flatpickr, supabase-js, etc.), you must regenerate the integrity= hash in index.html for that resource, or the browser will refuse to load it."
+    "If you ever bump a CDN library version (leaflet, flatpickr, supabase-js, etc.), you must regenerate the integrity= hash in index.html for that resource, or the browser will refuse to load it.",
+    "UI text lives in languages/<code>.json, one file per language — NOT in app.js. See languages/README.md to add a new one; no build step or code change is needed for a translation file itself, only for app.js/style.css edits.",
+    "The language dropdown lists every language in the EUROPEAN_LANGUAGES array near the top of the i18n section of app.js; it's enabled automatically the moment a matching languages/<code>.json file exists, and greyed out otherwise."
   ]
 }
