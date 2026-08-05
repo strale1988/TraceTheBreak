@@ -341,8 +341,9 @@ header p{ font-size:var(--fs-11); opacity:.7; margin-top:2px; }
   white-space:nowrap;
 }
 .lang-auto-btn.active{ background:var(--accent); color:var(--accent-contrast); }
-.lang-auto-btn .icon-img-inline{ filter:brightness(0) invert(45%); opacity:.85; }
-.lang-auto-btn.active .icon-img-inline{ filter:brightness(0) invert(100%); opacity:1; }
+.lang-auto-btn .icon-img-inline{ filter:var(--icon-tint-filter); opacity:.85; }
+.lang-auto-btn.active .icon-img-inline{ filter:brightness(0) invert(1); opacity:1; }
+html[data-theme="dark"] .lang-auto-btn.active .icon-img-inline{ filter:brightness(0); }
 
 .help-icon-btn{
   background:var(--bg-surface-alt);
@@ -644,7 +645,8 @@ button{
   font-weight:var(--fw-bold);
   text-transform:uppercase;
   letter-spacing:.3px;
-  padding:2px 7px;
+  line-height:1;
+  padding:3px 7px;
   border-radius:var(--radius-pill);
   color:white;
 }
