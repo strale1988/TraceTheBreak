@@ -4,8 +4,9 @@
  * Sits between the browser and an R2 bucket. Never hands out R2 credentials
  * (there aren't any to hand out — Workers talk to R2 via a binding). Instead
  * it:
- *   - verifies the user's existing Supabase login token itself (HS256,
- *     checked locally against SUPABASE_JWT_SECRET — no network round trip)
+ *   - verifies the user's existing Supabase login token itself (ES256,
+ *     checked locally against Supabase's published JWKS public keys — no
+ *     network round trip beyond a cached JWKS fetch)
  *   - lets a logged-in user PUT/DELETE objects under their own `${uid}/...`
  *     prefix (mirrors the old Supabase Storage RLS-by-path setup)
  *   - issues short-lived, HMAC-signed URLs to read an object, instead of
@@ -18,6 +19,8 @@
  *   DELETE /upload?path=<key>
  *   GET    /sign?path=<key>&variant=full|thumb&ttl=<seconds>
  *   GET    /o?path=<key>&variant=&exp=&sig=      (the actual signed fetch)
+ *   POST   /admin-upload?path=<key>  (ADMIN_MIGRATION_SECRET-gated, one-off migration)
+ *   GET    /admin-exists?path=<key>  (ADMIN_MIGRATION_SECRET-gated, migration helper)
  */
 
 const JSON_HEADERS = { 'content-type': 'application/json; charset=utf-8' };
@@ -26,7 +29,7 @@ function cors(origin) {
   return {
     'Access-Control-Allow-Origin': origin || '*',
     'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS',
-    'Access-Control-Allow-Headers': 'authorization,content-type,x-photo-content-type',
+    'Access-Control-Allow-Headers': 'authorization,content-type,x-photo-content-type,x-admin-secret',
     'Access-Control-Max-Age': '86400',
   };
 }
@@ -54,75 +57,49 @@ function textToBytes(str) {
   return new TextEncoder().encode(str);
 }
 
-// ---- verify a Supabase-issued JWT locally ----
-//
-// Supabase projects can sign tokens either way, and the Worker has to
-// support both since which one you get depends on the project's current
-// JWT Keys setting (Dashboard -> Project Settings -> API -> JWT Keys):
-//   - ES256 (asymmetric, current default): verified against Supabase's
-//     public JWKS, fetched over the network and cached in memory across
-//     requests in the same isolate. No secret material needed on our side.
-//   - HS256 (legacy shared secret): verified locally against
-//     SUPABASE_JWT_SECRET, same as before, no network call. Kept for
-//     projects still on the legacy setting.
+// ---- JWKS cache (Supabase publishes public keys for ES256 verification) ----
+let jwksCache = null; // { keys, fetchedAt }
 
-let jwksCache = { keys: [], fetchedAt: 0, url: null };
-const JWKS_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour; a forced refetch also
-// happens below whenever a kid isn't found, so a mid-window key rotation
-// on Supabase's end still resolves within one request, not just once an
-// hour.
-
-async function getJwks(supabaseUrl, forceRefetch) {
+async function getJwks(jwksUrl, forceRefetch) {
   const now = Date.now();
-  if (!forceRefetch && jwksCache.url === supabaseUrl && jwksCache.keys.length && (now - jwksCache.fetchedAt) < JWKS_CACHE_TTL_MS) {
+  // Cache for 1 hour; Supabase rotates keys infrequently. A forced refetch
+  // also happens below whenever a kid isn't found, so a mid-window key
+  // rotation on Supabase's end still resolves within one request, not just
+  // once an hour.
+  if (!forceRefetch && jwksCache && now - jwksCache.fetchedAt < 3600_000) {
     return jwksCache.keys;
   }
-  const jwksUrl = `${supabaseUrl}/auth/v1/.well-known/jwks.json`;
   const res = await fetch(jwksUrl);
-  if (!res.ok) throw new Error(`jwks fetch failed (${res.status}) for ${jwksUrl}`);
+  if (!res.ok) throw new Error(`JWKS fetch failed: ${res.status}`);
   const data = await res.json();
-  jwksCache = { keys: (data && data.keys) || [], fetchedAt: now, url: supabaseUrl };
+  jwksCache = { keys: data.keys || [], fetchedAt: now };
   return jwksCache.keys;
 }
 
-async function verifyEs256(headerB64, payloadB64, sigB64, kid, supabaseUrl) {
-  let keys = await getJwks(supabaseUrl, false);
-  let jwk = keys.find(k => k.kid === kid);
-  if (!jwk) {
-    // Not in our cache — could be a just-rotated key, so force one refetch
-    // before giving up rather than waiting out the full cache TTL.
-    keys = await getJwks(supabaseUrl, true);
-    jwk = keys.find(k => k.kid === kid);
-  }
-  if (!jwk) {
-    console.error(`verifyEs256: no JWKS key found for kid=${kid} at ${supabaseUrl} (${keys.length} keys cached)`);
-    return false;
-  }
-  const key = await crypto.subtle.importKey('jwk', jwk, { name: 'ECDSA', namedCurve: jwk.crv || 'P-256' }, false, ['verify']);
-  // WebCrypto's ECDSA verify expects the raw r||s signature format, which
-  // is exactly what a JWS ES256 signature already is — no DER conversion
-  // needed here.
-  return crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, b64urlToBytes(sigB64), textToBytes(`${headerB64}.${payloadB64}`));
-}
-
-async function verifyHs256(headerB64, payloadB64, sigB64, secret) {
-  if (!secret) return false;
-  const key = await crypto.subtle.importKey('raw', textToBytes(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
-  return crypto.subtle.verify('HMAC', key, b64urlToBytes(sigB64), textToBytes(`${headerB64}.${payloadB64}`));
-}
-
+// ---- verify a Supabase-issued ES256 JWT using JWKS public keys ----
+//
+// IMPORTANT: WebCrypto's ECDSA verify() expects the RAW r||s signature
+// format (32+32 bytes for P-256) — exactly what a JWS ES256 signature
+// already is per RFC 7518. Do NOT convert to DER here; DER is what
+// Node's crypto module and OpenSSL expect, but WebCrypto (the runtime
+// this Worker uses) is not that. Converting to DER before calling
+// crypto.subtle.verify() makes every signature fail verification,
+// valid or not.
 async function verifySupabaseJwt(token, env) {
   if (!token) return null;
   const parts = token.split('.');
   if (parts.length !== 3) return null;
   const [headerB64, payloadB64, sigB64] = parts;
+
   let header, payload;
   try {
     header = JSON.parse(new TextDecoder().decode(b64urlToBytes(headerB64)));
     payload = JSON.parse(new TextDecoder().decode(b64urlToBytes(payloadB64)));
   } catch (e) {
+    console.error('verifySupabaseJwt: token json parse failed');
     return null;
   }
+
   if (!payload || !payload.sub) {
     console.error('verifySupabaseJwt: token missing payload/sub');
     return null;
@@ -131,28 +108,68 @@ async function verifySupabaseJwt(token, env) {
     console.error(`verifySupabaseJwt: token expired at ${payload.exp}, now ${Math.floor(Date.now() / 1000)}`);
     return null;
   }
-
-  let ok = false;
-  try {
-    if (header.alg === 'ES256') {
-      if (!env.SUPABASE_URL) {
-        console.error('verifySupabaseJwt: ES256 token but SUPABASE_URL is not set on the Worker');
-        return null;
-      }
-      ok = await verifyEs256(headerB64, payloadB64, sigB64, header.kid, env.SUPABASE_URL);
-      if (!ok) console.error(`verifySupabaseJwt: ES256 verify failed (kid=${header.kid}, SUPABASE_URL=${env.SUPABASE_URL})`);
-    } else if (header.alg === 'HS256') {
-      ok = await verifyHs256(headerB64, payloadB64, sigB64, env.SUPABASE_JWT_SECRET);
-      if (!ok) console.error('verifySupabaseJwt: HS256 verify failed (check SUPABASE_JWT_SECRET secret)');
-    } else {
-      console.error(`verifySupabaseJwt: unsupported alg "${header.alg}"`);
-      return null;
-    }
-  } catch (e) {
-    console.error(`verifySupabaseJwt: exception during verify — ${e && e.message}`);
+  if (header.alg !== 'ES256') {
+    console.error(`verifySupabaseJwt: unsupported alg "${header.alg}"`);
     return null;
   }
-  return ok ? payload : null;
+  if (!env.SUPABASE_URL) {
+    console.error('verifySupabaseJwt: SUPABASE_URL is not set on the Worker');
+    return null;
+  }
+
+  const jwksUrl = `${env.SUPABASE_URL}/auth/v1/.well-known/jwks.json`;
+  let keys;
+  try {
+    keys = await getJwks(jwksUrl, false);
+  } catch (e) {
+    console.error(`verifySupabaseJwt: jwks fetch failed — ${e && e.message}`);
+    return null;
+  }
+
+  let jwk = keys.find(k => k.kid === header.kid);
+  if (!jwk) {
+    // Not in our cache — could be a just-rotated key, so force one refetch
+    // before giving up rather than waiting out the full cache TTL.
+    try {
+      keys = await getJwks(jwksUrl, true);
+    } catch (e) {
+      console.error(`verifySupabaseJwt: jwks refetch failed — ${e && e.message}`);
+      return null;
+    }
+    jwk = keys.find(k => k.kid === header.kid);
+  }
+  if (!jwk) {
+    console.error(`verifySupabaseJwt: no JWKS key found for kid=${header.kid} (${keys.length} keys cached)`);
+    return null;
+  }
+
+  let keyObj;
+  try {
+    keyObj = await crypto.subtle.importKey('jwk', jwk, { name: 'ECDSA', namedCurve: jwk.crv || 'P-256' }, false, ['verify']);
+  } catch (e) {
+    console.error(`verifySupabaseJwt: key import failed — ${e && e.message}`);
+    return null;
+  }
+
+  let ok;
+  try {
+    // Raw r||s bytes straight from the token — no DER conversion.
+    ok = await crypto.subtle.verify(
+      { name: 'ECDSA', hash: 'SHA-256' },
+      keyObj,
+      b64urlToBytes(sigB64),
+      textToBytes(`${headerB64}.${payloadB64}`)
+    );
+  } catch (e) {
+    console.error(`verifySupabaseJwt: verify threw — ${e && e.message}`);
+    return null;
+  }
+
+  if (!ok) {
+    console.error(`verifySupabaseJwt: signature invalid (kid=${header.kid})`);
+    return null;
+  }
+  return payload;
 }
 
 async function requireUser(request, env) {
@@ -178,9 +195,6 @@ async function isAdmin(uid, env) {
 // A path may only be written/deleted by its owner (first path segment must
 // be their uid) — this mirrors the old per-user storage-RLS folder rule.
 // Admins may delete anything (needed to moderate/remove rejected photos).
-function ownsPath(uid, path) {
-  return path === `${uid}/${path.split('/').slice(1).join('/')}` && path.split('/')[0] === uid;
-}
 function pathPrefixUid(path) {
   if (path.startsWith('gallery/')) return path.split('/')[1];
   return path.split('/')[0];
@@ -206,6 +220,12 @@ function thumbPathFor(path) {
   return path.replace(/(\.[a-zA-Z0-9]+)$/, '-thumb$1');
 }
 
+function requireAdminSecret(request, env) {
+  if (!env.ADMIN_MIGRATION_SECRET) return false;
+  const provided = request.headers.get('x-admin-secret') || '';
+  return safeEqual(provided, env.ADMIN_MIGRATION_SECRET);
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -214,6 +234,31 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(origin) });
 
     try {
+      // ---- POST /admin-upload?path=... : write any path, for one-off migration only.
+      // Guarded by ADMIN_MIGRATION_SECRET (a Worker secret, never shipped to the
+      // browser app). Remove the secret in the dashboard once migration is done
+      // to disable this route again.
+      if (url.pathname === '/admin-upload' && request.method === 'POST') {
+        if (!requireAdminSecret(request, env)) return err(401, 'not authorized', origin);
+        const path = url.searchParams.get('path');
+        if (!path) return err(400, 'missing path', origin);
+        const contentType = request.headers.get('x-photo-content-type') || request.headers.get('content-type') || 'application/octet-stream';
+        const body = await request.arrayBuffer();
+        if (!body.byteLength) return err(400, 'empty body', origin);
+        if (body.byteLength > 6 * 1024 * 1024) return err(413, 'too large', origin);
+        await env.PHOTOS_BUCKET.put(path, body, { httpMetadata: { contentType, cacheControl: CACHE_CONTROL_IMMUTABLE } });
+        return json({ ok: true, path }, 200, origin);
+      }
+
+      // ---- GET /admin-exists?path=... : lets the migration page skip work it already did ----
+      if (url.pathname === '/admin-exists' && request.method === 'GET') {
+        if (!requireAdminSecret(request, env)) return err(401, 'not authorized', origin);
+        const path = url.searchParams.get('path');
+        if (!path) return err(400, 'missing path', origin);
+        const head = await env.PHOTOS_BUCKET.head(path);
+        return json({ exists: !!head }, 200, origin);
+      }
+
       // ---- POST /upload?path=... : store one object under the caller's own uid prefix ----
       if (url.pathname === '/upload' && request.method === 'POST') {
         const payload = await requireUser(request, env);
@@ -273,7 +318,13 @@ export default {
         if (!safeEqual(expected, sig)) return err(403, 'bad signature', origin);
 
         const key = variant === 'thumb' ? thumbPathFor(path) : path;
-        const obj = await env.PHOTOS_BUCKET.get(key);
+        let obj = await env.PHOTOS_BUCKET.get(key);
+        // Migrated/legacy photos may not have a pre-made thumbnail object
+        // (thumbnails used to be generated on the fly). Fall back to the
+        // full-size object rather than showing a broken image — the app
+        // will still work, just without the bandwidth savings for that
+        // one photo until backfill-thumbs.mjs (see /migration) runs.
+        if (!obj && variant === 'thumb') obj = await env.PHOTOS_BUCKET.get(path);
         if (!obj) return err(404, 'not found', origin);
         const headers = new Headers(cors(origin));
         obj.writeHttpMetadata(headers);

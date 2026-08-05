@@ -1,25 +1,10 @@
 name = "tracethebreak-photos"
-main = "src/index.js"
+main = "index.js"
 compatibility_date = "2024-09-23"
 
-# Binds the Worker directly to your R2 bucket — no access keys needed,
-# the binding itself is the credential, and it's what makes reads/writes free
-# (Workers-to-R2 traffic never touches the public internet or incurs egress).
 [[r2_buckets]]
 binding = "PHOTOS_BUCKET"
 bucket_name = "report-photos"
 
-# Not secret — this is just your project's public URL, and it's now
-# REQUIRED (not optional) whenever your Supabase project issues ES256
-# tokens (Dashboard -> Project Settings -> API -> JWT Keys; ES256 is the
-# current default for new projects). requireUser() fetches this project's
-# JWKS to verify ES256-signed tokens; without it, every ES256 token fails
-# verification and every /upload and /sign request 401s.
 [vars]
 SUPABASE_URL = "https://fnkqmwweljsupbmerbkh.supabase.co"
-
-# Secrets (do NOT put these here — set them with `wrangler secret put <NAME>`):
-#   SUPABASE_JWT_SECRET        Supabase Dashboard -> Project Settings -> API -> JWT Secret
-#                               (only needed if your project is still on the legacy HS256 setting)
-#   SIGNING_SECRET             any random 32+ byte string, e.g. `openssl rand -hex 32`
-#   SUPABASE_SERVICE_ROLE_KEY   (optional, only needed for admin-delete) service_role key
