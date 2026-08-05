@@ -9491,49 +9491,105 @@ function checkFormReady() {
 }
 
 const REPORT_PHOTO_BUCKET = 'report-photos';
-const REPORT_PHOTO_MAX_DIMENSION = 1280;
-const REPORT_PHOTO_JPEG_QUALITY = 0.72;
+const REPORT_PHOTO_MAX_DIMENSION = 1024;
+const REPORT_PHOTO_MIN_DIMENSION = 640; // floor for the dimension-shrink fallback pass
+const REPORT_PHOTO_TARGET_BYTES = 160 * 1024; // aim for this size before giving up
+const REPORT_PHOTO_QUALITY_STEPS = [0.62, 0.5, 0.4, 0.3]; // tried in order until target hit
 const REPORT_PHOTO_MAX_INPUT_BYTES = 15 * 1024 * 1024;
-const REPORT_PHOTO_SIGNED_URL_TTL = 300;
+const REPORT_PHOTO_SIGNED_URL_TTL = 3600; // 1h — click-to-open full size / share-image source
+const REPORT_PHOTO_DISPLAY_URL_TTL = 21600; // 6h — the size shown inline in the detail modal
+const REPORT_PHOTO_THUMB_URL_TTL = 21600; // 6h — list/queue thumbnails
 
 // Small transformed size used anywhere we show a photo as a list/queue
 // thumbnail rather than the full image. Keeps repeated list refreshes
 // (e.g. the 15s admin waiting-list poll) from re-downloading full-size
 // photos for a tiny thumb.
-const REPORT_PHOTO_THUMB_TRANSFORM = { width: 160, height: 160, resize: 'cover' };
-// How long a thumb signed URL stays valid — deliberately much longer than
-// the 15s waiting-list refresh interval, so that loop reuses the same URL
-// (and the browser's own HTTP cache) instead of re-signing every tick.
-const REPORT_PHOTO_THUMB_URL_TTL = 900;
+const REPORT_PHOTO_THUMB_TRANSFORM = { width: 160, height: 160, resize: 'cover', quality: 60 };
+// The detail modal only ever shows the photo at up to ~260px tall / the
+// panel's width, so requesting the full ~1024px original there wastes
+// bytes on every open. This transform is used for the inline view; the
+// "open full size" action still goes through the untransformed original.
+const REPORT_PHOTO_DISPLAY_TRANSFORM = { width: 700, resize: 'contain', quality: 68 };
+
+// Detected once and reused — canvas.toBlob('image/webp', q) silently
+// produces a PNG on browsers that can't encode WebP, so we can't just try
+// it and hope; we probe once at load and fall back to JPEG everywhere if
+// it's not supported.
+let reportPhotoWebpSupportedPromise = null;
+function reportPhotoWebpSupported() {
+  if (!reportPhotoWebpSupportedPromise) {
+    reportPhotoWebpSupportedPromise = new Promise(resolve => {
+      try {
+        const c = document.createElement('canvas');
+        c.width = 1; c.height = 1;
+        c.toBlob(blob => resolve(!!blob && blob.type === 'image/webp'), 'image/webp');
+      } catch (e) {
+        resolve(false);
+      }
+    });
+  }
+  return reportPhotoWebpSupportedPromise;
+}
 
 let pendingReportPhotoBlob = null;
 let pendingReportPhotoPreviewUrl = null;
 
-function compressReportPhoto(file) {
-  return new Promise((resolve, reject) => {
-    if (!file.type || !file.type.startsWith('image/')) { reject(new Error('not-an-image')); return; }
-    if (file.size > REPORT_PHOTO_MAX_INPUT_BYTES) { reject(new Error('too-large')); return; }
-    const img = new Image();
-    const objectUrl = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(objectUrl);
-      let { width, height } = img;
-      const scale = Math.min(1, REPORT_PHOTO_MAX_DIMENSION / Math.max(width, height));
-      width = Math.max(1, Math.round(width * scale));
-      height = Math.max(1, Math.round(height * scale));
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, width, height);
-      canvas.toBlob(blob => {
-        if (!blob) { reject(new Error('encode-failed')); return; }
-        resolve(blob);
-      }, 'image/jpeg', REPORT_PHOTO_JPEG_QUALITY);
-    };
-    img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error('decode-failed')); };
-    img.src = objectUrl;
-  });
+// Encodes canvas -> blob at a given quality, wrapped in a promise.
+function canvasToBlobAsync(canvas, mimeType, quality) {
+  return new Promise(resolve => canvas.toBlob(resolve, mimeType, quality));
+}
+
+// Compresses an uploaded photo as hard as reasonably possible while
+// staying legible: prefers WebP (25-35% smaller than JPEG at the same
+// visual quality) with a JPEG fallback, tries progressively lower quality
+// steps to hit a target byte size, and — if still oversized at the lowest
+// quality step — shrinks the dimensions further and retries once. Returns
+// { blob, ext } so callers can pick the right storage extension/contentType.
+async function compressReportPhoto(file) {
+  if (!file.type || !file.type.startsWith('image/')) throw new Error('not-an-image');
+  if (file.size > REPORT_PHOTO_MAX_INPUT_BYTES) throw new Error('too-large');
+
+  const objectUrl = URL.createObjectURL(file);
+  let img;
+  try {
+    img = await new Promise((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error('decode-failed'));
+      i.src = objectUrl;
+    });
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+
+  const useWebp = await reportPhotoWebpSupported();
+  const mimeType = useWebp ? 'image/webp' : 'image/jpeg';
+  const ext = useWebp ? 'webp' : 'jpg';
+
+  let dimension = REPORT_PHOTO_MAX_DIMENSION;
+  let best = null;
+
+  for (let pass = 0; pass < 2; pass++) {
+    const scale = Math.min(1, dimension / Math.max(img.width, img.height));
+    const width = Math.max(1, Math.round(img.width * scale));
+    const height = Math.max(1, Math.round(img.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+
+    for (const quality of REPORT_PHOTO_QUALITY_STEPS) {
+      const blob = await canvasToBlobAsync(canvas, mimeType, quality);
+      if (!blob) continue;
+      if (!best || blob.size < best.size) best = blob;
+      if (blob.size <= REPORT_PHOTO_TARGET_BYTES) return { blob, ext };
+    }
+    if (dimension <= REPORT_PHOTO_MIN_DIMENSION) break;
+    dimension = Math.max(REPORT_PHOTO_MIN_DIMENSION, Math.round(dimension * 0.75));
+  }
+
+  if (!best) throw new Error('encode-failed');
+  return { blob: best, ext };
 }
 
 function triggerReportPhotoCamera() {
@@ -9548,17 +9604,20 @@ async function onReportPhotoSelected(inputEl) {
   inputEl.value = '';
   if (!file) return;
   try {
-    const blob = await compressReportPhoto(file);
-    setPendingReportPhoto(blob);
+    const { blob, ext } = await compressReportPhoto(file);
+    setPendingReportPhoto(blob, ext);
   } catch (err) {
     console.error('Photo processing failed:', err.message || err);
     toast(t('reportPhotoInvalid'), 'error');
   }
 }
 
-function setPendingReportPhoto(blob) {
+let pendingReportPhotoExt = 'jpg';
+
+function setPendingReportPhoto(blob, ext) {
   clearPendingReportPhotoPreviewUrl();
   pendingReportPhotoBlob = blob;
+  pendingReportPhotoExt = ext || 'jpg';
   pendingReportPhotoPreviewUrl = URL.createObjectURL(blob);
   const img = document.getElementById('reportPhotoPreviewImg');
   const preview = document.getElementById('reportPhotoPreview');
@@ -9584,11 +9643,31 @@ function removePendingReportPhoto() {
   if (dropdown) dropdown.style.display = '';
 }
 
-async function uploadReportPhoto(reportId, blob) {
+// Storage cache-control, in seconds, applied to every report-photo upload.
+// Paths are version-stamped below (a fresh token per upload) specifically
+// so this can be long and "immutable": the URL a browser/CDN cached can
+// never later resolve to different bytes, because a content change always
+// gets a new path rather than overwriting the old one in place.
+const REPORT_PHOTO_CACHE_CONTROL = '31536000';
+
+function reportPhotoContentType(ext) {
+  return ext === 'webp' ? 'image/webp' : 'image/jpeg';
+}
+
+// Short, time-based token so repeated uploads to "the same" report photo
+// slot land on a new object path instead of overwriting the old one. That
+// makes every URL we ever sign for a given path permanently valid for its
+// content, which is what lets us set a year-long, non-revalidating
+// Cache-Control on it safely.
+function reportPhotoVersionToken() {
+  return Date.now().toString(36);
+}
+
+async function uploadReportPhoto(reportId, blob, ext) {
   try {
-    const path = `${currentSession.user.id}/${reportId}.jpg`;
+    const path = `${currentSession.user.id}/${reportId}_${reportPhotoVersionToken()}.${ext || 'jpg'}`;
     const { error: uploadError } = await sb.storage.from(REPORT_PHOTO_BUCKET)
-      .upload(path, blob, { contentType: 'image/jpeg', upsert: true });
+      .upload(path, blob, { contentType: reportPhotoContentType(ext), upsert: false, cacheControl: REPORT_PHOTO_CACHE_CONTROL });
     if (uploadError) throw uploadError;
     const { error: updateError } = await sb.from(TABLE).update({
       photo_path: path,
@@ -9605,29 +9684,34 @@ async function uploadReportPhoto(reportId, blob) {
 async function addPhotoToReport(reportId) {
   const file = await pickReportPhotoSource();
   if (!file) return;
-  let blob;
+  let blob, ext;
   try {
-    blob = await compressReportPhoto(file);
+    ({ blob, ext } = await compressReportPhoto(file));
   } catch (err) {
     console.error('Photo processing failed:', err.message || err);
     toast(t('reportPhotoInvalid'), 'error');
     return;
   }
-  const ok = await uploadOrReplaceReportPhoto(reportId, blob);
+  const ok = await uploadOrReplaceReportPhoto(reportId, blob, ext);
   if (ok) refreshReportViews(reportId);
 }
 
-async function uploadOrReplaceReportPhoto(reportId, blob) {
+async function uploadOrReplaceReportPhoto(reportId, blob, ext) {
   const report = globalActiveData.find(r => r.id === reportId);
   try {
     const previousPath = report && report.photo_path;
-    const path = `${currentSession.user.id}/${reportId}.jpg`;
+    const path = `${currentSession.user.id}/${reportId}_${reportPhotoVersionToken()}.${ext || 'jpg'}`;
+    const { error: uploadError } = await sb.storage.from(REPORT_PHOTO_BUCKET)
+      .upload(path, blob, { contentType: reportPhotoContentType(ext), upsert: false, cacheControl: REPORT_PHOTO_CACHE_CONTROL });
+    if (uploadError) throw uploadError;
+    // Only remove the old object once the new one is safely stored, so a
+    // failed upload never leaves a report with no photo at all.
     if (previousPath && previousPath !== path) {
       sb.storage.from(REPORT_PHOTO_BUCKET).remove([previousPath]).catch(() => {});
+      reportPhotoUrlCache.delete(`${previousPath}::full`);
+      reportPhotoUrlCache.delete(`${previousPath}::display`);
+      reportPhotoUrlCache.delete(`${previousPath}::thumb`);
     }
-    const { error: uploadError } = await sb.storage.from(REPORT_PHOTO_BUCKET)
-      .upload(path, blob, { contentType: 'image/jpeg', upsert: true });
-    if (uploadError) throw uploadError;
     const patch = {
       photo_path: path,
       photo_status: 'pending',
@@ -9649,24 +9733,32 @@ async function uploadOrReplaceReportPhoto(reportId, blob) {
 async function addAfterPhotoToReport(reportId) {
   const file = await pickReportPhotoSource();
   if (!file) return;
-  let blob;
+  let blob, ext;
   try {
-    blob = await compressReportPhoto(file);
+    ({ blob, ext } = await compressReportPhoto(file));
   } catch (err) {
     console.error('After-photo processing failed:', err.message || err);
     toast(t('reportPhotoInvalid'), 'error');
     return;
   }
-  const ok = await uploadAfterReportPhoto(reportId, blob);
+  const ok = await uploadAfterReportPhoto(reportId, blob, ext);
   if (ok) refreshReportViews(reportId);
 }
 
-async function uploadAfterReportPhoto(reportId, blob) {
+async function uploadAfterReportPhoto(reportId, blob, ext) {
+  const report = globalActiveData.find(r => r.id === reportId);
   try {
-    const path = `${currentSession.user.id}/${reportId}_after.jpg`;
+    const previousPath = report && report.after_photo_path;
+    const path = `${currentSession.user.id}/${reportId}_after_${reportPhotoVersionToken()}.${ext || 'jpg'}`;
     const { error: uploadError } = await sb.storage.from(REPORT_PHOTO_BUCKET)
-      .upload(path, blob, { contentType: 'image/jpeg', upsert: true });
+      .upload(path, blob, { contentType: reportPhotoContentType(ext), upsert: false, cacheControl: REPORT_PHOTO_CACHE_CONTROL });
     if (uploadError) throw uploadError;
+    if (previousPath && previousPath !== path) {
+      sb.storage.from(REPORT_PHOTO_BUCKET).remove([previousPath]).catch(() => {});
+      reportPhotoUrlCache.delete(`${previousPath}::full`);
+      reportPhotoUrlCache.delete(`${previousPath}::display`);
+      reportPhotoUrlCache.delete(`${previousPath}::thumb`);
+    }
     const patch = {
       after_photo_path: path,
       after_photo_status: 'pending',
@@ -9734,18 +9826,18 @@ async function addGalleryPhotoToReport(reportId, source) {
   if (!currentSession) { toast(t('signInFirst') || 'Sign in first', 'error'); return; }
   const file = source ? await pickReportPhotoDirect(source) : await pickReportPhotoSource();
   if (!file) return;
-  let blob;
+  let blob, ext;
   try {
-    blob = await compressReportPhoto(file);
+    ({ blob, ext } = await compressReportPhoto(file));
   } catch (err) {
     console.error('Gallery photo processing failed:', err.message || err);
     toast(t('reportPhotoInvalid'), 'error');
     return;
   }
   try {
-    const path = `gallery/${currentSession.user.id}/${reportId}_${Date.now()}.jpg`;
+    const path = `gallery/${currentSession.user.id}/${reportId}_${reportPhotoVersionToken()}.${ext || 'jpg'}`;
     const { error: uploadError } = await sb.storage.from(REPORT_PHOTO_BUCKET)
-      .upload(path, blob, { contentType: 'image/jpeg', upsert: false });
+      .upload(path, blob, { contentType: reportPhotoContentType(ext), upsert: false, cacheControl: REPORT_PHOTO_CACHE_CONTROL });
     if (uploadError) throw uploadError;
     const { error: insertError } = await sb.from(REPORT_GALLERY_TABLE).insert({
       report_id: reportId,
@@ -9829,23 +9921,65 @@ function refreshReportViews(reportId) {
 // repeated renders (list re-renders, polling refreshes, re-opening the
 // same modal) reuse an existing URL instead of asking Storage to sign a
 // new one — which would also force the browser to re-download the image,
-// since a fresh signed URL always has a different token/cache key.
+// since a fresh signed URL always has a different token/cache key. Because
+// upload paths are now version-stamped (see reportPhotoVersionToken), a
+// given cache key's underlying bytes never change, so it's also safe to
+// persist this across page loads in sessionStorage — a reload in the same
+// tab reuses the exact same signed URL and gets a free browser-cache hit
+// instead of re-signing and re-downloading.
+const REPORT_PHOTO_URL_CACHE_STORAGE_KEY = 'ttb_photo_url_cache_v1';
 const reportPhotoUrlCache = new Map();
+(function hydrateReportPhotoUrlCache() {
+  try {
+    const raw = sessionStorage.getItem(REPORT_PHOTO_URL_CACHE_STORAGE_KEY);
+    if (!raw) return;
+    const now = Date.now();
+    const entries = JSON.parse(raw);
+    for (const [key, val] of entries) {
+      if (val && val.expiresAt > now) reportPhotoUrlCache.set(key, val);
+    }
+  } catch (e) { /* sessionStorage unavailable or corrupt — just skip hydration */ }
+})();
+let reportPhotoUrlCachePersistScheduled = false;
+function persistReportPhotoUrlCache() {
+  if (reportPhotoUrlCachePersistScheduled) return;
+  reportPhotoUrlCachePersistScheduled = true;
+  // Coalesce bursts of sets (e.g. a list rendering 20 thumbs at once) into
+  // a single sessionStorage write.
+  setTimeout(() => {
+    reportPhotoUrlCachePersistScheduled = false;
+    try {
+      sessionStorage.setItem(REPORT_PHOTO_URL_CACHE_STORAGE_KEY, JSON.stringify([...reportPhotoUrlCache.entries()]));
+    } catch (e) { /* quota or unavailable — non-critical, just skip */ }
+  }, 0);
+}
+
+const REPORT_PHOTO_VARIANT_TRANSFORMS = {
+  thumb: REPORT_PHOTO_THUMB_TRANSFORM,
+  display: REPORT_PHOTO_DISPLAY_TRANSFORM
+};
+const REPORT_PHOTO_VARIANT_TTLS = {
+  thumb: REPORT_PHOTO_THUMB_URL_TTL,
+  display: REPORT_PHOTO_DISPLAY_URL_TTL
+};
 
 async function getReportPhotoSignedUrl(path, ttlSeconds, variant) {
   if (!path) return null;
-  const ttl = ttlSeconds || (variant === 'thumb' ? REPORT_PHOTO_THUMB_URL_TTL : REPORT_PHOTO_SIGNED_URL_TTL);
+  const ttl = ttlSeconds || REPORT_PHOTO_VARIANT_TTLS[variant] || REPORT_PHOTO_SIGNED_URL_TTL;
   const cacheKey = `${path}::${variant || 'full'}`;
   const cached = reportPhotoUrlCache.get(cacheKey);
   const now = Date.now();
   // Reuse the cached URL until shortly before it actually expires.
   if (cached && cached.expiresAt - now > 15000) return cached.url;
   try {
-    const signOptions = variant === 'thumb' ? { transform: REPORT_PHOTO_THUMB_TRANSFORM } : undefined;
+    const signOptions = REPORT_PHOTO_VARIANT_TRANSFORMS[variant] ? { transform: REPORT_PHOTO_VARIANT_TRANSFORMS[variant] } : undefined;
     const { data, error } = await sb.storage.from(REPORT_PHOTO_BUCKET).createSignedUrl(path, ttl, signOptions);
     if (error) throw error;
     const url = data && data.signedUrl;
-    if (url) reportPhotoUrlCache.set(cacheKey, { url, expiresAt: now + ttl * 1000 });
+    if (url) {
+      reportPhotoUrlCache.set(cacheKey, { url, expiresAt: now + ttl * 1000 });
+      persistReportPhotoUrlCache();
+    }
     return url;
   } catch (err) {
     console.error('Failed to sign photo URL:', err.message || err);
@@ -9853,9 +9987,9 @@ async function getReportPhotoSignedUrl(path, ttlSeconds, variant) {
   }
 }
 
-// Used by thumbnail images (which load a small transformed variant) to
-// fetch the full-size signed URL only when the user actually clicks
-// through to view it at full resolution.
+// Used by thumbnail/display images (which load a smaller transformed
+// variant) to fetch the untransformed full-size signed URL only when the
+// user actually clicks through to view it at full resolution.
 async function openFullSizeReportPhoto(path) {
   const url = await getReportPhotoSignedUrl(path);
   if (url) window.open(url, '_blank');
@@ -10209,12 +10343,12 @@ function idbTxDone(tx) {
   });
 }
 
-async function queueOfflineReport(insertPayload, photoBlob) {
+async function queueOfflineReport(insertPayload, photoBlob, photoExt) {
   const db = await openOfflineDb();
   const localId = (window.crypto && crypto.randomUUID)
     ? crypto.randomUUID()
     : 'offline_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-  const entry = { localId, insertPayload, photoBlob: photoBlob || null, createdAt: Date.now() };
+  const entry = { localId, insertPayload, photoBlob: photoBlob || null, photoExt: photoExt || 'jpg', createdAt: Date.now() };
   const tx = db.transaction(OFFLINE_STORE, 'readwrite');
   tx.objectStore(OFFLINE_STORE).put(entry);
   await idbTxDone(tx);
@@ -10306,7 +10440,7 @@ async function syncOfflineQueue(manual) {
         if (error) throw error;
         resolveAndAttachMunicipality(data && data.id, row.insertPayload.latitude, row.insertPayload.longitude);
         if (row.photoBlob && data && data.id) {
-          await uploadReportPhoto(data.id, row.photoBlob);
+          await uploadReportPhoto(data.id, row.photoBlob, row.photoExt);
         }
         await deleteQueuedReport(row.localId);
         syncedCount++;
@@ -10433,7 +10567,7 @@ async function reportBreak(){
       data = result.data;
     } catch (err) {
       if (isNetworkFailure(err)) {
-        await queueOfflineReport(insertPayload, pendingReportPhotoBlob);
+        await queueOfflineReport(insertPayload, pendingReportPhotoBlob, pendingReportPhotoExt);
         recordReportSubmission();
         toast('\ud83d\udcf6 ' + t('offlineQueued'), 'success');
         resetReportingForm();
@@ -10447,7 +10581,7 @@ async function reportBreak(){
     resolveAndAttachMunicipality(data && data.id, lat, lon);
 
     if (pendingReportPhotoBlob && data && data.id) {
-      await uploadReportPhoto(data.id, pendingReportPhotoBlob);
+      await uploadReportPhoto(data.id, pendingReportPhotoBlob, pendingReportPhotoExt);
     }
 
     toast('✓ ' + t('submitted'), 'success');
@@ -13989,21 +14123,26 @@ async function showReportDetailModal(reportId) {
   }
 
   if (showPhotoImage) {
-    getReportPhotoSignedUrl(report.photo_path).then(url => {
+    // The modal only ever displays this at up to ~260px tall, so load the
+    // small "display" transform here; the click-through still fetches the
+    // untransformed original on demand via openFullSizeReportPhoto.
+    getReportPhotoSignedUrl(report.photo_path, null, 'display').then(url => {
       const wrap = document.getElementById('detailPhotoWrap');
       if (!wrap) return;
+      const path = escapeHtml(report.photo_path);
       wrap.innerHTML = url
-        ? `<img src="${url}" alt="${t('photoViewFullSizeBefore')}" class="detail-photo-img" role="button" tabindex="0" onclick="window.open('${url}','_blank')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.open('${url}','_blank');}">`
+        ? `<img src="${url}" alt="${t('photoViewFullSizeBefore')}" class="detail-photo-img" role="button" tabindex="0" onclick="openFullSizeReportPhoto('${path}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openFullSizeReportPhoto('${path}');}">`
         : `<div class="detail-empty">${t('photoLoadFailed')}</div>`;
     });
   }
 
   if (showAfterPhotoImage) {
-    getReportPhotoSignedUrl(report.after_photo_path).then(url => {
+    getReportPhotoSignedUrl(report.after_photo_path, null, 'display').then(url => {
       const wrap = document.getElementById('detailAfterPhotoWrap');
       if (!wrap) return;
+      const path = escapeHtml(report.after_photo_path);
       wrap.innerHTML = url
-        ? `<img src="${url}" alt="${t('photoViewFullSizeAfter')}" class="detail-photo-img" role="button" tabindex="0" onclick="window.open('${url}','_blank')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.open('${url}','_blank');}">`
+        ? `<img src="${url}" alt="${t('photoViewFullSizeAfter')}" class="detail-photo-img" role="button" tabindex="0" onclick="openFullSizeReportPhoto('${path}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openFullSizeReportPhoto('${path}');}">`
         : `<div class="detail-empty">${t('photoLoadFailed')}</div>`;
     });
   }
