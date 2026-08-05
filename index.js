@@ -77,8 +77,9 @@ async function getJwks(supabaseUrl, forceRefetch) {
   if (!forceRefetch && jwksCache.url === supabaseUrl && jwksCache.keys.length && (now - jwksCache.fetchedAt) < JWKS_CACHE_TTL_MS) {
     return jwksCache.keys;
   }
-  const res = await fetch(`${supabaseUrl}/auth/v1/.well-known/jwks.json`);
-  if (!res.ok) throw new Error(`jwks fetch failed (${res.status})`);
+  const jwksUrl = `${supabaseUrl}/auth/v1/.well-known/jwks.json`;
+  const res = await fetch(jwksUrl);
+  if (!res.ok) throw new Error(`jwks fetch failed (${res.status}) for ${jwksUrl}`);
   const data = await res.json();
   jwksCache = { keys: (data && data.keys) || [], fetchedAt: now, url: supabaseUrl };
   return jwksCache.keys;
@@ -93,7 +94,10 @@ async function verifyEs256(headerB64, payloadB64, sigB64, kid, supabaseUrl) {
     keys = await getJwks(supabaseUrl, true);
     jwk = keys.find(k => k.kid === kid);
   }
-  if (!jwk) return false;
+  if (!jwk) {
+    console.error(`verifyEs256: no JWKS key found for kid=${kid} at ${supabaseUrl} (${keys.length} keys cached)`);
+    return false;
+  }
   const key = await crypto.subtle.importKey('jwk', jwk, { name: 'ECDSA', namedCurve: jwk.crv || 'P-256' }, false, ['verify']);
   // WebCrypto's ECDSA verify expects the raw r||s signature format, which
   // is exactly what a JWS ES256 signature already is — no DER conversion
@@ -119,20 +123,33 @@ async function verifySupabaseJwt(token, env) {
   } catch (e) {
     return null;
   }
-  if (!payload || !payload.sub) return null;
-  if (payload.exp && Date.now() / 1000 > payload.exp) return null;
+  if (!payload || !payload.sub) {
+    console.error('verifySupabaseJwt: token missing payload/sub');
+    return null;
+  }
+  if (payload.exp && Date.now() / 1000 > payload.exp) {
+    console.error(`verifySupabaseJwt: token expired at ${payload.exp}, now ${Math.floor(Date.now() / 1000)}`);
+    return null;
+  }
 
   let ok = false;
   try {
     if (header.alg === 'ES256') {
-      if (!env.SUPABASE_URL) return null; // required to fetch the JWKS
+      if (!env.SUPABASE_URL) {
+        console.error('verifySupabaseJwt: ES256 token but SUPABASE_URL is not set on the Worker');
+        return null;
+      }
       ok = await verifyEs256(headerB64, payloadB64, sigB64, header.kid, env.SUPABASE_URL);
+      if (!ok) console.error(`verifySupabaseJwt: ES256 verify failed (kid=${header.kid}, SUPABASE_URL=${env.SUPABASE_URL})`);
     } else if (header.alg === 'HS256') {
       ok = await verifyHs256(headerB64, payloadB64, sigB64, env.SUPABASE_JWT_SECRET);
+      if (!ok) console.error('verifySupabaseJwt: HS256 verify failed (check SUPABASE_JWT_SECRET secret)');
     } else {
-      return null; // unsupported/unexpected alg
+      console.error(`verifySupabaseJwt: unsupported alg "${header.alg}"`);
+      return null;
     }
   } catch (e) {
+    console.error(`verifySupabaseJwt: exception during verify — ${e && e.message}`);
     return null;
   }
   return ok ? payload : null;
