@@ -16,7 +16,7 @@ bucket_name = "report-photos"
 # JWKS to verify ES256-signed tokens; without it, every ES256 token fails
 # verification and every /upload and /sign request 401s.
 [vars]
-SUPABASE_URL = "https://YOUR-PROJECT-REF.supabase.co"
+SUPABASE_URL = "https://fnkqmwweljsupbmerbkh.supabase.co"
 
 # Secrets (do NOT put these here — set them with `wrangler secret put <NAME>`):
 #   SUPABASE_JWT_SECRET        Supabase Dashboard -> Project Settings -> API -> JWT Secret
