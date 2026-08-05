@@ -9490,7 +9490,11 @@ function checkFormReady() {
   document.getElementById('reportBtn').disabled = !(category && priority && hasLoc && isAuthed && commentOk);
 }
 
-const REPORT_PHOTO_BUCKET = 'report-photos';
+// Photos live in a Cloudflare R2 bucket, brokered by a small Worker (see
+// /worker in the repo) — Supabase only stores the object *path* string in
+// photo_path / after_photo_path, same as before. Set this once you've run
+// `wrangler deploy` (see worker/README.md).
+const PHOTO_WORKER_URL = 'https://tracethebreak-photos.strale-com-cloudflare.workers.dev';
 const REPORT_PHOTO_MAX_DIMENSION = 1024;
 const REPORT_PHOTO_MIN_DIMENSION = 640; // floor for the dimension-shrink fallback pass
 const REPORT_PHOTO_TARGET_BYTES = 160 * 1024; // aim for this size before giving up
@@ -9499,17 +9503,59 @@ const REPORT_PHOTO_MAX_INPUT_BYTES = 15 * 1024 * 1024;
 const REPORT_PHOTO_SIGNED_URL_TTL = 3600; // 1h — click-to-open full size / share-image source
 const REPORT_PHOTO_DISPLAY_URL_TTL = 21600; // 6h — the size shown inline in the detail modal
 const REPORT_PHOTO_THUMB_URL_TTL = 21600; // 6h — list/queue thumbnails
+// Thumbnail generated client-side at upload time (160x160 cover-crop),
+// stored as a second, tiny object alongside the main photo. This replaces
+// the on-the-fly resize Supabase Storage used to do — R2 has no free
+// equivalent, so we just make the small version once, up front.
+const REPORT_PHOTO_THUMB_SIZE = 160;
+const REPORT_PHOTO_THUMB_QUALITY = 0.6;
 
-// Small transformed size used anywhere we show a photo as a list/queue
-// thumbnail rather than the full image. Keeps repeated list refreshes
-// (e.g. the 15s admin waiting-list poll) from re-downloading full-size
-// photos for a tiny thumb.
-const REPORT_PHOTO_THUMB_TRANSFORM = { width: 160, height: 160, resize: 'cover', quality: 60 };
-// The detail modal only ever shows the photo at up to ~260px tall / the
-// panel's width, so requesting the full ~1024px original there wastes
-// bytes on every open. This transform is used for the inline view; the
-// "open full size" action still goes through the untransformed original.
-const REPORT_PHOTO_DISPLAY_TRANSFORM = { width: 700, resize: 'contain', quality: 68 };
+function thumbPathFor(path) {
+  return path.replace(/(\.[a-zA-Z0-9]+)$/, '-thumb$1');
+}
+
+function photoAuthHeaders(extra) {
+  const token = currentSession && currentSession.access_token;
+  return Object.assign({ authorization: token ? `Bearer ${token}` : '' }, extra || {});
+}
+
+// Uploads one object (main photo or its thumbnail) through the Worker.
+// Throws on failure so callers can decide how to react.
+async function uploadPhotoObject(path, blob, contentType) {
+  const res = await fetch(`${PHOTO_WORKER_URL}/upload?path=${encodeURIComponent(path)}`, {
+    method: 'POST',
+    headers: photoAuthHeaders({ 'content-type': contentType }),
+    body: blob
+  });
+  if (!res.ok) throw new Error(`upload failed (${res.status})`);
+}
+
+// Uploads the main photo and its thumbnail together.
+async function uploadPhotoWithThumb(path, blob, thumbBlob, ext) {
+  const contentType = reportPhotoContentType(ext);
+  await uploadPhotoObject(path, blob, contentType);
+  if (thumbBlob) {
+    try { await uploadPhotoObject(thumbPathFor(path), thumbBlob, contentType); }
+    catch (e) { console.error('Thumbnail upload failed (non-fatal):', e.message || e); }
+  }
+}
+
+// Deletes a photo's main object and its thumbnail. Best-effort, like the
+// old sb.storage.remove() calls this replaces.
+function deletePhotoObject(path) {
+  if (!path) return;
+  fetch(`${PHOTO_WORKER_URL}/upload?path=${encodeURIComponent(path)}`, {
+    method: 'DELETE',
+    headers: photoAuthHeaders()
+  }).catch(() => {});
+}
+
+// Note: thumb/display resizing used to be a Supabase Storage on-the-fly
+// transform requested per-URL. R2 has no free equivalent, so the "thumb"
+// variant now just points at a separate, pre-shrunk object made client-side
+// at upload time (see makeCoverThumb / REPORT_PHOTO_THUMB_SIZE above). The
+// "display" variant currently just serves the same ~1024px main object as
+// "full" — it's already small since compressReportPhoto targets ~160KB.
 
 // Detected once and reused — canvas.toBlob('image/webp', q) silently
 // produces a PNG on browsers that can't encode WebP, so we can't just try
@@ -9539,12 +9585,28 @@ function canvasToBlobAsync(canvas, mimeType, quality) {
   return new Promise(resolve => canvas.toBlob(resolve, mimeType, quality));
 }
 
+// Cover-crops `img` to a square and resizes it down to `size`x`size` —
+// the same "resize: cover" semantics Supabase's transform used to give us
+// for thumbnails, done once client-side instead of on every request.
+async function makeCoverThumb(img, size, mimeType, quality) {
+  const srcSize = Math.min(img.width, img.height);
+  const sx = (img.width - srcSize) / 2;
+  const sy = (img.height - srcSize) / 2;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  canvas.getContext('2d').drawImage(img, sx, sy, srcSize, srcSize, 0, 0, size, size);
+  return canvasToBlobAsync(canvas, mimeType, quality);
+}
+
 // Compresses an uploaded photo as hard as reasonably possible while
 // staying legible: prefers WebP (25-35% smaller than JPEG at the same
 // visual quality) with a JPEG fallback, tries progressively lower quality
 // steps to hit a target byte size, and — if still oversized at the lowest
-// quality step — shrinks the dimensions further and retries once. Returns
-// { blob, ext } so callers can pick the right storage extension/contentType.
+// quality step — shrinks the dimensions further and retries once. Also
+// produces a small cover-cropped thumbnail from the same decoded image, so
+// callers can upload both in one go. Returns { blob, ext, thumbBlob } so
+// callers can pick the right storage extension/contentType.
 async function compressReportPhoto(file) {
   if (!file.type || !file.type.startsWith('image/')) throw new Error('not-an-image');
   if (file.size > REPORT_PHOTO_MAX_INPUT_BYTES) throw new Error('too-large');
@@ -9582,14 +9644,18 @@ async function compressReportPhoto(file) {
       const blob = await canvasToBlobAsync(canvas, mimeType, quality);
       if (!blob) continue;
       if (!best || blob.size < best.size) best = blob;
-      if (blob.size <= REPORT_PHOTO_TARGET_BYTES) return { blob, ext };
+      if (blob.size <= REPORT_PHOTO_TARGET_BYTES) {
+        const thumbBlob = await makeCoverThumb(img, REPORT_PHOTO_THUMB_SIZE, mimeType, REPORT_PHOTO_THUMB_QUALITY).catch(() => null);
+        return { blob, ext, thumbBlob };
+      }
     }
     if (dimension <= REPORT_PHOTO_MIN_DIMENSION) break;
     dimension = Math.max(REPORT_PHOTO_MIN_DIMENSION, Math.round(dimension * 0.75));
   }
 
   if (!best) throw new Error('encode-failed');
-  return { blob: best, ext };
+  const thumbBlob = await makeCoverThumb(img, REPORT_PHOTO_THUMB_SIZE, mimeType, REPORT_PHOTO_THUMB_QUALITY).catch(() => null);
+  return { blob: best, ext, thumbBlob };
 }
 
 function triggerReportPhotoCamera() {
@@ -9604,8 +9670,8 @@ async function onReportPhotoSelected(inputEl) {
   inputEl.value = '';
   if (!file) return;
   try {
-    const { blob, ext } = await compressReportPhoto(file);
-    setPendingReportPhoto(blob, ext);
+    const { blob, ext, thumbBlob } = await compressReportPhoto(file);
+    setPendingReportPhoto(blob, ext, thumbBlob);
   } catch (err) {
     console.error('Photo processing failed:', err.message || err);
     toast(t('reportPhotoInvalid'), 'error');
@@ -9613,11 +9679,13 @@ async function onReportPhotoSelected(inputEl) {
 }
 
 let pendingReportPhotoExt = 'jpg';
+let pendingReportPhotoThumbBlob = null;
 
-function setPendingReportPhoto(blob, ext) {
+function setPendingReportPhoto(blob, ext, thumbBlob) {
   clearPendingReportPhotoPreviewUrl();
   pendingReportPhotoBlob = blob;
   pendingReportPhotoExt = ext || 'jpg';
+  pendingReportPhotoThumbBlob = thumbBlob || null;
   pendingReportPhotoPreviewUrl = URL.createObjectURL(blob);
   const img = document.getElementById('reportPhotoPreviewImg');
   const preview = document.getElementById('reportPhotoPreview');
@@ -9637,19 +9705,18 @@ function clearPendingReportPhotoPreviewUrl() {
 function removePendingReportPhoto() {
   clearPendingReportPhotoPreviewUrl();
   pendingReportPhotoBlob = null;
+  pendingReportPhotoThumbBlob = null;
   const preview = document.getElementById('reportPhotoPreview');
   const dropdown = document.getElementById('reportPhotoDropdown');
   if (preview) preview.style.display = 'none';
   if (dropdown) dropdown.style.display = '';
 }
 
-// Storage cache-control, in seconds, applied to every report-photo upload.
 // Paths are version-stamped below (a fresh token per upload) specifically
-// so this can be long and "immutable": the URL a browser/CDN cached can
-// never later resolve to different bytes, because a content change always
-// gets a new path rather than overwriting the old one in place.
-const REPORT_PHOTO_CACHE_CONTROL = '31536000';
-
+// so the Worker can set a long, non-revalidating Cache-Control on every
+// object: a content change always gets a new path rather than overwriting
+// the old one in place, so a cached URL can never later resolve to
+// different bytes.
 function reportPhotoContentType(ext) {
   return ext === 'webp' ? 'image/webp' : 'image/jpeg';
 }
@@ -9663,12 +9730,10 @@ function reportPhotoVersionToken() {
   return Date.now().toString(36);
 }
 
-async function uploadReportPhoto(reportId, blob, ext) {
+async function uploadReportPhoto(reportId, blob, ext, thumbBlob) {
   try {
     const path = `${currentSession.user.id}/${reportId}_${reportPhotoVersionToken()}.${ext || 'jpg'}`;
-    const { error: uploadError } = await sb.storage.from(REPORT_PHOTO_BUCKET)
-      .upload(path, blob, { contentType: reportPhotoContentType(ext), upsert: false, cacheControl: REPORT_PHOTO_CACHE_CONTROL });
-    if (uploadError) throw uploadError;
+    await uploadPhotoWithThumb(path, blob, thumbBlob, ext);
     const { error: updateError } = await sb.from(TABLE).update({
       photo_path: path,
       photo_status: 'pending',
@@ -9684,30 +9749,28 @@ async function uploadReportPhoto(reportId, blob, ext) {
 async function addPhotoToReport(reportId) {
   const file = await pickReportPhotoSource();
   if (!file) return;
-  let blob, ext;
+  let blob, ext, thumbBlob;
   try {
-    ({ blob, ext } = await compressReportPhoto(file));
+    ({ blob, ext, thumbBlob } = await compressReportPhoto(file));
   } catch (err) {
     console.error('Photo processing failed:', err.message || err);
     toast(t('reportPhotoInvalid'), 'error');
     return;
   }
-  const ok = await uploadOrReplaceReportPhoto(reportId, blob, ext);
+  const ok = await uploadOrReplaceReportPhoto(reportId, blob, ext, thumbBlob);
   if (ok) refreshReportViews(reportId);
 }
 
-async function uploadOrReplaceReportPhoto(reportId, blob, ext) {
+async function uploadOrReplaceReportPhoto(reportId, blob, ext, thumbBlob) {
   const report = globalActiveData.find(r => r.id === reportId);
   try {
     const previousPath = report && report.photo_path;
     const path = `${currentSession.user.id}/${reportId}_${reportPhotoVersionToken()}.${ext || 'jpg'}`;
-    const { error: uploadError } = await sb.storage.from(REPORT_PHOTO_BUCKET)
-      .upload(path, blob, { contentType: reportPhotoContentType(ext), upsert: false, cacheControl: REPORT_PHOTO_CACHE_CONTROL });
-    if (uploadError) throw uploadError;
+    await uploadPhotoWithThumb(path, blob, thumbBlob, ext);
     // Only remove the old object once the new one is safely stored, so a
     // failed upload never leaves a report with no photo at all.
     if (previousPath && previousPath !== path) {
-      sb.storage.from(REPORT_PHOTO_BUCKET).remove([previousPath]).catch(() => {});
+      deletePhotoObject(previousPath);
       reportPhotoUrlCache.delete(`${previousPath}::full`);
       reportPhotoUrlCache.delete(`${previousPath}::display`);
       reportPhotoUrlCache.delete(`${previousPath}::thumb`);
@@ -9733,28 +9796,26 @@ async function uploadOrReplaceReportPhoto(reportId, blob, ext) {
 async function addAfterPhotoToReport(reportId) {
   const file = await pickReportPhotoSource();
   if (!file) return;
-  let blob, ext;
+  let blob, ext, thumbBlob;
   try {
-    ({ blob, ext } = await compressReportPhoto(file));
+    ({ blob, ext, thumbBlob } = await compressReportPhoto(file));
   } catch (err) {
     console.error('After-photo processing failed:', err.message || err);
     toast(t('reportPhotoInvalid'), 'error');
     return;
   }
-  const ok = await uploadAfterReportPhoto(reportId, blob, ext);
+  const ok = await uploadAfterReportPhoto(reportId, blob, ext, thumbBlob);
   if (ok) refreshReportViews(reportId);
 }
 
-async function uploadAfterReportPhoto(reportId, blob, ext) {
+async function uploadAfterReportPhoto(reportId, blob, ext, thumbBlob) {
   const report = globalActiveData.find(r => r.id === reportId);
   try {
     const previousPath = report && report.after_photo_path;
     const path = `${currentSession.user.id}/${reportId}_after_${reportPhotoVersionToken()}.${ext || 'jpg'}`;
-    const { error: uploadError } = await sb.storage.from(REPORT_PHOTO_BUCKET)
-      .upload(path, blob, { contentType: reportPhotoContentType(ext), upsert: false, cacheControl: REPORT_PHOTO_CACHE_CONTROL });
-    if (uploadError) throw uploadError;
+    await uploadPhotoWithThumb(path, blob, thumbBlob, ext);
     if (previousPath && previousPath !== path) {
-      sb.storage.from(REPORT_PHOTO_BUCKET).remove([previousPath]).catch(() => {});
+      deletePhotoObject(previousPath);
       reportPhotoUrlCache.delete(`${previousPath}::full`);
       reportPhotoUrlCache.delete(`${previousPath}::display`);
       reportPhotoUrlCache.delete(`${previousPath}::thumb`);
@@ -9826,9 +9887,9 @@ async function addGalleryPhotoToReport(reportId, source) {
   if (!currentSession) { toast(t('signInFirst') || 'Sign in first', 'error'); return; }
   const file = source ? await pickReportPhotoDirect(source) : await pickReportPhotoSource();
   if (!file) return;
-  let blob, ext;
+  let blob, ext, thumbBlob;
   try {
-    ({ blob, ext } = await compressReportPhoto(file));
+    ({ blob, ext, thumbBlob } = await compressReportPhoto(file));
   } catch (err) {
     console.error('Gallery photo processing failed:', err.message || err);
     toast(t('reportPhotoInvalid'), 'error');
@@ -9836,9 +9897,7 @@ async function addGalleryPhotoToReport(reportId, source) {
   }
   try {
     const path = `gallery/${currentSession.user.id}/${reportId}_${reportPhotoVersionToken()}.${ext || 'jpg'}`;
-    const { error: uploadError } = await sb.storage.from(REPORT_PHOTO_BUCKET)
-      .upload(path, blob, { contentType: reportPhotoContentType(ext), upsert: false, cacheControl: REPORT_PHOTO_CACHE_CONTROL });
-    if (uploadError) throw uploadError;
+    await uploadPhotoWithThumb(path, blob, thumbBlob, ext);
     const { error: insertError } = await sb.from(REPORT_GALLERY_TABLE).insert({
       report_id: reportId,
       uploader_id: currentSession.user.id,
@@ -9859,7 +9918,7 @@ async function deleteGalleryPhoto(id, photoPath, reportId) {
   try {
     const { error } = await sb.from(REPORT_GALLERY_TABLE).delete().eq('id', id);
     if (error) throw error;
-    sb.storage.from(REPORT_PHOTO_BUCKET).remove([photoPath]).catch(() => {});
+    deletePhotoObject(photoPath);
     toast(t('galleryPhotoDeleted'), 'success');
     renderReportGallery(reportId);
   } catch (err) {
@@ -9954,10 +10013,6 @@ function persistReportPhotoUrlCache() {
   }, 0);
 }
 
-const REPORT_PHOTO_VARIANT_TRANSFORMS = {
-  thumb: REPORT_PHOTO_THUMB_TRANSFORM,
-  display: REPORT_PHOTO_DISPLAY_TRANSFORM
-};
 const REPORT_PHOTO_VARIANT_TTLS = {
   thumb: REPORT_PHOTO_THUMB_URL_TTL,
   display: REPORT_PHOTO_DISPLAY_URL_TTL
@@ -9965,6 +10020,7 @@ const REPORT_PHOTO_VARIANT_TTLS = {
 
 async function getReportPhotoSignedUrl(path, ttlSeconds, variant) {
   if (!path) return null;
+  if (!currentSession) return null; // the Worker requires a logged-in caller, same as before
   const ttl = ttlSeconds || REPORT_PHOTO_VARIANT_TTLS[variant] || REPORT_PHOTO_SIGNED_URL_TTL;
   const cacheKey = `${path}::${variant || 'full'}`;
   const cached = reportPhotoUrlCache.get(cacheKey);
@@ -9972,10 +10028,11 @@ async function getReportPhotoSignedUrl(path, ttlSeconds, variant) {
   // Reuse the cached URL until shortly before it actually expires.
   if (cached && cached.expiresAt - now > 15000) return cached.url;
   try {
-    const signOptions = REPORT_PHOTO_VARIANT_TRANSFORMS[variant] ? { transform: REPORT_PHOTO_VARIANT_TRANSFORMS[variant] } : undefined;
-    const { data, error } = await sb.storage.from(REPORT_PHOTO_BUCKET).createSignedUrl(path, ttl, signOptions);
-    if (error) throw error;
-    const url = data && data.signedUrl;
+    const qs = new URLSearchParams({ path, variant: variant || 'full', ttl: String(ttl) });
+    const res = await fetch(`${PHOTO_WORKER_URL}/sign?${qs.toString()}`, { headers: photoAuthHeaders() });
+    if (!res.ok) throw new Error(`sign failed (${res.status})`);
+    const data = await res.json();
+    const url = data && data.url;
     if (url) {
       reportPhotoUrlCache.set(cacheKey, { url, expiresAt: now + ttl * 1000 });
       persistReportPhotoUrlCache();
@@ -10343,12 +10400,12 @@ function idbTxDone(tx) {
   });
 }
 
-async function queueOfflineReport(insertPayload, photoBlob, photoExt) {
+async function queueOfflineReport(insertPayload, photoBlob, photoExt, photoThumbBlob) {
   const db = await openOfflineDb();
   const localId = (window.crypto && crypto.randomUUID)
     ? crypto.randomUUID()
     : 'offline_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-  const entry = { localId, insertPayload, photoBlob: photoBlob || null, photoExt: photoExt || 'jpg', createdAt: Date.now() };
+  const entry = { localId, insertPayload, photoBlob: photoBlob || null, photoExt: photoExt || 'jpg', photoThumbBlob: photoThumbBlob || null, createdAt: Date.now() };
   const tx = db.transaction(OFFLINE_STORE, 'readwrite');
   tx.objectStore(OFFLINE_STORE).put(entry);
   await idbTxDone(tx);
@@ -10440,7 +10497,7 @@ async function syncOfflineQueue(manual) {
         if (error) throw error;
         resolveAndAttachMunicipality(data && data.id, row.insertPayload.latitude, row.insertPayload.longitude);
         if (row.photoBlob && data && data.id) {
-          await uploadReportPhoto(data.id, row.photoBlob, row.photoExt);
+          await uploadReportPhoto(data.id, row.photoBlob, row.photoExt, row.photoThumbBlob);
         }
         await deleteQueuedReport(row.localId);
         syncedCount++;
@@ -10567,7 +10624,7 @@ async function reportBreak(){
       data = result.data;
     } catch (err) {
       if (isNetworkFailure(err)) {
-        await queueOfflineReport(insertPayload, pendingReportPhotoBlob, pendingReportPhotoExt);
+        await queueOfflineReport(insertPayload, pendingReportPhotoBlob, pendingReportPhotoExt, pendingReportPhotoThumbBlob);
         recordReportSubmission();
         toast('\ud83d\udcf6 ' + t('offlineQueued'), 'success');
         resetReportingForm();
@@ -10581,7 +10638,7 @@ async function reportBreak(){
     resolveAndAttachMunicipality(data && data.id, lat, lon);
 
     if (pendingReportPhotoBlob && data && data.id) {
-      await uploadReportPhoto(data.id, pendingReportPhotoBlob, pendingReportPhotoExt);
+      await uploadReportPhoto(data.id, pendingReportPhotoBlob, pendingReportPhotoExt, pendingReportPhotoThumbBlob);
     }
 
     toast('✓ ' + t('submitted'), 'success');
