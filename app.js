@@ -1723,7 +1723,7 @@ function renderUserNotifications() {
     return `
     <div class="notification-item${n.is_read ? '' : ' unread'}"${clickable ? ` onclick="openNotificationReportTarget('${reportId}')" style="cursor:pointer;"` : ''}>
       <div class="notification-item-top">
-        <span class="notification-item-sender">${escapeHtml(n.notif_type === 'admin_message' ? t('notificationAdminTag') : (n.sender_username || t('detailUnknown')))}</span>
+        <span class="notification-item-sender">${escapeHtml((n.notif_type === 'admin_message' || n.sender_is_admin) ? t('notificationAdminTag') : (n.sender_username || t('detailUnknown')))}</span>
         ${n.is_read ? '' : '<span class="notification-item-dot"></span>'}
       </div>
       <div class="notification-item-message">${escapeHtml(n.message)}</div>
@@ -4130,9 +4130,13 @@ function mapStyleName(id) {
 let mapStyleDefault = localStorage.getItem(MAP_STYLE_DEFAULT_KEY) || MAP_STYLE_SMART_DEFAULTS.overview;
 if (!MAP_STYLES[mapStyleDefault]) mapStyleDefault = MAP_STYLE_SMART_DEFAULTS.overview;
 
+// Per-mode nav preference is just the user's last explicit pick for that
+// mode — no "auto" fallback anymore. Defaults to the plain Standard style
+// until the user picks something else, and whatever they pick is what
+// sticks (persisted in localStorage, same as the general default).
 function getNavMapStylePref(mode) {
   const v = localStorage.getItem(MAP_STYLE_NAV_PREFIX + mode);
-  return (v && (v === 'auto' || MAP_STYLES[v])) ? v : 'auto';
+  return (v && MAP_STYLES[v]) ? v : (MAP_STYLE_SMART_DEFAULTS[mode] || 'standard');
 }
 
 function setMapStyleDefault(styleId) {
@@ -4143,20 +4147,17 @@ function setMapStyleDefault(styleId) {
 }
 
 function setNavMapStylePref(mode, styleId) {
-  const value = (styleId === 'auto' || MAP_STYLES[styleId]) ? styleId : 'auto';
-  try { localStorage.setItem(MAP_STYLE_NAV_PREFIX + mode, value); } catch (e) {}
+  if (!MAP_STYLES[styleId]) return;
+  try { localStorage.setItem(MAP_STYLE_NAV_PREFIX + mode, styleId); } catch (e) {}
   refreshActiveMapStyle();
 }
 
 // Resolves which style should currently be shown: the per-mode nav
-// preference (or that mode's smart default) while navigating, otherwise
-// the general default style.
+// preference while navigating, otherwise the general default style.
 function resolveActiveMapStyleId() {
   if (typeof drivingMode !== 'undefined' && drivingMode) {
     const mode = (typeof travelMode !== 'undefined') ? travelMode : 'car';
-    const pref = getNavMapStylePref(mode);
-    if (pref !== 'auto' && MAP_STYLES[pref]) return pref;
-    return MAP_STYLE_SMART_DEFAULTS[mode] || mapStyleDefault;
+    return getNavMapStylePref(mode);
   }
   return mapStyleDefault;
 }
@@ -4258,13 +4259,11 @@ function populateMapStyleSelects() {
       `<option value="${id}">${escapeHtml(mapStyleName(id))}</option>`).join('');
     defaultSel.value = mapStyleDefault;
   }
-  const navAutoKeys = { car:'mapStyleAutoCar', bike:'mapStyleAutoBike', foot:'mapStyleAutoFoot' };
   const navSelectIds = { car:'mapStyleCarSelect', bike:'mapStyleBikeSelect', foot:'mapStyleFootSelect' };
   ['car', 'bike', 'foot'].forEach(mode => {
     const sel = document.getElementById(navSelectIds[mode]);
     if (!sel) return;
-    sel.innerHTML = `<option value="auto">${escapeHtml(t(navAutoKeys[mode]))}</option>` +
-      MAP_STYLE_ORDER.map(id => `<option value="${id}">${escapeHtml(mapStyleName(id))}</option>`).join('');
+    sel.innerHTML = MAP_STYLE_ORDER.map(id => `<option value="${id}">${escapeHtml(mapStyleName(id))}</option>`).join('');
     sel.value = getNavMapStylePref(mode);
   });
 }
@@ -9672,10 +9671,37 @@ function triggerReportPhotoGallery() {
   document.getElementById('reportPhotoInputLibrary').click();
 }
 
+// Saves a copy of a freshly-taken report photo to the device itself (as a
+// normal browser download), separate from whatever gets uploaded with the
+// report. This is only for camera captures — a gallery pick already lives
+// on the device, so there's nothing to save. Fire-and-forget: this must
+// never block or fail the report photo flow above it.
+function saveCapturedPhotoToDevice(file) {
+  try {
+    const ts = new Date().toISOString().replace(/[:.]/g, '-');
+    const extMatch = /\.[a-zA-Z0-9]+$/.exec(file.name || '');
+    const ext = extMatch ? extMatch[0] : (file.type === 'image/png' ? '.png' : '.jpg');
+    const url = URL.createObjectURL(file);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `TraceTheBreak-${ts}${ext}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    // Give the browser a moment to actually start the download before
+    // revoking the object URL out from under it.
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  } catch (err) {
+    console.error('Saving captured photo to device failed:', err.message || err);
+  }
+}
+
 async function onReportPhotoSelected(inputEl) {
   const file = inputEl.files && inputEl.files[0];
+  const fromCamera = inputEl.id === 'reportPhotoInputCamera';
   inputEl.value = '';
   if (!file) return;
+  if (fromCamera) saveCapturedPhotoToDevice(file);
   try {
     const { blob, ext, thumbBlob } = await compressReportPhoto(file);
     setPendingReportPhoto(blob, ext, thumbBlob);
