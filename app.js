@@ -3215,6 +3215,17 @@ function applyLang(){
   updateSectionButtonUI();
   updateTravelModeSwitchBtn();
 
+  // The bottom municipality bar (name + reported/in-progress/fixed counts)
+  // is normally only re-rendered when the map moves into a new municipality
+  // (see renderMunicipalityBoundary), so switching the app's language while
+  // it's already showing left it stuck in the old language until the next
+  // map pan. Re-render it here too so it picks up the new language right
+  // away, same as everything else on the page.
+  if (currentContactsMunicipality) {
+    updateBottomMunicipalityBar(currentContactsMunicipality);
+    showMunicipalityLabel(currentContactsMunicipality);
+  }
+
   updateNavStatusText();
 
   const historyBtnEl = document.getElementById('dashboardQuestHistoryToggle');
