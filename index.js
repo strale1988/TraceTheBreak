@@ -54,14 +54,67 @@ function textToBytes(str) {
   return new TextEncoder().encode(str);
 }
 
-// ---- verify a Supabase-issued HS256 JWT locally, no network call ----
-async function verifySupabaseJwt(token, secret) {
+// ---- verify a Supabase-issued JWT locally ----
+//
+// Supabase projects can sign tokens either way, and the Worker has to
+// support both since which one you get depends on the project's current
+// JWT Keys setting (Dashboard -> Project Settings -> API -> JWT Keys):
+//   - ES256 (asymmetric, current default): verified against Supabase's
+//     public JWKS, fetched over the network and cached in memory across
+//     requests in the same isolate. No secret material needed on our side.
+//   - HS256 (legacy shared secret): verified locally against
+//     SUPABASE_JWT_SECRET, same as before, no network call. Kept for
+//     projects still on the legacy setting.
+
+let jwksCache = { keys: [], fetchedAt: 0, url: null };
+const JWKS_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour; a forced refetch also
+// happens below whenever a kid isn't found, so a mid-window key rotation
+// on Supabase's end still resolves within one request, not just once an
+// hour.
+
+async function getJwks(supabaseUrl, forceRefetch) {
+  const now = Date.now();
+  if (!forceRefetch && jwksCache.url === supabaseUrl && jwksCache.keys.length && (now - jwksCache.fetchedAt) < JWKS_CACHE_TTL_MS) {
+    return jwksCache.keys;
+  }
+  const res = await fetch(`${supabaseUrl}/auth/v1/.well-known/jwks.json`);
+  if (!res.ok) throw new Error(`jwks fetch failed (${res.status})`);
+  const data = await res.json();
+  jwksCache = { keys: (data && data.keys) || [], fetchedAt: now, url: supabaseUrl };
+  return jwksCache.keys;
+}
+
+async function verifyEs256(headerB64, payloadB64, sigB64, kid, supabaseUrl) {
+  let keys = await getJwks(supabaseUrl, false);
+  let jwk = keys.find(k => k.kid === kid);
+  if (!jwk) {
+    // Not in our cache — could be a just-rotated key, so force one refetch
+    // before giving up rather than waiting out the full cache TTL.
+    keys = await getJwks(supabaseUrl, true);
+    jwk = keys.find(k => k.kid === kid);
+  }
+  if (!jwk) return false;
+  const key = await crypto.subtle.importKey('jwk', jwk, { name: 'ECDSA', namedCurve: jwk.crv || 'P-256' }, false, ['verify']);
+  // WebCrypto's ECDSA verify expects the raw r||s signature format, which
+  // is exactly what a JWS ES256 signature already is — no DER conversion
+  // needed here.
+  return crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, b64urlToBytes(sigB64), textToBytes(`${headerB64}.${payloadB64}`));
+}
+
+async function verifyHs256(headerB64, payloadB64, sigB64, secret) {
+  if (!secret) return false;
+  const key = await crypto.subtle.importKey('raw', textToBytes(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
+  return crypto.subtle.verify('HMAC', key, b64urlToBytes(sigB64), textToBytes(`${headerB64}.${payloadB64}`));
+}
+
+async function verifySupabaseJwt(token, env) {
   if (!token) return null;
   const parts = token.split('.');
   if (parts.length !== 3) return null;
   const [headerB64, payloadB64, sigB64] = parts;
-  let payload;
+  let header, payload;
   try {
+    header = JSON.parse(new TextDecoder().decode(b64urlToBytes(headerB64)));
     payload = JSON.parse(new TextDecoder().decode(b64urlToBytes(payloadB64)));
   } catch (e) {
     return null;
@@ -69,15 +122,26 @@ async function verifySupabaseJwt(token, secret) {
   if (!payload || !payload.sub) return null;
   if (payload.exp && Date.now() / 1000 > payload.exp) return null;
 
-  const key = await crypto.subtle.importKey('raw', textToBytes(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
-  const ok = await crypto.subtle.verify('HMAC', key, b64urlToBytes(sigB64), textToBytes(`${headerB64}.${payloadB64}`));
+  let ok = false;
+  try {
+    if (header.alg === 'ES256') {
+      if (!env.SUPABASE_URL) return null; // required to fetch the JWKS
+      ok = await verifyEs256(headerB64, payloadB64, sigB64, header.kid, env.SUPABASE_URL);
+    } else if (header.alg === 'HS256') {
+      ok = await verifyHs256(headerB64, payloadB64, sigB64, env.SUPABASE_JWT_SECRET);
+    } else {
+      return null; // unsupported/unexpected alg
+    }
+  } catch (e) {
+    return null;
+  }
   return ok ? payload : null;
 }
 
 async function requireUser(request, env) {
   const auth = request.headers.get('authorization') || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
-  return verifySupabaseJwt(token, env.SUPABASE_JWT_SECRET);
+  return verifySupabaseJwt(token, env);
 }
 
 async function isAdmin(uid, env) {
