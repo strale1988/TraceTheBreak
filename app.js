@@ -9514,8 +9514,15 @@ function thumbPathFor(path) {
   return path.replace(/(\.[a-zA-Z0-9]+)$/, '-thumb$1');
 }
 
-function photoAuthHeaders(extra) {
-  const token = currentSession && currentSession.access_token;
+async function photoAuthHeaders(extra) {
+  // Always refresh first: currentSession can hold a token that already
+  // expired (e.g. tab left open/backgrounded past the ~1h JWT lifetime and
+  // supabase-js's background refresh timer hasn't caught up yet). Sending
+  // that stale token gives the Worker a correct 401 (it checks payload.exp
+  // itself). ensureFreshSession() forces a getSession() call, which
+  // transparently refreshes the token via Supabase's refresh_token if needed.
+  const session = await ensureFreshSession();
+  const token = session && session.access_token;
   return Object.assign({ authorization: token ? `Bearer ${token}` : '' }, extra || {});
 }
 
@@ -9524,7 +9531,7 @@ function photoAuthHeaders(extra) {
 async function uploadPhotoObject(path, blob, contentType) {
   const res = await fetch(`${PHOTO_WORKER_URL}/upload?path=${encodeURIComponent(path)}`, {
     method: 'POST',
-    headers: photoAuthHeaders({ 'content-type': contentType }),
+    headers: await photoAuthHeaders({ 'content-type': contentType }),
     body: blob
   });
   if (!res.ok) throw new Error(`upload failed (${res.status})`);
@@ -9542,11 +9549,11 @@ async function uploadPhotoWithThumb(path, blob, thumbBlob, ext) {
 
 // Deletes a photo's main object and its thumbnail. Best-effort, like the
 // old sb.storage.remove() calls this replaces.
-function deletePhotoObject(path) {
+async function deletePhotoObject(path) {
   if (!path) return;
   fetch(`${PHOTO_WORKER_URL}/upload?path=${encodeURIComponent(path)}`, {
     method: 'DELETE',
-    headers: photoAuthHeaders()
+    headers: await photoAuthHeaders()
   }).catch(() => {});
 }
 
@@ -10029,7 +10036,7 @@ async function getReportPhotoSignedUrl(path, ttlSeconds, variant) {
   if (cached && cached.expiresAt - now > 15000) return cached.url;
   try {
     const qs = new URLSearchParams({ path, variant: variant || 'full', ttl: String(ttl) });
-    const res = await fetch(`${PHOTO_WORKER_URL}/sign?${qs.toString()}`, { headers: photoAuthHeaders() });
+    const res = await fetch(`${PHOTO_WORKER_URL}/sign?${qs.toString()}`, { headers: await photoAuthHeaders() });
     if (!res.ok) throw new Error(`sign failed (${res.status})`);
     const data = await res.json();
     const url = data && data.url;
