@@ -10036,7 +10036,14 @@ async function getReportPhotoSignedUrl(path, ttlSeconds, variant) {
   if (cached && cached.expiresAt - now > 15000) return cached.url;
   try {
     const qs = new URLSearchParams({ path, variant: variant || 'full', ttl: String(ttl) });
-    const res = await fetch(`${PHOTO_WORKER_URL}/sign?${qs.toString()}`, { headers: await photoAuthHeaders() });
+    let res = await fetch(`${PHOTO_WORKER_URL}/sign?${qs.toString()}`, { headers: await photoAuthHeaders() });
+    if (res.status === 401) {
+      // Likely a stale token sent from a backgrounded tab whose refresh
+      // timer hadn't caught up yet — force a real refresh and retry once
+      // before giving up. (The Worker itself is fine; see photoAuthHeaders.)
+      await sb.auth.refreshSession().catch(() => {});
+      res = await fetch(`${PHOTO_WORKER_URL}/sign?${qs.toString()}`, { headers: await photoAuthHeaders() });
+    }
     if (!res.ok) throw new Error(`sign failed (${res.status})`);
     const data = await res.json();
     const url = data && data.url;
@@ -10556,6 +10563,16 @@ async function ensureFreshSession() {
     return null;
   }
 }
+
+// A backgrounded/idle tab's auto-refresh timer can lag behind the token's
+// actual expiry (throttled background timers, laptop sleep, etc). Refresh
+// as soon as the tab is visible again so photo /sign, uploads, etc. don't
+// have to discover the staleness via a 401 first. Only bother if we were
+// signed in to begin with, so signed-out users don't get spurious
+// "session expired" toasts every time they switch tabs.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && currentSession) ensureFreshSession();
+});
 
 async function reportBreak(){
   if (!currentSession || !currentProfile) { updateAuthUI(); return; }
