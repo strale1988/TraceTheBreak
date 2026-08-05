@@ -15380,7 +15380,7 @@ function buildDetailStatusReadonlyHtml(report, reporterName) {
         <button type="button" class="detail-delete-btn" onclick="deleteReport('${report.id}')"><img class="icon-img" src="icons/reports/waste.png" alt="">${t('deleteBtn')}</button>
       </div>` : (isOwner && wasSentToCompany ? `<p class="detail-export-hint" style="margin:0; text-align:right;">${t('deleteLockedAfterSentNote')}</p>` : ''))}
     </div>
-    <div class="detail-row"><span class="detail-row-label">${t('popupStatus')}</span><span class="status-pill" style="background:${statusColor(report.status)};">${statusLabel(report.status)}</span><span id="detailStaleBadge-${report.id}"></span></div>
+    <div class="detail-row"><span class="detail-row-label">${t('popupStatus')}</span><span class="detail-row-value" style="display:flex; align-items:center; justify-content:flex-end; gap:6px; overflow:visible; white-space:nowrap;"><span class="status-pill" style="background:${statusColor(report.status)};">${statusLabel(report.status)}</span><span id="detailStaleBadge-${report.id}"></span></span></div>
     <div class="detail-row"><span class="detail-row-label">${t('priorityLabel')}</span><span class="status-pill" style="background:${priorityColor(report.priority)};">${priorityLabelText(report.priority)}</span></div>
     <div class="detail-row"><span class="detail-row-label">${t('reportedByLabel')}</span><span class="detail-row-value">${escapeHtml(reporterName)}</span>${reporterBanControlHtml(report)}</div>
     ${(() => { const g = duplicateGroupFor(report.id); return g ? `<div class="detail-row"><span class="detail-row-label">✓</span><span class="detail-row-value">${t('confirmedByLabel').replace('{n}', g.count)}</span></div>` : ''; })()}
