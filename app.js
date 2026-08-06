@@ -14200,20 +14200,20 @@ async function showReportDetailModal(reportId) {
         ? `<span class="photo-status-badge rejected">${t('photoRejectedBadge')}</span>`
         : '';
     photoSectionHtml = `
-    <div class="detail-section">
-      <div class="detail-section-title">${t('detailPhotoTitle')}${badge}</div>
+    <div class="detail-subsection">
+      <div class="detail-subsection-title">${t('detailPhotoTitle')}${badge}</div>
       <div class="detail-photo-wrap" id="detailPhotoWrap"><div class="detail-loading">${t('detailLoading')}</div></div>
     </div>`;
   } else if (showPhotoLoginPrompt) {
     photoSectionHtml = `
-    <div class="detail-section">
-      <div class="detail-section-title">${t('detailPhotoTitle')}</div>
+    <div class="detail-subsection">
+      <div class="detail-subsection-title">${t('detailPhotoTitle')}</div>
       <div class="detail-photo-wrap"><div class="detail-empty">${t('photoLoginPrompt')}</div></div>
     </div>`;
   } else if (report.photo_path && isOwner && report.photo_status === 'rejected') {
     photoSectionHtml = `
-    <div class="detail-section">
-      <div class="detail-section-title">${t('detailPhotoTitle')}</div>
+    <div class="detail-subsection">
+      <div class="detail-subsection-title">${t('detailPhotoTitle')}</div>
       <p class="detail-export-hint">${t('photoRejectedOwnerNote')}</p>
     </div>`;
   }
@@ -14238,45 +14238,54 @@ async function showReportDetailModal(reportId) {
         ? `<span class="photo-status-badge rejected">${t('photoRejectedBadge')}</span>`
         : '';
     afterPhotoSectionHtml = `
-    <div class="detail-section">
-      <div class="detail-section-title">${t('detailAfterPhotoTitle')}${badge}</div>
+    <div class="detail-subsection">
+      <div class="detail-subsection-title">${t('detailAfterPhotoTitle')}${badge}</div>
       <div class="detail-photo-wrap" id="detailAfterPhotoWrap"><div class="detail-loading">${t('detailLoading')}</div></div>
     </div>`;
   } else if (showAfterPhotoLoginPrompt) {
     afterPhotoSectionHtml = `
-    <div class="detail-section">
-      <div class="detail-section-title">${t('detailAfterPhotoTitle')}</div>
+    <div class="detail-subsection">
+      <div class="detail-subsection-title">${t('detailAfterPhotoTitle')}</div>
       <div class="detail-photo-wrap"><div class="detail-empty">${t('afterPhotoLoginPrompt')}</div></div>
     </div>`;
   } else if (report.after_photo_path && isOwner && report.after_photo_status === 'rejected') {
     afterPhotoSectionHtml = `
-    <div class="detail-section">
-      <div class="detail-section-title">${t('detailAfterPhotoTitle')}</div>
+    <div class="detail-subsection">
+      <div class="detail-subsection-title">${t('detailAfterPhotoTitle')}</div>
       <p class="detail-export-hint">${t('afterPhotoRejectedOwnerNote')}</p>
     </div>`;
   } else if (!report.after_photo_path && report.status === 'fixed' && (isOwner || isAdmin)) {
     afterPhotoSectionHtml = `
-    <div class="detail-section">
-      <div class="detail-section-title">${t('detailAfterPhotoTitle')}</div>
+    <div class="detail-subsection">
+      <div class="detail-subsection-title">${t('detailAfterPhotoTitle')}</div>
       <button type="button" class="settings-btn" onclick="addAfterPhotoToReport('${report.id}')"><img class="icon-img icon-img-inline" src="icons/camera.png" alt=""> ${t('addAfterPhotoBtn')}</button>
     </div>`;
   }
 
   const canFlagReport = !!(currentSession && !isOwner);
   const flagSectionHtml = canFlagReport ? `
-    <div class="detail-section" id="reportFlagSection">
-      <div class="detail-section-title">${t('flagReportTitle')}</div>
+    <div class="detail-subsection" id="reportFlagSection">
+      <div class="detail-subsection-title">${t('flagReportTitle')}</div>
       <div id="reportFlagContent"><div class="detail-loading">${t('detailLoading')}</div></div>
     </div>` : '';
 
   const gallerySectionHtml = `
-    <div class="detail-section">
-      <div class="detail-section-title">${t('detailGalleryTitle')}</div>
+    <div class="detail-subsection">
+      <div class="detail-subsection-title">${t('detailGalleryTitle')}</div>
       <div class="detail-gallery-strip" id="detailGalleryStrip"><div class="detail-loading">${t('detailLoading')}</div></div>
       ${currentSession ? `<div style="display:flex; gap:10px; margin-top:10px;">
         <button type="button" class="settings-btn" style="flex:1;" onclick="addGalleryPhotoToReport('${report.id}','camera')"><img class="icon-img icon-img-inline" src="icons/camera.png" alt="">${t('reportPhotoAddBtn')}</button>
         <button type="button" class="settings-btn" style="flex:1;" onclick="addGalleryPhotoToReport('${report.id}','library')"><img class="icon-img icon-img-inline" src="icons/gallery.png" alt="">${t('reportPhotoGalleryBtn')}</button>
       </div>` : ''}
+    </div>`;
+
+  // Before/after photos + the community gallery are all "pictures of this
+  // report" — one card instead of three separate boxes.
+  const photosGroupHtml = `
+    <div class="detail-section">
+      ${photoSectionHtml}
+      ${afterPhotoSectionHtml}
+      ${gallerySectionHtml}
     </div>`;
 
   body.innerHTML = `
@@ -14290,22 +14299,16 @@ async function showReportDetailModal(reportId) {
     <div class="detail-section" id="reportDetailStatusSection">
       ${buildDetailStatusReadonlyHtml(report, reporterName)}
     </div>
-    ${photoSectionHtml}
-    ${afterPhotoSectionHtml}
+    ${photosGroupHtml}
     <div class="detail-section">
       <div class="detail-section-title">${t('detailContactsTitle')}</div>
       <div id="detailContactNudge"></div>
+      <div class="contact-count-row" id="detailContactCountsContainer"><div class="detail-loading">${t('detailLoading')}</div></div>
       <div id="detailContactsContainer"><div class="detail-loading">${t('detailLoading')}</div></div>
+      ${flagSectionHtml}
     </div>
-    <div class="detail-section">
-      <div class="detail-section-title">${t('contactCountsTitle')}</div>
-      <div id="detailContactCountsContainer"><div class="detail-loading">${t('detailLoading')}</div></div>
-    </div>
-    ${gallerySectionHtml}
-    ${flagSectionHtml}
     <div class="detail-section">
       <div class="detail-section-title">${t('detailExportTitle')}</div>
-      <p class="detail-export-hint">${t('detailExportHint')}</p>
       <div style="display:flex;gap:var(--space-8);">
         <button type="button" class="settings-btn" style="flex:1;" onclick="emailReport('${report.id}')" id="reportDetailExportBtn"><img class="icon-img icon-img-inline" src="icons/email.png" alt="email"> ${t('detailExportBtn')}</button>
         <button type="button" class="fullscreen-modal-share" onclick="shareReportImage('${report.id}')" id="reportDetailShareImageBtn" aria-label="${t('shareImageBtn')}" title="${t('shareImageBtn')}"><img class="icon-img" src="icons/gallery.png" alt="share image"></button>
@@ -14817,8 +14820,8 @@ async function getReportContactCounts(reportId) {
 
 function renderContactCountsHtml(counts) {
   return `
-    <div class="detail-row"><span class="detail-row-label"><img class="detail-row-icon" src="icons/email.png" alt="">${t('contactCountsEmailLabel')}</span><span class="detail-row-value">${counts.email}</span></div>
-    <div class="detail-row"><span class="detail-row-label"><img class="detail-row-icon" src="icons/phone.png" alt="">${t('contactCountsPhoneLabel')}</span><span class="detail-row-value">${counts.phone}</span></div>
+    <div class="contact-count-chip"><img class="detail-row-icon" src="icons/email.png" alt="">${t('contactCountsEmailLabel')} <strong>${counts.email}</strong></div>
+    <div class="contact-count-chip"><img class="detail-row-icon" src="icons/phone.png" alt="">${t('contactCountsPhoneLabel')} <strong>${counts.phone}</strong></div>
   `;
 }
 

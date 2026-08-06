@@ -2506,6 +2506,17 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   font-size:var(--fs-10); font-weight:var(--fw-bold); letter-spacing:.4px; text-transform:uppercase;
   color:var(--text-muted); margin-bottom:10px;
 }
+.detail-subsection:not(:first-child){ border-top:1px solid var(--border-color); margin-top:14px; padding-top:14px; }
+.detail-subsection-title{
+  font-size:var(--fs-10); font-weight:var(--fw-bold); letter-spacing:.4px; text-transform:uppercase;
+  color:var(--text-muted); margin-bottom:8px;
+}
+.contact-count-row{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
+.contact-count-chip{
+  display:flex; align-items:center; gap:5px; font-size:var(--fs-11-5); color:var(--text-secondary);
+  background:var(--bg-surface-alt); border-radius:var(--radius-lg); padding:5px 10px;
+}
+.contact-count-chip strong{ color:var(--text-primary); font-weight:var(--fw-bold); }
 .detail-row{ display:flex; align-items:center; justify-content:space-between; gap:var(--space-10); padding:7px 0; font-size:var(--fs-12-5); min-width:0; }
 .detail-row:not(:last-child){ border-bottom:1px solid var(--border-color); }
 .detail-row-label{ color:var(--text-muted); flex-shrink:0; display:flex; align-items:center; gap:var(--space-8); line-height:1.3; }
