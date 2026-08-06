@@ -2518,6 +2518,12 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 }
 .contact-count-chip strong{ color:var(--text-primary); font-weight:var(--fw-bold); }
 .detail-row{ display:flex; align-items:center; justify-content:space-between; gap:var(--space-10); padding:7px 0; font-size:var(--fs-12-5); min-width:0; }
+.detail-location-row{ align-items:flex-start; }
+.detail-location-link{
+  text-align:right; white-space:normal; overflow:visible; text-overflow:clip;
+  color:#4ea1ff; text-decoration:none; line-height:1.35;
+}
+.detail-location-link:hover{ text-decoration:underline; }
 .detail-row:not(:last-child){ border-bottom:1px solid var(--border-color); }
 .detail-row-label{ color:var(--text-muted); flex-shrink:0; display:flex; align-items:center; gap:var(--space-8); line-height:1.3; }
 .detail-row-icon{ width:14px; height:14px; flex-shrink:0; filter:var(--icon-tint-filter); opacity:.85; }

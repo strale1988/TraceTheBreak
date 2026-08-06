@@ -14289,13 +14289,6 @@ async function showReportDetailModal(reportId) {
     </div>`;
 
   body.innerHTML = `
-    <div class="detail-section">
-      <div class="detail-section-title">${t('detailLocationTitle')}</div>
-      <div class="detail-row"><span class="detail-row-label"><img class="detail-row-icon" src="icons/pin.png" alt="">${t('detailStreetLabel')}</span><span class="detail-row-value" id="detailStreetValue">${t('detailLoading')}</span></div>
-      <div class="detail-row"><span class="detail-row-label"><img class="detail-row-icon" src="icons/pin.png" alt="">${t('detailAreaLabel')}</span><span class="detail-row-value" id="detailAreaValue">${t('detailLoading')}</span></div>
-      <div class="detail-row"><span class="detail-row-label"><img class="detail-row-icon" src="icons/pin.png" alt="">${t('detailMunicipalityLabel')}</span><span class="detail-row-value" id="detailMunicipalityValue">${t('detailLoading')}</span></div>
-      <div class="detail-row"><span class="detail-row-label"><img class="detail-row-icon" src="icons/target.png" alt="">${t('detailCoordsLabel')}</span><span class="detail-row-value">${report.latitude.toFixed(6)}, ${report.longitude.toFixed(6)}</span></div>
-    </div>
     <div class="detail-section" id="reportDetailStatusSection">
       ${buildDetailStatusReadonlyHtml(report, reporterName)}
     </div>
@@ -14358,12 +14351,7 @@ async function showReportDetailModal(reportId) {
   fetchAddressForPoint(report.latitude, report.longitude).then(addr => {
     const streetEl = document.getElementById('detailStreetValue');
     const areaEl   = document.getElementById('detailAreaValue');
-    if (streetEl) {
-
-      streetEl.innerHTML = (addr && addr.street)
-        ? `<a href="javascript:void(0)" onclick="viewLocationOnMap(${report.latitude}, ${report.longitude})">${escapeHtml(addr.street)}</a>`
-        : escapeHtml(t('detailUnknown'));
-    }
+    if (streetEl) streetEl.textContent = (addr && addr.street) ? addr.street : t('detailUnknown');
     if (areaEl) areaEl.textContent = (addr && addr.area) ? addr.area : t('detailUnknown');
   });
 
@@ -15587,6 +15575,12 @@ function buildDetailStatusReadonlyHtml(report, reporterName) {
       </div>` : (canDelete ? `<div class="detail-edit-actions">
         <button type="button" class="detail-delete-btn" onclick="deleteReport('${report.id}')"><img class="icon-img" src="icons/reports/waste.png" alt="">${t('deleteBtn')}</button>
       </div>` : (isOwner && wasSentToCompany ? `<p class="detail-export-hint" style="margin:0; text-align:right;">${t('deleteLockedAfterSentNote')}</p>` : ''))}
+    </div>
+    <div class="detail-row detail-location-row">
+      <span class="detail-row-label"><img class="detail-row-icon" src="icons/pin.png" alt="">${t('detailLocationTitle')}</span>
+      <a href="javascript:void(0)" class="detail-row-value detail-location-link" onclick="viewLocationOnMap(${report.latitude}, ${report.longitude})">
+        <span id="detailStreetValue">${t('detailLoading')}</span>, <span id="detailAreaValue">${t('detailLoading')}</span>, <span id="detailMunicipalityValue">${t('detailLoading')}</span>
+      </a>
     </div>
     <div class="detail-row"><span class="detail-row-label">${t('popupStatus')}</span><span class="detail-row-value" style="display:flex; align-items:center; justify-content:flex-end; gap:6px; overflow:visible; white-space:nowrap;"><span class="status-pill" style="background:${statusColor(report.status)};">${statusLabel(report.status)}</span><span id="detailStaleBadge-${report.id}"></span></span></div>
     <div class="detail-row"><span class="detail-row-label">${t('priorityLabel')}</span><span class="status-pill" style="background:${priorityColor(report.priority)};">${priorityLabelText(report.priority)}</span></div>
