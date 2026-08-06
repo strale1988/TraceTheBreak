@@ -13,6 +13,8 @@
  *     Supabase's createSignedUrl. A signed URL only proves "someone with a
  *     valid login was allowed to ask for this path within the last N
  *     seconds" — same trust level as before.
+ *   - throttles uploads per-user (UPLOAD_RATE_LIMITER, see wrangler.toml),
+ *     so one account can't run up R2 storage costs or hammer the Worker.
  *
  * Routes:
  *   POST   /upload?path=<key>        body = raw image bytes
@@ -266,6 +268,14 @@ export default {
         const path = url.searchParams.get('path');
         if (!path) return err(400, 'missing path', origin);
         if (pathPrefixUid(path) !== payload.sub) return err(403, 'path does not belong to you', origin);
+
+        // Per-user upload throttle — blunts a compromised/malicious account
+        // running up R2 storage costs or hammering the Worker. Keyed on uid
+        // (not IP), since every caller here is already authenticated.
+        if (env.UPLOAD_RATE_LIMITER) {
+          const { success } = await env.UPLOAD_RATE_LIMITER.limit({ key: payload.sub });
+          if (!success) return err(429, 'too many uploads, slow down', origin);
+        }
 
         const contentType = request.headers.get('x-photo-content-type') || request.headers.get('content-type') || 'application/octet-stream';
         const body = await request.arrayBuffer();

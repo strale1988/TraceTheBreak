@@ -1095,9 +1095,15 @@
         </div>
         <div class="uc-cat-checks" id="ucCatChecks"></div>
         <input type="text" id="ucName" placeholder="Company name">
-        <div class="uc-form-row">
-          <input type="text" id="ucPhone" placeholder="Phone">
-          <input type="text" id="ucEmail" placeholder="Email">
+        <div class="uc-multi-field">
+          <div class="uc-multi-field-label" data-i18n="ucPhonesLabel">Phone numbers</div>
+          <div class="uc-multi-list" id="ucPhoneList"></div>
+          <button type="button" class="uc-multi-add-btn" onclick="addUcContactEntry('phone')" data-i18n="ucAddPhoneBtn">+ Add phone</button>
+        </div>
+        <div class="uc-multi-field">
+          <div class="uc-multi-field-label" data-i18n="ucEmailsLabel">Emails</div>
+          <div class="uc-multi-list" id="ucEmailList"></div>
+          <button type="button" class="uc-multi-add-btn" onclick="addUcContactEntry('email')" data-i18n="ucAddEmailBtn">+ Add email</button>
         </div>
         <input type="text" id="ucWebsite" placeholder="Website">
         <input type="text" id="ucAddress" placeholder="Address">

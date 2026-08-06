@@ -11855,8 +11855,8 @@ function buildCompanyPopupHtml(c, lat, lon) {
   const catsHtml = buildCompanyCatsHtml(c, 8);
   if (c && c.id != null) utilityCompanyRegistry.set(String(c.id), c);
   const iconBtnsHtml = [
-    c.phone   ? `<a class="poi-contact-icon-btn" href="tel:${escapeHtml(c.phone)}" title="${escapeHtml(c.phone)}"><img src="icons/phone.png" alt="phone"></a>` : '',
-    c.email   ? `<a class="poi-contact-icon-btn" href="mailto:${escapeHtml(c.email)}" title="${escapeHtml(c.email)}"><img src="icons/email.png" alt="email"></a>` : '',
+    ...contactEntries(c.phone).map(p => `<a class="poi-contact-icon-btn" href="tel:${escapeHtml(p.value)}" title="${escapeHtml(p.label ? `${p.label}: ${p.value}` : p.value)}"><img src="icons/phone.png" alt="phone"></a>`),
+    ...contactEntries(c.email).map(e => `<a class="poi-contact-icon-btn" href="mailto:${escapeHtml(e.value)}" title="${escapeHtml(e.label ? `${e.label}: ${e.value}` : e.value)}"><img src="icons/email.png" alt="email"></a>`),
     c.website ? `<a class="poi-contact-icon-btn" href="${escapeHtml(c.website)}" target="_blank" rel="noopener" title="${escapeHtml(c.website)}"><img src="icons/link.png" alt="website"></a>` : ''
   ].filter(Boolean).join('');
   const iconRowHtml = iconBtnsHtml ? `<div class="poi-contact-icons">${iconBtnsHtml}</div>` : '';
@@ -12060,6 +12060,12 @@ let ucMuniSelectPopulateToken = 0;
 // apply the *intended* value once the options actually land, instead of
 // falling back to whatever stale value the select happened to have.
 let ucDesiredMuniSelectValue = null;
+// In-memory rows for the admin form's phone/email multi-entry lists, each
+// { value, label }. Kept separate from the DOM (rather than one input per
+// entry with generated ids) so add/remove/reorder just re-render from this
+// array instead of juggling ids.
+let ucFormPhones = [];
+let ucFormEmails = [];
 let ucCountryIndex = [];      // [{code, continent}] — countries in the admin's domain, lightweight
 let ucOpenCountryCode = null; // the single country currently expanded/loaded in the browse tree
 let ucCountryLoadToken = 0;   // guards against a stale async load winning a race when switching countries fast
@@ -12987,13 +12993,17 @@ async function clearReportFlag(reportId) {
 
 function applyUcFormTranslations() {
   const fieldMap = {
-    ucName: 'ucNamePH', ucPhone: 'ucPhonePH', ucEmail: 'ucEmailPH',
+    ucName: 'ucNamePH',
     ucWebsite: 'ucWebsitePH', ucAddress: 'ucAddressPH', ucNotes: 'ucNotesPH'
   };
   Object.entries(fieldMap).forEach(([id, key]) => {
     const el = document.getElementById(id);
     if (el) el.placeholder = t(key);
   });
+  // Re-render rather than just re-labelling placeholders, since the rows
+  // are generated markup (not static data-i18n-placeholder elements).
+  renderUcMultiList('phone');
+  renderUcMultiList('email');
   const cancelBtn = document.getElementById('ucCancelBtn');
   if (cancelBtn) cancelBtn.textContent = t('cancelBtn');
   const saveBtn = document.getElementById('ucSaveBtn');
@@ -13497,10 +13507,14 @@ function resetUcForm() {
   ucDesiredMuniSelectValue = null;
   const editIdEl = document.getElementById('ucEditId');
   if (editIdEl) editIdEl.value = '';
-  ['ucName', 'ucPhone', 'ucEmail', 'ucWebsite', 'ucAddress', 'ucNotes'].forEach(id => {
+  ['ucName', 'ucWebsite', 'ucAddress', 'ucNotes'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
+  ucFormPhones = [];
+  ucFormEmails = [];
+  renderUcMultiList('phone');
+  renderUcMultiList('email');
   document.querySelectorAll('#ucCatChecks input').forEach(cb => cb.checked = false);
   const sel = document.getElementById('ucMunicipalitySelect');
   if (sel) sel.selectedIndex = 0;
@@ -13537,8 +13551,10 @@ function editUtilityCompany(id) {
   updateUcMuniLabel();
   populateUcCatChecks(c.municipality_id);
   document.getElementById('ucName').value = c.name || '';
-  document.getElementById('ucPhone').value = c.phone || '';
-  document.getElementById('ucEmail').value = c.email || '';
+  ucFormPhones = contactEntries(c.phone);
+  ucFormEmails = contactEntries(c.email);
+  renderUcMultiList('phone');
+  renderUcMultiList('email');
   document.getElementById('ucWebsite').value = c.website || '';
   document.getElementById('ucAddress').value = c.address || '';
   document.getElementById('ucNotes').value = c.notes || '';
@@ -13636,6 +13652,82 @@ function isValidEmailFormat(email) {
   return EMAIL_FORMAT_RE.test(email);
 }
 
+// A utility company's phone/email can now hold more than one number or
+// address (e.g. an office line + an emergency line). Stored as an array of
+// { value, label } objects. This normalizer also accepts the two older
+// shapes still sitting in the database — a single string, or an array of
+// plain strings — so nothing needs a data migration to keep working; it
+// just gets upgraded to the new shape the next time that row is saved.
+function contactEntries(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) {
+    return raw
+      .map(e => (typeof e === 'string' ? { value: e, label: null } : { value: e && e.value, label: (e && e.label) || null }))
+      .filter(e => e.value);
+  }
+  if (typeof raw === 'string') return raw.trim() ? [{ value: raw.trim(), label: null }] : [];
+  return [];
+}
+
+// Turns the admin form's in-memory phone/email rows into the array shape
+// that gets saved, dropping any row the admin left blank. Returns null
+// (not []) when nothing is left, matching how every other optional field
+// on this row is stored.
+function buildContactEntriesForSave(entries) {
+  const cleaned = (entries || [])
+    .map(e => ({ value: (e.value || '').trim(), label: (e.label || '').trim() || null }))
+    .filter(e => e.value);
+  return cleaned.length ? cleaned : null;
+}
+
+// --- Admin form: multi-entry phone/email rows ------------------------------
+// Renders ucFormPhones/ucFormEmails into #ucPhoneList/#ucEmailList. Only
+// called after add/remove (or when the form opens/resets) — per-keystroke
+// input changes just write into the array via updateUcContactEntry without
+// re-rendering, so the input the admin is typing in never loses focus.
+function ucMultiListElId(field) {
+  return field === 'phone' ? 'ucPhoneList' : 'ucEmailList';
+}
+function ucFormEntries(field) {
+  return field === 'phone' ? ucFormPhones : ucFormEmails;
+}
+
+function renderUcMultiList(field) {
+  const listEl = document.getElementById(ucMultiListElId(field));
+  if (!listEl) return;
+  const entries = ucFormEntries(field);
+  const valuePH = field === 'phone' ? t('ucPhonePH') : t('ucEmailPH');
+  const labelPH = t('ucContactLabelPH');
+  listEl.innerHTML = entries.map((entry, i) => `
+    <div class="uc-multi-row">
+      <input type="text" value="${escapeHtml(entry.value || '')}" placeholder="${escapeHtml(valuePH)}" class="uc-multi-row-value" oninput="updateUcContactEntry('${field}', ${i}, 'value', this.value)">
+      <input type="text" value="${escapeHtml(entry.label || '')}" placeholder="${escapeHtml(labelPH)}" class="uc-multi-row-label" oninput="updateUcContactEntry('${field}', ${i}, 'label', this.value)">
+      <button type="button" class="uc-multi-row-remove" onclick="removeUcContactEntry('${field}', ${i})" title="${escapeHtml(t('ucRemoveEntryBtn'))}" aria-label="${escapeHtml(t('ucRemoveEntryBtn'))}">×</button>
+    </div>
+  `).join('');
+}
+
+function addUcContactEntry(field) {
+  ucFormEntries(field).push({ value: '', label: '' });
+  renderUcMultiList(field);
+  const listEl = document.getElementById(ucMultiListElId(field));
+  const lastInput = listEl && listEl.querySelector('.uc-multi-row:last-child .uc-multi-row-value');
+  if (lastInput) lastInput.focus();
+}
+
+function removeUcContactEntry(field, index) {
+  ucFormEntries(field).splice(index, 1);
+  renderUcMultiList(field);
+}
+
+// Deliberately does NOT re-render the list — see the comment above
+// renderUcMultiList. It only keeps the in-memory row in sync with what the
+// admin is typing.
+function updateUcContactEntry(field, index, key, value) {
+  const entries = ucFormEntries(field);
+  if (entries[index]) entries[index][key] = value;
+}
+
 // Normalizes a website to a full https:// URL with no trailing slash
 // dropped inconsistently (matches the "https://www.example.com/" style
 // used across existing verified contacts). Only adds/adjusts the scheme;
@@ -13672,14 +13764,13 @@ function readUcFormRow() {
   }
   const address = collapseWhitespace(document.getElementById('ucAddress').value);
   const notes   = collapseWhitespace(document.getElementById('ucNotes').value);
-  const rawEmail   = document.getElementById('ucEmail').value.trim();
   const rawWebsite = document.getElementById('ucWebsite').value.trim();
   return {
     municipality_id: municipalityId,
     name,
     categories,
-    phone:   document.getElementById('ucPhone').value.trim() || null,
-    email:   rawEmail   || null,
+    phone:   buildContactEntriesForSave(ucFormPhones),
+    email:   buildContactEntriesForSave(ucFormEmails),
     website: rawWebsite || null,
     address: address ? cyrillicToLatin(address) : null,
     notes:   notes   ? cyrillicToLatin(notes)   : null,
@@ -13733,23 +13824,27 @@ async function persistUcRow(verified) {
   // having a bad value silently saved or silently "fixed" into something
   // wrong.
   const reviewNotes = [];
-  const rawPhone = row.phone;
   if (row.phone) {
-    const phoneResult = formatPhoneNumberForSave(row.phone, muni ? muni.country_code : null);
-    row.phone = phoneResult.value;
-    if (!phoneResult.valid) {
-      reviewNotes.push(t('ucFormatInvalidPhone').replace('{value}', rawPhone));
-    }
+    row.phone = row.phone.map(entry => {
+      const rawValue = entry.value;
+      const phoneResult = formatPhoneNumberForSave(rawValue, muni ? muni.country_code : null);
+      if (!phoneResult.valid) {
+        reviewNotes.push(t('ucFormatInvalidPhone').replace('{value}', entry.label ? `${entry.label}: ${rawValue}` : rawValue));
+      }
+      return { value: phoneResult.value, label: entry.label };
+    });
   }
   if (row.email) {
-    const normalizedEmail = normalizeEmailForSave(row.email);
-    if (normalizedEmail !== row.email) {
-      reviewNotes.push(t('ucFormatAutoFixed').replace('{field}', t('ucEmailPH')).replace('{before}', row.email).replace('{after}', normalizedEmail));
-    }
-    row.email = normalizedEmail;
-    if (!isValidEmailFormat(row.email)) {
-      reviewNotes.push(t('ucFormatInvalidEmail').replace('{value}', row.email));
-    }
+    row.email = row.email.map(entry => {
+      const normalizedEmail = normalizeEmailForSave(entry.value);
+      if (normalizedEmail !== entry.value) {
+        reviewNotes.push(t('ucFormatAutoFixed').replace('{field}', entry.label || t('ucEmailPH')).replace('{before}', entry.value).replace('{after}', normalizedEmail));
+      }
+      if (!isValidEmailFormat(normalizedEmail)) {
+        reviewNotes.push(t('ucFormatInvalidEmail').replace('{value}', entry.label ? `${entry.label}: ${normalizedEmail}` : normalizedEmail));
+      }
+      return { value: normalizedEmail, label: entry.label };
+    });
   }
   if (row.website) {
     const normalizedWebsite = normalizeWebsiteForSave(row.website);
@@ -14425,10 +14520,12 @@ function renderContactRows(c, reportId) {
     ? `<button type="button" class="contact-flag-btn contact-flag-other-btn" onclick="toggleContactOtherFlagForm('${companyIdAttr}')">${t('contactFlagOtherBtn')}</button>` : '';
   const pdfExportRowBtn = (c.id != null && currentProfile && currentProfile.is_admin)
     ? `<button type="button" class="settings-btn contact-pdf-export-row-btn" id="companyPdfBtn-${companyIdAttr}" title="${t('companyPdfBtnTitle')}" onclick="exportCompanyReportsPdf('${companyIdAttr}')"><img class="icon-img icon-img-inline" src="icons/pdf.png" alt="pdf"> ${t('companyPdfBtnLabel')}</button>` : '';
+  const phoneRowsHtml = contactEntries(c.phone).map(p => `<div class="contact-card-row"><img class="contact-card-icon" src="icons/phone.png" alt="phone"><a href="tel:${escapeHtml(p.value)}"${phoneClickAttr}>${p.label ? `<span class="contact-card-entry-label">${escapeHtml(p.label)}</span>` : ''}${escapeHtml(p.value)}</a></div>`).join('');
+  const emailRowsHtml = contactEntries(c.email).map(e => `<div class="contact-card-row"><img class="contact-card-icon" src="icons/email.png" alt="email"><a href="mailto:${escapeHtml(e.value)}"${emailClickAttr}>${e.label ? `<span class="contact-card-entry-label">${escapeHtml(e.label)}</span>` : ''}${escapeHtml(e.value)}</a></div>`).join('');
   return `
       ${pdfExportRowBtn}
-      ${c.phone ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/phone.png" alt="phone"><a href="tel:${escapeHtml(c.phone)}"${phoneClickAttr}>${escapeHtml(c.phone)}</a></div>` : ''}
-      ${c.email ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/email.png" alt="email"><a href="mailto:${escapeHtml(c.email)}"${emailClickAttr}>${escapeHtml(c.email)}</a></div>` : ''}
+      ${phoneRowsHtml}
+      ${emailRowsHtml}
       ${c.website ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/link.png" alt="link"><a href="${escapeHtml(c.website)}" target="_blank" rel="noopener">${escapeHtml(c.website)}</a></div>` : ''}
       ${c.address && c.id != null ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/pin.png" alt="pin"><a href="javascript:void(0)" onclick="focusUtilityCompanyAddress('${escapeHtml(String(c.id))}')">${escapeHtml(c.address)}</a></div>` : c.address ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/pin.png" alt="pin"><span>${escapeHtml(c.address)}</span></div>` : ''}
       ${c.notes ? `<div class="contact-card-row contact-card-notes"><span>${escapeHtml(c.notes)}</span></div>` : ''}
@@ -14621,7 +14718,8 @@ async function confirmContactAttempt(confirmed) {
 
 async function offerFollowUpEmailAfterCall(reportId, companyId) {
   const company = companyId ? utilityCompanyRegistry.get(String(companyId)) : null;
-  if (!company || !company.email) return;
+  const companyEmails = company ? contactEntries(company.email) : [];
+  if (!companyEmails.length) return;
 
   let wantsEmail;
   try {
@@ -14641,7 +14739,7 @@ async function offerFollowUpEmailAfterCall(reportId, companyId) {
   const url = reportShareUrl(reportId);
   const subject = encodeURIComponent(t('followUpEmailSubject').replace('{category}', headerTitle));
   const body = encodeURIComponent(`${t('followUpEmailBodyIntro').replace('{category}', headerTitle)}\n\n${url}`);
-  window.location.href = `mailto:${company.email}?subject=${subject}&body=${body}`;
+  window.location.href = `mailto:${companyEmails.map(e => e.value).join(',')}?subject=${subject}&body=${body}`;
 
   recordContactAttempt(reportId, 'email', companyId);
 }
@@ -15303,7 +15401,7 @@ async function emailReport(reportId) {
 
     const muni = await resolveReportMunicipality(report);
     const contacts = muni ? await getReportContacts(report, muni) : [];
-    const toEmails = contacts.map(c => c.email).filter(Boolean).join(',');
+    const toEmails = contacts.flatMap(c => contactEntries(c.email).map(e => e.value)).filter(Boolean).join(',');
 
     const shareUrl = reportShareUrl(report.id);
     const subject = encodeURIComponent(headerTitle);
