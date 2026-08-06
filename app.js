@@ -14181,6 +14181,17 @@ async function showReportDetailModal(reportId) {
     : translateCategory(report.category);
   titleEl.textContent = headerTitle;
 
+  const idRowEl = document.getElementById('reportDetailIdRow');
+  if (idRowEl) {
+    idRowEl.textContent = `ID: ${report.id}`;
+    idRowEl.title = t('copyReportIdTooltip');
+    idRowEl.setAttribute('aria-label', t('copyReportIdTooltip'));
+    idRowEl.onclick = () => copyReportIdToClipboard(report.id);
+    idRowEl.onkeydown = (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); copyReportIdToClipboard(report.id); }
+    };
+  }
+
   if (headerEl) {
     headerEl.style.background = statusColor(report.status);
     headerEl.classList.add('status-colored');
@@ -15150,6 +15161,19 @@ async function shareReport(reportId) {
   } catch (err) {
     console.error('Clipboard write failed:', err.message);
     await themedPrompt(t('copyLinkPrompt'), url, { cancelLabel: null, okLabel: 'OK' });
+  }
+}
+
+// Click/tap (or Enter/Space via keyboard) on the report-ID line in the
+// detail header copies the raw report UUID — handy for support requests,
+// admin lookups, cross-referencing with the utility-notify PDFs, etc.
+async function copyReportIdToClipboard(id) {
+  try {
+    await navigator.clipboard.writeText(id);
+    toast(t('reportIdCopiedToast'), 'success');
+  } catch (err) {
+    console.error('Clipboard write failed:', err.message);
+    await themedPrompt(t('copyReportIdPrompt'), id, { cancelLabel: null, okLabel: 'OK' });
   }
 }
 
