@@ -2923,14 +2923,14 @@ input.uc-country-search-input{
 .uc-multi-row-value{ flex:1 1 55%; min-width:0; }
 .uc-multi-row-label{ flex:1 1 35%; min-width:0; }
 .uc-multi-row-remove{
-  flex-shrink:0; width:26px; height:26px; line-height:24px; padding:0;
+  flex-shrink:0; width:26px; height:26px; padding:0;
   border-radius:50%; border:1px solid var(--border-color); background:var(--bg-surface);
-  color:var(--text-secondary); font-size:var(--fs-14); cursor:pointer;
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
 }
 .uc-multi-row-remove:active{ background:var(--border-color-strong); }
+.uc-multi-row-remove .icon-img{ width:14px; height:14px; filter:var(--icon-tint-filter); }
 .uc-multi-add-btn{
-  align-self:flex-start; border:none; background:none; color:var(--accent);
-  font-size:var(--fs-12-5); font-weight:var(--fw-bold); cursor:pointer; padding:2px 0;
+  align-self:flex-start;
 }
 .contact-card-entry-label{
   color:var(--text-muted); font-weight:var(--fw-bold); margin-right:5px;

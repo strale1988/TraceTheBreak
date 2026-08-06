@@ -13702,7 +13702,7 @@ function renderUcMultiList(field) {
     <div class="uc-multi-row">
       <input type="text" value="${escapeHtml(entry.value || '')}" placeholder="${escapeHtml(valuePH)}" class="uc-multi-row-value" oninput="updateUcContactEntry('${field}', ${i}, 'value', this.value)">
       <input type="text" value="${escapeHtml(entry.label || '')}" placeholder="${escapeHtml(labelPH)}" class="uc-multi-row-label" oninput="updateUcContactEntry('${field}', ${i}, 'label', this.value)">
-      <button type="button" class="uc-multi-row-remove" onclick="removeUcContactEntry('${field}', ${i})" title="${escapeHtml(t('ucRemoveEntryBtn'))}" aria-label="${escapeHtml(t('ucRemoveEntryBtn'))}">×</button>
+      <button type="button" class="uc-multi-row-remove" onclick="removeUcContactEntry('${field}', ${i})" title="${escapeHtml(t('ucRemoveEntryBtn'))}" aria-label="${escapeHtml(t('ucRemoveEntryBtn'))}"><img class="icon-img" src="icons/waste.png" alt=""></button>
     </div>
   `).join('');
 }
