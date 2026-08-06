@@ -1111,14 +1111,6 @@ body.nav-panel-open .driving-nav-card{
   70%{ transform:translate(-50%,-50%) scale(1.55); opacity:0; }
   100%{ opacity:0; }
 }
-.map-loading-text{
-  flex:0 0 auto;
-  padding-bottom:calc(env(safe-area-inset-bottom, 0px) + 36px);
-  color:var(--text-primary);
-  font-size:var(--fs-13);
-  font-weight:var(--fw-semibold);
-  opacity:.75;
-}
 
 #gpsIssuePill{
   position:fixed;
@@ -2470,17 +2462,24 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 .fullscreen-modal-header-titles{ display:flex; flex-direction:column; gap:2px; flex:1; min-width:0; }
 .fullscreen-modal-header-titles h2{ flex:none; }
 .detail-report-id{
+  display:flex; align-items:center; gap:4px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size:var(--fs-11); color:var(--text-secondary);
-  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
   cursor:pointer; user-select:none; -webkit-user-select:none;
 }
-.detail-report-id:empty{ display:none; }
+.detail-report-id span{
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0;
+}
 .detail-report-id:hover, .detail-report-id:focus-visible{ text-decoration:underline; }
 .detail-report-id:focus-visible{ outline:1px solid var(--accent); outline-offset:2px; }
+.detail-report-id-icon{
+  width:12px; height:12px; flex-shrink:0; object-fit:contain;
+  filter:var(--icon-tint-filter); opacity:.75;
+}
 .fullscreen-modal-header.status-colored{ border-bottom-color:transparent; }
 .fullscreen-modal-header.status-colored h2{ color:#fff; }
 .fullscreen-modal-header.status-colored .detail-report-id{ color:rgba(255,255,255,.75); }
+.fullscreen-modal-header.status-colored .detail-report-id-icon{ filter:brightness(0) invert(1); opacity:.75; }
 .fullscreen-modal-header.status-colored .fullscreen-modal-close,
 .fullscreen-modal-header.status-colored .fullscreen-modal-share{
   background:rgba(255,255,255,.22);

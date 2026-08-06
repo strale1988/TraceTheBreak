@@ -144,7 +144,6 @@
     <span class="map-loading-halo map-loading-halo-2"></span>
     <img src="./icons/TraceTheBreak.png" alt="TraceTheBreak" class="map-loading-logo">
   </div>
-  <div class="map-loading-text" id="mapLoadingText" data-i18n="loadingMap"></div>
 </div>
 <div class="legend-row">
 <div id="bottomMuniBar" class="bottom-muni-bar" style="display:flex">
@@ -778,7 +777,10 @@
   <div class="fullscreen-modal-header" id="reportDetailHeader">
     <div class="fullscreen-modal-header-titles">
       <h2 id="reportDetailTitle"></h2>
-      <div class="detail-report-id" id="reportDetailIdRow" role="button" tabindex="0"></div>
+      <div class="detail-report-id" id="reportDetailIdRow" role="button" tabindex="0">
+        <img class="detail-report-id-icon" id="reportDetailIdCopyIcon" src="icons/copy.png" alt="">
+        <span id="reportDetailIdText"></span>
+      </div>
     </div>
     <button class="fullscreen-modal-close" id="reportDetailCloseBtn" onclick="hideReportDetailModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
   </div>
