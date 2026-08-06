@@ -14294,9 +14294,11 @@ async function showReportDetailModal(reportId) {
     </div>
     ${photosGroupHtml}
     <div class="detail-section">
-      <div class="detail-section-title">${t('detailContactsTitle')}</div>
+      <div class="detail-section-title-row">
+        <div class="detail-section-title">${t('detailContactsTitle')}</div>
+        <div class="contact-count-row" id="detailContactCountsContainer"></div>
+      </div>
       <div id="detailContactNudge"></div>
-      <div class="contact-count-row" id="detailContactCountsContainer"><div class="detail-loading">${t('detailLoading')}</div></div>
       <div id="detailContactsContainer"><div class="detail-loading">${t('detailLoading')}</div></div>
       ${flagSectionHtml}
     </div>
@@ -14808,8 +14810,8 @@ async function getReportContactCounts(reportId) {
 
 function renderContactCountsHtml(counts) {
   return `
-    <div class="contact-count-chip"><img class="detail-row-icon" src="icons/email.png" alt="">${t('contactCountsEmailLabel')} <strong>${counts.email}</strong></div>
-    <div class="contact-count-chip"><img class="detail-row-icon" src="icons/phone.png" alt="">${t('contactCountsPhoneLabel')} <strong>${counts.phone}</strong></div>
+    <span class="contact-count-chip" title="${t('contactCountsEmailLabel')}"><img class="detail-row-icon" src="icons/email.png" alt="${t('contactCountsEmailLabel')}">${counts.email}</span>
+    <span class="contact-count-chip" title="${t('contactCountsPhoneLabel')}"><img class="detail-row-icon" src="icons/phone.png" alt="${t('contactCountsPhoneLabel')}">${counts.phone}</span>
   `;
 }
 
@@ -15518,7 +15520,6 @@ function buildCompanyNotifyStatusHtml(report) {
   return `
     <div class="detail-row"><span class="detail-row-label">${t('companyNotifyLabel')}</span><span class="detail-row-value">${firstSent}</span></div>
     ${showsReminder ? `<div class="detail-row"><span class="detail-row-label">${t('companyLastReminderLabel')}</span><span class="detail-row-value">${lastSent}</span></div>` : ''}
-    ${report.status !== 'fixed' ? `<p class="detail-export-hint" style="margin:4px 0 0;">${t('companyNotifyReminderNote')}</p>` : ''}
   `;
 }
 
@@ -15574,11 +15575,11 @@ function buildDetailStatusReadonlyHtml(report, reporterName) {
         <button type="button" class="detail-delete-btn" onclick="deleteReport('${report.id}', false)"><img class="icon-img" src="icons/reports/waste.png" alt="">${t('deleteBtn')}</button>
       </div>` : (canDelete ? `<div class="detail-edit-actions">
         <button type="button" class="detail-delete-btn" onclick="deleteReport('${report.id}')"><img class="icon-img" src="icons/reports/waste.png" alt="">${t('deleteBtn')}</button>
-      </div>` : (isOwner && wasSentToCompany ? `<p class="detail-export-hint" style="margin:0; text-align:right;">${t('deleteLockedAfterSentNote')}</p>` : ''))}
+      </div>` : '')}
     </div>
-    <div class="detail-row detail-location-row">
-      <span class="detail-row-label"><img class="detail-row-icon" src="icons/pin.png" alt="">${t('detailLocationTitle')}</span>
-      <a href="javascript:void(0)" class="detail-row-value detail-location-link" onclick="viewLocationOnMap(${report.latitude}, ${report.longitude})">
+    <div class="detail-location-row">
+      <div class="detail-location-label">${t('detailLocationTitle')}</div>
+      <a href="javascript:void(0)" class="detail-location-link" onclick="viewLocationOnMap(${report.latitude}, ${report.longitude})">
         <span id="detailStreetValue">${t('detailLoading')}</span>, <span id="detailAreaValue">${t('detailLoading')}</span>, <span id="detailMunicipalityValue">${t('detailLoading')}</span>
       </a>
     </div>

@@ -2511,19 +2511,20 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   font-size:var(--fs-10); font-weight:var(--fw-bold); letter-spacing:.4px; text-transform:uppercase;
   color:var(--text-muted); margin-bottom:8px;
 }
-.contact-count-row{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
+.contact-count-row{ display:flex; flex-wrap:nowrap; gap:6px; flex-shrink:0; }
 .contact-count-chip{
-  display:flex; align-items:center; gap:5px; font-size:var(--fs-11-5); color:var(--text-secondary);
-  background:var(--bg-surface-alt); border-radius:var(--radius-lg); padding:5px 10px;
+  display:flex; align-items:center; gap:4px; font-size:var(--fs-11-5); font-weight:var(--fw-bold);
+  color:var(--text-secondary); background:var(--bg-surface-alt); border-radius:var(--radius-lg); padding:4px 8px;
 }
-.contact-count-chip strong{ color:var(--text-primary); font-weight:var(--fw-bold); }
+.contact-count-chip img{ width:12px; height:12px; }
 .detail-row{ display:flex; align-items:center; justify-content:space-between; gap:var(--space-10); padding:7px 0; font-size:var(--fs-12-5); min-width:0; }
-.detail-location-row{ align-items:flex-start; }
+.detail-location-row{ padding:7px 0 11px; border-bottom:1px solid var(--border-color); margin-bottom:4px; }
+.detail-location-label{ color:var(--text-muted); font-size:var(--fs-11-5); line-height:1.3; margin-bottom:4px; }
 .detail-location-link{
-  text-align:right; white-space:normal; overflow:visible; text-overflow:clip;
-  color:#4ea1ff; text-decoration:none; line-height:1.35;
+  display:block; color:var(--accent-link, #4ea1ff); text-decoration:underline;
+  text-underline-offset:2px; font-size:var(--fs-13); font-weight:var(--fw-medium); line-height:1.4;
 }
-.detail-location-link:hover{ text-decoration:underline; }
+.detail-location-link:hover, .detail-location-link:active{ text-decoration:none; }
 .detail-row:not(:last-child){ border-bottom:1px solid var(--border-color); }
 .detail-row-label{ color:var(--text-muted); flex-shrink:0; display:flex; align-items:center; gap:var(--space-8); line-height:1.3; }
 .detail-row-icon{ width:14px; height:14px; flex-shrink:0; filter:var(--icon-tint-filter); opacity:.85; }
