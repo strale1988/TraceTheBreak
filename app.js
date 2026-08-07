@@ -693,10 +693,10 @@ function endOnboardingTour() {
 const USER_LEVELS = [
   { level:0, threshold:0,  weight:0,   nameEn:'Observer',             nameSr:'Posmatrač' },
   { level:1, threshold:0,  weight:1,   nameEn:'Citizen',               nameSr:'Građanin' },
-  { level:2, threshold:3,  weight:1.5, nameEn:'Reporter',              nameSr:'Reporter' },
-  { level:3, threshold:8,  weight:2,   nameEn:'Inspector',             nameSr:'Inspektor' },
-  { level:4, threshold:15, weight:2.5, nameEn:'Guardian',              nameSr:'Čuvar' },
-  { level:5, threshold:25, weight:3,   nameEn:'Community Hero',        nameSr:'Heroj zajednice' },
+  { level:2, threshold:8,  weight:1.5, nameEn:'Reporter',              nameSr:'Reporter' },
+  { level:3, threshold:16, weight:2,   nameEn:'Inspector',             nameSr:'Inspektor' },
+  { level:4, threshold:32, weight:2.5, nameEn:'Guardian',              nameSr:'Čuvar' },
+  { level:5, threshold:64, weight:3,   nameEn:'Community Hero',        nameSr:'Heroj zajednice' },
 ];
 
 function levelName(lvl) { return isSerbianLang() ? lvl.nameSr : lvl.nameEn; }
@@ -718,17 +718,17 @@ const BADGES = [
     descEn:'Create your profile and join TraceTheBreak.',            descSr:'Napravite profil i pridružite se TraceTheBreak-u.',
     check: p => !!p },
   { id:'reporter',       icon:'badge-reporter.png',       nameEn:'Reporter',       nameSr:'Reporter',
-    descEn:'Reach Level 2: earn 3 civic points.',                     descSr:'Dostignite Nivo 2: osvojite 3 građanska poena.',
-    check: p => (p && p.total_contributions || 0) >= 3 },
-  { id:'inspector',      icon:'badge-inspector.png',      nameEn:'Inspector',      nameSr:'Inspektor',
-    descEn:'Reach Level 3: earn 8 civic points.',                     descSr:'Dostignite Nivo 3: osvojite 8 građanskih poena.',
+    descEn:'Reach Level 2: earn 8 civic points.',                     descSr:'Dostignite Nivo 2: osvojite 8 građanskih poena.',
     check: p => (p && p.total_contributions || 0) >= 8 },
+  { id:'inspector',      icon:'badge-inspector.png',      nameEn:'Inspector',      nameSr:'Inspektor',
+    descEn:'Reach Level 3: earn 16 civic points.',                     descSr:'Dostignite Nivo 3: osvojite 16 građanskih poena.',
+    check: p => (p && p.total_contributions || 0) >= 16 },
   { id:'guardian',       icon:'badge-guardian.png',       nameEn:'Guardian',       nameSr:'Čuvar',
-    descEn:'Reach Level 4: earn 15 civic points.',                    descSr:'Dostignite Nivo 4: osvojite 15 građanskih poena.',
-    check: p => (p && p.total_contributions || 0) >= 15 },
+    descEn:'Reach Level 4: earn 32 civic points.',                    descSr:'Dostignite Nivo 4: osvojite 32 građanska poena.',
+    check: p => (p && p.total_contributions || 0) >= 32 },
   { id:'community_hero', icon:'badge-community-hero.png', nameEn:'Community Hero', nameSr:'Heroj zajednice',
-    descEn:'Reach Level 5: earn 25 civic points.',                    descSr:'Dostignite Nivo 5: osvojite 25 građanskih poena.',
-    check: p => (p && p.total_contributions || 0) >= 25 },
+    descEn:'Reach Level 5: earn 64 civic points.',                    descSr:'Dostignite Nivo 5: osvojite 64 građanska poena.',
+    check: p => (p && p.total_contributions || 0) >= 64 },
   { id:'first_fix',      icon:'badge-first-fix.png',      nameEn:'First Fix',      nameSr:'Prva popravka',
     descEn:'Have one of your reports confirmed fixed.',               descSr:'Neka vam jedna prijava bude potvrđeno rešena.',
     check: p => (p && p.successful_contributions || 0) >= 1 },
@@ -11964,14 +11964,11 @@ function buildCompanyPopupHtml(c, lat, lon) {
     c.website ? `<a class="poi-contact-icon-btn" href="${escapeHtml(c.website)}" target="_blank" rel="noopener" title="${escapeHtml(c.website)}"><img src="icons/link.png" alt="website"></a>` : ''
   ].filter(Boolean).join('');
   const iconRowHtml = iconBtnsHtml ? `<div class="poi-contact-icons">${iconBtnsHtml}</div>` : '';
-  const pdfExportRowBtn = (c.id != null && currentProfile && currentProfile.is_admin)
-    ? `<button type="button" class="settings-btn contact-pdf-export-row-btn" id="companyPdfBtn-${escapeHtml(String(c.id))}" title="${t('companyPdfBtnTitle')}" onclick="exportCompanyReportsPdf('${escapeHtml(String(c.id))}')"><img class="icon-img icon-img-inline" src="icons/pdf.png" alt="pdf"> ${t('companyPdfBtnLabel')}</button>` : '';
   return `<div class="popup-inner popup-card">
     <div class="popup-header" style="background:${headerColor};">
       <span class="popup-header-title">${escapeHtml(c.name)}</span>
     </div>
     <div class="popup-body" style="padding:12px 14px;">
-      ${pdfExportRowBtn}
       ${catsHtml}
       ${iconRowHtml}
     </div>
@@ -14645,12 +14642,9 @@ function renderContactRows(c, reportId) {
   const emailClickAttr = reportId ? ` onclick="recordContactAttempt('${escapeHtml(reportId)}','email','${companyIdAttr}')"` : '';
   const otherFlagBtn = c.id != null
     ? `<button type="button" class="contact-flag-btn contact-flag-other-btn" onclick="toggleContactOtherFlagForm('${companyIdAttr}')">${t('contactFlagOtherBtn')}</button>` : '';
-  const pdfExportRowBtn = (c.id != null && currentProfile && currentProfile.is_admin)
-    ? `<button type="button" class="settings-btn contact-pdf-export-row-btn" id="companyPdfBtn-${companyIdAttr}" title="${t('companyPdfBtnTitle')}" onclick="exportCompanyReportsPdf('${companyIdAttr}')"><img class="icon-img icon-img-inline" src="icons/pdf.png" alt="pdf"> ${t('companyPdfBtnLabel')}</button>` : '';
   const phoneRowsHtml = contactEntries(c.phone).map(p => `<div class="contact-card-row"><img class="contact-card-icon" src="icons/phone.png" alt="phone"><a href="tel:${escapeHtml(p.value)}"${phoneClickAttr}>${p.label ? `<span class="contact-card-entry-label">${escapeHtml(p.label)}</span>` : ''}${escapeHtml(p.value)}</a></div>`).join('');
   const emailRowsHtml = contactEntries(c.email).map(e => `<div class="contact-card-row"><img class="contact-card-icon" src="icons/email.png" alt="email"><a href="mailto:${escapeHtml(e.value)}"${emailClickAttr}>${e.label ? `<span class="contact-card-entry-label">${escapeHtml(e.label)}</span>` : ''}${escapeHtml(e.value)}</a></div>`).join('');
   return `
-      ${pdfExportRowBtn}
       ${phoneRowsHtml}
       ${emailRowsHtml}
       ${c.website ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/link.png" alt="link"><a href="${escapeHtml(c.website)}" target="_blank" rel="noopener">${escapeHtml(c.website)}</a></div>` : ''}
