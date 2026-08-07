@@ -2831,8 +2831,13 @@ let LANG_STRINGS = {};
 // Codes we've confirmed have a real languages/<code>.json file on this load.
 let AVAILABLE_LANG_CODES = [];
 
-function t(k) {
-  const own = LANG_STRINGS[lang] && LANG_STRINGS[lang][k];
+// langOverride lets a caller ask for a string in a specific language instead
+// of the current UI language — used for utility-company emails, where the
+// preset subject/body should be in the *company's* language (see
+// utilityLangFor below), not necessarily the reporting user's own UI lang.
+function t(k, langOverride) {
+  const l = langOverride || lang;
+  const own = LANG_STRINGS[l] && LANG_STRINGS[l][k];
   if (own != null) return own;
   const fallback = LANG_STRINGS[DEFAULT_LANG] && LANG_STRINGS[DEFAULT_LANG][k];
   return fallback != null ? fallback : k;
@@ -9268,10 +9273,10 @@ const PRIORITY_COLORS = {
   'high':   '#e63946',
 };
 function priorityColor(p) { return PRIORITY_COLORS[p] || PRIORITY_COLORS.normal; }
-function priorityLabelText(p) {
-  if (p === 'low')  return t('priorityLow');
-  if (p === 'high') return t('priorityHigh');
-  return t('priorityNormal');
+function priorityLabelText(p, langOverride) {
+  if (p === 'low')  return t('priorityLow', langOverride);
+  if (p === 'high') return t('priorityHigh', langOverride);
+  return t('priorityNormal', langOverride);
 }
 function categoryColor(cat) { return CATEGORY_COLORS[cat] || '#aaaaaa'; }
 
@@ -9455,11 +9460,11 @@ function toggleHeatmap() {
   }
 }
 
-function subcategoryLabel(cat, subKey) {
+function subcategoryLabel(cat, subKey, langOverride) {
   if (!subKey) return '';
   const list = SUBCATEGORIES[cat] || [];
   const found = list.find(s => s.key === subKey);
-  return found ? (isSerbianLang() ? found.sr : found.en) : subKey;
+  return found ? (isSerbianLang(langOverride) ? found.sr : found.en) : subKey;
 }
 function populateSubcategoryOptions(selectEl, cat, selectedKey) {
   const list = SUBCATEGORIES[cat] || [];
@@ -9487,15 +9492,15 @@ function updateCommentPlaceholder() {
   if (el) el.placeholder = CATEGORIES_REQUIRING_COMMENT.has(cat) ? t('commentPHRequired') : t('commentPH');
 }
 function statusColor(s)     { return STATUS_COLORS[s] || '#aaaaaa'; }
-function statusLabel(s) {
-  if (s === 'in_progress') return t('statusInProgress');
-  if (s === 'fixed') return t('statusFixed');
-  return t('statusReported');
+function statusLabel(s, langOverride) {
+  if (s === 'in_progress') return t('statusInProgress', langOverride);
+  if (s === 'fixed') return t('statusFixed', langOverride);
+  return t('statusReported', langOverride);
 }
-function translateCategory(cat) {
+function translateCategory(cat, langOverride) {
   const labelsEn = { Water:'Water', Electricity:'Electricity', Sewage:'Sewage', Gas:'Gas', Heating:'Heating', Road:'Road', Streetlight:'Streetlight', Waste:'Waste', Walkways:'Walkways', BikeLanes:'Bike Lanes', GreenSpaces:'Green Spaces', Parking:'Frequent Parking Violations', Suggestion:'Suggest an Improvement', Forest:'Forest', FarmersMarket:'Farmers Market', Other:'Other' };
   const labelsSr = { Water:'Voda', Electricity:'Struja', Sewage:'Kanalizacija', Gas:'Gas', Heating:'Grejanje', Road:'Put', Streetlight:'Ulična rasveta', Waste:'Otpad', Walkways:'Pešačke staze', BikeLanes:'Biciklističke staze', GreenSpaces:'Zelene površine', Parking:'Često Nepropisno parkiranje', Suggestion:'Predlog za poboljšanje', Forest:'Šuma', FarmersMarket:'Pijaca', Other:'Ostalo' };
-  return (isSerbianLang() ? labelsSr[cat] : labelsEn[cat]) || cat;
+  return (isSerbianLang(langOverride) ? labelsSr[cat] : labelsEn[cat]) || cat;
 }
 
 function categorySearchText(cat) {
@@ -11503,6 +11508,20 @@ function renderMunicipalityBoundary(muni, source) {
 const companyGeocodeCache = {};
 
 const utilityCompanyRegistry = new Map();
+
+// Language used for the preset subject/body text of emails sent *to* a
+// utility company (follow-up-after-call and the report-detail "email"
+// button). Derived from the company's own municipality's country_code via
+// the same COUNTRY_TO_LANG map the app already uses to auto-detect a
+// reporting user's UI language — no separate per-company field to
+// maintain, and no separate translation strings to keep in sync: it reuses
+// exactly whatever's already loaded in languages/<code>.json (falling back
+// to English if that country isn't mapped, or the mapped language isn't
+// one we have a file for — same fallback countryCodeToLang() already does
+// for UI auto-detect).
+function utilityLangFor(municipality) {
+  return countryCodeToLang(municipality && municipality.country_code) || DEFAULT_LANG;
+}
 
 function buildCompanyMarkerHtml() {
   return '<div class="map-pin-badge company-marker-icon-wrap pin-upright"><span class="map-pin-glyph company-marker-icon"></span></div>';
@@ -14869,13 +14888,14 @@ async function offerFollowUpEmailAfterCall(reportId, companyId) {
   }
   if (!wantsEmail) return;
 
+  const emailLang = utilityLangFor(getMunicipalityById(company.municipality_id));
   const report = globalActiveData.find(r => r.id === reportId);
   const headerTitle = report
-    ? (report.subcategory ? `${translateCategory(report.category)} / ${subcategoryLabel(report.category, report.subcategory)}` : translateCategory(report.category))
+    ? (report.subcategory ? `${translateCategory(report.category, emailLang)} / ${subcategoryLabel(report.category, report.subcategory, emailLang)}` : translateCategory(report.category, emailLang))
     : '';
   const url = reportShareUrl(reportId);
-  const subject = encodeURIComponent(t('followUpEmailSubject').replace('{category}', headerTitle));
-  const body = encodeURIComponent(`${t('followUpEmailBodyIntro').replace('{category}', headerTitle)}\n\n${url}`);
+  const subject = encodeURIComponent(t('followUpEmailSubject', emailLang).replace('{category}', headerTitle));
+  const body = encodeURIComponent(`${t('followUpEmailBodyIntro', emailLang).replace('{category}', headerTitle)}\n\n${url}`);
   window.location.href = `mailto:${companyEmails.map(e => e.value).join(',')}?subject=${subject}&body=${body}`;
 
   recordContactAttempt(reportId, 'email', companyId);
@@ -15578,10 +15598,6 @@ async function emailReport(reportId) {
   if (btn) btn.disabled = true;
 
   try {
-    const headerTitle = report.subcategory
-      ? `${translateCategory(report.category)} / ${subcategoryLabel(report.category, report.subcategory)}`
-      : translateCategory(report.category);
-
     const street = document.getElementById('detailStreetValue')?.textContent || t('detailUnknown');
     const area = document.getElementById('detailAreaValue')?.textContent || t('detailUnknown');
     const muniText = document.getElementById('detailMunicipalityValue')?.textContent || t('detailUnknown');
@@ -15590,29 +15606,38 @@ async function emailReport(reportId) {
     const contacts = muni ? await getReportContacts(report, muni) : [];
     const toEmails = contacts.flatMap(c => contactEntries(c.email).map(e => e.value)).filter(Boolean).join(',');
 
+    // The preset text goes in the language of the *recipient's* country
+    // (their municipality's country_code), not the reporting user's own UI
+    // language — reusing the same languages/<code>.json files the UI
+    // already loads, via t()'s langOverride param.
+    const emailLang = utilityLangFor(muni);
+    const emailHeaderTitle = report.subcategory
+      ? `${translateCategory(report.category, emailLang)} / ${subcategoryLabel(report.category, report.subcategory, emailLang)}`
+      : translateCategory(report.category, emailLang);
+
     const shareUrl = reportShareUrl(report.id);
-    const subject = encodeURIComponent(headerTitle);
+    const subject = encodeURIComponent(emailHeaderTitle);
     const bodyLines = [
-      t('emailGreeting'),
+      t('emailGreeting', emailLang),
       '',
-      t('emailIssueReportedLine').replace('{title}', headerTitle),
+      t('emailIssueReportedLine', emailLang).replace('{title}', emailHeaderTitle),
       '',
-      `${boldText(t('popupStatus'))}: ${statusLabel(report.status)}`,
-      `${boldText(t('priorityLabel'))}: ${priorityLabelText(report.priority)}`,
-      `${boldText(t('emailReportedOnLabel'))}: ${formatDate(report.created_at)}`,
+      `${boldText(t('popupStatus', emailLang))}: ${statusLabel(report.status, emailLang)}`,
+      `${boldText(t('priorityLabel', emailLang))}: ${priorityLabelText(report.priority, emailLang)}`,
+      `${boldText(t('emailReportedOnLabel', emailLang))}: ${formatDate(report.created_at)}`,
       '',
-      `${boldText(t('detailStreetLabel'))}: ${street}`,
-      `${boldText(t('detailAreaLabel'))}: ${area}`,
-      `${boldText(t('detailMunicipalityLabel'))}: ${muniText}`,
-      `${boldText(t('detailCoordsLabel'))}: ${report.latitude.toFixed(6)}, ${report.longitude.toFixed(6)}`,
-      ...(report.comment ? ['', `${boldText(t('emailDescriptionLabel'))}: ${report.comment}`] : []),
+      `${boldText(t('detailStreetLabel', emailLang))}: ${street}`,
+      `${boldText(t('detailAreaLabel', emailLang))}: ${area}`,
+      `${boldText(t('detailMunicipalityLabel', emailLang))}: ${muniText}`,
+      `${boldText(t('detailCoordsLabel', emailLang))}: ${report.latitude.toFixed(6)}, ${report.longitude.toFixed(6)}`,
+      ...(report.comment ? ['', `${boldText(t('emailDescriptionLabel', emailLang))}: ${report.comment}`] : []),
       '',
-      t('emailFullReportLine').replace('{url}', shareUrl),
+      t('emailFullReportLine', emailLang).replace('{url}', shareUrl),
       '',
-      t('emailThankYou'),
-      t('emailSignature'),
+      t('emailThankYou', emailLang),
+      t('emailSignature', emailLang),
       '',
-      t('emailWrongRecipientNote'),
+      t('emailWrongRecipientNote', emailLang),
     ];
     const body = encodeURIComponent(bodyLines.join('\n'));
     if (toEmails) recordContactAttempt(reportId, 'email', null);
