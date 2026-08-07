@@ -2246,6 +2246,13 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   flex-shrink:0;
 }
 .timeline-status-slot .status-pill{ flex-shrink:0; white-space:nowrap; }
+/* The "stale report" badge is an empty <span> most of the time (only
+   filled in async, and only for old untouched reports). An empty flex
+   item still claims its `gap` on either side, which was quietly pushing
+   the status pill in front of it a few px short of the true right edge —
+   e.g. the "REPORTED" pill on a fresh report. Collapsing empty slots
+   removes that phantom gap so the pill/icon actually snaps flush right. */
+.timeline-status-slot > span:empty{ display:none; }
 .timeline-note{
   font-size:var(--fs-11);
   color:var(--text-secondary);
@@ -2555,6 +2562,7 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 .detail-row:not(:last-child){ border-bottom:1px solid var(--border-color); }
 .detail-row-label{ color:var(--text-muted); flex-shrink:0; display:flex; align-items:center; gap:var(--space-8); line-height:1.3; }
 .detail-row-icon{ width:14px; height:14px; flex-shrink:0; filter:var(--icon-tint-filter); opacity:.85; }
+.row-check-icon{ width:12px; height:12px; flex-shrink:0; filter:var(--icon-tint-filter); opacity:.85; display:block; }
 
 .detail-row-value{ color:var(--text-primary); text-align:right; flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; line-height:1.3; }
 .detail-row-value a{ color:#4ea1ff; text-decoration:none; }

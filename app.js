@@ -9517,7 +9517,7 @@ function checkFormReady() {
 // /worker in the repo) — Supabase only stores the object *path* string in
 // photo_path / after_photo_path, same as before. Set this once you've run
 // `wrangler deploy` (see worker/README.md).
-const PHOTO_WORKER_URL = 'https://tracethebreak-photos.strale-com-cloudflare.workers.dev';
+const PHOTO_WORKER_URL = 'https://tracethebreak-photos.tracethestuff.workers.dev';
 const REPORT_PHOTO_MAX_DIMENSION = 1024;
 const REPORT_PHOTO_MIN_DIMENSION = 640; // floor for the dimension-shrink fallback pass
 const REPORT_PHOTO_TARGET_BYTES = 160 * 1024; // aim for this size before giving up
