@@ -9271,6 +9271,27 @@ function priorityLabelText(p) {
   return t('priorityNormal');
 }
 function categoryColor(cat) { return CATEGORY_COLORS[cat] || '#aaaaaa'; }
+
+// Tints a #rrggbb (or #rgb) hex color to rgba(...) at the given alpha —
+// used to wash panel backgrounds with a category color without touching
+// the base --bg-surface tokens.
+function hexToRgba(hex, alpha) {
+  if (!hex) return `rgba(170,170,170,${alpha})`;
+  let h = hex.replace('#', '');
+  if (h.length === 3) h = h.split('').map(c => c + c).join('');
+  const num = parseInt(h, 16);
+  const r = (num >> 16) & 255, g = (num >> 8) & 255, b = num & 255;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+// Detail panels used to get a soft category-color wash here. That's been
+// removed so .detail-section panels always use the plain theme surface/
+// border colors from style.css — no more per-category tinting. Kept as a
+// no-op (rather than deleting the call sites) in case this needs to come
+// back later.
+function detailPanelBg(cat) {
+  return '';
+}
 function categoryIcon(cat)  { return 'icons/reports/' + (CATEGORY_ICONS[cat] || CATEGORY_ICONS.Other); }
 function subcategoryIcon(cat, subcat) {
   const group = (typeof WIZ_SUBCATEGORY_ICONS !== 'undefined') ? WIZ_SUBCATEGORY_ICONS[cat] : null;
@@ -9916,6 +9937,88 @@ async function renderReportGallery(reportId) {
   });
 }
 
+async function loadReportContactEventsForTimeline(reportId) {
+  try {
+    const { data, error } = await sb.from(REPORT_CONTACT_EVENTS_TABLE)
+      .select('contact_type, created_at')
+      .eq('report_id', reportId)
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    console.error('Failed to load contact events for timeline:', err.message || err);
+    return [];
+  }
+}
+
+// Same as buildTimelineEventItem, but tagged so a later refresh can find
+// and remove just these entries (see refreshDetailTimelineExtras) without
+// touching the pipeline-stage / company-notify entries above them.
+function buildTimelineExtraItem(dateStr, rightHtml) {
+  return buildTimelineEventItem(dateStr, rightHtml).replace('class="timeline-item ', 'class="timeline-item timeline-extra ');
+}
+
+// Inserts the "extra" timeline entries — company notify (+ reminder),
+// gallery photos, and logged phone/email contact attempts — right after
+// the current pipeline stage and before any not-yet-reached (pending)
+// stage placeholder, via the anchor marker left in the timeline by
+// buildDetailStatusReadonlyHtml. That's what keeps new things appearing
+// below the latest real status change instead of at the very bottom under
+// the "—" placeholders for stages that haven't happened yet.
+// report.company_notified_at / photo_uploaded_at / after_photo_uploaded_at
+// are already on the report row, so those go straight in without waiting
+// on a fetch; gallery photos and contact events need one. Sorted
+// chronologically among themselves. No usernames, just date + icon/text,
+// same privacy-light footprint as the rest of the timeline.
+async function loadDetailTimelineExtras(report) {
+  const events = companyNotifyTimelineEvents(report);
+  if (report.photo_uploaded_at) {
+    events.push({ time: report.photo_uploaded_at, html: buildTimelineExtraItem(report.photo_uploaded_at, `<img class="detail-row-icon" src="icons/camera.png" alt="">`) });
+  }
+  if (report.after_photo_uploaded_at) {
+    events.push({ time: report.after_photo_uploaded_at, html: buildTimelineExtraItem(report.after_photo_uploaded_at, `<img class="detail-row-icon" src="icons/camera.png" alt="">`) });
+  }
+
+  const [galleryPhotos, contactEvents] = await Promise.all([
+    loadReportGalleryPhotos(report.id),
+    loadReportContactEventsForTimeline(report.id)
+  ]);
+  (galleryPhotos || []).forEach(p => {
+    events.push({ time: p.created_at, html: buildTimelineExtraItem(p.created_at, `<img class="detail-row-icon" src="icons/camera.png" alt="">`) });
+  });
+  contactEvents.forEach(c => {
+    const icon = c.contact_type === 'email' ? 'icons/email.png' : 'icons/phone.png';
+    events.push({ time: c.created_at, html: buildTimelineExtraItem(c.created_at, `<img class="detail-row-icon" src="${icon}" alt="">`) });
+  });
+
+  if (!events.length) return;
+  events.sort((a, b) => new Date(a.time) - new Date(b.time));
+
+  // The modal may have been closed, or switched to a different report,
+  // while these fetches were in flight — bail rather than write into a
+  // stale/gone timeline.
+  const modal = document.getElementById('reportDetailModal');
+  if (!modal || modal.dataset.openReportId !== report.id) return;
+  const anchor = document.getElementById(`detailTimelineAnchor-${report.id}`);
+  if (!anchor) return;
+  anchor.insertAdjacentHTML('afterend', events.map(e => e.html).join(''));
+}
+
+// Re-fetches and re-renders just the extra timeline entries (company
+// notify, gallery photos, contact attempts) for whichever report the
+// detail modal currently has open — used after actions that add one of
+// those without doing a full modal re-render (gallery photo add, logging
+// a call/email).
+function refreshDetailTimelineExtras(reportId) {
+  const modal = document.getElementById('reportDetailModal');
+  if (!modal || modal.dataset.openReportId !== reportId) return;
+  const report = globalActiveData.find(r => r.id === reportId);
+  if (!report) return;
+  const container = document.getElementById(`detailTimeline-${reportId}`);
+  if (container) container.querySelectorAll('.timeline-extra').forEach(el => el.remove());
+  loadDetailTimelineExtras(report);
+}
+
 async function addGalleryPhotoToReport(reportId, source) {
   if (!currentSession) { toast(t('signInFirst') || 'Sign in first', 'error'); return; }
   const file = source ? await pickReportPhotoDirect(source) : await pickReportPhotoSource();
@@ -9940,6 +10043,7 @@ async function addGalleryPhotoToReport(reportId, source) {
     if (insertError) throw insertError;
     toast(t('galleryPhotoAdded'), 'success');
     renderReportGallery(reportId);
+    refreshDetailTimelineExtras(reportId);
   } catch (err) {
     console.error('Gallery photo upload failed:', err.message || err);
     toast(t('reportPhotoUploadFailed'), 'error');
@@ -14025,14 +14129,24 @@ function reporterDisplayName(report) {
   return shortUserId(report.owner_id);
 }
 
-function buildTimelineItem(dateStr, reached, color) {
+function buildTimelineItem(dateStr, reached, color, labelHtml) {
   const dotColor = reached ? color : 'rgba(255,255,255,.18)';
   const dateText = reached ? formatDate(dateStr) : '—';
   return `<div class="timeline-item ${reached ? '' : 'pending'}">
     <div class="timeline-line"></div>
     <div class="timeline-dot" style="background:${dotColor};"></div>
     <span class="timeline-date">${dateText}</span>
+    ${labelHtml ? `<span class="timeline-status-slot">${labelHtml}</span>` : ''}
   </div>`;
+}
+
+// Neutral dot color for timeline entries that aren't one of the three
+// pipeline stages (reported/in_progress/fixed) — company notifications,
+// photos added, contact attempts. These are always "reached" (they only
+// get rendered once they've actually happened).
+const TIMELINE_EVENT_COLOR = '#8a93a6';
+function buildTimelineEventItem(dateStr, rightHtml) {
+  return buildTimelineItem(dateStr, true, TIMELINE_EVENT_COLOR, rightHtml);
 }
 
 function buildPopupHtml(report) {
@@ -14292,19 +14406,21 @@ async function showReportDetailModal(reportId) {
 
   // Before/after photos + the community gallery are all "pictures of this
   // report" — one card instead of three separate boxes.
+  const panelBg = detailPanelBg(report.category);
+
   const photosGroupHtml = `
-    <div class="detail-section">
+    <div class="detail-section" style="${panelBg}">
       ${photoSectionHtml}
       ${afterPhotoSectionHtml}
       ${gallerySectionHtml}
     </div>`;
 
   body.innerHTML = `
-    <div class="detail-section" id="reportDetailStatusSection">
+    <div class="detail-section" id="reportDetailStatusSection" style="${panelBg}">
       ${buildDetailStatusReadonlyHtml(report, reporterName)}
     </div>
     ${photosGroupHtml}
-    <div class="detail-section">
+    <div class="detail-section" style="${panelBg}">
       <div class="detail-section-title-row">
         <div class="detail-section-title">${t('detailContactsTitle')}</div>
         <div class="contact-count-row" id="detailContactCountsContainer"></div>
@@ -14313,7 +14429,7 @@ async function showReportDetailModal(reportId) {
       <div id="detailContactsContainer"><div class="detail-loading">${t('detailLoading')}</div></div>
       ${flagSectionHtml}
     </div>
-    <div class="detail-section">
+    <div class="detail-section" style="${panelBg}">
       <div class="detail-section-title">${t('detailExportTitle')}</div>
       <div style="display:flex;gap:var(--space-8);">
         <button type="button" class="settings-btn" style="flex:1;" onclick="emailReport('${report.id}')" id="reportDetailExportBtn"><img class="icon-img icon-img-inline" src="icons/email.png" alt="email"> ${t('detailExportBtn')}</button>
@@ -14360,6 +14476,7 @@ async function showReportDetailModal(reportId) {
 
   renderReportGallery(report.id);
   renderStaleBadgeForDetail(report);
+  loadDetailTimelineExtras(report);
 
   fetchAddressForPoint(report.latitude, report.longitude).then(addr => {
     const streetEl = document.getElementById('detailStreetValue');
@@ -14714,6 +14831,7 @@ async function confirmContactAttempt(confirmed) {
     if (error) throw error;
     toast(t('contactConfirmThanks'), 'success');
     refreshReportContactCounts(reportId);
+    refreshDetailTimelineExtras(reportId);
     if (type === 'phone') await offerFollowUpEmailAfterCall(reportId, companyId);
   } catch (err) {
     console.error('Failed to log contact attempt:', err.message);
@@ -15530,21 +15648,19 @@ async function exportCompanyReportsPdf(companyId) {
   }
 }
 
-function buildCompanyNotifyStatusHtml(report) {
-  // company_notified_at / company_last_notified_at / company_notify_count are
-  // populated server-side (see sync_report_notify_status trigger on
-  // individual_report_notify_log) whenever the individual-report-notify
-  // function actually sends — not on test sends or dry runs.
-  if (!report.company_notified_at) {
-    return `<div class="detail-row"><span class="detail-row-label">${t('companyNotifyLabel')}</span><span class="detail-row-value" style="color:var(--muted);">${t('companyNotifyNotYet')}</span></div>`;
-  }
-  const firstSent = formatDate(report.company_notified_at);
-  const lastSent = report.company_last_notified_at ? formatDate(report.company_last_notified_at) : firstSent;
+// "Sent to company" (and, if it happened later, the reminder) as raw
+// {time, html} entries for the timeline's extras merge — same dot/date
+// layout as the pipeline stages, plain text on the right instead of a
+// status pill. Returns [] if it was never sent yet; that's still surfaced
+// via the contacts section, just not as a timeline entry until it happens.
+function companyNotifyTimelineEvents(report) {
+  if (!report.company_notified_at) return [];
+  const events = [{ time: report.company_notified_at, html: buildTimelineExtraItem(report.company_notified_at, `<span class="timeline-note">${t('companyNotifyLabel')}</span>`) }];
   const showsReminder = report.company_last_notified_at && report.company_last_notified_at !== report.company_notified_at;
-  return `
-    <div class="detail-row"><span class="detail-row-label">${t('companyNotifyLabel')}</span><span class="detail-row-value">${firstSent}</span></div>
-    ${showsReminder ? `<div class="detail-row"><span class="detail-row-label">${t('companyLastReminderLabel')}</span><span class="detail-row-value">${lastSent}</span></div>` : ''}
-  `;
+  if (showsReminder) {
+    events.push({ time: report.company_last_notified_at, html: buildTimelineExtraItem(report.company_last_notified_at, `<span class="timeline-note">${t('companyLastReminderLabel')}</span>`) });
+  }
+  return events;
 }
 
 function buildDetailStatusReadonlyHtml(report, reporterName) {
@@ -15607,17 +15723,24 @@ function buildDetailStatusReadonlyHtml(report, reporterName) {
         <span id="detailStreetValue">${t('detailLoading')}</span>, <span id="detailAreaValue">${t('detailLoading')}</span>, <span id="detailMunicipalityValue">${t('detailLoading')}</span>
       </a>
     </div>
-    <div class="detail-row"><span class="detail-row-label">${t('popupStatus')}</span><span class="detail-row-value" style="display:flex; align-items:center; justify-content:flex-end; gap:6px; overflow:visible; white-space:nowrap;"><span class="status-pill" style="background:${statusColor(report.status)};">${statusLabel(report.status)}</span><span id="detailStaleBadge-${report.id}"></span></span></div>
     <div class="detail-row"><span class="detail-row-label">${t('priorityLabel')}</span><span class="status-pill" style="background:${priorityColor(report.priority)};">${priorityLabelText(report.priority)}</span></div>
     <div class="detail-row"><span class="detail-row-label">${t('reportedByLabel')}</span><span class="detail-row-value">${escapeHtml(reporterName)}</span>${reporterBanControlHtml(report)}</div>
     ${(() => { const g = duplicateGroupFor(report.id); return g ? `<div class="detail-row"><span class="detail-row-label">✓</span><span class="detail-row-value">${t('confirmedByLabel').replace('{n}', g.count)}</span></div>` : ''; })()}
     ${personalResolveHtml}
-    <div class="popup-timeline" style="margin-top:8px;">
-      ${buildTimelineItem(report.created_at, true, STATUS_COLORS.reported)}
-      ${categorySkipsInProgress(report.category) ? '' : buildTimelineItem(report.in_progress_at, !!report.in_progress_at, STATUS_COLORS.in_progress)}
-      ${buildTimelineItem(report.fixed_at, !!report.fixed_at, STATUS_COLORS.fixed)}
+    <div class="popup-timeline" id="detailTimeline-${report.id}" style="margin-top:8px;">
+      ${buildTimelineItem(report.created_at, true, STATUS_COLORS.reported, report.status === 'reported'
+        ? `<span class="status-pill" style="background:${statusColor(report.status)};">${statusLabel(report.status)}</span><span id="detailStaleBadge-${report.id}"></span>`
+        : '')}
+      ${(!categorySkipsInProgress(report.category) && report.in_progress_at) ? buildTimelineItem(report.in_progress_at, true, STATUS_COLORS.in_progress, report.status === 'in_progress'
+        ? `<span class="status-pill" style="background:${statusColor(report.status)};">${statusLabel(report.status)}</span>`
+        : '') : ''}
+      ${report.fixed_at ? buildTimelineItem(report.fixed_at, true, STATUS_COLORS.fixed, report.status === 'fixed'
+        ? `<span class="status-pill" style="background:${statusColor(report.status)};">${statusLabel(report.status)}</span>`
+        : '') : ''}
+      <span id="detailTimelineAnchor-${report.id}"></span>
+      ${(!categorySkipsInProgress(report.category) && !report.in_progress_at) ? buildTimelineItem(report.in_progress_at, false, STATUS_COLORS.in_progress, '') : ''}
+      ${!report.fixed_at ? buildTimelineItem(report.fixed_at, false, STATUS_COLORS.fixed, '') : ''}
     </div>
-    ${buildCompanyNotifyStatusHtml(report)}
     ${noteRowHtml}
   `;
 }

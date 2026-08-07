@@ -649,6 +649,8 @@ button{
   padding:3px 7px;
   border-radius:var(--radius-pill);
   color:white;
+  flex-shrink:0;
+  white-space:nowrap;
 }
 
 .bottomright-stack{
@@ -2235,6 +2237,20 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   gap:7px;
   position:relative;
   padding-bottom:7px;
+}
+.timeline-status-slot{
+  margin-left:auto;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex-shrink:0;
+}
+.timeline-status-slot .status-pill{ flex-shrink:0; white-space:nowrap; }
+.timeline-note{
+  font-size:var(--fs-11);
+  color:var(--text-secondary);
+  font-weight:var(--fw-medium);
+  white-space:nowrap;
 }
 .timeline-item:last-child{ padding-bottom:0; }
 .timeline-dot{
