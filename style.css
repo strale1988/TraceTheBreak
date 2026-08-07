@@ -340,10 +340,10 @@ header p{ font-size:var(--fs-11); opacity:.7; margin-top:2px; }
   touch-action:manipulation;
   white-space:nowrap;
 }
-.lang-auto-btn.active{ background:var(--accent); color:var(--accent-contrast); }
+.theme-segment-btn.lang-auto-btn.active{ background:var(--accent); color:var(--accent-contrast); }
 .lang-auto-btn .icon-img-inline{ filter:var(--icon-tint-filter); opacity:.85; }
-.lang-auto-btn.active .icon-img-inline{ filter:brightness(0) invert(1); opacity:1; }
-html[data-theme="dark"] .lang-auto-btn.active .icon-img-inline{ filter:brightness(0); }
+.theme-segment-btn.lang-auto-btn.active .icon-img-inline{ filter:brightness(0) invert(1); opacity:1; }
+html[data-theme="dark"] .theme-segment-btn.lang-auto-btn.active .icon-img-inline{ filter:brightness(0); }
 
 .help-icon-btn{
   background:var(--bg-surface-alt);
@@ -2227,7 +2227,7 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   line-height:1.35;
 }
 .popup-timeline{
-  padding:5px 8px 2px 8px;
+  padding:5px 0 2px 0;
   display:flex;
   flex-direction:column;
 }
@@ -3078,6 +3078,13 @@ input.uc-country-search-input{
   margin:4px 8px 6px 8px;
 }
 .popup-note-row .popup-note{ margin:0; flex:1 1 auto; }
+/* Inside the full detail panel the section itself already provides the
+   14px inset (see .detail-section), so the note row shouldn't add its
+   own extra 8px on top of that — otherwise it ends up narrower than
+   every other row above it (Lokacija, Prioritet, etc). The compact map
+   marker popup (.popup-card) isn't wrapped in .detail-section and keeps
+   its original inset. */
+.detail-section .popup-note-row{ margin-left:0; margin-right:0; }
 .icon-only-btn{
   flex:0 0 auto; width:28px; height:28px; border-radius:var(--radius-sm);
   border:1px solid var(--border-color-strong); background:var(--bg-surface);

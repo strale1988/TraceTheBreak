@@ -14297,7 +14297,13 @@ async function showReportDetailModal(reportId) {
 
   const idRowEl = document.getElementById('reportDetailIdRow');
   if (idRowEl) {
-    idRowEl.textContent = `ID: ${report.id}`;
+    const idTextEl = document.getElementById('reportDetailIdText');
+    if (idTextEl) idTextEl.textContent = `ID: ${report.id}`;
+    const idCopyIcon = document.getElementById('reportDetailIdCopyIcon');
+    if (idCopyIcon) {
+      clearTimeout(reportIdCopyIconRevertTimer);
+      idCopyIcon.src = 'icons/copy.png';
+    }
     idRowEl.title = t('copyReportIdTooltip');
     idRowEl.setAttribute('aria-label', t('copyReportIdTooltip'));
     idRowEl.onclick = () => copyReportIdToClipboard(report.id);
@@ -14433,7 +14439,7 @@ async function showReportDetailModal(reportId) {
       <div class="detail-section-title">${t('detailExportTitle')}</div>
       <div style="display:flex;gap:var(--space-8);">
         <button type="button" class="settings-btn" style="flex:1;" onclick="emailReport('${report.id}')" id="reportDetailExportBtn"><img class="icon-img icon-img-inline" src="icons/email.png" alt="email"> ${t('detailExportBtn')}</button>
-        <button type="button" class="fullscreen-modal-share" onclick="shareReportImage('${report.id}')" id="reportDetailShareImageBtn" aria-label="${t('shareImageBtn')}" title="${t('shareImageBtn')}"><img class="icon-img" src="icons/gallery.png" alt="share image"></button>
+        <button type="button" class="fullscreen-modal-share" onclick="copyReportLinkToClipboard('${report.id}')" id="reportDetailCopyLinkBtn" aria-label="${t('copyLinkBtn')}" title="${t('copyLinkBtn')}"><img class="icon-img" id="reportDetailCopyLinkIcon" src="icons/copy.png" alt="copy link"></button>
         <button type="button" class="fullscreen-modal-share" onclick="shareReport('${report.id}')" id="reportDetailShareBtn" aria-label="Share"><img class="icon-img" src="icons/link.png" alt="share"></button>
       </div>
     </div>
@@ -15282,13 +15288,41 @@ async function shareReport(reportId) {
   }
 }
 
+// Dedicated "just copy the link" button (as opposed to shareReport, which
+// opens the native share sheet when available) — same copy→check→copy icon
+// swap as copyReportIdToClipboard, no toast.
+let reportLinkCopyIconRevertTimer = null;
+async function copyReportLinkToClipboard(reportId) {
+  const url = reportShareUrl(reportId);
+  try {
+    await navigator.clipboard.writeText(url);
+    const icon = document.getElementById('reportDetailCopyLinkIcon');
+    if (icon) {
+      icon.src = 'icons/check.png';
+      clearTimeout(reportLinkCopyIconRevertTimer);
+      reportLinkCopyIconRevertTimer = setTimeout(() => { icon.src = 'icons/copy.png'; }, 5000);
+    }
+  } catch (err) {
+    console.error('Clipboard write failed:', err.message);
+    await themedPrompt(t('copyLinkPrompt'), url, { cancelLabel: null, okLabel: 'OK' });
+  }
+}
+
 // Click/tap (or Enter/Space via keyboard) on the report-ID line in the
 // detail header copies the raw report UUID — handy for support requests,
 // admin lookups, cross-referencing with the utility-notify PDFs, etc.
+// Tracks the pending revert timer so rapid repeat clicks reset the
+// 5-second window instead of stacking multiple timers.
+let reportIdCopyIconRevertTimer = null;
 async function copyReportIdToClipboard(id) {
   try {
     await navigator.clipboard.writeText(id);
-    toast(t('reportIdCopiedToast'), 'success');
+    const icon = document.getElementById('reportDetailIdCopyIcon');
+    if (icon) {
+      icon.src = 'icons/check.png';
+      clearTimeout(reportIdCopyIconRevertTimer);
+      reportIdCopyIconRevertTimer = setTimeout(() => { icon.src = 'icons/copy.png'; }, 5000);
+    }
   } catch (err) {
     console.error('Clipboard write failed:', err.message);
     await themedPrompt(t('copyReportIdPrompt'), id, { cancelLabel: null, okLabel: 'OK' });
