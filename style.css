@@ -640,7 +640,9 @@ button{
 .popup-title{ font-size:var(--fs-14); font-weight:var(--fw-bold); margin-bottom:8px; color:#111; }
 
 .status-pill{
-  display:inline-block;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
   font-size:var(--fs-9);
   font-weight:var(--fw-bold);
   text-transform:uppercase;
@@ -1734,6 +1736,10 @@ body.driving-active #appPanel{
   letter-spacing:.3px;
 }
 .tier-pill{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  line-height:1;
   flex-shrink:0;
   background:#ececeb;
   color:#555;
@@ -2765,7 +2771,7 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 .activity-feed-body{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
 .activity-feed-line1{ font-size:var(--fs-13); font-weight:var(--fw-semibold); }
 .activity-feed-line2{ font-size:var(--fs-11); color:var(--text-muted); }
-.activity-feed-flag-badge{ font-size:var(--fs-9-5); font-weight:var(--fw-bold); text-transform:uppercase; letter-spacing:.2px; padding:1px 6px; border-radius:var(--radius-lg); background:var(--danger-strong); color:white; margin-left:6px; }
+.activity-feed-flag-badge{ display:inline-flex; align-items:center; justify-content:center; line-height:1; font-size:var(--fs-9-5); font-weight:var(--fw-bold); text-transform:uppercase; letter-spacing:.2px; padding:1px 6px; border-radius:var(--radius-lg); background:var(--danger-strong); color:white; margin-left:6px; }
 .uc-list{ display:flex; flex-direction:column; gap:var(--space-8); }
 .uc-item{
   background:var(--bg-surface-alt); border:1px solid var(--border-color); border-radius:var(--radius-lg); padding:10px 12px;
@@ -3039,7 +3045,9 @@ input.uc-country-search-input{
 }
 .detail-photo-img{ width:100%; max-height:260px; object-fit:cover; display:block; cursor:pointer; }
 .photo-status-badge{
+  display:inline-flex; align-items:center; justify-content:center;
   font-size:var(--fs-9-5); font-weight:var(--fw-bold); text-transform:uppercase; letter-spacing:.2px;
+  line-height:1;
   padding:2px 6px; border-radius:var(--radius-lg); color:#fff; margin-left:6px; vertical-align:middle;
 }
 .photo-status-badge.pending{ background:var(--accent); }
