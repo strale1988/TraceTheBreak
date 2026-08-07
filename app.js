@@ -9961,20 +9961,32 @@ function buildTimelineExtraItem(dateStr, rightHtml) {
   return buildTimelineEventItem(dateStr, rightHtml).replace('class="timeline-item ', 'class="timeline-item timeline-extra ');
 }
 
-// Inserts the "extra" timeline entries — company notify (+ reminder),
-// gallery photos, and logged phone/email contact attempts — right after
-// the current pipeline stage and before any not-yet-reached (pending)
-// stage placeholder, via the anchor marker left in the timeline by
-// buildDetailStatusReadonlyHtml. That's what keeps new things appearing
-// below the latest real status change instead of at the very bottom under
-// the "—" placeholders for stages that haven't happened yet.
+// Inserts the "extra" timeline entries — duplicate-report confirmations,
+// company notify (+ reminder), gallery photos, and logged phone/email
+// contact attempts — right after the current pipeline stage and before
+// any not-yet-reached (pending) stage placeholder, via the anchor marker
+// left in the timeline by buildDetailStatusReadonlyHtml. That's what keeps
+// new things appearing below the latest real status change instead of at
+// the very bottom under the "—" placeholders for stages that haven't
+// happened yet.
 // report.company_notified_at / photo_uploaded_at / after_photo_uploaded_at
 // are already on the report row, so those go straight in without waiting
-// on a fetch; gallery photos and contact events need one. Sorted
+// on a fetch; confirmations come from the already-computed duplicate group
+// (each other report in the group is one "confirmed" event, at its own
+// created_at); gallery photos and contact events need a fetch. Sorted
 // chronologically among themselves. No usernames, just date + icon/text,
 // same privacy-light footprint as the rest of the timeline.
 async function loadDetailTimelineExtras(report) {
   const events = companyNotifyTimelineEvents(report);
+  const dupGroup = duplicateGroupFor(report.id);
+  if (dupGroup) {
+    dupGroup.ids.filter(id => id !== report.id).forEach(id => {
+      const confirmingReport = globalActiveData.find(r => r.id === id);
+      if (confirmingReport) {
+        events.push({ time: confirmingReport.created_at, html: buildTimelineExtraItem(confirmingReport.created_at, `<img class="detail-row-icon" src="icons/check.png" alt="">`) });
+      }
+    });
+  }
   if (report.photo_uploaded_at) {
     events.push({ time: report.photo_uploaded_at, html: buildTimelineExtraItem(report.photo_uploaded_at, `<img class="detail-row-icon" src="icons/camera.png" alt="">`) });
   }
@@ -14226,7 +14238,7 @@ function buildPopupHtml(report) {
         <span class="popup-row-value">${escapeHtml(reporterName)}${isOwner ? ` <span class="owner-tag">(${t('yourReport')})</span>` : ''}</span>
       </div>
       ${dupGroup ? `<div class="popup-row">
-        <span class="popup-row-label">✓</span>
+        <span class="popup-row-label"><img class="row-check-icon" src="icons/check.png" alt=""></span>
         <span class="popup-row-value">${t('confirmedByLabel').replace('{n}', dupGroup.count)}</span>
       </div>` : ''}
     </div>
@@ -15534,6 +15546,15 @@ async function openSharedReportFromUrl() {
   const params = new URLSearchParams(window.location.search);
   const reportId = params.get('report');
   if (!reportId) return;
+  // Without this, a shared link can open the detail modal (which calls
+  // t() all over) before initLang() has finished fetching languages/*.json
+  // — t() then has nothing to look up and falls back to returning the raw
+  // key, so the whole modal renders as literal strings like "priorityLabel"
+  // instead of translated text. Every other entry point into the modal
+  // happens later, after user interaction, by which point initLang() has
+  // long since resolved — this deep link is the one path that can win the
+  // race, so it's the one that needs to explicitly wait.
+  await langReady;
   try {
     const { data, error } = await sb.from(TABLE).select('*').eq('id', reportId).single();
     if (error || !data) throw (error || new Error('Report not found'));
@@ -15756,7 +15777,7 @@ function buildDetailStatusReadonlyHtml(report, reporterName) {
     </div>
     <div class="detail-row"><span class="detail-row-label">${t('priorityLabel')}</span><span class="status-pill" style="background:${priorityColor(report.priority)};">${priorityLabelText(report.priority)}</span></div>
     <div class="detail-row"><span class="detail-row-label">${t('reportedByLabel')}</span><span class="detail-row-value">${escapeHtml(reporterName)}</span>${reporterBanControlHtml(report)}</div>
-    ${(() => { const g = duplicateGroupFor(report.id); return g ? `<div class="detail-row"><span class="detail-row-label">✓</span><span class="detail-row-value">${t('confirmedByLabel').replace('{n}', g.count)}</span></div>` : ''; })()}
+    ${(() => { const g = duplicateGroupFor(report.id); return g ? `<div class="detail-row"><span class="detail-row-label"><img class="row-check-icon" src="icons/check.png" alt=""></span><span class="detail-row-value">${t('confirmedByLabel').replace('{n}', g.count)}</span></div>` : ''; })()}
     ${personalResolveHtml}
     <div class="popup-timeline" id="detailTimeline-${report.id}" style="margin-top:8px;">
       ${buildTimelineItem(report.created_at, true, STATUS_COLORS.reported, report.status === 'reported'
@@ -16879,7 +16900,7 @@ function hideLegalContentModal() {
 discoverIconPacks().finally(initIconPackRewrite);
 initTheme();
 initCalendarFilter();
-initLang();
+const langReady = initLang();
 
 const INITIAL_LOCATION_ZOOM = 13;
 const INITIAL_LOCATION_FIX_TIMEOUT_MS = 2500;
