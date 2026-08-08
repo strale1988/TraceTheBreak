@@ -79,6 +79,7 @@ const MUNICIPALITIES_TABLE = 'municipalities';
 const UTILITY_COMPANIES_TABLE = 'utility_companies';
 const COUNTRIES_TABLE = 'countries';
 const REPORT_CONTACT_EVENTS_TABLE = 'report_contact_events';
+const REPORT_STATUS_VOTES_TABLE = 'report_status_votes';
 const MUNICIPALITY_STATS_TABLE = 'municipality_report_stats';
 const UTILITY_COMPANY_STATS_TABLE = 'utility_company_report_stats';
 
@@ -3026,7 +3027,7 @@ const COUNTRY_TO_LANG = {
   lu:'lb',
   mk:'mk',
   mt:'mt',
-  no:'nb',
+  no:'no',
   pl:'pl',
   pt:'pt',
   ro:'ro', md:'ro',
@@ -9460,11 +9461,16 @@ function toggleHeatmap() {
   }
 }
 
+// Labels come from the languages/<code>.json files (keys "cat<Cat>" and
+// "sub_<Cat>_<key>"), same t()-driven system as the rest of the UI/emails —
+// this is what makes adding a new language a translation-only change instead
+// of a code change. SUBCATEGORIES itself still supplies the canonical list
+// of keys/ordering per category; only the *label* text now comes from t().
 function subcategoryLabel(cat, subKey, langOverride) {
   if (!subKey) return '';
   const list = SUBCATEGORIES[cat] || [];
   const found = list.find(s => s.key === subKey);
-  return found ? (isSerbianLang(langOverride) ? found.sr : found.en) : subKey;
+  return found ? t(`sub_${cat}_${subKey}`, langOverride) : subKey;
 }
 function populateSubcategoryOptions(selectEl, cat, selectedKey) {
   const list = SUBCATEGORIES[cat] || [];
@@ -9474,7 +9480,7 @@ function populateSubcategoryOptions(selectEl, cat, selectedKey) {
   }
   const placeholder = t('subcategoryDetailPlaceholder');
   selectEl.innerHTML = `<option value="">${placeholder}</option>` +
-    list.map(s => `<option value="${s.key}" ${s.key === selectedKey ? 'selected' : ''}>${isSerbianLang() ? s.sr : s.en}</option>`).join('');
+    list.map(s => `<option value="${s.key}" ${s.key === selectedKey ? 'selected' : ''}>${t(`sub_${cat}_${s.key}`)}</option>`).join('');
   return true;
 }
 function onCategoryChange() {
@@ -9498,15 +9504,21 @@ function statusLabel(s, langOverride) {
   return t('statusReported', langOverride);
 }
 function translateCategory(cat, langOverride) {
-  const labelsEn = { Water:'Water', Electricity:'Electricity', Sewage:'Sewage', Gas:'Gas', Heating:'Heating', Road:'Road', Streetlight:'Streetlight', Waste:'Waste', Walkways:'Walkways', BikeLanes:'Bike Lanes', GreenSpaces:'Green Spaces', Parking:'Frequent Parking Violations', Suggestion:'Suggest an Improvement', Forest:'Forest', FarmersMarket:'Farmers Market', Other:'Other' };
-  const labelsSr = { Water:'Voda', Electricity:'Struja', Sewage:'Kanalizacija', Gas:'Gas', Heating:'Grejanje', Road:'Put', Streetlight:'Ulična rasveta', Waste:'Otpad', Walkways:'Pešačke staze', BikeLanes:'Biciklističke staze', GreenSpaces:'Zelene površine', Parking:'Često Nepropisno parkiranje', Suggestion:'Predlog za poboljšanje', Forest:'Šuma', FarmersMarket:'Pijaca', Other:'Ostalo' };
-  return (isSerbianLang(langOverride) ? labelsSr[cat] : labelsEn[cat]) || cat;
+  return t(`cat${cat}`, langOverride) || cat;
 }
 
+// Used for free-text search matching (map search, company category chips) —
+// deliberately searches every *loaded* language's label, not just the
+// active one, so a report still matches if someone searches in a language
+// other than the one it happens to be displayed in.
 function categorySearchText(cat) {
-  const labelsEn = { Water:'Water', Electricity:'Electricity', Sewage:'Sewage', Gas:'Gas', Heating:'Heating', Road:'Road', Streetlight:'Streetlight', Waste:'Waste', Walkways:'Walkways', BikeLanes:'Bike Lanes', GreenSpaces:'Green Spaces', Parking:'Frequent Parking Violations', Suggestion:'Suggest an Improvement', Forest:'Forest', FarmersMarket:'Farmers Market', Other:'Other' };
-  const labelsSr = { Water:'Voda', Electricity:'Struja', Sewage:'Kanalizacija', Gas:'Gas', Heating:'Grejanje', Road:'Put', Streetlight:'Ulična rasveta', Waste:'Otpad', Walkways:'Pešačke staze', BikeLanes:'Biciklističke staze', GreenSpaces:'Zelene površine', Parking:'Često Nepropisno parkiranje', Suggestion:'Predlog za poboljšanje', Forest:'Šuma', FarmersMarket:'Pijaca', Other:'Ostalo' };
-  return [labelsEn[cat], labelsSr[cat], cat].filter(Boolean).join(' ');
+  const seen = new Set();
+  const parts = [cat];
+  for (const code of Object.keys(LANG_STRINGS)) {
+    const label = LANG_STRINGS[code] && LANG_STRINGS[code][`cat${cat}`];
+    if (label && !seen.has(label)) { seen.add(label); parts.push(label); }
+  }
+  return parts.filter(Boolean).join(' ');
 }
 
 function checkFormReady() {
@@ -9959,6 +9971,20 @@ async function loadReportContactEventsForTimeline(reportId) {
   }
 }
 
+async function loadReportStatusVotesForTimeline(reportId) {
+  try {
+    const { data, error } = await sb.from(REPORT_STATUS_VOTES_TABLE)
+      .select('suggested_status, created_at')
+      .eq('report_id', reportId)
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    console.error('Failed to load status votes for timeline:', err.message || err);
+    return [];
+  }
+}
+
 // Same as buildTimelineEventItem, but tagged so a later refresh can find
 // and remove just these entries (see refreshDetailTimelineExtras) without
 // touching the pipeline-stage / company-notify entries above them.
@@ -9999,9 +10025,10 @@ async function loadDetailTimelineExtras(report) {
     events.push({ time: report.after_photo_uploaded_at, html: buildTimelineExtraItem(report.after_photo_uploaded_at, `<img class="detail-row-icon" src="icons/camera.png" alt="">`) });
   }
 
-  const [galleryPhotos, contactEvents] = await Promise.all([
+  const [galleryPhotos, contactEvents, statusVotes] = await Promise.all([
     loadReportGalleryPhotos(report.id),
-    loadReportContactEventsForTimeline(report.id)
+    loadReportContactEventsForTimeline(report.id),
+    loadReportStatusVotesForTimeline(report.id)
   ]);
   (galleryPhotos || []).forEach(p => {
     events.push({ time: p.created_at, html: buildTimelineExtraItem(p.created_at, `<img class="detail-row-icon" src="icons/camera.png" alt="">`) });
@@ -10009,6 +10036,9 @@ async function loadDetailTimelineExtras(report) {
   contactEvents.forEach(c => {
     const icon = c.contact_type === 'email' ? 'icons/email.png' : 'icons/phone.png';
     events.push({ time: c.created_at, html: buildTimelineExtraItem(c.created_at, `<img class="detail-row-icon" src="${icon}" alt="">`) });
+  });
+  statusVotes.forEach(v => {
+    events.push({ time: v.created_at, html: buildTimelineExtraItem(v.created_at, `<img class="detail-row-icon" src="icons/vote.png" alt="" title="${escapeHtml(statusLabel(v.suggested_status))}">`) });
   });
 
   if (!events.length) return;
@@ -10025,10 +10055,10 @@ async function loadDetailTimelineExtras(report) {
 }
 
 // Re-fetches and re-renders just the extra timeline entries (company
-// notify, gallery photos, contact attempts) for whichever report the
-// detail modal currently has open — used after actions that add one of
-// those without doing a full modal re-render (gallery photo add, logging
-// a call/email).
+// notify, gallery photos, contact attempts, votes, stale badge) for
+// whichever report the detail modal currently has open — used after
+// actions that add one of those without doing a full modal re-render
+// (gallery photo add, logging a call/email).
 function refreshDetailTimelineExtras(reportId) {
   const modal = document.getElementById('reportDetailModal');
   if (!modal || modal.dataset.openReportId !== reportId) return;
@@ -10037,6 +10067,7 @@ function refreshDetailTimelineExtras(reportId) {
   const container = document.getElementById(`detailTimeline-${reportId}`);
   if (container) container.querySelectorAll('.timeline-extra').forEach(el => el.remove());
   loadDetailTimelineExtras(report);
+  renderStaleBadgeForDetail(report);
 }
 
 async function addGalleryPhotoToReport(reportId, source) {
@@ -10093,17 +10124,20 @@ async function maybeOfferAfterPhoto(reportId) {
   if (await themedConfirm(t('afterPhotoPrompt'))) addAfterPhotoToReport(reportId);
 }
 
-// Shows an "aging, no activity" badge on a report's Details view when it's
-// still in the 'reported' state, was created 30+ days ago, and nobody has
-// contacted a utility about it or voted on its status since. This used to
-// be surfaced as a standing entry in the admin notifications feed; now it's
-// only computed on demand for whichever report is currently open.
+// Shows an "aging, no activity" entry in a report's Details timeline when
+// it's still in the 'reported' state, was created 30+ days ago, and nobody
+// has contacted a utility about it or voted on its status since. This used
+// to be surfaced as a standing entry in the admin notifications feed; now
+// it's only computed on demand for whichever report is currently open, and
+// (as of this change) rendered as its own timeline row — dated the day the
+// report actually crossed the staleness threshold — rather than as a badge
+// glued onto the "Reported" pill, matching how every other timeline extra
+// (company notify, photos, contact attempts, votes) gets its own row.
 async function renderStaleBadgeForDetail(report) {
-  const badge = document.getElementById('detailStaleBadge-' + report.id);
-  if (!badge) return;
   if (report.status !== 'reported') return;
+  const staleThresholdMs = STALE_REPORT_DAYS * 24 * 60 * 60 * 1000;
   const ageMs = Date.now() - new Date(report.created_at).getTime();
-  if (ageMs < STALE_REPORT_DAYS * 24 * 60 * 60 * 1000) return;
+  if (ageMs < staleThresholdMs) return;
   try {
     const [contactRes, voteRes] = await Promise.all([
       sb.from(REPORT_CONTACT_EVENTS_TABLE).select('report_id').eq('report_id', report.id).limit(1),
@@ -10113,8 +10147,20 @@ async function renderStaleBadgeForDetail(report) {
     if (voteRes.error) throw voteRes.error;
     const touched = (contactRes.data && contactRes.data.length) || (voteRes.data && voteRes.data.length);
     if (touched) return;
-    const stillOpen = document.getElementById('detailStaleBadge-' + report.id);
-    if (stillOpen) stillOpen.innerHTML = ` <span class="photo-status-badge" style="background:var(--accent);">${escapeHtml(t('queueTypeStale'))}</span>`;
+
+    // Modal may have closed, or moved to a different report, while the
+    // above fetches were in flight — bail rather than write into a
+    // stale/gone timeline (and don't double-insert on a second call).
+    const modal = document.getElementById('reportDetailModal');
+    if (!modal || modal.dataset.openReportId !== report.id) return;
+    const container = document.getElementById(`detailTimeline-${report.id}`);
+    if (container && container.querySelector('.timeline-stale-badge')) return;
+    const anchor = document.getElementById(`detailTimelineAnchor-${report.id}`);
+    if (!anchor) return;
+
+    const staleSince = new Date(new Date(report.created_at).getTime() + staleThresholdMs).toISOString();
+    const html = buildTimelineExtraItem(staleSince, `<span class="photo-status-badge timeline-stale-badge" style="background:var(--accent);">${escapeHtml(t('queueTypeStale'))}</span>`);
+    anchor.insertAdjacentHTML('afterend', html);
   } catch (err) {
     console.error('Failed to check report staleness:', err.message || err);
   }
@@ -15806,7 +15852,7 @@ function buildDetailStatusReadonlyHtml(report, reporterName) {
     ${personalResolveHtml}
     <div class="popup-timeline" id="detailTimeline-${report.id}" style="margin-top:8px;">
       ${buildTimelineItem(report.created_at, true, STATUS_COLORS.reported, report.status === 'reported'
-        ? `<span class="status-pill" style="background:${statusColor(report.status)};">${statusLabel(report.status)}</span><span id="detailStaleBadge-${report.id}"></span>`
+        ? `<span class="status-pill" style="background:${statusColor(report.status)};">${statusLabel(report.status)}</span>`
         : '')}
       ${(!categorySkipsInProgress(report.category) && report.in_progress_at) ? buildTimelineItem(report.in_progress_at, true, STATUS_COLORS.in_progress, report.status === 'in_progress'
         ? `<span class="status-pill" style="background:${statusColor(report.status)};">${statusLabel(report.status)}</span>`
@@ -16374,7 +16420,14 @@ async function loadPinsByWindow() {
         .gte('latitude', bbox.minLat).lte('latitude', bbox.maxLat)
         .gte('longitude', bbox.minLon).lte('longitude', bbox.maxLon)
         .order('created_at', { ascending: true }),
-      sb.from(TABLE).select('*').neq('status', 'fixed')
+      // Every status — including fixed — stays visible on the map
+      // regardless of the selected date range; the legend checkboxes
+      // (statusMarkerFilter / onStatusFilterToggle) are the actual
+      // user-facing control for hiding a status, not the date picker.
+      // Previously this excluded 'fixed', which meant a report fixed
+      // outside the current date window would silently vanish from the
+      // map even though it was never explicitly hidden by the user.
+      sb.from(TABLE).select('*')
         .gte('latitude', bbox.minLat).lte('latitude', bbox.maxLat)
         .gte('longitude', bbox.minLon).lte('longitude', bbox.maxLon)
         .order('created_at', { ascending: false })
