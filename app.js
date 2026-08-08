@@ -10049,9 +10049,31 @@ async function loadDetailTimelineExtras(report) {
   // stale/gone timeline.
   const modal = document.getElementById('reportDetailModal');
   if (!modal || modal.dataset.openReportId !== report.id) return;
+  const container = document.getElementById(`detailTimeline-${report.id}`);
   const anchor = document.getElementById(`detailTimelineAnchor-${report.id}`);
-  if (!anchor) return;
-  anchor.insertAdjacentHTML('afterend', events.map(e => e.html).join(''));
+  if (!container || !anchor) return;
+  events.forEach(e => insertTimelineEventChronologically(container, anchor, e));
+}
+
+// Inserts a single {time, html} timeline entry at its correct chronological
+// slot among the pipeline-stage entries (reported/in_progress/fixed) and any
+// extras already in the timeline — instead of always dropping it right after
+// the anchor, which broke ordering whenever an extra (e.g. "sent to
+// company") happened earlier than a later-reached pipeline stage (e.g.
+// "fixed"). Every reached item (pipeline or extra) carries a data-time
+// attribute, so we walk those in DOM order and insert before the first one
+// that's chronologically later; if none is later, the event goes right
+// before the anchor, which still keeps it ahead of any not-yet-reached
+// (pending) placeholders. Ties keep existing entries first.
+function insertTimelineEventChronologically(container, anchor, event) {
+  const eventTime = new Date(event.time).getTime();
+  const dated = Array.from(container.querySelectorAll('.timeline-item[data-time]'));
+  const insertBeforeEl = dated.find(el => new Date(el.dataset.time).getTime() > eventTime);
+  const temp = document.createElement('div');
+  temp.innerHTML = event.html;
+  const node = temp.firstElementChild;
+  if (!node) return;
+  (insertBeforeEl || anchor).insertAdjacentElement('beforebegin', node);
 }
 
 // Re-fetches and re-renders just the extra timeline entries (company
@@ -14209,7 +14231,12 @@ function reporterDisplayName(report) {
 function buildTimelineItem(dateStr, reached, color, labelHtml) {
   const dotColor = reached ? color : 'rgba(255,255,255,.18)';
   const dateText = reached ? formatDate(dateStr) : '—';
-  return `<div class="timeline-item ${reached ? '' : 'pending'}">
+  // data-time lets loadDetailTimelineExtras figure out where an extra entry
+  // (company notify, contact attempt, gallery photo, etc.) belongs relative
+  // to this item chronologically. Only set for reached items — pending
+  // placeholders have no real date and always stay at the very bottom.
+  const timeAttr = (reached && dateStr) ? ` data-time="${escapeHtml(dateStr)}"` : '';
+  return `<div class="timeline-item ${reached ? '' : 'pending'}"${timeAttr}>
     <div class="timeline-line"></div>
     <div class="timeline-dot" style="background:${dotColor};"></div>
     <span class="timeline-date">${dateText}</span>
@@ -14477,13 +14504,17 @@ async function showReportDetailModal(reportId) {
       <div id="reportFlagContent"><div class="detail-loading">${t('detailLoading')}</div></div>
     </div>` : '';
 
+  // Once a report is fixed there's nothing left to document "before" the
+  // fix, so the community upload buttons stop being actionable — same
+  // reasoning as the before-photo icon and the company contact links below.
+  const isFixed = report.status === 'fixed';
   const gallerySectionHtml = `
     <div class="detail-subsection">
       <div class="detail-subsection-title">${t('detailGalleryTitle')}</div>
       <div class="detail-gallery-strip" id="detailGalleryStrip"><div class="detail-loading">${t('detailLoading')}</div></div>
       ${currentSession ? `<div style="display:flex; gap:10px; margin-top:10px;">
-        <button type="button" class="settings-btn" style="flex:1;" onclick="addGalleryPhotoToReport('${report.id}','camera')"><img class="icon-img icon-img-inline" src="icons/camera.png" alt="">${t('reportPhotoAddBtn')}</button>
-        <button type="button" class="settings-btn" style="flex:1;" onclick="addGalleryPhotoToReport('${report.id}','library')"><img class="icon-img icon-img-inline" src="icons/gallery.png" alt="">${t('reportPhotoGalleryBtn')}</button>
+        <button type="button" class="settings-btn" style="flex:1;" ${isFixed ? 'disabled' : ''} onclick="addGalleryPhotoToReport('${report.id}','camera')"><img class="icon-img icon-img-inline" src="icons/camera.png" alt="">${t('reportPhotoAddBtn')}</button>
+        <button type="button" class="settings-btn" style="flex:1;" ${isFixed ? 'disabled' : ''} onclick="addGalleryPhotoToReport('${report.id}','library')"><img class="icon-img icon-img-inline" src="icons/gallery.png" alt="">${t('reportPhotoGalleryBtn')}</button>
       </div>` : ''}
     </div>`;
 
@@ -14586,12 +14617,12 @@ async function showReportDetailModal(reportId) {
   if (!muni || muni.id == null) {
     const fallbackContacts = await getReportContactsByProximity(report);
     if (contactsEl) contactsEl.innerHTML = fallbackContacts.length
-      ? renderContactCards(fallbackContacts, report.id)
+      ? renderContactCards(fallbackContacts, report.id, isFixed)
       : `<div class="detail-empty">${t('detailNoMunicipality')}</div>`;
     return;
   }
   const contacts = await getReportContacts(report, muni);
-  if (contactsEl) contactsEl.innerHTML = renderContactCards(contacts, report.id);
+  if (contactsEl) contactsEl.innerHTML = renderContactCards(contacts, report.id, isFixed);
 }
 
 async function loadReportFlagSection(reportId) {
@@ -14715,15 +14746,23 @@ async function getReportContactsByProximity(report) {
   }
 }
 
-function renderContactRows(c, reportId) {
+function renderContactRows(c, reportId, isFixed) {
   if (c && c.id != null) utilityCompanyRegistry.set(String(c.id), c);
   const companyIdAttr = c.id != null ? escapeHtml(String(c.id)) : '';
   const phoneClickAttr = reportId ? ` onclick="recordContactAttempt('${escapeHtml(reportId)}','phone','${companyIdAttr}')"` : '';
   const emailClickAttr = reportId ? ` onclick="recordContactAttempt('${escapeHtml(reportId)}','email','${companyIdAttr}')"` : '';
   const otherFlagBtn = c.id != null
     ? `<button type="button" class="contact-flag-btn contact-flag-other-btn" onclick="toggleContactOtherFlagForm('${companyIdAttr}')">${t('contactFlagOtherBtn')}</button>` : '';
-  const phoneRowsHtml = contactEntries(c.phone).map(p => `<div class="contact-card-row"><img class="contact-card-icon" src="icons/phone.png" alt="phone"><a href="tel:${escapeHtml(p.value)}"${phoneClickAttr}>${p.label ? `<span class="contact-card-entry-label">${escapeHtml(p.label)}</span>` : ''}${escapeHtml(p.value)}</a></div>`).join('');
-  const emailRowsHtml = contactEntries(c.email).map(e => `<div class="contact-card-row"><img class="contact-card-icon" src="icons/email.png" alt="email"><a href="mailto:${escapeHtml(e.value)}"${emailClickAttr}>${e.label ? `<span class="contact-card-entry-label">${escapeHtml(e.label)}</span>` : ''}${escapeHtml(e.value)}</a></div>`).join('');
+  // Once the report is fixed there's nothing left to call or email the
+  // company about for it, so phone/email render as plain text instead of
+  // tel:/mailto: links. Website, address, notes, and "wrong info" flagging
+  // stay active — those are properties of the company, not this report.
+  const phoneRowsHtml = contactEntries(c.phone).map(p => isFixed
+    ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/phone.png" alt="phone"><span>${p.label ? `<span class="contact-card-entry-label">${escapeHtml(p.label)}</span>` : ''}${escapeHtml(p.value)}</span></div>`
+    : `<div class="contact-card-row"><img class="contact-card-icon" src="icons/phone.png" alt="phone"><a href="tel:${escapeHtml(p.value)}"${phoneClickAttr}>${p.label ? `<span class="contact-card-entry-label">${escapeHtml(p.label)}</span>` : ''}${escapeHtml(p.value)}</a></div>`).join('');
+  const emailRowsHtml = contactEntries(c.email).map(e => isFixed
+    ? `<div class="contact-card-row"><img class="contact-card-icon" src="icons/email.png" alt="email"><span>${e.label ? `<span class="contact-card-entry-label">${escapeHtml(e.label)}</span>` : ''}${escapeHtml(e.value)}</span></div>`
+    : `<div class="contact-card-row"><img class="contact-card-icon" src="icons/email.png" alt="email"><a href="mailto:${escapeHtml(e.value)}"${emailClickAttr}>${e.label ? `<span class="contact-card-entry-label">${escapeHtml(e.label)}</span>` : ''}${escapeHtml(e.value)}</a></div>`).join('');
   return `
       ${phoneRowsHtml}
       ${emailRowsHtml}
@@ -14741,13 +14780,13 @@ function renderContactRows(c, reportId) {
   `;
 }
 
-function renderContactCards(companies, reportId) {
+function renderContactCards(companies, reportId, isFixed) {
   if (!companies.length) return `<div class="detail-empty">${t('detailNoContacts')}</div>`;
   return companies.map(c => `
     <div class="contact-card">
       <div class="contact-card-name">${escapeHtml(c.name)}</div>
       ${buildCompanyCatsHtml(c, 6)}
-      ${renderContactRows(c, reportId)}
+      ${renderContactRows(c, reportId, isFixed)}
     </div>
   `).join('');
 }
@@ -15797,7 +15836,7 @@ function buildDetailStatusReadonlyHtml(report, reporterName) {
   // authority over the report's area) can still remove it after that point.
   const wasSentToCompany = !!report.company_notified_at;
   const canDelete = hasFullPower || (isOwner && !wasSentToCompany);
-  const canAddPhotoInline = !!currentSession && (
+  const canAddPhotoInline = !!currentSession && report.status !== 'fixed' && (
     (isOwner && (!report.photo_path || report.photo_status === 'rejected')) ||
     isAdmin
   );

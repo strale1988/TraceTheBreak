@@ -850,6 +850,7 @@ body.driving-active .report-fab-btn{ display:none !important; }
   touch-action:manipulation;
 }
 .settings-btn:active{ background:var(--border-color-strong); transform:scale(.98); }
+.settings-btn:disabled{ opacity:.4; cursor:not-allowed; pointer-events:none; }
 .settings-btn-active-dot{
   width:8px; height:8px; border-radius:50%; flex-shrink:0;
   background:var(--accent); margin-left:auto;
@@ -3116,6 +3117,8 @@ input.uc-country-search-input{
 }
 .icon-only-btn .icon-img{ width:16px; height:16px; filter:var(--icon-tint-filter); }
 .icon-only-btn:hover{ background:var(--bg-surface-alt); }
+.icon-only-btn:disabled{ opacity:.4; cursor:not-allowed; pointer-events:none; }
+.icon-only-btn:disabled:hover{ background:var(--bg-surface); }
 
 .poi-contact-icons{
   display:flex; gap:var(--space-8); padding:2px 0 4px 0;
