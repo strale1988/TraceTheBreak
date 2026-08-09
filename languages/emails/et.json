@@ -1,0 +1,14 @@
+{
+  "reported": {
+    "subject": "Uued teated ({{company_name}}) - {{date}} ({{count}})",
+    "body": "Tere,\n\n{{count}} uu(t)s(id) teade(t) saabus(id) teie teenusele ({{company_name}}) {{date}}.\nIga teate üksikasjad on lisatud ühes PDF-failis.\n\nPalun vaadake need üle ja võtke tarvitusele vajalikud meetmed.\n\nTänan,\nTeie teenuste kasutajad"
+  },
+  "reminder": {
+    "subject": "Meeldetuletus: {{count}} teade(t) endiselt avatud - {{company_name}} ({{date}})",
+    "body": "Tere,\n\n{{count}} teile määratud teadetest on endiselt avatud ja seisuga {{date}} on aeg meeldetuletuseks.\nIga teate üksikasjad (sh avatuna oldud päevade arv) on lisatud ühes PDF-failis.\n\nTänan,\nTeie teenuste kasutajad"
+  },
+  "thankyou": {
+    "subject": "Täname - {{category_name}} lahendatud ({{company_name}})",
+    "body": "Tere,\n\nTeie teenuse ({{company_name}}) alla kuuluv teade on märgitud lahendatuks. Täname, et sellega tegelesite!\n\nKategooria: {{category_name}}\nOmavalitsus: {{municipality_name}}\n\nLink teatele: {{report_link}}\n\nTänan,\nTeie teenuste kasutajad"
+  }
+}

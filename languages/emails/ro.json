@@ -1,0 +1,14 @@
+{
+  "reported": {
+    "subject": "Sesizări noi pentru {{company_name}} - {{date}} ({{count}})",
+    "body": "Bună ziua,\n\n{{count}} sesizare(sesizări) nouă/noi au fost primite pentru serviciul dumneavoastră ({{company_name}}) în data de {{date}}.\nDetaliile pentru fiecare sunt atașate într-un singur fișier PDF.\n\nVă rugăm să le analizați și să luați măsurile corespunzătoare.\n\nMulțumim,\nUtilizatorii serviciilor dumneavoastră"
+  },
+  "reminder": {
+    "subject": "Memento: {{count}} sesizare(sesizări) încă deschisă/deschise - {{company_name}} ({{date}})",
+    "body": "Bună ziua,\n\n{{count}} dintre sesizările asociate dumneavoastră sunt încă deschise și necesită un memento la data de {{date}}.\nDetaliile pentru fiecare (inclusiv numărul de zile de la deschidere) sunt atașate într-un singur fișier PDF.\n\nMulțumim,\nUtilizatorii serviciilor dumneavoastră"
+  },
+  "thankyou": {
+    "subject": "Mulțumim - {{category_name}} rezolvată ({{company_name}})",
+    "body": "Bună ziua,\n\nO sesizare aferentă serviciului dumneavoastră ({{company_name}}) a fost marcată ca rezolvată. Vă mulțumim că v-ați ocupat de ea!\n\nCategorie: {{category_name}}\nLocalitate: {{municipality_name}}\n\nLink către sesizare: {{report_link}}\n\nMulțumim,\nUtilizatorii serviciilor dumneavoastră"
+  }
+}

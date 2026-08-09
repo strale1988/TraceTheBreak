@@ -1,0 +1,14 @@
+{
+  "reported": {
+    "subject": "Nauji pranešimai apie {{company_name}} - {{date}} ({{count}})",
+    "body": "Sveiki,\n\n{{count}} naujas(-i) pranešimas(-ai) gautas(-i) jūsų paslaugai ({{company_name}}) {{date}}.\nKiekvieno pranešimo informacija pridedama viename PDF faile.\n\nPrašome peržiūrėti ir imtis atitinkamų veiksmų.\n\nAčiū,\nJūsų paslaugų naudotojai"
+  },
+  "reminder": {
+    "subject": "Priminimas: {{count}} pranešimas(-ai) vis dar atviras(-i) - {{company_name}} ({{date}})",
+    "body": "Sveiki,\n\n{{count}} jums priskirtų pranešimų vis dar yra atviri, ir {{date}} atėjo laikas priminimui.\nKiekvieno pranešimo informacija (įskaitant atvirumo dienų skaičių) pridedama viename PDF faile.\n\nAčiū,\nJūsų paslaugų naudotojai"
+  },
+  "thankyou": {
+    "subject": "Ačiū - {{category_name}} išspręsta ({{company_name}})",
+    "body": "Sveiki,\n\nPranešimas, susijęs su jūsų paslauga ({{company_name}}), buvo pažymėtas kaip išspręstas. Ačiū, kad juo pasirūpinote!\n\nKategorija: {{category_name}}\nSavivaldybė: {{municipality_name}}\n\nNuoroda į pranešimą: {{report_link}}\n\nAčiū,\nJūsų paslaugų naudotojai"
+  }
+}

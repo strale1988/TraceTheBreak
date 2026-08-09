@@ -1,0 +1,14 @@
+{
+  "reported": {
+    "subject": "Nove prijave za {{company_name}} - {{date}} ({{count}})",
+    "body": "Poštovani,\n\n{{count}} nova/nove prijava/e je stiglo za vašu uslugu ({{company_name}}) dana {{date}}.\nDetalji za svaku prijavu se nalaze u prilogu, u jednom PDF fajlu.\n\nMolimo vas da pregledate i preduzmete odgovarajuće mjere.\n\nHvala,\nKorisnici vaših usluga"
+  },
+  "reminder": {
+    "subject": "Podsjetnik: {{count}} prijava je i dalje otvoreno - {{company_name}} ({{date}})",
+    "body": "Poštovani,\n\n{{count}} vaših povezanih prijava je i dalje otvoreno i dospjelo je za podsjetnik na dan {{date}}.\nDetalji za svaku prijavu (uključujući broj dana otvorenosti) nalaze se u prilogu, u jednom PDF fajlu.\n\nHvala,\nKorisnici vaših usluga"
+  },
+  "thankyou": {
+    "subject": "Hvala - {{category_name}} riješeno ({{company_name}})",
+    "body": "Poštovani,\n\nPrijava koja se odnosi na vašu uslugu ({{company_name}}) je označena kao riješena. Hvala vam što ste to sredili!\n\nKategorija: {{category_name}}\nOpština: {{municipality_name}}\n\nLink ka prijavi: {{report_link}}\n\nHvala,\nKorisnici vaših usluga"
+  }
+}

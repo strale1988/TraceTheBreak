@@ -1,0 +1,14 @@
+{
+  "reported": {
+    "subject": "Adroddiadau newydd ar gyfer {{company_name}} - {{date}} ({{count}})",
+    "body": "Helo,\n\nDaeth {{count}} adroddiad(au) newydd i mewn ar gyfer eich gwasanaeth ({{company_name}}) ar {{date}}.\nMae manylion pob un ynghlwm mewn un ffeil PDF.\n\nA wnewch chi eu hadolygu a chymryd y camau priodol.\n\nDiolch,\nDefnyddwyr eich gwasanaethau"
+  },
+  "reminder": {
+    "subject": "Nodyn atgoffa: {{count}} adroddiad(au) yn dal ar agor - {{company_name}} ({{date}})",
+    "body": "Helo,\n\nMae {{count}} o'ch adroddiadau cysylltiedig yn dal ar agor ac mae nodyn atgoffa'n ddyledus erbyn {{date}}.\nMae manylion pob un (gan gynnwys nifer y diwrnodau ar agor) ynghlwm mewn un ffeil PDF.\n\nDiolch,\nDefnyddwyr eich gwasanaethau"
+  },
+  "thankyou": {
+    "subject": "Diolch - {{category_name}} wedi'i ddatrys ({{company_name}})",
+    "body": "Helo,\n\nMae adroddiad sy'n dod o dan eich gwasanaeth ({{company_name}}) wedi'i nodi fel wedi'i ddatrys. Diolch am ofalu am hyn!\n\nCategori: {{category_name}}\nBwrdeistref: {{municipality_name}}\n\nDolen i'r adroddiad: {{report_link}}\n\nDiolch,\nDefnyddwyr eich gwasanaethau"
+  }
+}

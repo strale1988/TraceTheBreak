@@ -1,0 +1,14 @@
+{
+  "reported": {
+    "subject": "Nye anmeldelser for {{company_name}} - {{date}} ({{count}})",
+    "body": "Hej,\n\n{{count}} ny(e) anmeldelse(r) er modtaget for din tjeneste ({{company_name}}) den {{date}}.\nDetaljer for hver enkelt er vedhæftet i én PDF-fil.\n\nGennemgå dem venligst og træf passende foranstaltninger.\n\nMange tak,\nBrugere af dine tjenester"
+  },
+  "reminder": {
+    "subject": "Påmindelse: {{count}} anmeldelse(r) stadig åbne - {{company_name}} ({{date}})",
+    "body": "Hej,\n\n{{count}} af dine tilknyttede anmeldelser er stadig åbne og er klar til en påmindelse pr. {{date}}.\nDetaljer for hver enkelt (inklusive antal dage åben) er vedhæftet i én PDF-fil.\n\nMange tak,\nBrugere af dine tjenester"
+  },
+  "thankyou": {
+    "subject": "Tak - {{category_name}} løst ({{company_name}})",
+    "body": "Hej,\n\nEn anmeldelse under din tjeneste ({{company_name}}) er blevet markeret som løst. Tak, fordi du tog dig af det!\n\nKategori: {{category_name}}\nKommune: {{municipality_name}}\n\nLink til anmeldelsen: {{report_link}}\n\nMange tak,\nBrugere af dine tjenester"
+  }
+}

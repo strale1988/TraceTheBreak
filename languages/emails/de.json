@@ -1,0 +1,14 @@
+{
+  "reported": {
+    "subject": "Neue Meldungen für {{company_name}} - {{date}} ({{count}})",
+    "body": "Hallo,\n\n{{count}} neue Meldung(en) sind für Ihren Dienst ({{company_name}}) am {{date}} eingegangen.\nDetails zu jeder Meldung sind in einer PDF-Datei beigefügt.\n\nBitte prüfen Sie diese und ergreifen Sie geeignete Maßnahmen.\n\nVielen Dank,\nNutzer Ihrer Dienste"
+  },
+  "reminder": {
+    "subject": "Erinnerung: {{count}} Meldung(en) noch offen - {{company_name}} ({{date}})",
+    "body": "Hallo,\n\n{{count}} Ihrer zugeordneten Meldungen sind noch offen und zum {{date}} fällig für eine Erinnerung.\nDetails zu jeder Meldung (einschließlich der Anzahl offener Tage) sind in einer PDF-Datei beigefügt.\n\nVielen Dank,\nNutzer Ihrer Dienste"
+  },
+  "thankyou": {
+    "subject": "Danke - {{category_name}} erledigt ({{company_name}})",
+    "body": "Hallo,\n\nEine Meldung, die zu Ihrem Dienst ({{company_name}}) gehört, wurde als erledigt markiert. Vielen Dank, dass Sie sich darum gekümmert haben!\n\nKategorie: {{category_name}}\nGemeinde: {{municipality_name}}\n\nLink zur Meldung: {{report_link}}\n\nVielen Dank,\nNutzer Ihrer Dienste"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "reported": {
+    "subject": "Nous avisos per a {{company_name}} - {{date}} ({{count}})",
+    "body": "Hola,\n\n{{count}} nou(s) avís(os) han arribat per al vostre servei ({{company_name}}) el {{date}}.\nEls detalls de cadascun s'adjunten en un únic PDF.\n\nSi us plau, revisin-los i prenguin les mesures adients.\n\nGràcies,\nUsuaris dels vostres serveis"
+  },
+  "reminder": {
+    "subject": "Recordatori: {{count}} avís(os) encara oberts - {{company_name}} ({{date}})",
+    "body": "Hola,\n\n{{count}} dels vostres avisos associats encara estan oberts i toca un recordatori a data {{date}}.\nEls detalls de cadascun (incloent-hi els dies oberts) s'adjunten en un únic PDF.\n\nGràcies,\nUsuaris dels vostres serveis"
+  },
+  "thankyou": {
+    "subject": "Gràcies - {{category_name}} resolt ({{company_name}})",
+    "body": "Hola,\n\nUn avís corresponent al vostre servei ({{company_name}}) s'ha marcat com a resolt. Gràcies per ocupar-vos-en!\n\nCategoria: {{category_name}}\nMunicipi: {{municipality_name}}\n\nEnllaç a l'avís: {{report_link}}\n\nGràcies,\nUsuaris dels vostres serveis"
+  }
+}

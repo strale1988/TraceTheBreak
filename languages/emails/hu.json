@@ -1,0 +1,14 @@
+{
+  "reported": {
+    "subject": "Új bejelentések - {{company_name}} - {{date}} ({{count}})",
+    "body": "Tisztelt Cím!\n\n{{count}} új bejelentés érkezett az Ön szolgáltatásához ({{company_name}}) {{date}} napon.\nAz egyes bejelentések részletei egy PDF-fájlban vannak csatolva.\n\nKérjük, tekintse át azokat és tegye meg a szükséges intézkedéseket.\n\nKöszönjük,\nSzolgáltatásai felhasználói"
+  },
+  "reminder": {
+    "subject": "Emlékeztető: {{count}} bejelentés még nyitva - {{company_name}} ({{date}})",
+    "body": "Tisztelt Cím!\n\n{{count}} Önhöz rendelt bejelentés még mindig nyitva van, és {{date}} napon esedékes az emlékeztető.\nAz egyes bejelentések részletei (a nyitva tartás napjainak számával együtt) egy PDF-fájlban vannak csatolva.\n\nKöszönjük,\nSzolgáltatásai felhasználói"
+  },
+  "thankyou": {
+    "subject": "Köszönjük - {{category_name}} megoldva ({{company_name}})",
+    "body": "Tisztelt Cím!\n\nAz Ön szolgáltatásához ({{company_name}}) tartozó bejelentést megoldottként jelölték meg. Köszönjük, hogy foglalkozott vele!\n\nKategória: {{category_name}}\nTelepülés: {{municipality_name}}\n\nHivatkozás a bejelentésre: {{report_link}}\n\nKöszönjük,\nSzolgáltatásai felhasználói"
+  }
+}

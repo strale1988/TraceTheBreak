@@ -1,0 +1,14 @@
+{
+  "reported": {
+    "subject": "Nowe zgłoszenia dla {{company_name}} - {{date}} ({{count}})",
+    "body": "Dzień dobry,\n\n{{count}} nowe zgłoszenie(a) wpłynęło do Państwa usługi ({{company_name}}) w dniu {{date}}.\nSzczegóły każdego zgłoszenia znajdują się w załączonym pliku PDF.\n\nProsimy o zapoznanie się i podjęcie odpowiednich działań.\n\nDziękujemy,\nUżytkownicy Państwa usług"
+  },
+  "reminder": {
+    "subject": "Przypomnienie: {{count}} zgłoszenie(a) nadal otwarte - {{company_name}} ({{date}})",
+    "body": "Dzień dobry,\n\n{{count}} przypisanych do Państwa zgłoszeń jest nadal otwartych i wymaga przypomnienia na dzień {{date}}.\nSzczegóły każdego zgłoszenia (wraz z liczbą dni otwarcia) znajdują się w załączonym pliku PDF.\n\nDziękujemy,\nUżytkownicy Państwa usług"
+  },
+  "thankyou": {
+    "subject": "Dziękujemy - {{category_name}} rozwiązane ({{company_name}})",
+    "body": "Dzień dobry,\n\nZgłoszenie dotyczące Państwa usługi ({{company_name}}) zostało oznaczone jako rozwiązane. Dziękujemy za zajęcie się tą sprawą!\n\nKategoria: {{category_name}}\nGmina: {{municipality_name}}\n\nLink do zgłoszenia: {{report_link}}\n\nDziękujemy,\nUżytkownicy Państwa usług"
+  }
+}

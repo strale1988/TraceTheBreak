@@ -1,0 +1,14 @@
+{
+  "reported": {
+    "subject": "Rapporti ġodda għal {{company_name}} - {{date}} ({{count}})",
+    "body": "Bongu,\n\n{{count}} rapport(i) ġdid(a) waslu għas-servizz tiegħek ({{company_name}}) fi {{date}}.\nId-dettalji ta' kull wieħed huma mehmuża f'fajl PDF wieħed.\n\nJekk jogħġbok irrevedihom u ħu l-azzjoni xierqa.\n\nGrazzi,\nUtenti tas-servizzi tiegħek"
+  },
+  "reminder": {
+    "subject": "Tfakkira: {{count}} rapport(i) għadhom miftuħa - {{company_name}} ({{date}})",
+    "body": "Bongu,\n\n{{count}} mir-rapporti assenjati lilek għadhom miftuħa u waslet il-ħin għal tfakkira fi {{date}}.\nId-dettalji ta' kull wieħed (inkluż l-għadd ta' jiem miftuħa) huma mehmuża f'fajl PDF wieħed.\n\nGrazzi,\nUtenti tas-servizzi tiegħek"
+  },
+  "thankyou": {
+    "subject": "Grazzi - {{category_name}} solvut ({{company_name}})",
+    "body": "Bongu,\n\nRapport li jaqa' taħt is-servizz tiegħek ({{company_name}}) ġie mmarkat bħala solvut. Grazzi talli ħadt ħsiebu!\n\nKategorija: {{category_name}}\nMunicipalità: {{municipality_name}}\n\nLink għar-rapport: {{report_link}}\n\nGrazzi,\nUtenti tas-servizzi tiegħek"
+  }
+}

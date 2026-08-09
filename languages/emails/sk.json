@@ -1,0 +1,14 @@
+{
+  "reported": {
+    "subject": "Nové hlásenia pre {{company_name}} - {{date}} ({{count}})",
+    "body": "Dobrý deň,\n\n{{count}} nové hlásenie/nových hlásení bolo prijatých pre vašu službu ({{company_name}}) dňa {{date}}.\nPodrobnosti ku každému hláseniu sú priložené v jednom PDF súbore.\n\nProsíme, skontrolujte ich a podniknite príslušné kroky.\n\nĎakujeme,\nPoužívatelia vašich služieb"
+  },
+  "reminder": {
+    "subject": "Pripomienka: {{count}} hlásení stále otvorených - {{company_name}} ({{date}})",
+    "body": "Dobrý deň,\n\n{{count}} vašich priradených hlásení je stále otvorených a ku dňu {{date}} je čas na pripomienku.\nPodrobnosti ku každému hláseniu (vrátane počtu dní otvorenosti) sú priložené v jednom PDF súbore.\n\nĎakujeme,\nPoužívatelia vašich služieb"
+  },
+  "thankyou": {
+    "subject": "Ďakujeme - {{category_name}} vyriešené ({{company_name}})",
+    "body": "Dobrý deň,\n\nHlásenie patriace pod vašu službu ({{company_name}}) bolo označené ako vyriešené. Ďakujeme, že ste sa o to postarali!\n\nKategória: {{category_name}}\nObec: {{municipality_name}}\n\nOdkaz na hlásenie: {{report_link}}\n\nĎakujeme,\nPoužívatelia vašich služieb"
+  }
+}

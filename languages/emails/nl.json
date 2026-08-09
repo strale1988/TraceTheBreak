@@ -1,0 +1,14 @@
+{
+  "reported": {
+    "subject": "Nieuwe meldingen voor {{company_name}} - {{date}} ({{count}})",
+    "body": "Hallo,\n\n{{count}} nieuwe melding(en) zijn binnengekomen voor uw dienst ({{company_name}}) op {{date}}.\nDetails van elke melding zijn bijgevoegd in één PDF-bestand.\n\nGelieve deze te bekijken en passende actie te ondernemen.\n\nMet dank,\nGebruikers van uw diensten"
+  },
+  "reminder": {
+    "subject": "Herinnering: {{count}} melding(en) nog open - {{company_name}} ({{date}})",
+    "body": "Hallo,\n\n{{count}} van uw gekoppelde meldingen staan nog open en zijn toe aan een herinnering per {{date}}.\nDetails van elke melding (inclusief het aantal dagen open) zijn bijgevoegd in één PDF-bestand.\n\nMet dank,\nGebruikers van uw diensten"
+  },
+  "thankyou": {
+    "subject": "Dank u - {{category_name}} opgelost ({{company_name}})",
+    "body": "Hallo,\n\nEen melding die onder uw dienst ({{company_name}}) valt, is gemarkeerd als opgelost. Bedankt dat u dit heeft afgehandeld!\n\nCategorie: {{category_name}}\nGemeente: {{municipality_name}}\n\nLink naar de melding: {{report_link}}\n\nMet dank,\nGebruikers van uw diensten"
+  }
+}

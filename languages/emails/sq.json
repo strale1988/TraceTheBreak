@@ -1,0 +1,14 @@
+{
+  "reported": {
+    "subject": "Raportime të reja për {{company_name}} - {{date}} ({{count}})",
+    "body": "Përshëndetje,\n\n{{count}} raportim(e) i(të) ri(ja) mbërritën për shërbimin tuaj ({{company_name}}) më {{date}}.\nDetajet për secilin janë bashkëngjitur në një skedar të vetëm PDF.\n\nJu lutemi shqyrtojini dhe ndërmerrni veprimet e duhura.\n\nFaleminderit,\nPërdoruesit e shërbimeve tuaja"
+  },
+  "reminder": {
+    "subject": "Kujtesë: {{count}} raportim(e) ende të hapur - {{company_name}} ({{date}})",
+    "body": "Përshëndetje,\n\n{{count}} nga raportimet tuaja të lidhura janë ende të hapura dhe u vjen radha për kujtesë më {{date}}.\nDetajet për secilin (përfshirë numrin e ditëve të hapur) janë bashkëngjitur në një skedar të vetëm PDF.\n\nFaleminderit,\nPërdoruesit e shërbimeve tuaja"
+  },
+  "thankyou": {
+    "subject": "Faleminderit - {{category_name}} u zgjidh ({{company_name}})",
+    "body": "Përshëndetje,\n\nNjë raportim që i përket shërbimit tuaj ({{company_name}}) është shënuar si i zgjidhur. Faleminderit që u kujdesët për të!\n\nKategoria: {{category_name}}\nBashkia: {{municipality_name}}\n\nLidhja e raportimit: {{report_link}}\n\nFaleminderit,\nPërdoruesit e shërbimeve tuaja"
+  }
+}

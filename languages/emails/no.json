@@ -1,0 +1,14 @@
+{
+  "reported": {
+    "subject": "Nye rapporter for {{company_name}} - {{date}} ({{count}})",
+    "body": "Hei,\n\n{{count}} ny(e) rapport(er) er kommet inn for din tjeneste ({{company_name}}) den {{date}}.\nDetaljer for hver enkelt er vedlagt i én PDF-fil.\n\nVennligst gå gjennom dem og iverksett passende tiltak.\n\nTakk,\nBrukere av dine tjenester"
+  },
+  "reminder": {
+    "subject": "Påminnelse: {{count}} rapport(er) fortsatt åpne - {{company_name}} ({{date}})",
+    "body": "Hei,\n\n{{count}} av dine tilknyttede rapporter er fortsatt åpne og forfaller til påminnelse per {{date}}.\nDetaljer for hver enkelt (inkludert antall dager åpen) er vedlagt i én PDF-fil.\n\nTakk,\nBrukere av dine tjenester"
+  },
+  "thankyou": {
+    "subject": "Takk - {{category_name}} løst ({{company_name}})",
+    "body": "Hei,\n\nEn rapport som hører til din tjeneste ({{company_name}}) er merket som løst. Takk for at du tok hånd om det!\n\nKategori: {{category_name}}\nKommune: {{municipality_name}}\n\nLenke til rapporten: {{report_link}}\n\nTakk,\nBrukere av dine tjenester"
+  }
+}

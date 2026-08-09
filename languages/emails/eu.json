@@ -1,0 +1,14 @@
+{
+  "reported": {
+    "subject": "{{company_name}}(r)entzako txosten berriak - {{date}} ({{count}})",
+    "body": "Kaixo,\n\n{{count}} txosten berri jaso dira zure zerbitzurako ({{company_name}}) {{date}} egunean.\nBakoitzaren xehetasunak PDF fitxategi bakar batean erantsita daude.\n\nMesedez, berrikusi eta hartu dagozkion neurriak.\n\nEskerrik asko,\nZure zerbitzuen erabiltzaileak"
+  },
+  "reminder": {
+    "subject": "Oroigarria: {{count}} txosten oraindik irekita - {{company_name}} ({{date}})",
+    "body": "Kaixo,\n\nZuri esleitutako {{count}} txosten oraindik irekita daude eta oroigarria dagokie {{date}} egunean.\nBakoitzaren xehetasunak (irekita egon diren egun kopurua barne) PDF fitxategi bakar batean erantsita daude.\n\nEskerrik asko,\nZure zerbitzuen erabiltzaileak"
+  },
+  "thankyou": {
+    "subject": "Eskerrik asko - {{category_name}} konponduta ({{company_name}})",
+    "body": "Kaixo,\n\nZure zerbitzuari ({{company_name}}) dagokion txosten bat konponduta gisa markatu da. Eskerrik asko horretaz arduratzeagatik!\n\nKategoria: {{category_name}}\nUdalerria: {{municipality_name}}\n\nTxostenerako esteka: {{report_link}}\n\nEskerrik asko,\nZure zerbitzuen erabiltzaileak"
+  }
+}

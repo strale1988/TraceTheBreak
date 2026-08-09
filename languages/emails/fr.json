@@ -1,0 +1,14 @@
+{
+  "reported": {
+    "subject": "Nouveaux signalements pour {{company_name}} - {{date}} ({{count}})",
+    "body": "Bonjour,\n\n{{count}} nouveau(x) signalement(s) sont arrivés pour votre service ({{company_name}}) le {{date}}.\nLes détails de chacun sont joints dans un seul fichier PDF.\n\nMerci de bien vouloir les examiner et prendre les mesures appropriées.\n\nMerci,\nUtilisateurs de vos services"
+  },
+  "reminder": {
+    "subject": "Rappel : {{count}} signalement(s) toujours ouvert(s) - {{company_name}} ({{date}})",
+    "body": "Bonjour,\n\n{{count}} de vos signalements associés sont toujours ouverts et font l'objet d'un rappel à la date du {{date}}.\nLes détails de chacun (y compris le nombre de jours d'ouverture) sont joints dans un seul fichier PDF.\n\nMerci,\nUtilisateurs de vos services"
+  },
+  "thankyou": {
+    "subject": "Merci - {{category_name}} résolu ({{company_name}})",
+    "body": "Bonjour,\n\nUn signalement relevant de votre service ({{company_name}}) a été marqué comme résolu. Merci de vous en être occupé(e) !\n\nCatégorie : {{category_name}}\nCommune : {{municipality_name}}\n\nLien vers le signalement : {{report_link}}\n\nMerci,\nUtilisateurs de vos services"
+  }
+}

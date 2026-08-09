@@ -1,0 +1,14 @@
+{
+  "reported": {
+    "subject": "Nove prijave za {{company_name}} - {{date}} ({{count}})",
+    "body": "Pozdravljeni,\n\n{{count}} novih prijav je prispelo za vašo storitev ({{company_name}}) dne {{date}}.\nPodrobnosti za vsako prijavo so priložene v enem PDF dokumentu.\n\nProsimo, preglejte in ukrepajte ustrezno.\n\nHvala,\nUporabniki vaših storitev"
+  },
+  "reminder": {
+    "subject": "Opomnik: {{count}} prijav(e) še vedno odprtih - {{company_name}} ({{date}})",
+    "body": "Pozdravljeni,\n\n{{count}} vaših povezanih prijav je še vedno odprtih in zapadlih za opomnik na dan {{date}}.\nPodrobnosti za vsako prijavo (vključno s številom dni odprtosti) so priložene v enem PDF dokumentu.\n\nHvala,\nUporabniki vaših storitev"
+  },
+  "thankyou": {
+    "subject": "Hvala - {{category_name}} odpravljeno ({{company_name}})",
+    "body": "Pozdravljeni,\n\nPrijava, ki spada pod vašo storitev ({{company_name}}), je bila označena kot odpravljena. Hvala, ker ste poskrbeli za to!\n\nKategorija: {{category_name}}\nObčina: {{municipality_name}}\n\nPovezava do prijave: {{report_link}}\n\nHvala,\nUporabniki vaših storitev"
+  }
+}

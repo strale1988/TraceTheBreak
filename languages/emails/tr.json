@@ -1,0 +1,14 @@
+{
+  "reported": {
+    "subject": "{{company_name}} için yeni bildirimler - {{date}} ({{count}})",
+    "body": "Merhaba,\n\nHizmetiniz ({{company_name}}) için {{date}} tarihinde {{count}} yeni bildirim geldi.\nHer birinin ayrıntıları tek bir PDF dosyasında ektedir.\n\nLütfen inceleyip gerekli işlemi yapınız.\n\nTeşekkürler,\nHizmetlerinizin kullanıcıları"
+  },
+  "reminder": {
+    "subject": "Hatırlatma: {{count}} bildirim hâlâ açık - {{company_name}} ({{date}})",
+    "body": "Merhaba,\n\nSize atanan bildirimlerden {{count}} tanesi hâlâ açık ve {{date}} itibarıyla hatırlatma zamanı geldi.\nHer birinin ayrıntıları (açık kalınan gün sayısı dahil) tek bir PDF dosyasında ektedir.\n\nTeşekkürler,\nHizmetlerinizin kullanıcıları"
+  },
+  "thankyou": {
+    "subject": "Teşekkürler - {{category_name}} çözüldü ({{company_name}})",
+    "body": "Merhaba,\n\nHizmetiniz ({{company_name}}) kapsamındaki bir bildirim çözüldü olarak işaretlendi. İlgilendiğiniz için teşekkür ederiz!\n\nKategori: {{category_name}}\nBelediye: {{municipality_name}}\n\nBildirim bağlantısı: {{report_link}}\n\nTeşekkürler,\nHizmetlerinizin kullanıcıları"
+  }
+}

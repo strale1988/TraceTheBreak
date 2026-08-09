@@ -1,0 +1,14 @@
+{
+  "reported": {
+    "subject": "Jauni ziņojumi par {{company_name}} - {{date}} ({{count}})",
+    "body": "Labdien,\n\n{{count}} jauns(-i) ziņojums(-i) saņemts(-i) jūsu pakalpojumam ({{company_name}}) {{date}}.\nKatra ziņojuma dati ir pievienoti vienā PDF failā.\n\nLūdzu, izskatiet tos un veiciet atbilstošus pasākumus.\n\nPaldies,\nJūsu pakalpojumu lietotāji"
+  },
+  "reminder": {
+    "subject": "Atgādinājums: {{count}} ziņojums(-i) joprojām atvērts(-i) - {{company_name}} ({{date}})",
+    "body": "Labdien,\n\n{{count}} no jums piesaistītajiem ziņojumiem joprojām ir atvērti, un atgādinājums pienākas uz {{date}}.\nKatra ziņojuma dati (ieskaitot atvērto dienu skaitu) ir pievienoti vienā PDF failā.\n\nPaldies,\nJūsu pakalpojumu lietotāji"
+  },
+  "thankyou": {
+    "subject": "Paldies - {{category_name}} atrisināts ({{company_name}})",
+    "body": "Labdien,\n\nZiņojums, kas attiecas uz jūsu pakalpojumu ({{company_name}}), ir atzīmēts kā atrisināts. Paldies, ka par to parūpējāties!\n\nKategorija: {{category_name}}\nPašvaldība: {{municipality_name}}\n\nSaite uz ziņojumu: {{report_link}}\n\nPaldies,\nJūsu pakalpojumu lietotāji"
+  }
+}

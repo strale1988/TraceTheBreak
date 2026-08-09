@@ -1,0 +1,14 @@
+{
+  "reported": {
+    "subject": "Nya rapporter för {{company_name}} - {{date}} ({{count}})",
+    "body": "Hej,\n\n{{count}} ny(a) rapport(er) har inkommit för din tjänst ({{company_name}}) den {{date}}.\nDetaljer för varje rapport bifogas i en PDF-fil.\n\nVänligen granska och vidta lämpliga åtgärder.\n\nTack,\nAnvändare av dina tjänster"
+  },
+  "reminder": {
+    "subject": "Påminnelse: {{count}} rapport(er) fortfarande öppna - {{company_name}} ({{date}})",
+    "body": "Hej,\n\n{{count}} av dina tilldelade rapporter är fortfarande öppna och en påminnelse är aktuell per {{date}}.\nDetaljer för varje rapport (inklusive antal dagar öppen) bifogas i en PDF-fil.\n\nTack,\nAnvändare av dina tjänster"
+  },
+  "thankyou": {
+    "subject": "Tack - {{category_name}} åtgärdat ({{company_name}})",
+    "body": "Hej,\n\nEn rapport som tillhör din tjänst ({{company_name}}) har markerats som åtgärdad. Tack för att du tog hand om det!\n\nKategori: {{category_name}}\nKommun: {{municipality_name}}\n\nLänk till rapporten: {{report_link}}\n\nTack,\nAnvändare av dina tjänster"
+  }
+}

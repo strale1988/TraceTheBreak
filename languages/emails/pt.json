@@ -1,0 +1,14 @@
+{
+  "reported": {
+    "subject": "Novas denúncias para {{company_name}} - {{date}} ({{count}})",
+    "body": "Olá,\n\n{{count}} nova(s) denúncia(s) chegaram para o seu serviço ({{company_name}}) em {{date}}.\nOs detalhes de cada uma estão anexados num único PDF.\n\nPor favor, analise-as e tome as medidas adequadas.\n\nObrigado,\nUtilizadores dos seus serviços"
+  },
+  "reminder": {
+    "subject": "Lembrete: {{count}} denúncia(s) ainda em aberto - {{company_name}} ({{date}})",
+    "body": "Olá,\n\n{{count}} das suas denúncias associadas continuam em aberto e um lembrete é devido em {{date}}.\nOs detalhes de cada uma (incluindo os dias em aberto) estão anexados num único PDF.\n\nObrigado,\nUtilizadores dos seus serviços"
+  },
+  "thankyou": {
+    "subject": "Obrigado - {{category_name}} resolvido ({{company_name}})",
+    "body": "Olá,\n\nUma denúncia relativa ao seu serviço ({{company_name}}) foi marcada como resolvida. Obrigado por tratar do assunto!\n\nCategoria: {{category_name}}\nMunicípio: {{municipality_name}}\n\nLink para a denúncia: {{report_link}}\n\nObrigado,\nUtilizadores dos seus serviços"
+  }
+}

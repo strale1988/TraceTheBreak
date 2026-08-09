@@ -1,0 +1,14 @@
+{
+  "reported": {
+    "subject": "Nei Meldungen fir {{company_name}} - {{date}} ({{count}})",
+    "body": "Moien,\n\n{{count}} nei Meldung(en) sinn fir Ären Déngscht ({{company_name}}) den {{date}} agaangen.\nDetailer zu all Meldung sinn an enger PDF-Datei bäigefüügt.\n\nBitt kuckt se duerch a rifft déi néideg Schrëtt.\n\nMerci,\nBenotzer vun Ären Déngschter"
+  },
+  "reminder": {
+    "subject": "Erënnerung: {{count}} Meldung(en) nach op - {{company_name}} ({{date}})",
+    "body": "Moien,\n\n{{count}} vun Ären zougewisenen Meldungen sinn nach op an eng Erënnerung ass fälleg zum {{date}}.\nDetailer zu all Meldung (mat der Zuel vun den Deeg op) sinn an enger PDF-Datei bäigefüügt.\n\nMerci,\nBenotzer vun Ären Déngschter"
+  },
+  "thankyou": {
+    "subject": "Merci - {{category_name}} geléist ({{company_name}})",
+    "body": "Moien,\n\nEng Meldung, déi zu Ärem Déngscht gehéiert ({{company_name}}), gouf als geléist markéiert. Merci datt Dir Iech drëms gekëmmert hutt!\n\nKategorie: {{category_name}}\nGemeng: {{municipality_name}}\n\nLink zur Meldung: {{report_link}}\n\nMerci,\nBenotzer vun Ären Déngschter"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "reported": {
+    "subject": "Nuevos reportes para {{company_name}} - {{date}} ({{count}})",
+    "body": "Hola,\n\n{{count}} nuevo(s) reporte(s) llegaron para su servicio ({{company_name}}) el {{date}}.\nLos detalles de cada uno se adjuntan en un solo PDF.\n\nPor favor, revíselos y tome las medidas correspondientes.\n\nGracias,\nUsuarios de sus servicios"
+  },
+  "reminder": {
+    "subject": "Recordatorio: {{count}} reporte(s) aún abiertos - {{company_name}} ({{date}})",
+    "body": "Hola,\n\n{{count}} de sus reportes asignados siguen abiertos y corresponde un recordatorio a fecha {{date}}.\nLos detalles de cada uno (incluyendo los días abiertos) se adjuntan en un solo PDF.\n\nGracias,\nUsuarios de sus servicios"
+  },
+  "thankyou": {
+    "subject": "Gracias - {{category_name}} resuelto ({{company_name}})",
+    "body": "Hola,\n\nUn reporte correspondiente a su servicio ({{company_name}}) ha sido marcado como resuelto. ¡Gracias por atenderlo!\n\nCategoría: {{category_name}}\nMunicipio: {{municipality_name}}\n\nEnlace al reporte: {{report_link}}\n\nGracias,\nUsuarios de sus servicios"
+  }
+}
