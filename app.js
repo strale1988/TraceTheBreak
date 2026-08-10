@@ -4799,6 +4799,7 @@ function collectAllIconPaths() {
     'icons/badges/badge-admin-admin-1.png', 'icons/badges/badge-admin-admin-2.png', 'icons/badges/badge-admin-admin-3.png', 'icons/badges/badge-admin-admin-4.png',
     'icons/turn-arrive.png', 'icons/turn-roundabout.png', 'icons/turn-merge.png',
     'icons/turn-fork.png', 'icons/turn-end-of-road.png', 'icons/turn-ramp.png',
+    'icons/email-sent.png', 'icons/email-resent.png', 'icons/sleep.png',
   ];
   const badgeArrays = [
     (typeof BADGES !== 'undefined') ? BADGES : [],
@@ -10181,7 +10182,7 @@ async function renderStaleBadgeForDetail(report) {
     if (!anchor) return;
 
     const staleSince = new Date(new Date(report.created_at).getTime() + staleThresholdMs).toISOString();
-    const html = buildTimelineExtraItem(staleSince, `<span class="photo-status-badge timeline-stale-badge" style="background:var(--accent);">${escapeHtml(t('queueTypeStale'))}</span>`);
+    const html = buildTimelineExtraItem(staleSince, `<img class="detail-row-icon" src="icons/sleep.png" alt=""><span class="photo-status-badge timeline-stale-badge" style="background:var(--accent);">${escapeHtml(t('queueTypeStale'))}</span>`);
     anchor.insertAdjacentHTML('afterend', html);
   } catch (err) {
     console.error('Failed to check report staleness:', err.message || err);
@@ -15817,10 +15818,10 @@ async function exportCompanyReportsPdf(companyId) {
 // via the contacts section, just not as a timeline entry until it happens.
 function companyNotifyTimelineEvents(report) {
   if (!report.company_notified_at) return [];
-  const events = [{ time: report.company_notified_at, html: buildTimelineExtraItem(report.company_notified_at, `<span class="timeline-note">${t('companyNotifyLabel')}</span>`) }];
+  const events = [{ time: report.company_notified_at, html: buildTimelineExtraItem(report.company_notified_at, `<img class="detail-row-icon" src="icons/email-sent.png" alt=""><span class="timeline-note">${t('companyNotifyLabel')}</span>`) }];
   const showsReminder = report.company_last_notified_at && report.company_last_notified_at !== report.company_notified_at;
   if (showsReminder) {
-    events.push({ time: report.company_last_notified_at, html: buildTimelineExtraItem(report.company_last_notified_at, `<span class="timeline-note">${t('companyLastReminderLabel')}</span>`) });
+    events.push({ time: report.company_last_notified_at, html: buildTimelineExtraItem(report.company_last_notified_at, `<img class="detail-row-icon" src="icons/email-resent.png" alt=""><span class="timeline-note">${t('companyLastReminderLabel')}</span>`) });
   }
   return events;
 }
