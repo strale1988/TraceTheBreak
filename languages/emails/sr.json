@@ -1,12 +1,12 @@
 {
   "reported": {
-    "subject": "Nova prijava za {{company_name}} - {{date}}",
-    "body": "Poštovani {{company_name}},\n\nNova prijava je stigla za vašu uslugu dana {{date}}. Detalji se nalaze u prilogu, u PDF fajlu — molimo vas da pregledate i preduzmete odgovarajuće mere.\n\nHvala,\nKorisnici vaših usluga",
+    "subject": "Nova(e) prijava(e) za {{company_name}} - {{date}} ({{count}})",
+    "body": "Poštovani {{company_name}},\n\n{{count}} nova(e) prijava(e) je stiglo za vašu uslugu dana {{date}}. Detalji se nalaze u prilogu, u PDF fajlu — molimo vas da pregledate i preduzmete odgovarajuće mere.\n\nHvala,\nKorisnici vaših usluga",
     "attachment_label": "Detalji u prilogu"
   },
   "reminder": {
-    "subject": "Podsetnik: Prijava je i dalje otvorena - {{company_name}} ({{date}})",
-    "body": "Poštovani {{company_name}},\n\nPrijava je i dalje otvorena i dospela je za podsetnik na dan {{date}}. Detalji se nalaze u prilogu, u PDF fajlu — molimo vas da pregledate i preduzmete odgovarajuće mere.\n\nHvala,\nKorisnici vaših usluga",
+    "subject": "Podsetnik: {{count}} prijava(e) je/su i dalje otvorena(e) - {{company_name}} ({{date}})",
+    "body": "Poštovani {{company_name}},\n\n{{count}} vaših povezanih prijava(e) je/su i dalje otvorena(e) i dospelo je za podsetnik na dan {{date}}. Detalji se nalaze u prilogu, u PDF fajlu — molimo vas da pregledate i preduzmete odgovarajuće mere.\n\nHvala,\nKorisnici vaših usluga",
     "attachment_label": "Detalji u prilogu"
   },
   "thankyou": {

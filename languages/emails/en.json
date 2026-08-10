@@ -1,12 +1,12 @@
 {
   "reported": {
-    "subject": "New report for {{company_name}} - {{date}}",
-    "body": "Hi {{company_name}},\n\nA new report came in for your service on {{date}}. Full details are attached as a PDF — please review and take the appropriate action.\n\nThank you,\nUsers of your services",
+    "subject": "New report(s) for {{company_name}} - {{date}} ({{count}})",
+    "body": "Hi {{company_name}},\n\n{{count}} new report(s) came in for your service on {{date}}. Full details are attached as a PDF — please review and take the appropriate action.\n\nThank you,\nUsers of your services",
     "attachment_label": "Details attached"
   },
   "reminder": {
-    "subject": "Reminder: Report still open - {{company_name}} ({{date}})",
-    "body": "Hi {{company_name}},\n\nYour matched report is still open and due for a reminder as of {{date}}. Full details are attached as a PDF — please review and take the appropriate action.\n\nThank you,\nUsers of your services",
+    "subject": "Reminder: {{count}} report(s) still open - {{company_name}} ({{date}})",
+    "body": "Hi {{company_name}},\n\n{{count}} of your matched report(s) are still open and due for a reminder as of {{date}}. Full details are attached as a PDF — please review and take the appropriate action.\n\nThank you,\nUsers of your services",
     "attachment_label": "Details attached"
   },
   "thankyou": {
