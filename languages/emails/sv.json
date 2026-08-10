@@ -1,14 +1,17 @@
 {
   "reported": {
-    "subject": "Nya rapporter för {{company_name}} - {{date}} ({{count}})",
-    "body": "Hej,\n\n{{count}} ny(a) rapport(er) har inkommit för din tjänst ({{company_name}}) den {{date}}.\nDetaljer för varje rapport bifogas i en PDF-fil.\n\nVänligen granska och vidta lämpliga åtgärder.\n\nTack,\nAnvändare av dina tjänster"
+    "subject": "Ny(a) rapport(er) för {{company_name}} - {{date}} ({{count}})",
+    "body": "Hej {{company_name}},\n\n{{count}} ny(a) rapport(er) kom in för din tjänst den {{date}}. Fullständiga detaljer bifogas som PDF — granska och vidta lämpliga åtgärder.\n\nTack,\nAnvändare av dina tjänster",
+    "attachment_label": "Detaljer bifogade"
   },
   "reminder": {
     "subject": "Påminnelse: {{count}} rapport(er) fortfarande öppna - {{company_name}} ({{date}})",
-    "body": "Hej,\n\n{{count}} av dina tilldelade rapporter är fortfarande öppna och en påminnelse är aktuell per {{date}}.\nDetaljer för varje rapport (inklusive antal dagar öppen) bifogas i en PDF-fil.\n\nTack,\nAnvändare av dina tjänster"
+    "body": "Hej {{company_name}},\n\n{{count}} av dina kopplade rapporter är fortfarande öppna och en påminnelse förfaller {{date}}. Fullständiga detaljer bifogas som PDF — granska och vidta lämpliga åtgärder.\n\nTack,\nAnvändare av dina tjänster",
+    "attachment_label": "Detaljer bifogade"
   },
   "thankyou": {
-    "subject": "Tack - {{category_name}} åtgärdat ({{company_name}})",
-    "body": "Hej,\n\nEn rapport som tillhör din tjänst ({{company_name}}) har markerats som åtgärdad. Tack för att du tog hand om det!\n\nKategori: {{category_name}}\nKommun: {{municipality_name}}\n\nLänk till rapporten: {{report_link}}\n\nTack,\nAnvändare av dina tjänster"
+    "subject": "Tack för åtgärden!",
+    "body": "Hej {{company_name}},\n\nVi ville meddela dig att en rapport under din tjänst har markerats som åtgärdad. Tack för att du tog hand om det — det gör verklig skillnad för de människor som rapporterar och förlitar sig på detta.\n\nKategori: {{category_name}}\nKommun: {{municipality_name}}\n\nLänk till rapporten: {{report_link}}\n\nTack,\nAnvändare av dina tjänster",
+    "submitted_label": "Rapport inskickad"
   }
 }

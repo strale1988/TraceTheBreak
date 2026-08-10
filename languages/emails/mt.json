@@ -1,14 +1,17 @@
 {
   "reported": {
-    "subject": "Rapporti ġodda għal {{company_name}} - {{date}} ({{count}})",
-    "body": "Bongu,\n\n{{count}} rapport(i) ġdid(a) waslu għas-servizz tiegħek ({{company_name}}) fi {{date}}.\nId-dettalji ta' kull wieħed huma mehmuża f'fajl PDF wieħed.\n\nJekk jogħġbok irrevedihom u ħu l-azzjoni xierqa.\n\nGrazzi,\nUtenti tas-servizzi tiegħek"
+    "subject": "Rapport(i) ġdid/ġodda għal {{company_name}} - {{date}} ({{count}})",
+    "body": "Bonġu {{company_name}},\n\n{{count}} rapport(i) ġdid/ġodda waslu għas-servizz tiegħek fi {{date}}. Id-dettalji sħaħ mehmuża bħala PDF — jekk jogħġbok irrevediha u ħu l-passi xierqa.\n\nGrazzi,\nUtenti tas-servizzi tiegħek",
+    "attachment_label": "Dettalji mehmuża"
   },
   "reminder": {
     "subject": "Tfakkira: {{count}} rapport(i) għadhom miftuħa - {{company_name}} ({{date}})",
-    "body": "Bongu,\n\n{{count}} mir-rapporti assenjati lilek għadhom miftuħa u waslet il-ħin għal tfakkira fi {{date}}.\nId-dettalji ta' kull wieħed (inkluż l-għadd ta' jiem miftuħa) huma mehmuża f'fajl PDF wieħed.\n\nGrazzi,\nUtenti tas-servizzi tiegħek"
+    "body": "Bonġu {{company_name}},\n\n{{count}} mir-rapporti assoċjati tiegħek għadhom miftuħa u tfakkira mistennija fi {{date}}. Id-dettalji sħaħ mehmuża bħala PDF — jekk jogħġbok irrevediha u ħu l-passi xierqa.\n\nGrazzi,\nUtenti tas-servizzi tiegħek",
+    "attachment_label": "Dettalji mehmuża"
   },
   "thankyou": {
-    "subject": "Grazzi - {{category_name}} solvut ({{company_name}})",
-    "body": "Bongu,\n\nRapport li jaqa' taħt is-servizz tiegħek ({{company_name}}) ġie mmarkat bħala solvut. Grazzi talli ħadt ħsiebu!\n\nKategorija: {{category_name}}\nMunicipalità: {{municipality_name}}\n\nLink għar-rapport: {{report_link}}\n\nGrazzi,\nUtenti tas-servizzi tiegħek"
+    "subject": "Grazzi għat-tiswija!",
+    "body": "Bonġu {{company_name}},\n\nRidna ngħarrfuk li rapport taħt is-servizz tiegħek ġie mmarkat bħala msewwi. Grazzi talli ħadt ħsieb dan — jagħmel differenza reali għan-nies li jirrappurtaw u jafdaw f'dan.\n\nKategorija: {{category_name}}\nMunicipalità: {{municipality_name}}\n\nLink għar-rapport: {{report_link}}\n\nGrazzi,\nUtenti tas-servizzi tiegħek",
+    "submitted_label": "Rapport intbagħat"
   }
 }

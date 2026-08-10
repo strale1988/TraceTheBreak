@@ -1,14 +1,17 @@
 {
   "reported": {
-    "subject": "Novas denúncias para {{company_name}} - {{date}} ({{count}})",
-    "body": "Olá,\n\n{{count}} nova(s) denúncia(s) chegaram para o seu serviço ({{company_name}}) em {{date}}.\nOs detalhes de cada uma estão anexados num único PDF.\n\nPor favor, analise-as e tome as medidas adequadas.\n\nObrigado,\nUtilizadores dos seus serviços"
+    "subject": "Novo(s) relatório(s) para {{company_name}} - {{date}} ({{count}})",
+    "body": "Olá {{company_name}},\n\n{{count}} novo(s) relatório(s) chegou/chegaram para o seu serviço em {{date}}. Os detalhes completos estão anexados em PDF — por favor reveja e tome as medidas apropriadas.\n\nObrigado,\nUtilizadores dos seus serviços",
+    "attachment_label": "Detalhes anexados"
   },
   "reminder": {
-    "subject": "Lembrete: {{count}} denúncia(s) ainda em aberto - {{company_name}} ({{date}})",
-    "body": "Olá,\n\n{{count}} das suas denúncias associadas continuam em aberto e um lembrete é devido em {{date}}.\nOs detalhes de cada uma (incluindo os dias em aberto) estão anexados num único PDF.\n\nObrigado,\nUtilizadores dos seus serviços"
+    "subject": "Lembrete: {{count}} relatório(s) ainda em aberto - {{company_name}} ({{date}})",
+    "body": "Olá {{company_name}},\n\n{{count}} dos seus relatórios associados continuam em aberto e um lembrete está previsto para {{date}}. Os detalhes completos estão anexados em PDF — por favor reveja e tome as medidas apropriadas.\n\nObrigado,\nUtilizadores dos seus serviços",
+    "attachment_label": "Detalhes anexados"
   },
   "thankyou": {
-    "subject": "Obrigado - {{category_name}} resolvido ({{company_name}})",
-    "body": "Olá,\n\nUma denúncia relativa ao seu serviço ({{company_name}}) foi marcada como resolvida. Obrigado por tratar do assunto!\n\nCategoria: {{category_name}}\nMunicípio: {{municipality_name}}\n\nLink para a denúncia: {{report_link}}\n\nObrigado,\nUtilizadores dos seus serviços"
+    "subject": "Obrigado pela reparação!",
+    "body": "Olá {{company_name}},\n\nQueríamos informá-lo de que um relatório associado ao seu serviço foi marcado como reparado. Obrigado por tratar disso — faz uma diferença real para as pessoas que reportam e contam com isto.\n\nCategoria: {{category_name}}\nMunicípio: {{municipality_name}}\n\nLink para o relatório: {{report_link}}\n\nObrigado,\nUtilizadores dos seus serviços",
+    "submitted_label": "Relatório enviado"
   }
 }

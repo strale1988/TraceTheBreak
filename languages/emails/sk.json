@@ -1,14 +1,17 @@
 {
   "reported": {
-    "subject": "Nové hlásenia pre {{company_name}} - {{date}} ({{count}})",
-    "body": "Dobrý deň,\n\n{{count}} nové hlásenie/nových hlásení bolo prijatých pre vašu službu ({{company_name}}) dňa {{date}}.\nPodrobnosti ku každému hláseniu sú priložené v jednom PDF súbore.\n\nProsíme, skontrolujte ich a podniknite príslušné kroky.\n\nĎakujeme,\nPoužívatelia vašich služieb"
+    "subject": "Nové hlásenie(a) pre {{company_name}} - {{date}} ({{count}})",
+    "body": "Dobrý deň, {{company_name}},\n\n{{count}} nové(ých) hlásenie(í) prišlo pre vašu službu dňa {{date}}. Úplné podrobnosti sú priložené vo formáte PDF — prosím, skontrolujte ich a podniknite príslušné kroky.\n\nĎakujeme,\nPoužívatelia vašich služieb",
+    "attachment_label": "Podrobnosti v prílohe"
   },
   "reminder": {
-    "subject": "Pripomienka: {{count}} hlásení stále otvorených - {{company_name}} ({{date}})",
-    "body": "Dobrý deň,\n\n{{count}} vašich priradených hlásení je stále otvorených a ku dňu {{date}} je čas na pripomienku.\nPodrobnosti ku každému hláseniu (vrátane počtu dní otvorenosti) sú priložené v jednom PDF súbore.\n\nĎakujeme,\nPoužívatelia vašich služieb"
+    "subject": "Pripomienka: {{count}} hlásenie(a) stále otvorené - {{company_name}} ({{date}})",
+    "body": "Dobrý deň, {{company_name}},\n\n{{count}} vašich priradených hlásení je stále otvorených a k {{date}} je splatná pripomienka. Úplné podrobnosti sú priložené vo formáte PDF — prosím, skontrolujte ich a podniknite príslušné kroky.\n\nĎakujeme,\nPoužívatelia vašich služieb",
+    "attachment_label": "Podrobnosti v prílohe"
   },
   "thankyou": {
-    "subject": "Ďakujeme - {{category_name}} vyriešené ({{company_name}})",
-    "body": "Dobrý deň,\n\nHlásenie patriace pod vašu službu ({{company_name}}) bolo označené ako vyriešené. Ďakujeme, že ste sa o to postarali!\n\nKategória: {{category_name}}\nObec: {{municipality_name}}\n\nOdkaz na hlásenie: {{report_link}}\n\nĎakujeme,\nPoužívatelia vašich služieb"
+    "subject": "Ďakujeme za opravu!",
+    "body": "Dobrý deň, {{company_name}},\n\nChceli sme vás informovať, že hlásenie spadajúce pod vašu službu bolo označené ako opravené. Ďakujeme, že ste sa o to postarali — pre ľudí, ktorí hlásia problémy a spoliehajú sa na to, to má skutočný význam.\n\nKategória: {{category_name}}\nObec: {{municipality_name}}\n\nOdkaz na hlásenie: {{report_link}}\n\nĎakujeme,\nPoužívatelia vašich služieb",
+    "submitted_label": "Hlásenie odoslané"
   }
 }

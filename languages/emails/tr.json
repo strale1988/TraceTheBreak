@@ -1,14 +1,17 @@
 {
   "reported": {
-    "subject": "{{company_name}} için yeni bildirimler - {{date}} ({{count}})",
-    "body": "Merhaba,\n\nHizmetiniz ({{company_name}}) için {{date}} tarihinde {{count}} yeni bildirim geldi.\nHer birinin ayrıntıları tek bir PDF dosyasında ektedir.\n\nLütfen inceleyip gerekli işlemi yapınız.\n\nTeşekkürler,\nHizmetlerinizin kullanıcıları"
+    "subject": "{{company_name}} için yeni rapor(lar) - {{date}} ({{count}})",
+    "body": "Merhaba {{company_name}},\n\nHizmetiniz için {{date}} tarihinde {{count}} yeni rapor geldi. Tüm ayrıntılar PDF olarak ektedir — lütfen inceleyin ve gerekli işlemi yapın.\n\nTeşekkürler,\nHizmetlerinizin kullanıcıları",
+    "attachment_label": "Ayrıntılar ekte"
   },
   "reminder": {
-    "subject": "Hatırlatma: {{count}} bildirim hâlâ açık - {{company_name}} ({{date}})",
-    "body": "Merhaba,\n\nSize atanan bildirimlerden {{count}} tanesi hâlâ açık ve {{date}} itibarıyla hatırlatma zamanı geldi.\nHer birinin ayrıntıları (açık kalınan gün sayısı dahil) tek bir PDF dosyasında ektedir.\n\nTeşekkürler,\nHizmetlerinizin kullanıcıları"
+    "subject": "Hatırlatma: {{count}} rapor hâlâ açık - {{company_name}} ({{date}})",
+    "body": "Merhaba {{company_name}},\n\nSize eşleşen raporlardan {{count}} tanesi hâlâ açık ve {{date}} itibarıyla hatırlatma zamanı geldi. Tüm ayrıntılar PDF olarak ektedir — lütfen inceleyin ve gerekli işlemi yapın.\n\nTeşekkürler,\nHizmetlerinizin kullanıcıları",
+    "attachment_label": "Ayrıntılar ekte"
   },
   "thankyou": {
-    "subject": "Teşekkürler - {{category_name}} çözüldü ({{company_name}})",
-    "body": "Merhaba,\n\nHizmetiniz ({{company_name}}) kapsamındaki bir bildirim çözüldü olarak işaretlendi. İlgilendiğiniz için teşekkür ederiz!\n\nKategori: {{category_name}}\nBelediye: {{municipality_name}}\n\nBildirim bağlantısı: {{report_link}}\n\nTeşekkürler,\nHizmetlerinizin kullanıcıları"
+    "subject": "Onarım için teşekkürler!",
+    "body": "Merhaba {{company_name}},\n\nHizmetiniz kapsamındaki bir raporun onarıldı olarak işaretlendiğini bildirmek istedik. İlgilendiğiniz için teşekkür ederiz — bu, bildirimde bulunan ve buna güvenen insanlar için gerçek bir fark yaratıyor.\n\nKategori: {{category_name}}\nBelediye: {{municipality_name}}\n\nRapor bağlantısı: {{report_link}}\n\nTeşekkürler,\nHizmetlerinizin kullanıcıları",
+    "submitted_label": "Rapor gönderildi"
   }
 }

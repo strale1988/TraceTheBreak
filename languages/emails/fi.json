@@ -1,14 +1,17 @@
 {
   "reported": {
-    "subject": "Uusia ilmoituksia palvelulle {{company_name}} - {{date}} ({{count}})",
-    "body": "Hei,\n\n{{count}} uu(tta/si) ilmoitus(ta) saapui palvellenne ({{company_name}}) {{date}}.\nKunkin ilmoituksen tiedot ovat liitteenä yhdessä PDF-tiedostossa.\n\nOlkaa hyvä ja tarkastakaa ne sekä ryhtykää tarvittaviin toimiin.\n\nKiitos,\nPalvelujenne käyttäjät"
+    "subject": "Uusi ilmoitus / uudet ilmoitukset yritykselle {{company_name}} - {{date}} ({{count}})",
+    "body": "Hei {{company_name}},\n\n{{count}} uutta ilmoitusta saapui palvelullenne {{date}}. Täydelliset tiedot ovat liitteenä PDF-tiedostona — tarkastakaa ja ryhtykää tarvittaviin toimiin.\n\nKiitos,\nPalveluidenne käyttäjät",
+    "attachment_label": "Tiedot liitteenä"
   },
   "reminder": {
-    "subject": "Muistutus: {{count}} ilmoitus(ta) yhä avoinna - {{company_name}} ({{date}})",
-    "body": "Hei,\n\n{{count}} teille kohdistetuista ilmoituksista on yhä avoinna, ja muistutus on ajankohtainen {{date}}.\nKunkin ilmoituksen tiedot (mukaan lukien avoinna olleiden päivien määrä) ovat liitteenä yhdessä PDF-tiedostossa.\n\nKiitos,\nPalvelujenne käyttäjät"
+    "subject": "Muistutus: {{count}} ilmoitusta yhä avoinna - {{company_name}} ({{date}})",
+    "body": "Hei {{company_name}},\n\n{{count}} teille kohdistetuista ilmoituksista on yhä avoinna ja niistä lähetetään muistutus {{date}}. Täydelliset tiedot ovat liitteenä PDF-tiedostona — tarkastakaa ja ryhtykää tarvittaviin toimiin.\n\nKiitos,\nPalveluidenne käyttäjät",
+    "attachment_label": "Tiedot liitteenä"
   },
   "thankyou": {
-    "subject": "Kiitos - {{category_name}} korjattu ({{company_name}})",
-    "body": "Hei,\n\nPalveluunne ({{company_name}}) kuuluva ilmoitus on merkitty korjatuksi. Kiitos, että hoiditte asian!\n\nLuokka: {{category_name}}\nKunta: {{municipality_name}}\n\nLinkki ilmoitukseen: {{report_link}}\n\nKiitos,\nPalvelujenne käyttäjät"
+    "subject": "Kiitos korjauksesta!",
+    "body": "Hei {{company_name}},\n\nHalusimme kertoa, että palvelunne alle kuuluva ilmoitus on merkitty korjatuksi. Kiitos, että huolehditte asiasta — sillä on todellinen merkitys ihmisille, jotka ilmoittavat ja luottavat tähän.\n\nKategoria: {{category_name}}\nKunta: {{municipality_name}}\n\nLinkki ilmoitukseen: {{report_link}}\n\nKiitos,\nPalveluidenne käyttäjät",
+    "submitted_label": "Ilmoitus lähetetty"
   }
 }

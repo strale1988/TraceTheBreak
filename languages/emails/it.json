@@ -1,14 +1,17 @@
 {
   "reported": {
-    "subject": "Nuove segnalazioni per {{company_name}} - {{date}} ({{count}})",
-    "body": "Salve,\n\n{{count}} nuova/e segnalazione/i sono arrivate per il vostro servizio ({{company_name}}) il {{date}}.\nI dettagli di ciascuna sono allegati in un unico file PDF.\n\nVi preghiamo di prenderne visione e di adottare le misure opportune.\n\nGrazie,\nUtenti dei vostri servizi"
+    "subject": "Nuova/e segnalazione/i per {{company_name}} - {{date}} ({{count}})",
+    "body": "Ciao {{company_name}},\n\n{{count}} nuova/e segnalazione/i è/sono arrivata/e per il tuo servizio il {{date}}. I dettagli completi sono allegati in un PDF — ti preghiamo di rivederli e adottare le misure appropriate.\n\nGrazie,\nUtenti dei tuoi servizi",
+    "attachment_label": "Dettagli allegati"
   },
   "reminder": {
-    "subject": "Promemoria: {{count}} segnalazione/i ancora aperte - {{company_name}} ({{date}})",
-    "body": "Salve,\n\n{{count}} delle vostre segnalazioni assegnate risultano ancora aperte ed è previsto un promemoria alla data del {{date}}.\nI dettagli di ciascuna (compreso il numero di giorni di apertura) sono allegati in un unico file PDF.\n\nGrazie,\nUtenti dei vostri servizi"
+    "subject": "Promemoria: {{count}} segnalazione/i ancora aperta/e - {{company_name}} ({{date}})",
+    "body": "Ciao {{company_name}},\n\n{{count}} delle tue segnalazioni collegate sono ancora aperte ed è previsto un promemoria alla data {{date}}. I dettagli completi sono allegati in un PDF — ti preghiamo di rivederli e adottare le misure appropriate.\n\nGrazie,\nUtenti dei tuoi servizi",
+    "attachment_label": "Dettagli allegati"
   },
   "thankyou": {
-    "subject": "Grazie - {{category_name}} risolto ({{company_name}})",
-    "body": "Salve,\n\nUna segnalazione relativa al vostro servizio ({{company_name}}) è stata contrassegnata come risolta. Grazie per esservene occupati!\n\nCategoria: {{category_name}}\nComune: {{municipality_name}}\n\nLink alla segnalazione: {{report_link}}\n\nGrazie,\nUtenti dei vostri servizi"
+    "subject": "Grazie per la riparazione!",
+    "body": "Ciao {{company_name}},\n\nVolevamo farti sapere che una segnalazione relativa al tuo servizio è stata contrassegnata come risolta. Grazie per essertene occupato/a — fa davvero la differenza per le persone che segnalano e fanno affidamento su questo.\n\nCategoria: {{category_name}}\nComune: {{municipality_name}}\n\nLink alla segnalazione: {{report_link}}\n\nGrazie,\nUtenti dei tuoi servizi",
+    "submitted_label": "Segnalazione inviata"
   }
 }

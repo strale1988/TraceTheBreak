@@ -1,14 +1,17 @@
 {
   "reported": {
-    "subject": "Jauni ziņojumi par {{company_name}} - {{date}} ({{count}})",
-    "body": "Labdien,\n\n{{count}} jauns(-i) ziņojums(-i) saņemts(-i) jūsu pakalpojumam ({{company_name}}) {{date}}.\nKatra ziņojuma dati ir pievienoti vienā PDF failā.\n\nLūdzu, izskatiet tos un veiciet atbilstošus pasākumus.\n\nPaldies,\nJūsu pakalpojumu lietotāji"
+    "subject": "Jauns(-i) ziņojums(-i) {{company_name}} - {{date}} ({{count}})",
+    "body": "Sveiki, {{company_name}},\n\n{{count}} jauns(-i) ziņojums(-i) saņemts(-i) jūsu pakalpojumam {{date}}. Pilna informācija pievienota PDF failā — lūdzu, pārskatiet un veiciet atbilstošas darbības.\n\nPaldies,\nJūsu pakalpojumu lietotāji",
+    "attachment_label": "Informācija pievienota"
   },
   "reminder": {
     "subject": "Atgādinājums: {{count}} ziņojums(-i) joprojām atvērts(-i) - {{company_name}} ({{date}})",
-    "body": "Labdien,\n\n{{count}} no jums piesaistītajiem ziņojumiem joprojām ir atvērti, un atgādinājums pienākas uz {{date}}.\nKatra ziņojuma dati (ieskaitot atvērto dienu skaitu) ir pievienoti vienā PDF failā.\n\nPaldies,\nJūsu pakalpojumu lietotāji"
+    "body": "Sveiki, {{company_name}},\n\n{{count}} no jūsu saistītajiem ziņojumiem joprojām ir atvērti, un {{date}} pienācis atgādinājuma termiņš. Pilna informācija pievienota PDF failā — lūdzu, pārskatiet un veiciet atbilstošas darbības.\n\nPaldies,\nJūsu pakalpojumu lietotāji",
+    "attachment_label": "Informācija pievienota"
   },
   "thankyou": {
-    "subject": "Paldies - {{category_name}} atrisināts ({{company_name}})",
-    "body": "Labdien,\n\nZiņojums, kas attiecas uz jūsu pakalpojumu ({{company_name}}), ir atzīmēts kā atrisināts. Paldies, ka par to parūpējāties!\n\nKategorija: {{category_name}}\nPašvaldība: {{municipality_name}}\n\nSaite uz ziņojumu: {{report_link}}\n\nPaldies,\nJūsu pakalpojumu lietotāji"
+    "subject": "Paldies par novēršanu!",
+    "body": "Sveiki, {{company_name}},\n\nVēlējāmies jūs informēt, ka ziņojums, kas saistīts ar jūsu pakalpojumu, atzīmēts kā novērsts. Paldies, ka par to parūpējāties — tas patiešām ir svarīgi cilvēkiem, kuri ziņo un uz to paļaujas.\n\nKategorija: {{category_name}}\nPašvaldība: {{municipality_name}}\n\nSaite uz ziņojumu: {{report_link}}\n\nPaldies,\nJūsu pakalpojumu lietotāji",
+    "submitted_label": "Ziņojums iesniegts"
   }
 }

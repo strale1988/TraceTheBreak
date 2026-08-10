@@ -1,14 +1,17 @@
 {
   "reported": {
-    "subject": "Új bejelentések - {{company_name}} - {{date}} ({{count}})",
-    "body": "Tisztelt Cím!\n\n{{count}} új bejelentés érkezett az Ön szolgáltatásához ({{company_name}}) {{date}} napon.\nAz egyes bejelentések részletei egy PDF-fájlban vannak csatolva.\n\nKérjük, tekintse át azokat és tegye meg a szükséges intézkedéseket.\n\nKöszönjük,\nSzolgáltatásai felhasználói"
+    "subject": "Új bejelentés(ek) - {{company_name}} - {{date}} ({{count}})",
+    "body": "Kedves {{company_name}},\n\n{{count}} új bejelentés érkezett a szolgáltatásához {{date}} napon. A teljes részletek egy PDF-ben csatolva vannak — kérjük, tekintse át és tegye meg a szükséges lépéseket.\n\nKöszönjük,\nSzolgáltatásai felhasználói",
+    "attachment_label": "Részletek csatolva"
   },
   "reminder": {
     "subject": "Emlékeztető: {{count}} bejelentés még nyitva - {{company_name}} ({{date}})",
-    "body": "Tisztelt Cím!\n\n{{count}} Önhöz rendelt bejelentés még mindig nyitva van, és {{date}} napon esedékes az emlékeztető.\nAz egyes bejelentések részletei (a nyitva tartás napjainak számával együtt) egy PDF-fájlban vannak csatolva.\n\nKöszönjük,\nSzolgáltatásai felhasználói"
+    "body": "Kedves {{company_name}},\n\nAz Önhöz kapcsolt bejelentések közül {{count}} még mindig nyitva van, és {{date}} napra esedékes az emlékeztető. A teljes részletek egy PDF-ben csatolva vannak — kérjük, tekintse át és tegye meg a szükséges lépéseket.\n\nKöszönjük,\nSzolgáltatásai felhasználói",
+    "attachment_label": "Részletek csatolva"
   },
   "thankyou": {
-    "subject": "Köszönjük - {{category_name}} megoldva ({{company_name}})",
-    "body": "Tisztelt Cím!\n\nAz Ön szolgáltatásához ({{company_name}}) tartozó bejelentést megoldottként jelölték meg. Köszönjük, hogy foglalkozott vele!\n\nKategória: {{category_name}}\nTelepülés: {{municipality_name}}\n\nHivatkozás a bejelentésre: {{report_link}}\n\nKöszönjük,\nSzolgáltatásai felhasználói"
+    "subject": "Köszönjük a javítást!",
+    "body": "Kedves {{company_name}},\n\nSzerettük volna tudatni Önnel, hogy a szolgáltatása alá tartozó bejelentés javítottnak lett jelölve. Köszönjük, hogy foglalkozott vele — ez valódi különbséget jelent azoknak, akik bejelentenek és számítanak erre.\n\nKategória: {{category_name}}\nTelepülés: {{municipality_name}}\n\nBejelentés linkje: {{report_link}}\n\nKöszönjük,\nSzolgáltatásai felhasználói",
+    "submitted_label": "Bejelentés elküldve"
   }
 }

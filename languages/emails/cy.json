@@ -1,14 +1,17 @@
 {
   "reported": {
-    "subject": "Adroddiadau newydd ar gyfer {{company_name}} - {{date}} ({{count}})",
-    "body": "Helo,\n\nDaeth {{count}} adroddiad(au) newydd i mewn ar gyfer eich gwasanaeth ({{company_name}}) ar {{date}}.\nMae manylion pob un ynghlwm mewn un ffeil PDF.\n\nA wnewch chi eu hadolygu a chymryd y camau priodol.\n\nDiolch,\nDefnyddwyr eich gwasanaethau"
+    "subject": "Adroddiad(au) newydd ar gyfer {{company_name}} - {{date}} ({{count}})",
+    "body": "Helo {{company_name}},\n\nDaeth {{count}} adroddiad(au) newydd i mewn ar gyfer eich gwasanaeth ar {{date}}. Mae'r manylion llawn ynghlwm fel PDF — adolygwch a chymerwch y camau priodol.\n\nDiolch,\nDefnyddwyr eich gwasanaethau",
+    "attachment_label": "Manylion ynghlwm"
   },
   "reminder": {
-    "subject": "Nodyn atgoffa: {{count}} adroddiad(au) yn dal ar agor - {{company_name}} ({{date}})",
-    "body": "Helo,\n\nMae {{count}} o'ch adroddiadau cysylltiedig yn dal ar agor ac mae nodyn atgoffa'n ddyledus erbyn {{date}}.\nMae manylion pob un (gan gynnwys nifer y diwrnodau ar agor) ynghlwm mewn un ffeil PDF.\n\nDiolch,\nDefnyddwyr eich gwasanaethau"
+    "subject": "Atgoffa: {{count}} adroddiad(au) yn dal ar agor - {{company_name}} ({{date}})",
+    "body": "Helo {{company_name}},\n\nMae {{count}} o'ch adroddiadau cyfatebol yn dal ar agor ac yn ddyledus am atgoffa erbyn {{date}}. Mae'r manylion llawn ynghlwm fel PDF — adolygwch a chymerwch y camau priodol.\n\nDiolch,\nDefnyddwyr eich gwasanaethau",
+    "attachment_label": "Manylion ynghlwm"
   },
   "thankyou": {
-    "subject": "Diolch - {{category_name}} wedi'i ddatrys ({{company_name}})",
-    "body": "Helo,\n\nMae adroddiad sy'n dod o dan eich gwasanaeth ({{company_name}}) wedi'i nodi fel wedi'i ddatrys. Diolch am ofalu am hyn!\n\nCategori: {{category_name}}\nBwrdeistref: {{municipality_name}}\n\nDolen i'r adroddiad: {{report_link}}\n\nDiolch,\nDefnyddwyr eich gwasanaethau"
+    "subject": "Diolch am y trwsio!",
+    "body": "Helo {{company_name}},\n\nRoedden ni eisiau rhoi gwybod i chi fod adroddiad o dan eich gwasanaeth wedi'i nodi fel wedi'i drwsio. Diolch am ofalu am hyn — mae'n gwneud gwahaniaeth gwirioneddol i'r bobl sy'n adrodd ac yn dibynnu ar hyn.\n\nCategori: {{category_name}}\nBwrdeistref: {{municipality_name}}\n\nDolen i'r adroddiad: {{report_link}}\n\nDiolch,\nDefnyddwyr eich gwasanaethau",
+    "submitted_label": "Adroddiad wedi'i gyflwyno"
   }
 }

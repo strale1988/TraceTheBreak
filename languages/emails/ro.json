@@ -1,14 +1,17 @@
 {
   "reported": {
-    "subject": "Sesizări noi pentru {{company_name}} - {{date}} ({{count}})",
-    "body": "Bună ziua,\n\n{{count}} sesizare(sesizări) nouă/noi au fost primite pentru serviciul dumneavoastră ({{company_name}}) în data de {{date}}.\nDetaliile pentru fiecare sunt atașate într-un singur fișier PDF.\n\nVă rugăm să le analizați și să luați măsurile corespunzătoare.\n\nMulțumim,\nUtilizatorii serviciilor dumneavoastră"
+    "subject": "Raport(e) nou(i) pentru {{company_name}} - {{date}} ({{count}})",
+    "body": "Bună ziua, {{company_name}},\n\n{{count}} raport(e) nou(i) a(u) sosit pentru serviciul dumneavoastră la data de {{date}}. Detaliile complete sunt atașate într-un PDF — vă rugăm să le analizați și să luați măsurile corespunzătoare.\n\nMulțumim,\nUtilizatorii serviciilor dumneavoastră",
+    "attachment_label": "Detalii atașate"
   },
   "reminder": {
-    "subject": "Memento: {{count}} sesizare(sesizări) încă deschisă/deschise - {{company_name}} ({{date}})",
-    "body": "Bună ziua,\n\n{{count}} dintre sesizările asociate dumneavoastră sunt încă deschise și necesită un memento la data de {{date}}.\nDetaliile pentru fiecare (inclusiv numărul de zile de la deschidere) sunt atașate într-un singur fișier PDF.\n\nMulțumim,\nUtilizatorii serviciilor dumneavoastră"
+    "subject": "Memento: {{count}} raport(e) încă deschis(e) - {{company_name}} ({{date}})",
+    "body": "Bună ziua, {{company_name}},\n\n{{count}} din rapoartele asociate dumneavoastră sunt încă deschise și este scadent un memento la data de {{date}}. Detaliile complete sunt atașate într-un PDF — vă rugăm să le analizați și să luați măsurile corespunzătoare.\n\nMulțumim,\nUtilizatorii serviciilor dumneavoastră",
+    "attachment_label": "Detalii atașate"
   },
   "thankyou": {
-    "subject": "Mulțumim - {{category_name}} rezolvată ({{company_name}})",
-    "body": "Bună ziua,\n\nO sesizare aferentă serviciului dumneavoastră ({{company_name}}) a fost marcată ca rezolvată. Vă mulțumim că v-ați ocupat de ea!\n\nCategorie: {{category_name}}\nLocalitate: {{municipality_name}}\n\nLink către sesizare: {{report_link}}\n\nMulțumim,\nUtilizatorii serviciilor dumneavoastră"
+    "subject": "Mulțumim pentru remediere!",
+    "body": "Bună ziua, {{company_name}},\n\nAm dorit să vă anunțăm că un raport aferent serviciului dumneavoastră a fost marcat ca remediat. Vă mulțumim că v-ați ocupat de acest lucru — contează cu adevărat pentru oamenii care raportează și se bazează pe acest lucru.\n\nCategorie: {{category_name}}\nMunicipalitate: {{municipality_name}}\n\nLink către raport: {{report_link}}\n\nMulțumim,\nUtilizatorii serviciilor dumneavoastră",
+    "submitted_label": "Raport trimis"
   }
 }

@@ -1,14 +1,17 @@
 {
   "reported": {
-    "subject": "Nye rapporter for {{company_name}} - {{date}} ({{count}})",
-    "body": "Hei,\n\n{{count}} ny(e) rapport(er) er kommet inn for din tjeneste ({{company_name}}) den {{date}}.\nDetaljer for hver enkelt er vedlagt i én PDF-fil.\n\nVennligst gå gjennom dem og iverksett passende tiltak.\n\nTakk,\nBrukere av dine tjenester"
+    "subject": "Ny(e) rapport(er) til {{company_name}} - {{date}} ({{count}})",
+    "body": "Hei {{company_name}},\n\n{{count}} ny(e) rapport(er) kom inn for tjenesten din den {{date}}. Fullstendige detaljer er vedlagt som PDF — gjennomgå og iverksett riktige tiltak.\n\nTakk,\nBrukere av tjenestene dine",
+    "attachment_label": "Detaljer vedlagt"
   },
   "reminder": {
-    "subject": "Påminnelse: {{count}} rapport(er) fortsatt åpne - {{company_name}} ({{date}})",
-    "body": "Hei,\n\n{{count}} av dine tilknyttede rapporter er fortsatt åpne og forfaller til påminnelse per {{date}}.\nDetaljer for hver enkelt (inkludert antall dager åpen) er vedlagt i én PDF-fil.\n\nTakk,\nBrukere av dine tjenester"
+    "subject": "Påminnelse: {{count}} rapport(er) fortsatt åpen(e) - {{company_name}} ({{date}})",
+    "body": "Hei {{company_name}},\n\n{{count}} av de tilknyttede rapportene dine er fortsatt åpne, og en påminnelse forfaller {{date}}. Fullstendige detaljer er vedlagt som PDF — gjennomgå og iverksett riktige tiltak.\n\nTakk,\nBrukere av tjenestene dine",
+    "attachment_label": "Detaljer vedlagt"
   },
   "thankyou": {
-    "subject": "Takk - {{category_name}} løst ({{company_name}})",
-    "body": "Hei,\n\nEn rapport som hører til din tjeneste ({{company_name}}) er merket som løst. Takk for at du tok hånd om det!\n\nKategori: {{category_name}}\nKommune: {{municipality_name}}\n\nLenke til rapporten: {{report_link}}\n\nTakk,\nBrukere av dine tjenester"
+    "subject": "Takk for reparasjonen!",
+    "body": "Hei {{company_name}},\n\nVi ønsket å gi deg beskjed om at en rapport under tjenesten din er merket som utbedret. Takk for at du tok tak i dette — det utgjør en reell forskjell for menneskene som rapporterer og stoler på dette.\n\nKategori: {{category_name}}\nKommune: {{municipality_name}}\n\nLenke til rapporten: {{report_link}}\n\nTakk,\nBrukere av tjenestene dine",
+    "submitted_label": "Rapport sendt inn"
   }
 }

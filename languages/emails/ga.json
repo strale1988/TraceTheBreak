@@ -1,14 +1,17 @@
 {
   "reported": {
-    "subject": "Tuairiscí nua do {{company_name}} - {{date}} ({{count}})",
-    "body": "Dia duit,\n\nTháinig {{count}} tuairisc(í) nua isteach do do sheirbhís ({{company_name}}) ar {{date}}.\nTá mionsonraí gach ceann i gceangaltán amháin PDF.\n\nLe do thoil, déan athbhreithniú orthu agus glac an beart cuí.\n\nGo raibh maith agat,\nÚsáideoirí do sheirbhísí"
+    "subject": "Tuairisc(í) nua do {{company_name}} - {{date}} ({{count}})",
+    "body": "Dia duit {{company_name}},\n\nTháinig {{count}} tuairisc(í) nua isteach do do sheirbhís ar {{date}}. Tá na sonraí iomlána ceangailte mar PDF — le do thoil déan athbhreithniú agus déan an gníomh cuí.\n\nGo raibh maith agat,\nÚsáideoirí do sheirbhísí",
+    "attachment_label": "Sonraí ceangailte"
   },
   "reminder": {
     "subject": "Meabhrúchán: {{count}} tuairisc(í) fós oscailte - {{company_name}} ({{date}})",
-    "body": "Dia duit,\n\nTá {{count}} de na tuairiscí atá sannta duit fós oscailte agus tá meabhrúchán dlite amhail {{date}}.\nTá mionsonraí gach ceann (lena n-áirítear líon na laethanta oscailte) i gceangaltán amháin PDF.\n\nGo raibh maith agat,\nÚsáideoirí do sheirbhísí"
+    "body": "Dia duit {{company_name}},\n\nTá {{count}} de na tuairiscí ceangailte leat fós oscailte agus tá meabhrúchán dlite amhail {{date}}. Tá na sonraí iomlána ceangailte mar PDF — le do thoil déan athbhreithniú agus déan an gníomh cuí.\n\nGo raibh maith agat,\nÚsáideoirí do sheirbhísí",
+    "attachment_label": "Sonraí ceangailte"
   },
   "thankyou": {
-    "subject": "Go raibh maith agat - {{category_name}} réitithe ({{company_name}})",
-    "body": "Dia duit,\n\nMarcáladh tuairisc a bhaineann le do sheirbhís ({{company_name}}) mar réitithe. Go raibh maith agat as aire a thabhairt dó!\n\nCatagóir: {{category_name}}\nBardas: {{municipality_name}}\n\nNasc chuig an tuairisc: {{report_link}}\n\nGo raibh maith agat,\nÚsáideoirí do sheirbhísí"
+    "subject": "Go raibh maith agat as an deisiú!",
+    "body": "Dia duit {{company_name}},\n\nBhí muid ag iarraidh a rá leat go bhfuil tuairisc faoi do sheirbhís marcáilte mar dheisithe. Go raibh maith agat as aire a thabhairt dó — déanann sé difear fíor do na daoine a thuairiscíonn agus a bhraitheann air seo.\n\nCatagóir: {{category_name}}\nBardas: {{municipality_name}}\n\nNasc chuig an tuairisc: {{report_link}}\n\nGo raibh maith agat,\nÚsáideoirí do sheirbhísí",
+    "submitted_label": "Tuairisc curtha isteach"
   }
 }

@@ -1,14 +1,17 @@
 {
   "reported": {
-    "subject": "Nove prijave za {{company_name}} - {{date}} ({{count}})",
-    "body": "Pozdravljeni,\n\n{{count}} novih prijav je prispelo za vašo storitev ({{company_name}}) dne {{date}}.\nPodrobnosti za vsako prijavo so priložene v enem PDF dokumentu.\n\nProsimo, preglejte in ukrepajte ustrezno.\n\nHvala,\nUporabniki vaših storitev"
+    "subject": "Nova(e) prijava(e) za {{company_name}} - {{date}} ({{count}})",
+    "body": "Pozdravljeni, {{company_name}},\n\n{{count}} nova(e) prijava(e) je prispela za vašo storitev dne {{date}}. Vsi podrobni podatki so priloženi v PDF datoteki — prosimo, preglejte jih in ukrepajte ustrezno.\n\nHvala,\nUporabniki vaših storitev",
+    "attachment_label": "Podrobnosti priložene"
   },
   "reminder": {
-    "subject": "Opomnik: {{count}} prijav(e) še vedno odprtih - {{company_name}} ({{date}})",
-    "body": "Pozdravljeni,\n\n{{count}} vaših povezanih prijav je še vedno odprtih in zapadlih za opomnik na dan {{date}}.\nPodrobnosti za vsako prijavo (vključno s številom dni odprtosti) so priložene v enem PDF dokumentu.\n\nHvala,\nUporabniki vaših storitev"
+    "subject": "Opomnik: {{count}} prijava(e) še vedno odprta(e) - {{company_name}} ({{date}})",
+    "body": "Pozdravljeni, {{company_name}},\n\n{{count}} vaših povezanih prijav je še vedno odprtih in dne {{date}} zapade opomnik. Vsi podrobni podatki so priloženi v PDF datoteki — prosimo, preglejte jih in ukrepajte ustrezno.\n\nHvala,\nUporabniki vaših storitev",
+    "attachment_label": "Podrobnosti priložene"
   },
   "thankyou": {
-    "subject": "Hvala - {{category_name}} odpravljeno ({{company_name}})",
-    "body": "Pozdravljeni,\n\nPrijava, ki spada pod vašo storitev ({{company_name}}), je bila označena kot odpravljena. Hvala, ker ste poskrbeli za to!\n\nKategorija: {{category_name}}\nObčina: {{municipality_name}}\n\nPovezava do prijave: {{report_link}}\n\nHvala,\nUporabniki vaših storitev"
+    "subject": "Hvala za popravilo!",
+    "body": "Pozdravljeni, {{company_name}},\n\nŽeleli smo vas obvestiti, da je prijava v okviru vaše storitve označena kot popravljena. Hvala, da ste poskrbeli za to — to resnično veliko pomeni ljudem, ki prijavljajo in se na to zanašajo.\n\nKategorija: {{category_name}}\nObčina: {{municipality_name}}\n\nPovezava do prijave: {{report_link}}\n\nHvala,\nUporabniki vaših storitev",
+    "submitted_label": "Prijava oddana"
   }
 }

@@ -1,14 +1,17 @@
 {
   "reported": {
-    "subject": "Nauji pranešimai apie {{company_name}} - {{date}} ({{count}})",
-    "body": "Sveiki,\n\n{{count}} naujas(-i) pranešimas(-ai) gautas(-i) jūsų paslaugai ({{company_name}}) {{date}}.\nKiekvieno pranešimo informacija pridedama viename PDF faile.\n\nPrašome peržiūrėti ir imtis atitinkamų veiksmų.\n\nAčiū,\nJūsų paslaugų naudotojai"
+    "subject": "Nauja(-os) ataskaita(-os) {{company_name}} - {{date}} ({{count}})",
+    "body": "Sveiki, {{company_name}},\n\n{{count}} nauja(-os) ataskaita(-os) gauta(-os) jūsų paslaugai {{date}}. Išsami informacija pridedama PDF formatu — peržiūrėkite ir imkitės atitinkamų veiksmų.\n\nAčiū,\nJūsų paslaugų naudotojai",
+    "attachment_label": "Informacija pridedama"
   },
   "reminder": {
-    "subject": "Priminimas: {{count}} pranešimas(-ai) vis dar atviras(-i) - {{company_name}} ({{date}})",
-    "body": "Sveiki,\n\n{{count}} jums priskirtų pranešimų vis dar yra atviri, ir {{date}} atėjo laikas priminimui.\nKiekvieno pranešimo informacija (įskaitant atvirumo dienų skaičių) pridedama viename PDF faile.\n\nAčiū,\nJūsų paslaugų naudotojai"
+    "subject": "Priminimas: {{count}} ataskaita(-os) vis dar atvira(-os) - {{company_name}} ({{date}})",
+    "body": "Sveiki, {{company_name}},\n\n{{count}} su jumis susietų ataskaitų vis dar atviros ir {{date}} atėjo laikas priminimui. Išsami informacija pridedama PDF formatu — peržiūrėkite ir imkitės atitinkamų veiksmų.\n\nAčiū,\nJūsų paslaugų naudotojai",
+    "attachment_label": "Informacija pridedama"
   },
   "thankyou": {
-    "subject": "Ačiū - {{category_name}} išspręsta ({{company_name}})",
-    "body": "Sveiki,\n\nPranešimas, susijęs su jūsų paslauga ({{company_name}}), buvo pažymėtas kaip išspręstas. Ačiū, kad juo pasirūpinote!\n\nKategorija: {{category_name}}\nSavivaldybė: {{municipality_name}}\n\nNuoroda į pranešimą: {{report_link}}\n\nAčiū,\nJūsų paslaugų naudotojai"
+    "subject": "Ačiū už pataisymą!",
+    "body": "Sveiki, {{company_name}},\n\nNorėjome jums pranešti, kad ataskaita, susijusi su jūsų paslauga, pažymėta kaip pataisyta. Ačiū, kad pasirūpinote — tai tikrai svarbu žmonėms, kurie praneša ir tuo remiasi.\n\nKategorija: {{category_name}}\nSavivaldybė: {{municipality_name}}\n\nNuoroda į ataskaitą: {{report_link}}\n\nAčiū,\nJūsų paslaugų naudotojai",
+    "submitted_label": "Ataskaita pateikta"
   }
 }

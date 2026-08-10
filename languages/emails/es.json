@@ -1,14 +1,17 @@
 {
   "reported": {
-    "subject": "Nuevos reportes para {{company_name}} - {{date}} ({{count}})",
-    "body": "Hola,\n\n{{count}} nuevo(s) reporte(s) llegaron para su servicio ({{company_name}}) el {{date}}.\nLos detalles de cada uno se adjuntan en un solo PDF.\n\nPor favor, revíselos y tome las medidas correspondientes.\n\nGracias,\nUsuarios de sus servicios"
+    "subject": "Nuevo(s) informe(s) para {{company_name}} - {{date}} ({{count}})",
+    "body": "Hola {{company_name}},\n\nLlegó(ron) {{count}} informe(s) nuevo(s) para su servicio el {{date}}. Los detalles completos están adjuntos en un PDF — por favor revíselos y tome las medidas adecuadas.\n\nGracias,\nUsuarios de sus servicios",
+    "attachment_label": "Detalles adjuntos"
   },
   "reminder": {
-    "subject": "Recordatorio: {{count}} reporte(s) aún abiertos - {{company_name}} ({{date}})",
-    "body": "Hola,\n\n{{count}} de sus reportes asignados siguen abiertos y corresponde un recordatorio a fecha {{date}}.\nLos detalles de cada uno (incluyendo los días abiertos) se adjuntan en un solo PDF.\n\nGracias,\nUsuarios de sus servicios"
+    "subject": "Recordatorio: {{count}} informe(s) aún abierto(s) - {{company_name}} ({{date}})",
+    "body": "Hola {{company_name}},\n\n{{count}} de sus informes vinculados siguen abiertos y les corresponde un recordatorio a fecha {{date}}. Los detalles completos están adjuntos en un PDF — por favor revíselos y tome las medidas adecuadas.\n\nGracias,\nUsuarios de sus servicios",
+    "attachment_label": "Detalles adjuntos"
   },
   "thankyou": {
-    "subject": "Gracias - {{category_name}} resuelto ({{company_name}})",
-    "body": "Hola,\n\nUn reporte correspondiente a su servicio ({{company_name}}) ha sido marcado como resuelto. ¡Gracias por atenderlo!\n\nCategoría: {{category_name}}\nMunicipio: {{municipality_name}}\n\nEnlace al reporte: {{report_link}}\n\nGracias,\nUsuarios de sus servicios"
+    "subject": "¡Gracias por la reparación!",
+    "body": "Hola {{company_name}},\n\nQueríamos avisarle que un informe correspondiente a su servicio se ha marcado como resuelto. Gracias por encargarse de ello — supone una diferencia real para las personas que informan y confían en esto.\n\nCategoría: {{category_name}}\nMunicipio: {{municipality_name}}\n\nEnlace al informe: {{report_link}}\n\nGracias,\nUsuarios de sus servicios",
+    "submitted_label": "Informe enviado"
   }
 }

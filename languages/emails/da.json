@@ -1,14 +1,17 @@
 {
   "reported": {
-    "subject": "Nye anmeldelser for {{company_name}} - {{date}} ({{count}})",
-    "body": "Hej,\n\n{{count}} ny(e) anmeldelse(r) er modtaget for din tjeneste ({{company_name}}) den {{date}}.\nDetaljer for hver enkelt er vedhæftet i én PDF-fil.\n\nGennemgå dem venligst og træf passende foranstaltninger.\n\nMange tak,\nBrugere af dine tjenester"
+    "subject": "Ny(e) indberetning(er) til {{company_name}} - {{date}} ({{count}})",
+    "body": "Hej {{company_name}},\n\n{{count}} ny(e) indberetning(er) er kommet ind til din tjeneste den {{date}}. Fulde detaljer er vedhæftet som PDF — gennemgå og tag de nødvendige skridt.\n\nMange tak,\nBrugere af dine tjenester",
+    "attachment_label": "Detaljer vedhæftet"
   },
   "reminder": {
-    "subject": "Påmindelse: {{count}} anmeldelse(r) stadig åbne - {{company_name}} ({{date}})",
-    "body": "Hej,\n\n{{count}} af dine tilknyttede anmeldelser er stadig åbne og er klar til en påmindelse pr. {{date}}.\nDetaljer for hver enkelt (inklusive antal dage åben) er vedhæftet i én PDF-fil.\n\nMange tak,\nBrugere af dine tjenester"
+    "subject": "Påmindelse: {{count}} indberetning(er) stadig åben(ne) - {{company_name}} ({{date}})",
+    "body": "Hej {{company_name}},\n\n{{count}} af dine tilknyttede indberetninger er stadig åbne og er forfaldne til en påmindelse pr. {{date}}. Fulde detaljer er vedhæftet som PDF — gennemgå og tag de nødvendige skridt.\n\nMange tak,\nBrugere af dine tjenester",
+    "attachment_label": "Detaljer vedhæftet"
   },
   "thankyou": {
-    "subject": "Tak - {{category_name}} løst ({{company_name}})",
-    "body": "Hej,\n\nEn anmeldelse under din tjeneste ({{company_name}}) er blevet markeret som løst. Tak, fordi du tog dig af det!\n\nKategori: {{category_name}}\nKommune: {{municipality_name}}\n\nLink til anmeldelsen: {{report_link}}\n\nMange tak,\nBrugere af dine tjenester"
+    "subject": "Tak for udbedringen!",
+    "body": "Hej {{company_name}},\n\nVi ville give dig besked om, at en indberetning under din tjeneste er markeret som udbedret. Tak fordi du tog dig af det — det gør en reel forskel for de mennesker, der indberetter og er afhængige af det.\n\nKategori: {{category_name}}\nKommune: {{municipality_name}}\n\nLink til indberetningen: {{report_link}}\n\nMange tak,\nBrugere af dine tjenester",
+    "submitted_label": "Indberetning indsendt"
   }
 }

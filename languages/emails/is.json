@@ -1,14 +1,17 @@
 {
   "reported": {
-    "subject": "Nýjar tilkynningar fyrir {{company_name}} - {{date}} ({{count}})",
-    "body": "Halló,\n\n{{count}} ný(jar) tilkynning(ar) hafa borist fyrir þjónustu þína ({{company_name}}) þann {{date}}.\nUpplýsingar um hverja tilkynningu fylgja í einni PDF-skrá.\n\nVinsamlegast farið yfir þær og grípið til viðeigandi aðgerða.\n\nKær kveðja,\nNotendur þjónustu þinnar"
+    "subject": "Ný tilkynning(ar) fyrir {{company_name}} - {{date}} ({{count}})",
+    "body": "Hæ {{company_name}},\n\n{{count}} ný(jar) tilkynning(ar) barst/bárust fyrir þjónustuna þína þann {{date}}. Öll smáatriði fylgja sem PDF — vinsamlegast farið yfir og gerið viðeigandi ráðstafanir.\n\nTakk fyrir,\nNotendur þjónustu þinnar",
+    "attachment_label": "Upplýsingar meðfylgjandi"
   },
   "reminder": {
-    "subject": "Áminning: {{count}} tilkynning(ar) enn opnar - {{company_name}} ({{date}})",
-    "body": "Halló,\n\n{{count}} af tengdum tilkynningum þínum eru enn opnar og áminning er tímabær miðað við {{date}}.\nUpplýsingar um hverja tilkynningu (þar með talið fjölda daga sem hún hefur verið opin) fylgja í einni PDF-skrá.\n\nKær kveðja,\nNotendur þjónustu þinnar"
+    "subject": "Áminning: {{count}} tilkynning(ar) enn opin(ar) - {{company_name}} ({{date}})",
+    "body": "Hæ {{company_name}},\n\n{{count}} af tengdum tilkynningum þínum eru enn opnar og áminning er á dagskrá {{date}}. Öll smáatriði fylgja sem PDF — vinsamlegast farið yfir og gerið viðeigandi ráðstafanir.\n\nTakk fyrir,\nNotendur þjónustu þinnar",
+    "attachment_label": "Upplýsingar meðfylgjandi"
   },
   "thankyou": {
-    "subject": "Takk - {{category_name}} leyst ({{company_name}})",
-    "body": "Halló,\n\nTilkynning sem heyrir undir þjónustu þína ({{company_name}}) hefur verið merkt sem leyst. Takk fyrir að sjá um það!\n\nFlokkur: {{category_name}}\nSveitarfélag: {{municipality_name}}\n\nHlekkur á tilkynningu: {{report_link}}\n\nKær kveðja,\nNotendur þjónustu þinnar"
+    "subject": "Takk fyrir viðgerðina!",
+    "body": "Hæ {{company_name}},\n\nVið vildum láta þig vita að tilkynning undir þjónustu þinni hefur verið merkt sem lagfærð. Takk fyrir að sjá um þetta — það skiptir sannarlega máli fyrir fólkið sem tilkynnir og treystir á þetta.\n\nFlokkur: {{category_name}}\nSveitarfélag: {{municipality_name}}\n\nTengill á tilkynningu: {{report_link}}\n\nTakk fyrir,\nNotendur þjónustu þinnar",
+    "submitted_label": "Tilkynning send inn"
   }
 }

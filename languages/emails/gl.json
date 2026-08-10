@@ -1,14 +1,17 @@
 {
   "reported": {
-    "subject": "Novos avisos para {{company_name}} - {{date}} ({{count}})",
-    "body": "Ola,\n\n{{count}} novo(s) aviso(s) chegaron para o seu servizo ({{company_name}}) o {{date}}.\nOs detalles de cada un están anexados nun único PDF.\n\nPor favor, revíseos e tome as medidas oportunas.\n\nGrazas,\nUsuarios dos seus servizos"
+    "subject": "Novo(s) informe(s) para {{company_name}} - {{date}} ({{count}})",
+    "body": "Ola {{company_name}},\n\nChegou(ron) {{count}} informe(s) novo(s) para o seu servizo o {{date}}. Os detalles completos van adxuntos nun PDF — revíseos e tome as medidas axeitadas.\n\nGrazas,\nUsuarios dos seus servizos",
+    "attachment_label": "Detalles adxuntos"
   },
   "reminder": {
-    "subject": "Lembrete: {{count}} aviso(s) aínda abertos - {{company_name}} ({{date}})",
-    "body": "Ola,\n\n{{count}} dos seus avisos asociados seguen abertos e corresponde un lembrete a data {{date}}.\nOs detalles de cada un (incluíndo os días en aberto) están anexados nun único PDF.\n\nGrazas,\nUsuarios dos seus servizos"
+    "subject": "Lembrete: {{count}} informe(s) aínda aberto(s) - {{company_name}} ({{date}})",
+    "body": "Ola {{company_name}},\n\n{{count}} dos seus informes relacionados seguen abertos e toca lembrete a data {{date}}. Os detalles completos van adxuntos nun PDF — revíseos e tome as medidas axeitadas.\n\nGrazas,\nUsuarios dos seus servizos",
+    "attachment_label": "Detalles adxuntos"
   },
   "thankyou": {
-    "subject": "Grazas - {{category_name}} resolto ({{company_name}})",
-    "body": "Ola,\n\nUn aviso correspondente ao seu servizo ({{company_name}}) foi marcado como resolto. Grazas por encargarse diso!\n\nCategoría: {{category_name}}\nConcello: {{municipality_name}}\n\nLigazón ao aviso: {{report_link}}\n\nGrazas,\nUsuarios dos seus servizos"
+    "subject": "Grazas pola reparación!",
+    "body": "Ola {{company_name}},\n\nQueriamos informarlle de que un informe do seu servizo foi marcado como resolto. Grazas por ocuparse diso — supón unha diferenza real para as persoas que informan e confían nisto.\n\nCategoría: {{category_name}}\nConcello: {{municipality_name}}\n\nLigazón ao informe: {{report_link}}\n\nGrazas,\nUsuarios dos seus servizos",
+    "submitted_label": "Informe enviado"
   }
 }
