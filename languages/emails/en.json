@@ -8,7 +8,7 @@
     "body": "Hello,\n\n{{count}} of your matched report(s) are still open and due for a reminder as of {{date}}.\nDetails for each (including days open) are attached in one PDF.\n\nThank you,\nUsers of your services"
   },
   "thankyou": {
-    "subject": "Thank you for the fix! 🙏",
+    "subject": "Thank you for the fix!",
     "body": "Hi {{company_name}},\n\nWe wanted to let you know that a report under your service has been marked as fixed. Thank you for taking care of it — it makes a real difference to the people who reported and rely on this.\n\nCategory: {{category_name}}\nMunicipality: {{municipality_name}}\n\nReport link: {{report_link}}\n\nThank you,\nUsers of your services"
   }
 }

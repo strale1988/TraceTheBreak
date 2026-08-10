@@ -8,7 +8,7 @@
     "body": "Poštovani,\n\n{{count}} vaših povezanih prijava je i dalje otvoreno i dospelo je za podsetnik na dan {{date}}.\nDetalji za svaku prijavu (uključujući broj dana otvorenosti) nalaze se u prilogu, u jednom PDF fajlu.\n\nHvala,\nKorisnici vaših usluga"
   },
   "thankyou": {
-    "subject": "Hvala na rešavanju! 🙏",
+    "subject": "Hvala na rešavanju!",
     "body": "Poštovani {{company_name}},\n\nŽeleli smo da vas obavestimo da je prijava koja se odnosi na vašu uslugu označena kao rešena. Hvala vam što ste to sredili — to zaista pravi razliku za ljude koji prijavljuju i oslanjaju se na ovo.\n\nKategorija: {{category_name}}\nOpština: {{municipality_name}}\n\nLink ka prijavi: {{report_link}}\n\nHvala,\nKorisnici vaših usluga"
   }
 }
