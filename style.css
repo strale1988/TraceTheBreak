@@ -2288,6 +2288,12 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   flex-shrink:0;
   position:relative;
   z-index:1;
+  box-sizing:border-box;
+  background:var(--border-color);
+}
+.timeline-item.pending .timeline-dot{
+  background:transparent;
+  border:1.5px solid var(--text-muted);
 }
 .timeline-line{
   position:absolute;

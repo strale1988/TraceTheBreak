@@ -4801,6 +4801,7 @@ function collectAllIconPaths() {
     'icons/turn-fork.png', 'icons/turn-end-of-road.png', 'icons/turn-ramp.png',
     'icons/email-sent.png', 'icons/email-resent.png', 'icons/sleep.png',
     'icons/like.png', 'icons/check.png', 'icons/vote.png',
+    'icons/hourglass.png', 'icons/warning-symbol.png',
   ];
   const badgeArrays = [
     (typeof BADGES !== 'undefined') ? BADGES : [],
@@ -14234,7 +14235,13 @@ function reporterDisplayName(report) {
 }
 
 function buildTimelineItem(dateStr, reached, color, labelHtml) {
-  const dotColor = reached ? color : 'rgba(255,255,255,.18)';
+  // Reached dots get a solid fill in the stage's status color, set inline
+  // since that color is dynamic per-report. Pending dots get no inline
+  // background at all — the CSS ".timeline-item.pending .timeline-dot"
+  // rule gives them a plain hollow ring instead, so they're still visible
+  // (rather than the old near-invisible rgba(255,255,255,.18) fill) while
+  // staying clearly "not there yet".
+  const dotStyle = reached ? ` style="background:${color};"` : '';
   // Pending stages have no real date yet — leave the date slot empty rather
   // than showing a meaningless "—" placeholder. The dot + label (rendered
   // in a muted/disabled style) is enough to show the stage is upcoming.
@@ -14246,7 +14253,7 @@ function buildTimelineItem(dateStr, reached, color, labelHtml) {
   const timeAttr = (reached && dateStr) ? ` data-time="${escapeHtml(dateStr)}"` : '';
   return `<div class="timeline-item ${reached ? '' : 'pending'}"${timeAttr}>
     <div class="timeline-line"></div>
-    <div class="timeline-dot" style="background:${dotColor};"></div>
+    <div class="timeline-dot"${dotStyle}></div>
     <span class="timeline-date">${dateText}</span>
     ${labelHtml ? `<span class="timeline-status-slot">${labelHtml}</span>` : ''}
   </div>`;
@@ -14261,19 +14268,28 @@ function buildTimelineEventItem(dateStr, rightHtml) {
   return buildTimelineItem(dateStr, true, TIMELINE_EVENT_COLOR, rightHtml);
 }
 
+// Icon shown next to each pipeline stage's label once that stage is
+// reached — a warning symbol for "reported", an hourglass while
+// "in progress", and a thumbs-up once "fixed".
+const STAGE_ICONS = {
+  reported:    'icons/warning-symbol.png',
+  in_progress: 'icons/hourglass.png',
+  fixed:       'icons/like.png',
+};
+
 // Label for one of the three pipeline stages (reported/in_progress/fixed).
 // Always returns something — never blank — so every stage row shows a dot
 // + label: the current status gets its usual colored pill, an already-passed
 // stage gets a plain (non-colored) label, and a not-yet-reached stage gets
-// the same label muted/disabled via the "pending" class. "Fixed" also gets a
-// like icon once reached, label text on the left and icon on the right to
-// match the rest of the timeline's left-label/right-icon layout.
+// the same label muted/disabled via the "pending" class. Each stage also
+// gets its own icon once reached, label text on the left and icon on the
+// right to match the rest of the timeline's left-label/right-icon layout.
 function buildPipelineStageLabel(stageKey, report, reached) {
   const isCurrent = report.status === stageKey;
   const textHtml = isCurrent
     ? `<span class="status-pill" style="background:${statusColor(stageKey)};">${statusLabel(stageKey)}</span>`
     : `<span class="timeline-stage-label${reached ? '' : ' pending'}">${statusLabel(stageKey)}</span>`;
-  const iconHtml = (stageKey === 'fixed' && reached) ? `<img class="detail-row-icon" src="icons/like.png" alt="">` : '';
+  const iconHtml = reached ? `<img class="detail-row-icon" src="${STAGE_ICONS[stageKey]}" alt="">` : '';
   return textHtml + iconHtml;
 }
 
