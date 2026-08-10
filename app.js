@@ -5174,6 +5174,11 @@ map.on('popupopen', e => {
     mobilePopupOverlay.appendChild(popupEl);
     mobilePopupOverlay.classList.add('showing');
   }
+  const popupSource = e.popup && e.popup._source;
+  if (popupSource && popupSource._reportId != null) {
+    const popupLatLng = e.popup.getLatLng();
+    if (popupLatLng) map.panTo(popupLatLng, { animate: true });
+  }
   openOverlay('mapPopup', () => map.closePopup());
 });
 map.on('popupclose', e => {
