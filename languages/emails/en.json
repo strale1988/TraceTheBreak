@@ -1,14 +1,17 @@
 {
   "reported": {
     "subject": "New reports for {{company_name}} - {{date}} ({{count}})",
-    "body": "Hello,\n\n{{count}} new report(s) came in for your service ({{company_name}}) on {{date}}.\nDetails for each are attached in one PDF.\n\nPlease review and take the appropriate action.\n\nThank you,\nUsers of your services"
+    "body": "Hi {{company_name}},\n\n{{count}} new report(s) came in for your service on {{date}}. Full details for each are attached as one PDF — please review and take the appropriate action.\n\nThank you,\nUsers of your services",
+    "attachment_label": "Details attached"
   },
   "reminder": {
     "subject": "Reminder: {{count}} report(s) still open - {{company_name}} ({{date}})",
-    "body": "Hello,\n\n{{count}} of your matched report(s) are still open and due for a reminder as of {{date}}.\nDetails for each (including days open) are attached in one PDF.\n\nThank you,\nUsers of your services"
+    "body": "Hi {{company_name}},\n\n{{count}} of your matched report(s) are still open and due for a reminder as of {{date}}. Full details for each, including days open, are attached as one PDF.\n\nThank you,\nUsers of your services",
+    "attachment_label": "Details attached"
   },
   "thankyou": {
     "subject": "Thank you for the fix!",
-    "body": "Hi {{company_name}},\n\nWe wanted to let you know that a report under your service has been marked as fixed. Thank you for taking care of it — it makes a real difference to the people who reported and rely on this.\n\nCategory: {{category_name}}\nMunicipality: {{municipality_name}}\n\nReport link: {{report_link}}\n\nThank you,\nUsers of your services"
+    "body": "Hi {{company_name}},\n\nWe wanted to let you know that a report under your service has been marked as fixed. Thank you for taking care of it — it makes a real difference to the people who reported and rely on this.\n\nCategory: {{category_name}}\nMunicipality: {{municipality_name}}\n\nReport link: {{report_link}}\n\nThank you,\nUsers of your services",
+    "submitted_label": "Report submitted"
   }
 }
