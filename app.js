@@ -14278,18 +14278,18 @@ const STAGE_ICONS = {
 };
 
 // Label for one of the three pipeline stages (reported/in_progress/fixed).
-// Always returns something — never blank — so every stage row shows a dot
-// + label: the current status gets its usual colored pill, an already-passed
-// stage gets a plain (non-colored) label, and a not-yet-reached stage gets
-// the same label muted/disabled via the "pending" class. Each stage also
-// gets its own icon once reached, label text on the left and icon on the
+// A not-yet-reached stage gets no label at all — just its dot on the line.
+// Once reached, the current status gets its usual colored pill and an
+// already-passed stage gets a plain (non-colored) label; either way it
+// also gets that stage's icon, label text on the left and icon on the
 // right to match the rest of the timeline's left-label/right-icon layout.
 function buildPipelineStageLabel(stageKey, report, reached) {
+  if (!reached) return '';
   const isCurrent = report.status === stageKey;
   const textHtml = isCurrent
     ? `<span class="status-pill" style="background:${statusColor(stageKey)};">${statusLabel(stageKey)}</span>`
-    : `<span class="timeline-stage-label${reached ? '' : ' pending'}">${statusLabel(stageKey)}</span>`;
-  const iconHtml = reached ? `<img class="detail-row-icon" src="${STAGE_ICONS[stageKey]}" alt="">` : '';
+    : `<span class="timeline-stage-label">${statusLabel(stageKey)}</span>`;
+  const iconHtml = `<img class="detail-row-icon" src="${STAGE_ICONS[stageKey]}" alt="">`;
   return textHtml + iconHtml;
 }
 

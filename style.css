@@ -2275,11 +2275,6 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   font-weight:var(--fw-medium);
   white-space:nowrap;
 }
-.timeline-stage-label.pending{
-  color:var(--text-muted);
-  font-weight:var(--fw-medium);
-  opacity:.7;
-}
 .timeline-item:last-child{ padding-bottom:0; }
 .timeline-dot{
   width:7px;
