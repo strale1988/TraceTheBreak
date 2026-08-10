@@ -4800,6 +4800,7 @@ function collectAllIconPaths() {
     'icons/turn-arrive.png', 'icons/turn-roundabout.png', 'icons/turn-merge.png',
     'icons/turn-fork.png', 'icons/turn-end-of-road.png', 'icons/turn-ramp.png',
     'icons/email-sent.png', 'icons/email-resent.png', 'icons/sleep.png',
+    'icons/like.png', 'icons/check.png', 'icons/vote.png',
   ];
   const badgeArrays = [
     (typeof BADGES !== 'undefined') ? BADGES : [],
@@ -10015,15 +10016,15 @@ async function loadDetailTimelineExtras(report) {
     dupGroup.ids.filter(id => id !== report.id).forEach(id => {
       const confirmingReport = globalActiveData.find(r => r.id === id);
       if (confirmingReport) {
-        events.push({ time: confirmingReport.created_at, html: buildTimelineExtraItem(confirmingReport.created_at, `<img class="detail-row-icon" src="icons/check.png" alt="">`) });
+        events.push({ time: confirmingReport.created_at, html: buildTimelineExtraItem(confirmingReport.created_at, `<span class="timeline-note">${t('timelineDuplicateConfirmedLabel') || 'Confirmed duplicate'}</span><img class="detail-row-icon" src="icons/check.png" alt="">`) });
       }
     });
   }
   if (report.photo_uploaded_at) {
-    events.push({ time: report.photo_uploaded_at, html: buildTimelineExtraItem(report.photo_uploaded_at, `<img class="detail-row-icon" src="icons/camera.png" alt="">`) });
+    events.push({ time: report.photo_uploaded_at, html: buildTimelineExtraItem(report.photo_uploaded_at, `<span class="timeline-note">${t('timelinePhotoAddedLabel') || 'Photo added'}</span><img class="detail-row-icon" src="icons/camera.png" alt="">`) });
   }
   if (report.after_photo_uploaded_at) {
-    events.push({ time: report.after_photo_uploaded_at, html: buildTimelineExtraItem(report.after_photo_uploaded_at, `<img class="detail-row-icon" src="icons/camera.png" alt="">`) });
+    events.push({ time: report.after_photo_uploaded_at, html: buildTimelineExtraItem(report.after_photo_uploaded_at, `<span class="timeline-note">${t('timelineAfterPhotoAddedLabel') || 'After photo added'}</span><img class="detail-row-icon" src="icons/camera.png" alt="">`) });
   }
 
   const [galleryPhotos, contactEvents, statusVotes] = await Promise.all([
@@ -10032,14 +10033,17 @@ async function loadDetailTimelineExtras(report) {
     loadReportStatusVotesForTimeline(report.id)
   ]);
   (galleryPhotos || []).forEach(p => {
-    events.push({ time: p.created_at, html: buildTimelineExtraItem(p.created_at, `<img class="detail-row-icon" src="icons/camera.png" alt="">`) });
+    events.push({ time: p.created_at, html: buildTimelineExtraItem(p.created_at, `<span class="timeline-note">${t('timelinePhotoAddedLabel') || 'Photo added'}</span><img class="detail-row-icon" src="icons/camera.png" alt="">`) });
   });
   contactEvents.forEach(c => {
-    const icon = c.contact_type === 'email' ? 'icons/email.png' : 'icons/phone.png';
-    events.push({ time: c.created_at, html: buildTimelineExtraItem(c.created_at, `<img class="detail-row-icon" src="${icon}" alt="">`) });
+    const isEmail = c.contact_type === 'email';
+    const icon = isEmail ? 'icons/email.png' : 'icons/phone.png';
+    const label = isEmail ? (t('timelineContactEmailLabel') || 'Email contact logged') : (t('timelineContactCallLabel') || 'Phone contact logged');
+    events.push({ time: c.created_at, html: buildTimelineExtraItem(c.created_at, `<span class="timeline-note">${label}</span><img class="detail-row-icon" src="${icon}" alt="">`) });
   });
   statusVotes.forEach(v => {
-    events.push({ time: v.created_at, html: buildTimelineExtraItem(v.created_at, `<img class="detail-row-icon" src="icons/vote.png" alt="" title="${escapeHtml(statusLabel(v.suggested_status))}">`) });
+    const voteLabel = (t('timelineVoteLabelPrefix') || 'Suggested') + ': ' + escapeHtml(statusLabel(v.suggested_status));
+    events.push({ time: v.created_at, html: buildTimelineExtraItem(v.created_at, `<span class="timeline-note">${voteLabel}</span><img class="detail-row-icon" src="icons/vote.png" alt="">`) });
   });
 
   if (!events.length) return;
@@ -10182,7 +10186,7 @@ async function renderStaleBadgeForDetail(report) {
     if (!anchor) return;
 
     const staleSince = new Date(new Date(report.created_at).getTime() + staleThresholdMs).toISOString();
-    const html = buildTimelineExtraItem(staleSince, `<img class="detail-row-icon" src="icons/sleep.png" alt=""><span class="photo-status-badge timeline-stale-badge" style="background:var(--accent);">${escapeHtml(t('queueTypeStale'))}</span>`);
+    const html = buildTimelineExtraItem(staleSince, `<span class="timeline-note timeline-stale-badge">${escapeHtml(t('queueTypeStale'))}</span><img class="detail-row-icon" src="icons/sleep.png" alt="">`);
     anchor.insertAdjacentHTML('afterend', html);
   } catch (err) {
     console.error('Failed to check report staleness:', err.message || err);
@@ -14231,7 +14235,10 @@ function reporterDisplayName(report) {
 
 function buildTimelineItem(dateStr, reached, color, labelHtml) {
   const dotColor = reached ? color : 'rgba(255,255,255,.18)';
-  const dateText = reached ? formatDate(dateStr) : '—';
+  // Pending stages have no real date yet — leave the date slot empty rather
+  // than showing a meaningless "—" placeholder. The dot + label (rendered
+  // in a muted/disabled style) is enough to show the stage is upcoming.
+  const dateText = reached ? formatDate(dateStr) : '';
   // data-time lets loadDetailTimelineExtras figure out where an extra entry
   // (company notify, contact attempt, gallery photo, etc.) belongs relative
   // to this item chronologically. Only set for reached items — pending
@@ -14252,6 +14259,22 @@ function buildTimelineItem(dateStr, reached, color, labelHtml) {
 const TIMELINE_EVENT_COLOR = '#8a93a6';
 function buildTimelineEventItem(dateStr, rightHtml) {
   return buildTimelineItem(dateStr, true, TIMELINE_EVENT_COLOR, rightHtml);
+}
+
+// Label for one of the three pipeline stages (reported/in_progress/fixed).
+// Always returns something — never blank — so every stage row shows a dot
+// + label: the current status gets its usual colored pill, an already-passed
+// stage gets a plain (non-colored) label, and a not-yet-reached stage gets
+// the same label muted/disabled via the "pending" class. "Fixed" also gets a
+// like icon once reached, label text on the left and icon on the right to
+// match the rest of the timeline's left-label/right-icon layout.
+function buildPipelineStageLabel(stageKey, report, reached) {
+  const isCurrent = report.status === stageKey;
+  const textHtml = isCurrent
+    ? `<span class="status-pill" style="background:${statusColor(stageKey)};">${statusLabel(stageKey)}</span>`
+    : `<span class="timeline-stage-label${reached ? '' : ' pending'}">${statusLabel(stageKey)}</span>`;
+  const iconHtml = (stageKey === 'fixed' && reached) ? `<img class="detail-row-icon" src="icons/like.png" alt="">` : '';
+  return textHtml + iconHtml;
 }
 
 function buildPopupHtml(report) {
@@ -15818,10 +15841,10 @@ async function exportCompanyReportsPdf(companyId) {
 // via the contacts section, just not as a timeline entry until it happens.
 function companyNotifyTimelineEvents(report) {
   if (!report.company_notified_at) return [];
-  const events = [{ time: report.company_notified_at, html: buildTimelineExtraItem(report.company_notified_at, `<img class="detail-row-icon" src="icons/email-sent.png" alt=""><span class="timeline-note">${t('companyNotifyLabel')}</span>`) }];
+  const events = [{ time: report.company_notified_at, html: buildTimelineExtraItem(report.company_notified_at, `<span class="timeline-note">${t('companyNotifyLabel')}</span><img class="detail-row-icon" src="icons/email-sent.png" alt="">`) }];
   const showsReminder = report.company_last_notified_at && report.company_last_notified_at !== report.company_notified_at;
   if (showsReminder) {
-    events.push({ time: report.company_last_notified_at, html: buildTimelineExtraItem(report.company_last_notified_at, `<img class="detail-row-icon" src="icons/email-resent.png" alt=""><span class="timeline-note">${t('companyLastReminderLabel')}</span>`) });
+    events.push({ time: report.company_last_notified_at, html: buildTimelineExtraItem(report.company_last_notified_at, `<span class="timeline-note">${t('companyLastReminderLabel')}</span><img class="detail-row-icon" src="icons/email-resent.png" alt="">`) });
   }
   return events;
 }
@@ -15891,18 +15914,12 @@ function buildDetailStatusReadonlyHtml(report, reporterName) {
     ${(() => { const g = duplicateGroupFor(report.id); return g ? `<div class="detail-row"><span class="detail-row-label"><img class="row-check-icon" src="icons/check.png" alt=""></span><span class="detail-row-value">${t('confirmedByLabel').replace('{n}', g.count)}</span></div>` : ''; })()}
     ${personalResolveHtml}
     <div class="popup-timeline" id="detailTimeline-${report.id}" style="margin-top:8px;">
-      ${buildTimelineItem(report.created_at, true, STATUS_COLORS.reported, report.status === 'reported'
-        ? `<span class="status-pill" style="background:${statusColor(report.status)};">${statusLabel(report.status)}</span>`
-        : '')}
-      ${(!categorySkipsInProgress(report.category) && report.in_progress_at) ? buildTimelineItem(report.in_progress_at, true, STATUS_COLORS.in_progress, report.status === 'in_progress'
-        ? `<span class="status-pill" style="background:${statusColor(report.status)};">${statusLabel(report.status)}</span>`
-        : '') : ''}
-      ${report.fixed_at ? buildTimelineItem(report.fixed_at, true, STATUS_COLORS.fixed, report.status === 'fixed'
-        ? `<span class="status-pill" style="background:${statusColor(report.status)};">${statusLabel(report.status)}</span>`
-        : '') : ''}
+      ${buildTimelineItem(report.created_at, true, STATUS_COLORS.reported, buildPipelineStageLabel('reported', report, true))}
+      ${(!categorySkipsInProgress(report.category) && report.in_progress_at) ? buildTimelineItem(report.in_progress_at, true, STATUS_COLORS.in_progress, buildPipelineStageLabel('in_progress', report, true)) : ''}
+      ${report.fixed_at ? buildTimelineItem(report.fixed_at, true, STATUS_COLORS.fixed, buildPipelineStageLabel('fixed', report, true)) : ''}
       <span id="detailTimelineAnchor-${report.id}"></span>
-      ${(!categorySkipsInProgress(report.category) && !report.in_progress_at) ? buildTimelineItem(report.in_progress_at, false, STATUS_COLORS.in_progress, '') : ''}
-      ${!report.fixed_at ? buildTimelineItem(report.fixed_at, false, STATUS_COLORS.fixed, '') : ''}
+      ${(!categorySkipsInProgress(report.category) && !report.in_progress_at) ? buildTimelineItem(report.in_progress_at, false, STATUS_COLORS.in_progress, buildPipelineStageLabel('in_progress', report, false)) : ''}
+      ${!report.fixed_at ? buildTimelineItem(report.fixed_at, false, STATUS_COLORS.fixed, buildPipelineStageLabel('fixed', report, false)) : ''}
     </div>
     ${noteRowHtml}
   `;
