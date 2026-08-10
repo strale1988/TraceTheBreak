@@ -9991,8 +9991,8 @@ async function loadReportStatusVotesForTimeline(reportId) {
 // Same as buildTimelineEventItem, but tagged so a later refresh can find
 // and remove just these entries (see refreshDetailTimelineExtras) without
 // touching the pipeline-stage / company-notify entries above them.
-function buildTimelineExtraItem(dateStr, rightHtml) {
-  return buildTimelineEventItem(dateStr, rightHtml).replace('class="timeline-item ', 'class="timeline-item timeline-extra ');
+function buildTimelineExtraItem(dateStr, rightHtml, iconSrc) {
+  return buildTimelineEventItem(dateStr, rightHtml, iconSrc).replace('class="timeline-item ', 'class="timeline-item timeline-extra ');
 }
 
 // Inserts the "extra" timeline entries — duplicate-report confirmations,
@@ -10017,15 +10017,15 @@ async function loadDetailTimelineExtras(report) {
     dupGroup.ids.filter(id => id !== report.id).forEach(id => {
       const confirmingReport = globalActiveData.find(r => r.id === id);
       if (confirmingReport) {
-        events.push({ time: confirmingReport.created_at, html: buildTimelineExtraItem(confirmingReport.created_at, `<span class="timeline-note">${t('timelineDuplicateConfirmedLabel') || 'Confirmed duplicate'}</span><img class="detail-row-icon" src="icons/check.png" alt="">`) });
+        events.push({ time: confirmingReport.created_at, html: buildTimelineExtraItem(confirmingReport.created_at, `<span class="timeline-note">${t('timelineDuplicateConfirmedLabel') || 'Confirmed duplicate'}</span>`, 'icons/check.png') });
       }
     });
   }
   if (report.photo_uploaded_at) {
-    events.push({ time: report.photo_uploaded_at, html: buildTimelineExtraItem(report.photo_uploaded_at, `<span class="timeline-note">${t('timelinePhotoAddedLabel') || 'Photo added'}</span><img class="detail-row-icon" src="icons/camera.png" alt="">`) });
+    events.push({ time: report.photo_uploaded_at, html: buildTimelineExtraItem(report.photo_uploaded_at, `<span class="timeline-note">${t('timelinePhotoAddedLabel') || 'Photo added'}</span>`, 'icons/camera.png') });
   }
   if (report.after_photo_uploaded_at) {
-    events.push({ time: report.after_photo_uploaded_at, html: buildTimelineExtraItem(report.after_photo_uploaded_at, `<span class="timeline-note">${t('timelineAfterPhotoAddedLabel') || 'After photo added'}</span><img class="detail-row-icon" src="icons/camera.png" alt="">`) });
+    events.push({ time: report.after_photo_uploaded_at, html: buildTimelineExtraItem(report.after_photo_uploaded_at, `<span class="timeline-note">${t('timelineAfterPhotoAddedLabel') || 'After photo added'}</span>`, 'icons/camera.png') });
   }
 
   const [galleryPhotos, contactEvents, statusVotes] = await Promise.all([
@@ -10034,17 +10034,17 @@ async function loadDetailTimelineExtras(report) {
     loadReportStatusVotesForTimeline(report.id)
   ]);
   (galleryPhotos || []).forEach(p => {
-    events.push({ time: p.created_at, html: buildTimelineExtraItem(p.created_at, `<span class="timeline-note">${t('timelinePhotoAddedLabel') || 'Photo added'}</span><img class="detail-row-icon" src="icons/camera.png" alt="">`) });
+    events.push({ time: p.created_at, html: buildTimelineExtraItem(p.created_at, `<span class="timeline-note">${t('timelinePhotoAddedLabel') || 'Photo added'}</span>`, 'icons/camera.png') });
   });
   contactEvents.forEach(c => {
     const isEmail = c.contact_type === 'email';
     const icon = isEmail ? 'icons/email.png' : 'icons/phone.png';
     const label = isEmail ? (t('timelineContactEmailLabel') || 'Email contact logged') : (t('timelineContactCallLabel') || 'Phone contact logged');
-    events.push({ time: c.created_at, html: buildTimelineExtraItem(c.created_at, `<span class="timeline-note">${label}</span><img class="detail-row-icon" src="${icon}" alt="">`) });
+    events.push({ time: c.created_at, html: buildTimelineExtraItem(c.created_at, `<span class="timeline-note">${label}</span>`, icon) });
   });
   statusVotes.forEach(v => {
     const voteLabel = (t('timelineVoteLabelPrefix') || 'Suggested') + ': ' + escapeHtml(statusLabel(v.suggested_status));
-    events.push({ time: v.created_at, html: buildTimelineExtraItem(v.created_at, `<span class="timeline-note">${voteLabel}</span><img class="detail-row-icon" src="icons/vote.png" alt="">`) });
+    events.push({ time: v.created_at, html: buildTimelineExtraItem(v.created_at, `<span class="timeline-note">${voteLabel}</span>`, 'icons/vote.png') });
   });
 
   if (!events.length) return;
@@ -10187,7 +10187,7 @@ async function renderStaleBadgeForDetail(report) {
     if (!anchor) return;
 
     const staleSince = new Date(new Date(report.created_at).getTime() + staleThresholdMs).toISOString();
-    const html = buildTimelineExtraItem(staleSince, `<span class="timeline-note timeline-stale-badge">${escapeHtml(t('queueTypeStale'))}</span><img class="detail-row-icon" src="icons/sleep.png" alt="">`);
+    const html = buildTimelineExtraItem(staleSince, `<span class="timeline-note timeline-stale-badge">${escapeHtml(t('queueTypeStale'))}</span>`, 'icons/sleep.png');
     anchor.insertAdjacentHTML('afterend', html);
   } catch (err) {
     console.error('Failed to check report staleness:', err.message || err);
@@ -14234,7 +14234,7 @@ function reporterDisplayName(report) {
   return shortUserId(report.owner_id);
 }
 
-function buildTimelineItem(dateStr, reached, color, labelHtml) {
+function buildTimelineItem(dateStr, reached, color, labelHtml, iconSrc) {
   // Reached dots get a solid fill in the stage's status color, set inline
   // since that color is dynamic per-report. Pending dots get no inline
   // background at all — the CSS ".timeline-item.pending .timeline-dot"
@@ -14251,9 +14251,16 @@ function buildTimelineItem(dateStr, reached, color, labelHtml) {
   // to this item chronologically. Only set for reached items — pending
   // placeholders have no real date and always stay at the very bottom.
   const timeAttr = (reached && dateStr) ? ` data-time="${escapeHtml(dateStr)}"` : '';
+  // The icon now lives inside the dot instead of sitting on the right. A
+  // reached dot has a solid color fill, so its icon defaults to white for
+  // contrast (".timeline-dot-icon"); a pending dot is a hollow/transparent
+  // ring, so ".timeline-item.pending .timeline-dot-icon" (see CSS) swaps it
+  // back to the theme-adaptive icon tint so it stays visible against the
+  // page background in either light or dark mode.
+  const iconHtml = iconSrc ? `<img class="timeline-dot-icon" src="${iconSrc}" alt="">` : '';
   return `<div class="timeline-item ${reached ? '' : 'pending'}"${timeAttr}>
     <div class="timeline-line"></div>
-    <div class="timeline-dot"${dotStyle}></div>
+    <div class="timeline-dot"${dotStyle}>${iconHtml}</div>
     <span class="timeline-date">${dateText}</span>
     ${labelHtml ? `<span class="timeline-status-slot">${labelHtml}</span>` : ''}
   </div>`;
@@ -14264,8 +14271,8 @@ function buildTimelineItem(dateStr, reached, color, labelHtml) {
 // photos added, contact attempts. These are always "reached" (they only
 // get rendered once they've actually happened).
 const TIMELINE_EVENT_COLOR = '#8a93a6';
-function buildTimelineEventItem(dateStr, rightHtml) {
-  return buildTimelineItem(dateStr, true, TIMELINE_EVENT_COLOR, rightHtml);
+function buildTimelineEventItem(dateStr, rightHtml, iconSrc) {
+  return buildTimelineItem(dateStr, true, TIMELINE_EVENT_COLOR, rightHtml, iconSrc);
 }
 
 // Icon shown next to each pipeline stage's label once that stage is
@@ -14278,19 +14285,17 @@ const STAGE_ICONS = {
 };
 
 // Label for one of the three pipeline stages (reported/in_progress/fixed).
-// A not-yet-reached stage gets no label at all — just its dot on the line.
-// Once reached, the current status gets its usual colored pill and an
-// already-passed stage gets a plain (non-colored) label; either way it
-// also gets that stage's icon, label text on the left and icon on the
-// right to match the rest of the timeline's left-label/right-icon layout.
+// A not-yet-reached stage gets no label at all — just its (icon-bearing)
+// dot on the line. Once reached, the current status gets its usual colored
+// pill and an already-passed stage gets a plain (non-colored) label. The
+// stage's icon now sits inside the dot itself (see buildTimelineItem)
+// rather than on the right, so this only ever returns the text.
 function buildPipelineStageLabel(stageKey, report, reached) {
   if (!reached) return '';
   const isCurrent = report.status === stageKey;
-  const textHtml = isCurrent
+  return isCurrent
     ? `<span class="status-pill" style="background:${statusColor(stageKey)};">${statusLabel(stageKey)}</span>`
     : `<span class="timeline-stage-label">${statusLabel(stageKey)}</span>`;
-  const iconHtml = `<img class="detail-row-icon" src="${STAGE_ICONS[stageKey]}" alt="">`;
-  return textHtml + iconHtml;
 }
 
 function buildPopupHtml(report) {
@@ -15857,10 +15862,10 @@ async function exportCompanyReportsPdf(companyId) {
 // via the contacts section, just not as a timeline entry until it happens.
 function companyNotifyTimelineEvents(report) {
   if (!report.company_notified_at) return [];
-  const events = [{ time: report.company_notified_at, html: buildTimelineExtraItem(report.company_notified_at, `<span class="timeline-note">${t('companyNotifyLabel')}</span><img class="detail-row-icon" src="icons/email-sent.png" alt="">`) }];
+  const events = [{ time: report.company_notified_at, html: buildTimelineExtraItem(report.company_notified_at, `<span class="timeline-note">${t('companyNotifyLabel')}</span>`, 'icons/email-sent.png') }];
   const showsReminder = report.company_last_notified_at && report.company_last_notified_at !== report.company_notified_at;
   if (showsReminder) {
-    events.push({ time: report.company_last_notified_at, html: buildTimelineExtraItem(report.company_last_notified_at, `<span class="timeline-note">${t('companyLastReminderLabel')}</span><img class="detail-row-icon" src="icons/email-resent.png" alt="">`) });
+    events.push({ time: report.company_last_notified_at, html: buildTimelineExtraItem(report.company_last_notified_at, `<span class="timeline-note">${t('companyLastReminderLabel')}</span>`, 'icons/email-resent.png') });
   }
   return events;
 }
@@ -15930,12 +15935,12 @@ function buildDetailStatusReadonlyHtml(report, reporterName) {
     ${(() => { const g = duplicateGroupFor(report.id); return g ? `<div class="detail-row"><span class="detail-row-label"><img class="row-check-icon" src="icons/check.png" alt=""></span><span class="detail-row-value">${t('confirmedByLabel').replace('{n}', g.count)}</span></div>` : ''; })()}
     ${personalResolveHtml}
     <div class="popup-timeline" id="detailTimeline-${report.id}" style="margin-top:8px;">
-      ${buildTimelineItem(report.created_at, true, STATUS_COLORS.reported, buildPipelineStageLabel('reported', report, true))}
-      ${(!categorySkipsInProgress(report.category) && report.in_progress_at) ? buildTimelineItem(report.in_progress_at, true, STATUS_COLORS.in_progress, buildPipelineStageLabel('in_progress', report, true)) : ''}
-      ${report.fixed_at ? buildTimelineItem(report.fixed_at, true, STATUS_COLORS.fixed, buildPipelineStageLabel('fixed', report, true)) : ''}
+      ${buildTimelineItem(report.created_at, true, STATUS_COLORS.reported, buildPipelineStageLabel('reported', report, true), STAGE_ICONS.reported)}
+      ${(!categorySkipsInProgress(report.category) && report.in_progress_at) ? buildTimelineItem(report.in_progress_at, true, STATUS_COLORS.in_progress, buildPipelineStageLabel('in_progress', report, true), STAGE_ICONS.in_progress) : ''}
+      ${report.fixed_at ? buildTimelineItem(report.fixed_at, true, STATUS_COLORS.fixed, buildPipelineStageLabel('fixed', report, true), STAGE_ICONS.fixed) : ''}
       <span id="detailTimelineAnchor-${report.id}"></span>
-      ${(!categorySkipsInProgress(report.category) && !report.in_progress_at) ? buildTimelineItem(report.in_progress_at, false, STATUS_COLORS.in_progress, buildPipelineStageLabel('in_progress', report, false)) : ''}
-      ${!report.fixed_at ? buildTimelineItem(report.fixed_at, false, STATUS_COLORS.fixed, buildPipelineStageLabel('fixed', report, false)) : ''}
+      ${(!categorySkipsInProgress(report.category) && !report.in_progress_at) ? buildTimelineItem(report.in_progress_at, false, STATUS_COLORS.in_progress, buildPipelineStageLabel('in_progress', report, false), STAGE_ICONS.in_progress) : ''}
+      ${!report.fixed_at ? buildTimelineItem(report.fixed_at, false, STATUS_COLORS.fixed, buildPipelineStageLabel('fixed', report, false), STAGE_ICONS.fixed) : ''}
     </div>
     ${noteRowHtml}
   `;

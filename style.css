@@ -2244,9 +2244,9 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 .timeline-item{
   display:flex;
   align-items:center;
-  gap:7px;
+  gap:9px;
   position:relative;
-  padding-bottom:7px;
+  padding-bottom:9px;
 }
 .timeline-status-slot{
   margin-left:auto;
@@ -2277,23 +2277,43 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 }
 .timeline-item:last-child{ padding-bottom:0; }
 .timeline-dot{
-  width:7px;
-  height:7px;
+  width:20px;
+  height:20px;
   border-radius:50%;
   flex-shrink:0;
   position:relative;
   z-index:1;
   box-sizing:border-box;
   background:var(--border-color);
+  display:flex;
+  align-items:center;
+  justify-content:center;
 }
 .timeline-item.pending .timeline-dot{
   background:transparent;
   border:1.5px solid var(--text-muted);
 }
+/* Icon that lives inside the dot (moved off the right-hand side). A
+   reached dot is always a solid color fill, so the icon is forced white
+   here for contrast against any of the status/event colors. A pending
+   dot is a hollow/transparent ring instead, so it falls back to the
+   normal theme-adaptive icon tint just below — otherwise a white icon
+   would vanish against a light-theme background. */
+.timeline-dot-icon{
+  width:14px;
+  height:14px;
+  flex-shrink:0;
+  filter:brightness(0) invert(1);
+  opacity:.95;
+}
+.timeline-item.pending .timeline-dot-icon{
+  filter:var(--icon-tint-filter);
+  opacity:.85;
+}
 .timeline-line{
   position:absolute;
-  left:2.5px;
-  top:9px;
+  left:9px;
+  top:22px;
   bottom:-2px;
   width:2px;
   background:var(--border-color);
