@@ -2277,8 +2277,8 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 }
 .timeline-item:last-child{ padding-bottom:0; }
 .timeline-dot{
-  width:20px;
-  height:20px;
+  width:24px;
+  height:24px;
   border-radius:50%;
   flex-shrink:0;
   position:relative;
@@ -2312,8 +2312,8 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 }
 .timeline-line{
   position:absolute;
-  left:9px;
-  top:22px;
+  left:11px;
+  top:26px;
   bottom:-2px;
   width:2px;
   background:var(--border-color);
