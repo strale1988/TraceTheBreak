@@ -5162,27 +5162,37 @@ function updateAllPopupRotations() {
 }
 
 const mobilePopupOverlay = document.getElementById('mobilePopupOverlay');
-let mobilePopupOriginalParent = null;
+
+function centerMapOnPopup(popup) {
+  if (!map || !popup) return;
+  const popupEl = popup._container;
+  if (!popupEl) return;
+  const mapRect = map.getContainer().getBoundingClientRect();
+  const popupRect = popupEl.getBoundingClientRect();
+
+  const targetCenterX = mapRect.width / 2;
+  const targetCenterY = mapRect.height / 2;
+
+  const popupCenterX = (popupRect.left - mapRect.left) + popupRect.width / 2;
+  const popupCenterY = (popupRect.top - mapRect.top) + popupRect.height / 2;
+
+  const dx = popupCenterX - targetCenterX;
+  const dy = popupCenterY - targetCenterY;
+
+  if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
+    map.panBy([dx, dy], { animate: true });
+  }
+}
 
 map.on('popupopen', e => {
   const uc = e.popup && e.popup._source && e.popup._source._utilityCompany;
   if (uc) e.popup.setContent(buildCompanyPopupHtml(uc.c, uc.lat, uc.lon));
   const popupEl = e.popup && e.popup._container;
   if (popupEl) rotatePopupElement(popupEl);
-  if (popupEl && mobilePopupOverlay) {
-    mobilePopupOriginalParent = popupEl.parentNode;
-    mobilePopupOverlay.appendChild(popupEl);
-    mobilePopupOverlay.classList.add('showing');
-  }
+  centerMapOnPopup(e.popup);
   openOverlay('mapPopup', () => map.closePopup());
 });
 map.on('popupclose', e => {
-  const popupEl = e.popup && e.popup._container;
-  if (popupEl && mobilePopupOriginalParent) {
-    mobilePopupOriginalParent.appendChild(popupEl);
-    mobilePopupOriginalParent = null;
-  }
-  if (mobilePopupOverlay) mobilePopupOverlay.classList.remove('showing');
   closeOverlay('mapPopup');
 });
 
