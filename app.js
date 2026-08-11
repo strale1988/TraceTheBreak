@@ -2900,6 +2900,17 @@ let lang = (function () {
 // pipeline. Uses the synchronous localStorage-derived `lang` above, and
 // falls back to DEFAULT_LANG (English) per-field if a translation is
 // missing, same fallback rule as t().
+//
+// hideMapLoadingOverlay() (near the bottom of this file) awaits
+// loadingScreenSloganReady before computing how long the splash has to stay
+// up, so mapLoadingOverlayMinMs below is always the real, quote-length-based
+// value by the time it's read -- never the fallback default -- regardless
+// of which finishes first, this fetch or the rest of the initial load.
+let mapLoadingOverlayMinMs = 3000; // fallback if the fetch fails/is slow
+const LOADING_QUOTE_MS_PER_WORD = 250; // ~240 wpm, a relaxed reading pace
+const LOADING_QUOTE_BASE_MS = 1200;    // time to notice the screen before reading starts
+const LOADING_QUOTE_MIN_MS = 3000;
+const LOADING_QUOTE_MAX_MS = 6500;     // don't let a long quote hold the splash forever
 function pickRandomLoadingQuote(quotes) {
   if (!Array.isArray(quotes) || !quotes.length) return null;
   return quotes[Math.floor(Math.random() * quotes.length)];
@@ -2914,14 +2925,20 @@ async function initLoadingScreenSlogan() {
     const data = await res.json();
     const slogan = data.slogan || {};
     const quote = pickRandomLoadingQuote(data.quotes) || {};
+    const sloganText = slogan[lang] || slogan[DEFAULT_LANG] || '';
     const quoteText = quote[lang] || quote[DEFAULT_LANG] || '';
-    if (sloganEl) sloganEl.textContent = slogan[lang] || slogan[DEFAULT_LANG] || '';
-    if (quoteEl) quoteEl.textContent = quote.author ? `${quoteText} \u2014 ${quote.author}` : quoteText;
+    const fullQuoteText = quote.author ? `${quoteText} \u2014 ${quote.author}` : quoteText;
+    if (sloganEl) sloganEl.textContent = sloganText;
+    if (quoteEl) quoteEl.textContent = fullQuoteText;
+
+    const wordCount = `${sloganText} ${fullQuoteText}`.trim().split(/\s+/).filter(Boolean).length;
+    const readingMs = LOADING_QUOTE_BASE_MS + wordCount * LOADING_QUOTE_MS_PER_WORD;
+    mapLoadingOverlayMinMs = Math.min(LOADING_QUOTE_MAX_MS, Math.max(LOADING_QUOTE_MIN_MS, readingMs));
   } catch (e) {
     console.warn('Failed to load languages/loading-screen.json:', e.message);
   }
 }
-initLoadingScreenSlogan();
+const loadingScreenSloganReady = initLoadingScreenSlogan();
 
 let globalActiveData = [];
 
@@ -17066,12 +17083,14 @@ function setIconPack(packId) {
   location.reload();
 }
 
-const MAP_LOADING_OVERLAY_MIN_TOTAL_MS = 3000;
-
-function hideMapLoadingOverlay() {
+async function hideMapLoadingOverlay() {
+  // Make sure mapLoadingOverlayMinMs reflects the quote that's actually on
+  // screen before we use it -- otherwise, if the map/pins finish loading
+  // faster than this fetch, we'd read the stale default instead.
+  await loadingScreenSloganReady.catch(() => {});
   const shownAt = window.__ttbSplashShownAt || Date.now();
   const elapsed = Date.now() - shownAt;
-  const remaining = Math.max(0, MAP_LOADING_OVERLAY_MIN_TOTAL_MS - elapsed);
+  const remaining = Math.max(0, mapLoadingOverlayMinMs - elapsed);
   setTimeout(() => {
     const el = document.getElementById('mapLoadingOverlay');
     if (el) el.classList.add('map-loading-hidden');
