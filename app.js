@@ -6372,7 +6372,10 @@ function initVoiceNavSettingsUi() {
 function formatDistanceForSpeech(m) {
   if (!isFinite(m)) return '';
   if (m >= 1000) return (m / 1000).toFixed(1) + ' ' + t('voiceKilometers');
-  return Math.round(m) + ' ' + t('voiceMeters');
+  // Round to the nearest 10m for speech -- "turn in 120 meters" reads much
+  // more naturally than an exact "124 meters" and is plenty precise for a
+  // spoken lead-in.
+  return (Math.round(m / 10) * 10) + ' ' + t('voiceMeters');
 }
 function speakNavInstruction(text) {
   if (!voiceNavEnabled || !text) return;
@@ -6571,12 +6574,12 @@ function instructionForStep(step) {
   if (!step) return null;
   const { type, modifier, exit, name } = step;
 
-  if (type === 'arrive') return { icon: 'turn-arrive.png', text: t('turnArrive'), isArrive: true };
+  if (type === 'arrive') return { icon: 'turn-arrive.png', text: t('turnArrive'), spokenText: t('turnArrive'), isArrive: true };
   if (type === 'depart')  return null;
 
   if (type === 'roundabout' || type === 'rotary' || type === 'roundabout turn') {
     const label = exit ? `${t('turnRoundabout')}, ${t('turnExit')} ${exit}` : t('turnRoundabout');
-    return { icon: 'turn-roundabout.png', text: name ? `${label} (${name})` : label };
+    return { icon: 'turn-roundabout.png', text: name ? `${label} (${name})` : label, spokenText: label };
   }
 
   let icon = 'turn-straight.png';
@@ -6594,7 +6597,10 @@ function instructionForStep(step) {
   else if (type === 'end of road')  { icon = 'turn-end-of-road.png'; text = t('turnEndOfRoad'); }
   else if (type === 'on ramp' || type === 'off ramp') { icon = 'turn-ramp.png'; text = t('turnRamp'); }
 
-  return { icon, text: name ? `${text}, ${name}` : text };
+  // On-screen text includes the street name for context; spokenText leaves
+  // it out since street names read out by speech synthesis are often
+  // mangled/unnatural and just add noise to the announcement.
+  return { icon, text: name ? `${text}, ${name}` : text, spokenText: text };
 }
 
 let tbtChimePlayedForStep = -1;
@@ -6645,8 +6651,8 @@ function updateTurnByTurnDisplay(from) {
       tbtChimePlayedForStep = navStepIndex;
       playTurnUpcomingChime();
       const spokenText = info.isArrive
-        ? info.text
-        : t('voiceLeadIn').replace('{dist}', formatDistanceForSpeech(distToTurn)) + info.text;
+        ? info.spokenText
+        : t('voiceLeadIn').replace('{dist}', formatDistanceForSpeech(distToTurn)) + info.spokenText;
       speakNavInstruction(spokenText);
     }
   } else if (!justTookTurn) {
@@ -15446,6 +15452,11 @@ function readNearbyCheckinHistory() {
 
 function maybeShowNearbyCheckin() {
   if (nearbyCheckinModalOpen) return;
+
+  // Car-mode driving: never interrupt with "is this still an issue?"
+  // check-in prompts, even for Road reports along the route. Bike/foot
+  // driving mode is unaffected.
+  if (isCarMode()) return;
 
   if (overlayStack.some(o => o.key !== 'drivingMode')) return;
   if (!currentSession || !userCoords) return;
