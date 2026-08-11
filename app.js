@@ -5797,6 +5797,12 @@ let navPanelOpen       = false;
 let navRouteFetching   = false;
 let navLastRouteAt     = 0;
 let navLastRouteFrom   = null;
+// Set the moment we go off-route (see evaluateNavigationProgress) and read by
+// updateTurnByTurnDisplay/showRerouteInstruction while we're off-route or
+// recalculating -- true if the driver's current heading is roughly opposite
+// the route's direction of travel at the point they left it, i.e. a U-turn
+// is the likely fix rather than just "keep going, a new route is coming".
+let navRerouteSuggestUturn = false;
 
 function navRerouteIntervalMs() { return travelMode === 'bike' ? 20000 : travelMode === 'foot' ? 12000 : 15000; }
 function navRerouteDriftM()     { return travelMode === 'bike' ? 25    : travelMode === 'foot' ? 15 : 40; }
@@ -6547,7 +6553,18 @@ function updateTurnByTurnDisplay(from) {
   const card = document.getElementById('turnByTurnCard');
   if (!card) return;
   if (!drivingMode) { hideTurnByTurnDisplay(); return; }
-  if (!from || !navRouteSteps.length || navState === NavState.PREVIEW) { hideTurnByTurnDisplay(); return; }
+  if (!from || navState === NavState.PREVIEW) { hideTurnByTurnDisplay(); return; }
+
+  // Off-route or actively fetching a new route: the old step list points at
+  // the maneuver we just missed (or somewhere behind us now), so showing it
+  // would tell the driver to do the wrong thing. Swap in a reroute prompt
+  // instead until a fresh route with fresh steps comes back.
+  if (navState === NavState.OFF_ROUTE || navState === NavState.RECALCULATING) {
+    showRerouteInstruction();
+    return;
+  }
+
+  if (!navRouteSteps.length) { hideTurnByTurnDisplay(); return; }
 
   const prevStepIndex = navStepIndex;
   while (
@@ -6587,6 +6604,23 @@ function updateTurnByTurnDisplay(from) {
   }
 }
 
+// Shown in place of the normal turn card while off-route/recalculating (see
+// updateTurnByTurnDisplay above). Chimes/speaks once per off-route episode --
+// tbtChimePlayedForStep doubles as that "already announced" guard here,
+// using the sentinel string below since it's normally a numeric step index.
+const TBT_REROUTE_SENTINEL = 'reroute';
+function showRerouteInstruction() {
+  const suggestUturn = navRerouteSuggestUturn;
+  document.getElementById('turnByTurnIcon').src = 'icons/' + (suggestUturn ? 'turn-uturn.png' : 'hourglass.png');
+  document.getElementById('turnByTurnText').textContent = t(suggestUturn ? 'turnUturnWhenPossible' : 'turnRerouting');
+  document.getElementById('turnByTurnDist').textContent = '';
+  showTurnByTurnCard();
+  if (tbtChimePlayedForStep !== TBT_REROUTE_SENTINEL) {
+    tbtChimePlayedForStep = TBT_REROUTE_SENTINEL;
+    speakNavInstruction(t(suggestUturn ? 'voiceUturnWhenPossible' : 'voiceRerouting'));
+  }
+}
+
 function hideTurnByTurnDisplay() {
   const card = document.getElementById('turnByTurnCard');
   if (!card) return;
@@ -6612,6 +6646,26 @@ function hideTurnByTurnDisplay() {
   sync();
 })();
 
+// Rough "should we tell them to turn around?" check, run once at the moment
+// we detect the driver has gone off-route. Looks at the route's direction of
+// travel right where they left it (nearest point -> a bit further along) and
+// compares that to the driver's actual current heading. If they're pointed
+// roughly the opposite way (more than 100 degrees off), the fastest fix is
+// almost always a U-turn, not "keep driving, a new route is coming" -- so we
+// can say that immediately instead of leaving the stale, now-behind-them
+// turn instruction on screen. Returns false (falls back to a generic
+// "recalculating" message) whenever we don't have a confident heading.
+const NAV_UTURN_HEADING_DELTA_DEG = 100;
+function headingOpposesRouteDirection(from, routeLatLngs) {
+  if (currentHeading == null) return false;
+  const nearest = nearestPointOnPolyline(from, routeLatLngs);
+  if (!nearest) return false;
+  const ahead = pointAheadOnPolyline(from, routeLatLngs, 25);
+  if (!ahead) return false;
+  const routeBearing = bearingBetween(nearest, ahead);
+  return Math.abs(shortestAngleDelta(currentHeading, routeBearing)) > NAV_UTURN_HEADING_DELTA_DEG;
+}
+
 function evaluateNavigationProgress() {
   if (!destinationCoords) return;
   if (![NavState.NAVIGATING, NavState.OFF_ROUTE, NavState.RECALCULATING].includes(navState)) return;
@@ -6633,6 +6687,7 @@ function evaluateNavigationProgress() {
   const isOffRoute = offRouteDist > threshold;
 
   if (isOffRoute && navState === NavState.NAVIGATING) {
+    navRerouteSuggestUturn = headingOpposesRouteDirection(from, navigationLine.getLatLngs());
     setNavState(NavState.OFF_ROUTE);
     playMissedTurnChime();
   }
@@ -6640,11 +6695,13 @@ function evaluateNavigationProgress() {
   if (isOffRoute && navState === NavState.OFF_ROUTE && !navRouteFetching) {
     setNavState(NavState.RECALCULATING);
     drawNavigationLine(true).then(() => {
+      navRerouteSuggestUturn = false;
       if (navState === NavState.RECALCULATING) setNavState(NavState.NAVIGATING);
     });
   }
 
   if (!isOffRoute && navState === NavState.OFF_ROUTE) {
+    navRerouteSuggestUturn = false;
     setNavState(NavState.NAVIGATING);
   }
 }
