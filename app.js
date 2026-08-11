@@ -2914,8 +2914,9 @@ async function initLoadingScreenSlogan() {
     const data = await res.json();
     const slogan = data.slogan || {};
     const quote = pickRandomLoadingQuote(data.quotes) || {};
+    const quoteText = quote[lang] || quote[DEFAULT_LANG] || '';
     if (sloganEl) sloganEl.textContent = slogan[lang] || slogan[DEFAULT_LANG] || '';
-    if (quoteEl) quoteEl.textContent = quote[lang] || quote[DEFAULT_LANG] || '';
+    if (quoteEl) quoteEl.textContent = quote.author ? `${quoteText} \u2014 ${quote.author}` : quoteText;
   } catch (e) {
     console.warn('Failed to load languages/loading-screen.json:', e.message);
   }
@@ -17065,7 +17066,7 @@ function setIconPack(packId) {
   location.reload();
 }
 
-const MAP_LOADING_OVERLAY_MIN_TOTAL_MS = 2000;
+const MAP_LOADING_OVERLAY_MIN_TOTAL_MS = 3000;
 
 function hideMapLoadingOverlay() {
   const shownAt = window.__ttbSplashShownAt || Date.now();

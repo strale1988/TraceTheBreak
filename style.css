@@ -1125,7 +1125,7 @@ body.nav-panel-open .driving-nav-card{
 }
 .map-loading-slogan{
   font-size:var(--fs-16);
-  font-weight:var(--fw-heavy);
+  font-weight:var(--fw-semibold);
   color:var(--text-primary);
   letter-spacing:.2px;
   min-height:1.3em;
