@@ -2891,6 +2891,37 @@ function migrateLegacyLangCode(code) {
 let lang = (function () {
   try { return migrateLegacyLangCode(localStorage.getItem(LANG_STORAGE_KEY)) || DEFAULT_LANG; } catch (e) { return DEFAULT_LANG; }
 })();
+
+// Splash-screen slogan + a random quote (languages/loading-screen.json).
+// Deliberately its own tiny fetch, separate from the languages/<code>.json
+// string tables loaded by loadLanguageManifest()/initLang() below -- those
+// don't finish until well after the splash is already on screen, and this
+// only needs two strings, so there's no reason to wait on the bigger i18n
+// pipeline. Uses the synchronous localStorage-derived `lang` above, and
+// falls back to DEFAULT_LANG (English) per-field if a translation is
+// missing, same fallback rule as t().
+function pickRandomLoadingQuote(quotes) {
+  if (!Array.isArray(quotes) || !quotes.length) return null;
+  return quotes[Math.floor(Math.random() * quotes.length)];
+}
+async function initLoadingScreenSlogan() {
+  const sloganEl = document.getElementById('mapLoadingSlogan');
+  const quoteEl = document.getElementById('mapLoadingQuote');
+  if (!sloganEl && !quoteEl) return;
+  try {
+    const res = await fetch('languages/loading-screen.json', { cache: 'no-store' });
+    if (!res.ok) throw new Error(`loading-screen.json ${res.status}`);
+    const data = await res.json();
+    const slogan = data.slogan || {};
+    const quote = pickRandomLoadingQuote(data.quotes) || {};
+    if (sloganEl) sloganEl.textContent = slogan[lang] || slogan[DEFAULT_LANG] || '';
+    if (quoteEl) quoteEl.textContent = quote[lang] || quote[DEFAULT_LANG] || '';
+  } catch (e) {
+    console.warn('Failed to load languages/loading-screen.json:', e.message);
+  }
+}
+initLoadingScreenSlogan();
+
 let globalActiveData = [];
 
 let activeDataVersion = 0;
