@@ -965,6 +965,15 @@ body.nav-panel-open .driving-nav-card{
   transition: transform .25s linear;
   transform-origin:center center;
 }
+/* While the driving-mode animation loop is running, it already eases the
+   bearing itself every frame (see markerAnimTick/DRIVING_BEARING_EASE_TAU_MS
+   in app.js). Layering the CSS transition above on top of that made
+   rotation feel laggy: every frame's already-smoothed target got smoothed
+   again by another .25s, compounding into a noticeable delay behind the
+   real heading. Disable the CSS transition for that path only. */
+.leaflet-rotate-wrapper.no-css-rotate-transition{
+  transition: none;
+}
 
 .map-compass{
   width:40px; height:40px;

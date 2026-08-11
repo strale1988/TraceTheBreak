@@ -7596,7 +7596,7 @@ function snapToRouteIfClose(pos) {
 let markerAnimFrameId = null;
 let markerAnimLastTs = null;
 let animatedDrivingHeading = null;
-const DRIVING_BEARING_EASE_TAU_MS = 350; // lower = snappier, higher = smoother/laggier
+const DRIVING_BEARING_EASE_TAU_MS = 220; // lower = snappier, higher = smoother/laggier
 
 function markerAnimTick(ts) {
   if (!drivingMode || !userMarker) { markerAnimFrameId = null; markerAnimLastTs = null; animatedDrivingHeading = null; return; }
@@ -7656,12 +7656,22 @@ function startMarkerAnimLoop() {
   if (markerAnimFrameId !== null) return;
   markerAnimLastTs = null;
   animatedDrivingHeading = null;
+  // This loop drives applyMapBearing() every animation frame with its own
+  // easing (DRIVING_BEARING_EASE_TAU_MS). Leaving the CSS transition on
+  // rotWrapper enabled here would smooth each of those already-eased
+  // per-frame values a second time, stacking two low-pass filters and
+  // making rotation lag noticeably behind the actual heading.
+  if (rotWrapper) rotWrapper.classList.add('no-css-rotate-transition');
   markerAnimFrameId = requestAnimationFrame(markerAnimTick);
 }
 function stopMarkerAnimLoop() {
   if (markerAnimFrameId !== null) { cancelAnimationFrame(markerAnimFrameId); markerAnimFrameId = null; }
   markerAnimLastTs = null;
   animatedDrivingHeading = null;
+  // Restore the CSS transition for one-off bearing changes (compass tap,
+  // heading-up toggle, etc.) that aren't driven by the per-frame loop and
+  // still want a smooth single animated snap.
+  if (rotWrapper) rotWrapper.classList.remove('no-css-rotate-transition');
 }
 
 function projectPoint(lat, lon, bearingDeg, distanceM) {
@@ -8489,6 +8499,37 @@ const SPEED_SIGN_ROUTE_MATCH_M    = 30;  // how far a way can be from the route 
 const SPEED_LIMIT_FETCH_TIMEOUT_MS = 6000;
 const SPEED_LIMIT_STALE_CLEAR_MS   = 45000; // if fetches keep failing this long, stop showing a possibly-wrong readout
 
+// overpass-api.de (the primary public instance) has been intermittently
+// returning 406 Not Acceptable for requests that don't send an explicit
+// Accept header, and is also just overloaded a lot of the time lately —
+// both leave the speed-limit readout permanently blank rather than
+// erroring loudly. Send a proper Accept header, and if the primary still
+// fails, fall back to a mirror instance before giving up.
+const OVERPASS_ENDPOINTS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass.private.coffee/api/interpreter'
+];
+
+async function fetchFromOverpass(query, signal) {
+  let lastErr = null;
+  for (const endpoint of OVERPASS_ENDPOINTS) {
+    try {
+      const res = await fetch(endpoint + '?data=' + encodeURIComponent(query), {
+        signal,
+        headers: { 'Accept': 'application/json' }
+      });
+      if (!res.ok) throw new Error(`Speed limit fetch: HTTP ${res.status} from ${endpoint}`);
+      return await res.json();
+    } catch (err) {
+      lastErr = err;
+      if (err && err.name === 'AbortError') throw err; // overall timeout — don't keep trying mirrors
+      // otherwise try the next mirror
+    }
+  }
+  throw lastErr || new Error('Speed limit fetch: all Overpass endpoints failed');
+}
+
 function isActivelyNavigatingRoute() {
   return drivingMode && !!destinationCoords && !!navigationLine && !navigationLine._isFallback;
 }
@@ -8528,16 +8569,12 @@ function maybeFetchSpeedLimit(lat, lon) {
   // actually starts/ends along our route, and it can't tell a way that merely
   // grazes the query circle apart from one that runs along it — geometry can.
   const query = `[out:json][timeout:5];way(around:${radius},${center.lat},${center.lon})[highway][maxspeed];out tags geom 24;`;
-  const url = 'https://overpass-api.de/api/interpreter?data=' + encodeURIComponent(query);
 
   const abortController = new AbortController();
   const timeoutId = setTimeout(() => abortController.abort(), SPEED_LIMIT_FETCH_TIMEOUT_MS);
 
   try {
-    fetch(url, { signal: abortController.signal }).then(res => {
-      if (!res.ok) throw new Error(`Speed limit fetch: HTTP ${res.status}`);
-      return res.json();
-    }).then(data => {
+    fetchFromOverpass(query, abortController.signal).then(data => {
       const routeLatLngs = navigationLine.getLatLngs();
       const originSeg = findNearestSegmentOnPolyline({ lat, lon }, routeLatLngs);
       const originIndex = originSeg ? originSeg.index : 0;
