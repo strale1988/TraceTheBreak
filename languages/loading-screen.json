@@ -1,5 +1,5 @@
 {
-  "_comment": "Splash-screen content, loaded once per page load by initLoadingScreenSlogan() in app.js. Kept separate from languages/<code>.json (the main UI string tables) since it's fetched before the language system finishes initializing and only ever needs these two things. To add a language: add its code as a key under \"slogan\" and under every entry in \"quotes\". Missing keys fall back to English. To add a quote: append a new object to \"quotes\" with an \"en\" value at minimum.",
+  "_comment": "Splash-screen content, loaded once per page load by initLoadingScreenSlogan() in app.js. Kept separate from languages/<code>.json (the main UI string tables) since it's fetched before the language system finishes initializing and only ever needs these two things. To add a language: add its code as a key under \"slogan\" and under every entry in \"quotes\". Missing keys fall back to English. To add a quote: append a new object to \"quotes\" with an \"en\" value at minimum, plus an optional \"author\" field (omit it for unattributed/in-house lines -- app.js appends \" \u2014 {author}\" only when present).",
 
   "slogan": {
     "en": "Trace the break, fix the city!",
@@ -57,6 +57,116 @@
       "en": "Civic pride is a pothole you stopped to photograph.",
       "sr-Cyrl": "Грађанска свест је рупа поред које си стао да је сликаш.",
       "sr-Lat": "Građanska svest je rupa pored koje si stao da je slikaš."
+    },
+    {
+      "en": "Never doubt that a small group of thoughtful, committed citizens can change the world; indeed, it's the only thing that ever has.",
+      "sr-Cyrl": "Никада не сумњај да мала група промишљених, посвећених грађана може променити свет; заправо, то је једино што је икада и успело.",
+      "sr-Lat": "Nikada ne sumnjaj da mala grupa promišljenih, posvećenih građana može promeniti svet; zapravo, to je jedino što je ikada i uspelo.",
+      "author": "Margaret Mead"
+    },
+    {
+      "en": "Do what you can, with what you have, where you are.",
+      "sr-Cyrl": "Уради шта можеш, са оним што имаш, тамо где јеси.",
+      "sr-Lat": "Uradi šta možeš, sa onim što imaš, tamo gde jesi.",
+      "author": "Theodore Roosevelt"
+    },
+    {
+      "en": "The greatness of a community is most accurately measured by the compassionate actions of its members.",
+      "sr-Cyrl": "Величина заједнице се најтачније мери саосећајним поступцима њених чланова.",
+      "sr-Lat": "Veličina zajednice se najtačnije meri saosećajnim postupcima njenih članova.",
+      "author": "Coretta Scott King"
+    },
+    {
+      "en": "Nobody made a greater mistake than he who did nothing because he could do only a little.",
+      "sr-Cyrl": "Нико није направио већу грешку од онога ко није урадио ништа зато што је могао да уради само мало.",
+      "sr-Lat": "Niko nije napravio veću grešku od onoga ko nije uradio ništa zato što je mogao da uradi samo malo.",
+      "author": "Edmund Burke"
+    },
+    {
+      "en": "I am only one, but I am one. I cannot do everything, but I can do something. And I will not let what I cannot do interfere with what I can do.",
+      "sr-Cyrl": "Ја сам само један, али јесам један. Не могу да урадим све, али могу нешто. И нећу дозволити да оно што не могу да урадим омета оно што могу.",
+      "sr-Lat": "Ja sam samo jedan, ali jesam jedan. Ne mogu da uradim sve, ali mogu nešto. I neću dozvoliti da ono što ne mogu da uradim ometa ono što mogu.",
+      "author": "Edward Everett Hale"
+    },
+    {
+      "en": "Alone, we can do so little; together, we can do so much.",
+      "sr-Cyrl": "Сами можемо тако мало; заједно можемо тако много.",
+      "sr-Lat": "Sami možemo tako malo; zajedno možemo tako mnogo.",
+      "author": "Helen Keller"
+    },
+    {
+      "en": "Act as if what you do makes a difference. It does.",
+      "sr-Cyrl": "Понашај се као да оно што радиш нешто мења. И мења.",
+      "sr-Lat": "Ponašaj se kao da ono što radiš nešto menja. I menja.",
+      "author": "William James"
+    },
+    {
+      "en": "There is no power for change greater than a community discovering what it cares about.",
+      "sr-Cyrl": "Не постоји већа снага за промену од заједнице која открива до чега јој је стало.",
+      "sr-Lat": "Ne postoji veća snaga za promenu od zajednice koja otkriva do čega joj je stalo.",
+      "author": "Margaret J. Wheatley"
+    },
+    {
+      "en": "We cannot live only for ourselves. A thousand fibers connect us with our fellow men.",
+      "sr-Cyrl": "Не можемо живети само за себе. Хиљаду нити нас повезује са осталим људима.",
+      "sr-Lat": "Ne možemo živeti samo za sebe. Hiljadu niti nas povezuje sa ostalim ljudima.",
+      "author": "Herman Melville"
+    },
+    {
+      "en": "Every action, no matter how small, makes a difference.",
+      "sr-Cyrl": "Свака акција, ма колико мала, нешто мења.",
+      "sr-Lat": "Svaka akcija, ma koliko mala, nešto menja.",
+      "author": "Jane Goodall"
+    },
+    {
+      "en": "Don't just walk past the problem\u2014drop a pin and start the solution.",
+      "sr-Cyrl": "Не пролази поред проблема — постави ознаку и покрени решење.",
+      "sr-Lat": "Ne prolazi pored problema — postavi oznaku i pokreni rešenje."
+    },
+    {
+      "en": "A smarter, safer city starts with a single tap on your screen.",
+      "sr-Cyrl": "Паметнији, безбеднији град почиње једним додиром на твом екрану.",
+      "sr-Lat": "Pametniji, bezbedniji grad počinje jednim dodirom na tvom ekranu."
+    },
+    {
+      "en": "Turning local frustrations into community resolutions, one report at a time.",
+      "sr-Cyrl": "Претварамо локалне фрустрације у решења заједнице, једну пријаву по једну.",
+      "sr-Lat": "Pretvaramo lokalne frustracije u rešenja zajednice, jednu prijavu po jednu."
+    },
+    {
+      "en": "You see the break. We trace the fix.",
+      "sr-Cyrl": "Ти приметиш квар. Ми пратимо поправку.",
+      "sr-Lat": "Ti primetiš kvar. Mi pratimo popravku."
+    },
+    {
+      "en": "Every pothole reported is a smoother ride for your entire neighborhood.",
+      "sr-Cyrl": "Свака пријављена рупа значи мирнију вожњу за цело твоје насеље.",
+      "sr-Lat": "Svaka prijavljena rupa znači mirniju vožnju za celo tvoje naselje."
+    },
+    {
+      "en": "Your phone is the most powerful tool your city's infrastructure has.",
+      "sr-Cyrl": "Твој телефон је најмоћнији алат који инфраструктура твог града има.",
+      "sr-Lat": "Tvoj telefon je najmoćniji alat koji infrastruktura tvog grada ima."
+    },
+    {
+      "en": "Fixing the streets isn't just the city's job anymore\u2014it's teamwork.",
+      "sr-Cyrl": "Поправка улица више није само посао града — то је тимски рад.",
+      "sr-Lat": "Popravka ulica više nije samo posao grada — to je timski rad."
+    },
+    {
+      "en": "Be the eyes of your city. Map the change you want to see.",
+      "sr-Cyrl": "Буди очи свог града. Мапирај промену коју желиш да видиш.",
+      "sr-Lat": "Budi oči svog grada. Mapiraj promenu koju želiš da vidiš."
+    },
+    {
+      "en": "Empowering citizens to rebuild and repair their communities from the ground up.",
+      "sr-Cyrl": "Оснажујемо грађане да обнове и поправе своје заједнице од темеља.",
+      "sr-Lat": "Osnažujemo građane da obnove i poprave svoje zajednice od temelja."
+    },
+    {
+      "en": "Report locally, impact widely. Real change starts right on your street.",
+      "sr-Cyrl": "Пријави локално, утичи шире. Права промена почиње баш на твојој улици.",
+      "sr-Lat": "Prijavi lokalno, utiči šire. Prava promena počinje baš na tvojoj ulici."
     }
   ]
 }
