@@ -1,0 +1,62 @@
+{
+  "_comment": "Splash-screen content, loaded once per page load by initLoadingScreenSlogan() in app.js. Kept separate from languages/<code>.json (the main UI string tables) since it's fetched before the language system finishes initializing and only ever needs these two things. To add a language: add its code as a key under \"slogan\" and under every entry in \"quotes\". Missing keys fall back to English. To add a quote: append a new object to \"quotes\" with an \"en\" value at minimum.",
+
+  "slogan": {
+    "en": "Trace the break, fix the city!",
+    "sr-Cyrl": "Пронађи квар, поправи град!",
+    "sr-Lat": "Pronađi kvar, popravi grad!"
+  },
+
+  "quotes": [
+    {
+      "en": "A city gets better one report at a time.",
+      "sr-Cyrl": "Град постаје бољи, једна пријава по једна.",
+      "sr-Lat": "Grad postaje bolji, jedna prijava po jedna."
+    },
+    {
+      "en": "The street you fix today is the one your neighbor walks tomorrow.",
+      "sr-Cyrl": "Улица коју поправиш данас, сутра је прелази твој комшија.",
+      "sr-Lat": "Ulica koju popraviš danas, sutra je prelazi tvoj komšija."
+    },
+    {
+      "en": "Small potholes become big problems if nobody says anything.",
+      "sr-Cyrl": "Мале рупе постају велики проблем ако нико ништа не пријави.",
+      "sr-Lat": "Male rupe postaju veliki problem ako niko ništa ne prijavi."
+    },
+    {
+      "en": "Every pin on the map is someone who cared enough to look twice.",
+      "sr-Cyrl": "Свака ознака на мапи је неко ко је довољно марио да погледа два пута.",
+      "sr-Lat": "Svaka oznaka na mapi je neko ko je dovoljno mario da pogleda dva puta."
+    },
+    {
+      "en": "Good infrastructure is invisible. Broken infrastructure never is.",
+      "sr-Cyrl": "Добра инфраструктура је невидљива. Покварена никада није.",
+      "sr-Lat": "Dobra infrastruktura je nevidljiva. Pokvarena nikada nije."
+    },
+    {
+      "en": "You don't need permission to notice something is broken.",
+      "sr-Cyrl": "Не треба ти дозвола да приметиш да је нешто покварено.",
+      "sr-Lat": "Ne treba ti dozvola da primetiš da je nešto pokvareno."
+    },
+    {
+      "en": "Reporting it is the first repair.",
+      "sr-Cyrl": "Пријава је прва поправка.",
+      "sr-Lat": "Prijava je prva popravka."
+    },
+    {
+      "en": "A well-kept city starts with someone who kept looking down.",
+      "sr-Cyrl": "Уређен град почиње од некога ко је наставио да гледа доле.",
+      "sr-Lat": "Uređen grad počinje od nekoga ko je nastavio da gleda dole."
+    },
+    {
+      "en": "Nobody fixes what nobody reports.",
+      "sr-Cyrl": "Нико не поправља оно што нико не пријави.",
+      "sr-Lat": "Niko ne popravlja ono što niko ne prijavi."
+    },
+    {
+      "en": "Civic pride is a pothole you stopped to photograph.",
+      "sr-Cyrl": "Грађанска свест је рупа поред које си стао да је сликаш.",
+      "sr-Lat": "Građanska svest je rupa pored koje si stao da je slikaš."
+    }
+  ]
+}
