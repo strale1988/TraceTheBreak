@@ -5852,6 +5852,17 @@ let navLastRouteFrom   = null;
 // the route's direction of travel at the point they left it, i.e. a U-turn
 // is the likely fix rather than just "keep going, a new route is coming".
 let navRerouteSuggestUturn = false;
+// Set once a recalculated route comes back after a suggested U-turn, and
+// read by updateTurnByTurnDisplay to keep showing the U-turn prompt even
+// though navState is back to NAVIGATING. The freshly-fetched route starts
+// essentially where the driver is already standing, so the off-route
+// distance check clears immediately -- but its first maneuver (often itself
+// a "turn right/left") only makes sense once the U-turn is actually done.
+// Without this, the display flashes that misleading first instruction for a
+// moment before flipping back to a reroute prompt on the next off-route
+// tick. Stays true until the driver's heading actually lines up with the
+// new route's direction of travel.
+let navAwaitingHeadingAlign = false;
 
 function navRerouteIntervalMs() { return travelMode === 'bike' ? 20000 : travelMode === 'foot' ? 12000 : 15000; }
 function navRerouteDriftM()     { return travelMode === 'bike' ? 25    : travelMode === 'foot' ? 15 : 40; }
@@ -6619,6 +6630,18 @@ function updateTurnByTurnDisplay(from) {
     return;
   }
 
+  // Just recalculated after a suggested U-turn: hold the U-turn prompt until
+  // the driver's heading actually matches the new route's direction, instead
+  // of jumping straight to that route's first (often still-confusing) turn.
+  if (navAwaitingHeadingAlign) {
+    if (navigationLine && !navigationLine._isFallback && headingOpposesRouteDirection(from, navigationLine.getLatLngs())) {
+      showRerouteInstruction();
+      return;
+    }
+    navAwaitingHeadingAlign = false;
+    navRerouteSuggestUturn = false;
+  }
+
   if (!navRouteSteps.length) { hideTurnByTurnDisplay(); return; }
 
   const prevStepIndex = navStepIndex;
@@ -6742,6 +6765,7 @@ function evaluateNavigationProgress() {
   const isOffRoute = offRouteDist > threshold;
 
   if (isOffRoute && navState === NavState.NAVIGATING) {
+    navAwaitingHeadingAlign = false;
     navRerouteSuggestUturn = headingOpposesRouteDirection(from, navigationLine.getLatLngs());
     setNavState(NavState.OFF_ROUTE);
     playMissedTurnChime();
@@ -6749,8 +6773,15 @@ function evaluateNavigationProgress() {
 
   if (isOffRoute && navState === NavState.OFF_ROUTE && !navRouteFetching) {
     setNavState(NavState.RECALCULATING);
+    const suggestedUturn = navRerouteSuggestUturn;
     drawNavigationLine(true).then(() => {
-      navRerouteSuggestUturn = false;
+      // Leave navRerouteSuggestUturn (and the U-turn prompt it drives) in
+      // place if we're still pointed the wrong way relative to the new
+      // route -- updateTurnByTurnDisplay's navAwaitingHeadingAlign check
+      // will clear it once the driver's heading catches up. Otherwise this
+      // was a normal reroute and we can go straight back to turn-by-turn.
+      if (suggestedUturn) navAwaitingHeadingAlign = true;
+      else navRerouteSuggestUturn = false;
       if (navState === NavState.RECALCULATING) setNavState(NavState.NAVIGATING);
     });
   }
@@ -6780,6 +6811,8 @@ function clearNavigation() {
   navLastRouteFrom = null;
   navRouteSteps = [];
   navStepIndex = 0;
+  navRerouteSuggestUturn = false;
+  navAwaitingHeadingAlign = false;
   hideTurnByTurnDisplay();
   if (navigationLine)    { map.removeLayer(navigationLine); navigationLine = null; }
   if (drivenPathLine)    { map.removeLayer(drivenPathLine); drivenPathLine = null; }
@@ -6843,7 +6876,7 @@ function scheduleAutoRefollow() {
 // to the explicit follow button tap (toggleFollowMode -> followMapTo).
 function performAutoRefollow() {
   autoRefollowTimerId = null;
-  if (followMode || !userCoords || overlayStack.length > 0) return;
+  if (followMode || !userCoords || overlayStackBlocksAutoRefollow()) return;
   setFollowMode(true);
   map.setView([userCoords.lat, userCoords.lon], map.getZoom(), { animate: true });
 }
@@ -8294,16 +8327,28 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+// drivingMode lives in overlayStack itself (see toggleDrivingMode) purely so
+// its own Escape/back-button handling falls out of the same overlay-stack
+// machinery as every other modal -- it isn't a real modal blocking the map.
+// Treating any non-empty overlayStack as "something's covering the map" would
+// therefore leave auto-refollow permanently disabled for the entire time
+// you're driving/navigating, since that entry never goes away until driving
+// mode itself is turned off. Everywhere that decides whether to pause/resume
+// auto-refollow needs to ignore that one entry.
+function overlayStackBlocksAutoRefollow() {
+  return overlayStack.some(o => o.key !== 'drivingMode');
+}
+
 function openOverlay(key, closeFn) {
   if (overlayStack.some(o => o.key === key)) return;
-  const wasEmpty = overlayStack.length === 0;
+  const wasClear = !overlayStackBlocksAutoRefollow();
   const triggerEl = document.activeElement && document.activeElement !== document.body
     ? document.activeElement
     : null;
   overlayStack.push({ key, closeFn, triggerEl });
   history.pushState({ overlayKey: key }, '');
 
-  if (wasEmpty) cancelAutoRefollowTimer();
+  if (wasClear && key !== 'drivingMode') cancelAutoRefollowTimer();
   setupModalA11y(key);
 }
 function closeOverlay(key, extraHistorySteps) {
@@ -8320,7 +8365,7 @@ function closeOverlay(key, extraHistorySteps) {
     }
   }
 
-  if (overlayStack.length === 0) scheduleAutoRefollow();
+  if (!overlayStackBlocksAutoRefollow()) scheduleAutoRefollow();
 
   // Return focus to whatever triggered this modal (e.g. the button that
   // opened it), rather than leaving it stranded on a now-hidden element.
@@ -8682,6 +8727,19 @@ const SPEED_SIGN_ONROUTE_FRACTION_MIN = 0.75;
 // nodes actually sit inside the matching corridor. This is what lets us
 // treat a speed limit as a zone with a real start and end point along the
 // route, instead of a single centroid guess.
+//
+// Only nodes within SPEED_SIGN_ROUTE_MATCH_M of the route count toward that
+// span (and toward startPoint/endPoint, i.e. where the sign markers actually
+// get placed). A way often keeps going past where it stops running along our
+// route -- into a side street, round a bend away from us, past the
+// intersection where we turn off it -- and those far-away nodes still have
+// *some* nearest segment on the route, just a distant one. Letting them
+// count previously stretched minIndex/maxIndex well past the point the
+// route actually shares with this way, so the zone looked like it started or
+// ended somewhere it didn't (the reported "where does the limit actually
+// start/end" bug). onRouteFraction (used by the caller to decide whether to
+// keep the way at all) already only counted these close nodes; this makes
+// the span itself agree with that same definition of "on our route".
 function projectWayOntoRoute(el, routeLatLngs) {
   const geom = el.geometry;
   if (!Array.isArray(geom) || !geom.length) return null;
@@ -8693,7 +8751,9 @@ function projectWayOntoRoute(el, routeLatLngs) {
   for (const pt of geom) {
     const seg = findNearestSegmentOnPolyline({ lat: pt.lat, lon: pt.lon }, routeLatLngs);
     if (!seg) continue;
-    if (seg.dist <= SPEED_SIGN_ROUTE_MATCH_M) onRouteCount++;
+    const onRoute = seg.dist <= SPEED_SIGN_ROUTE_MATCH_M;
+    if (!onRoute) continue; // see note below -- excluded from the start/end span too
+    onRouteCount++;
     if (seg.index < minIndex) { minIndex = seg.index; startPoint = { lat: pt.lat, lon: pt.lon }; }
     if (seg.index > maxIndex) { maxIndex = seg.index; endPoint = { lat: pt.lat, lon: pt.lon }; }
   }
