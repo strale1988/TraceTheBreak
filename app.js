@@ -12930,6 +12930,7 @@ async function openReportFromActivityFeed(reportId) {
         return;
       }
       report = data;
+      report._detailHydrated = true; // select('*') above already has every column
       globalActiveData = globalActiveData.concat([report]);
     } catch (err) {
       console.error('Failed to fetch report from activity feed:', err.message || err);
@@ -14587,9 +14588,48 @@ async function fetchAddressForPoint(lat, lon) {
   }
 }
 
+// Fields loadPinsByWindow's lean columns leave out (see REPORT_LIST_COLUMNS)
+// because they're admin/audit-only and only ever read from inside the open
+// detail modal (timeline extras, edit mode, CSV export path is covered
+// separately by REPORT_DATE_RANGE_COLUMNS).
+const REPORT_DETAIL_ONLY_FIELDS = [
+  'updated_at', 'in_progress_at', 'fixed_at',
+  'photo_uploaded_at', 'photo_reviewed_at', 'photo_reviewed_by',
+  'flagged_for_review', 'flag_reason',
+  'fixed_photo_path', 'fixed_photo_status', 'fixed_photo_uploaded_at',
+  'fixed_photo_uploaded_by', 'fixed_photo_reviewed_at', 'fixed_photo_reviewed_by',
+  'after_photo_uploaded_at', 'after_photo_reviewed_at', 'after_photo_reviewed_by',
+  'company_notified_at', 'company_last_notified_at', 'company_notify_count',
+  'nearby_notify_sent_at'
+];
+
+// Fetches the handful of detail-only columns for one report and merges them
+// onto the existing globalActiveData object in place (so every other
+// `.find()` lookup for this id downstream automatically sees the full row).
+// No-ops once a report has already been hydrated (realtime updates and
+// openReportFromActivityFeed's fallback fetch both already deliver full
+// rows and mark the flag themselves).
+async function ensureFullReportDetail(reportId) {
+  const report = globalActiveData.find(r => r.id === reportId);
+  if (!report || report._detailHydrated) return report;
+  try {
+    const { data, error } = await sb.from(TABLE)
+      .select(REPORT_DETAIL_ONLY_FIELDS.join(','))
+      .eq('id', reportId)
+      .maybeSingle();
+    if (error) throw error;
+    if (data) Object.assign(report, data);
+    report._detailHydrated = true;
+  } catch (err) {
+    console.error('Failed to load report detail fields:', err.message || err);
+  }
+  return report;
+}
+
 async function showReportDetailModal(reportId) {
   const report = globalActiveData.find(r => r.id === reportId);
   if (!report || !isValidLatLng(report.latitude, report.longitude)) return;
+  await ensureFullReportDetail(reportId);
 
   const isOwner = !!(currentSession && report.owner_id === currentSession.user.id);
   const isAdmin = !!(currentProfile && currentProfile.is_admin);
@@ -16643,6 +16683,31 @@ function pruneLoadedReportsIfNeeded() {
   markActiveDataChanged();
 }
 
+// Column sets for the map/list fetch path. These intentionally leave out
+// admin/audit-only fields (review timestamps+reviewers, flag reason,
+// fixed_photo_* moderation trail, company notify bookkeeping) that are only
+// ever read inside the report detail modal — those get lazily hydrated by
+// ensureFullReportDetail() the moment a report is actually opened, instead
+// of being pulled for every row on every map pan/zoom. This is the single
+// biggest lever on Supabase egress since loadPinsByWindow fires on every
+// moveend and the always-on query alone can return up to MAX_ALWAYS_ON_FETCH
+// full rows each time.
+//
+// Kept in both lists (not just detail-only) because they're read directly
+// off globalActiveData outside the detail modal — popups (comment, path),
+// markers/clustering (municipality_id for admin-domain checks), and the
+// mark-fixed flow (photo_path/after_photo_path, checked synchronously by
+// maybeOfferAfterPhoto right after a status update, before any hydration
+// could happen):
+const REPORT_LIST_COLUMNS =
+  'id,category,subcategory,status,priority,comment,latitude,longitude,path,' +
+  'created_at,owner_id,owner_username,municipality_id,' +
+  'photo_path,photo_status,after_photo_path,after_photo_status';
+// Same as above, plus in_progress_at/fixed_at — needed because the
+// date-range query also feeds dateRangeOnlyData, which powers the admin
+// CSV export (downloadCSV()).
+const REPORT_DATE_RANGE_COLUMNS = REPORT_LIST_COLUMNS + ',in_progress_at,fixed_at';
+
 async function loadPinsByWindow() {
   if (!fp || !fp.selectedDates || fp.selectedDates.length < 2) return;
 
@@ -16656,7 +16721,7 @@ async function loadPinsByWindow() {
 
   try {
     const [dateRangeRes, alwaysOnRes] = await Promise.all([
-      sb.from(TABLE).select('*')
+      sb.from(TABLE).select(REPORT_DATE_RANGE_COLUMNS)
         .gte('created_at', start.toISOString())
         .lte('created_at', end.toISOString())
         .gte('latitude', bbox.minLat).lte('latitude', bbox.maxLat)
@@ -16669,7 +16734,7 @@ async function loadPinsByWindow() {
       // Previously this excluded 'fixed', which meant a report fixed
       // outside the current date window would silently vanish from the
       // map even though it was never explicitly hidden by the user.
-      sb.from(TABLE).select('*')
+      sb.from(TABLE).select(REPORT_LIST_COLUMNS)
         .gte('latitude', bbox.minLat).lte('latitude', bbox.maxLat)
         .gte('longitude', bbox.minLon).lte('longitude', bbox.maxLon)
         .order('created_at', { ascending: false })
@@ -16686,9 +16751,20 @@ async function loadPinsByWindow() {
     freshInWindow.forEach(r => newlyMergedIds.add(r.id));
     (alwaysOnRes.data || []).forEach(r => newlyMergedIds.add(r.id));
 
+    // Merge fresh lean rows into any already-loaded objects (Object.assign
+    // onto the existing reference) rather than replacing them outright. A
+    // report that was previously opened in the detail modal has extra
+    // fields hydrated onto it by ensureFullReportDetail() that this lean
+    // fetch doesn't return — replacing the object here would silently
+    // drop them the next time the map pans. Merging preserves them.
     const merged = new Map(globalActiveData.map(r => [r.id, r]));
-    freshInWindow.forEach(r => merged.set(r.id, r));
-    (alwaysOnRes.data || []).forEach(r => merged.set(r.id, r));
+    const mergeRow = (r) => {
+      const existing = merged.get(r.id);
+      if (existing) Object.assign(existing, r);
+      else merged.set(r.id, r);
+    };
+    freshInWindow.forEach(mergeRow);
+    (alwaysOnRes.data || []).forEach(mergeRow);
     globalActiveData = Array.from(merged.values());
     if (isTesterMode()) globalActiveData = applyTesterReportOverlay(globalActiveData);
     markActiveDataChanged();
@@ -16769,6 +16845,10 @@ function applyRealtimeReportChange(eventType, newRow, oldRow) {
     return;
   }
 
+  // Postgres Changes payloads always carry every column, so this row is
+  // already fully hydrated — no need for ensureFullReportDetail to
+  // re-fetch it if the detail modal gets opened for it.
+  newRow._detailHydrated = true;
   if (idx === -1) globalActiveData.push(newRow);
   else globalActiveData[idx] = newRow;
   markActiveDataChanged();
