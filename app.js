@@ -1,4 +1,29 @@
 
+// --- Lazy script loader ------------------------------------------------
+// Loads a <script> on first use and caches the in-flight/resolved promise
+// so repeat calls (e.g. toggling the heatmap on/off) don't re-fetch or
+// double-inject. Used to keep libraries that aren't needed for first
+// paint (leaflet.heat, libphonenumber-js) out of the initial load.
+const _lazyScriptPromises = {};
+function loadScriptOnce(url, integrity) {
+  if (_lazyScriptPromises[url]) return _lazyScriptPromises[url];
+  _lazyScriptPromises[url] = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = url;
+    if (integrity) {
+      s.integrity = integrity;
+      s.crossOrigin = 'anonymous';
+    }
+    s.onload = () => resolve();
+    s.onerror = () => {
+      delete _lazyScriptPromises[url];
+      reject(new Error(`Failed to load ${url}`));
+    };
+    document.head.appendChild(s);
+  });
+  return _lazyScriptPromises[url];
+}
+
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').then(() => {
@@ -9665,10 +9690,26 @@ function refreshHeatLayer() {
   heatLayer = buildHeatLayer().addTo(map);
 }
 
-function toggleHeatmap() {
+async function toggleHeatmap() {
   heatmapActive = !heatmapActive;
   const btn = document.getElementById('heatmapBtn');
   if (heatmapActive) {
+    if (typeof L.heatLayer !== 'function') {
+      btn.classList.add('loading');
+      try {
+        await loadScriptOnce(
+          'https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js',
+          'sha384-mFKkGiGvT5vo1fEyGCD3hshDdKmW3wzXW/x+fWriYJArD0R3gawT6lMvLboM22c0'
+        );
+      } catch (e) {
+        console.error('Failed to load heatmap library:', e.message || e);
+        heatmapActive = false;
+        btn.classList.remove('loading');
+        toast(t('genericLoadError') || 'Could not load heatmap', 'error');
+        return;
+      }
+      btn.classList.remove('loading');
+    }
     if (map.hasLayer(pinCluster)) map.removeLayer(pinCluster);
     if (map.hasLayer(companyMarkersLayer)) map.removeLayer(companyMarkersLayer);
     heatLayer = buildHeatLayer().addTo(map);
@@ -13299,16 +13340,20 @@ async function searchAllReportsAdmin(query) {
     const matchingProfiles = await sb.from(PROFILES_TABLE).select('id').ilike('username', pattern).limit(50);
     const matchingOwnerIds = (matchingProfiles.data || []).map(p => p.id);
 
+    // Lean columns only — same set loadPinsByWindow() uses. Anything else
+    // (audit timestamps, flag reasons, etc.) is only needed once an admin
+    // actually opens a result, at which point showReportDetailModal's
+    // ensureFullReportDetail() hydrates it on demand.
     const queries = [
-      sb.from(TABLE).select('*').ilike('comment', pattern).order('created_at', { ascending: false }).limit(WAITING_LIST_FETCH_LIMIT),
-      sb.from(TABLE).select('*').ilike('owner_username', pattern).order('created_at', { ascending: false }).limit(WAITING_LIST_FETCH_LIMIT)
+      sb.from(TABLE).select(REPORT_LIST_COLUMNS).ilike('comment', pattern).order('created_at', { ascending: false }).limit(WAITING_LIST_FETCH_LIMIT),
+      sb.from(TABLE).select(REPORT_LIST_COLUMNS).ilike('owner_username', pattern).order('created_at', { ascending: false }).limit(WAITING_LIST_FETCH_LIMIT)
     ];
     if (matchingOwnerIds.length) {
-      queries.push(sb.from(TABLE).select('*').in('owner_id', matchingOwnerIds).order('created_at', { ascending: false }).limit(WAITING_LIST_FETCH_LIMIT));
+      queries.push(sb.from(TABLE).select(REPORT_LIST_COLUMNS).in('owner_id', matchingOwnerIds).order('created_at', { ascending: false }).limit(WAITING_LIST_FETCH_LIMIT));
     }
 
     if (UUID_RE.test(query.trim())) {
-      queries.push(sb.from(TABLE).select('*').eq('id', query.trim()).limit(1));
+      queries.push(sb.from(TABLE).select(REPORT_LIST_COLUMNS).eq('id', query.trim()).limit(1));
     }
     const results = await Promise.all(queries);
     for (const r of results) if (r.error) throw r.error;
@@ -13999,6 +14044,7 @@ function editUtilityCompany(id) {
   form.style.display = 'flex';
   highlightUcEditingItem(id);
   form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  ensurePhoneLibLoaded(); // prefetch, non-blocking
 }
 
 function quickAddUcContact(municipalityId, category) {
@@ -14017,6 +14063,7 @@ function quickAddUcContact(municipalityId, category) {
   if (cb) cb.checked = true;
   renderUcVerifyStatus();
   const form = document.getElementById('ucForm');
+  ensurePhoneLibLoaded(); // prefetch, non-blocking
   highlightUcEditingItem(null); // it's a brand new contact, no card to highlight yet
   // Anchor the form inside the municipality's own item list (same container
   // the existing contact cards live in), not just after the whole group —
@@ -14029,6 +14076,22 @@ function quickAddUcContact(municipalityId, category) {
   form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   const nameInput = document.getElementById('ucName');
   if (nameInput) nameInput.focus();
+}
+
+// libphonenumber-js is only needed by admins editing utility-company contact
+// phone numbers, so it's kept out of the initial page load and fetched here
+// on first use instead. Safe to call repeatedly/redundantly — loadScriptOnce
+// caches the in-flight/resolved promise.
+function ensurePhoneLibLoaded() {
+  if (window.libphonenumber) return Promise.resolve();
+  return loadScriptOnce(
+    'https://unpkg.com/libphonenumber-js@1.10.51/bundle/libphonenumber-js.min.js',
+    'sha384-DpiLMmtK16j/3wW3U8+q2VvDkUO678U04tewx61Yb/OIcb++cL9rGCKMqRpjJODr'
+  ).catch(e => {
+    // Non-fatal: formatPhoneNumberForSave() already degrades gracefully
+    // when window.libphonenumber is missing.
+    console.warn('Failed to load phone validation library:', e.message || e);
+  });
 }
 
 // Returns { value, valid }. `valid` reflects whether libphonenumber could
@@ -14254,6 +14317,7 @@ async function persistUcRow(verified) {
   // wrong.
   const reviewNotes = [];
   if (row.phone) {
+    await ensurePhoneLibLoaded();
     row.phone = row.phone.map(entry => {
       const rawValue = entry.value;
       const phoneResult = formatPhoneNumberForSave(rawValue, muni ? muni.country_code : null);
