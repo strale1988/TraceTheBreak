@@ -599,7 +599,7 @@
             <img class="icon-img icon-img-inline icon-tint-dark" src="icons/category-filter.png" alt=""> <span id="mapFilterSettingsBtnLabel" data-i18n="categoryFilterBtnTitle">Filter categories</span>
             <span class="settings-btn-active-dot" id="mapFilterActiveDot" style="display:none"></span>
           </button>
-          <div class="detail-section-title" id="statusFilterSectionTitle" data-i18n="statusFilterSectionTitle" style="margin-top:14px;">Status shown on map</div>
+          <div class="detail-section-title section-title-gap" id="statusFilterSectionTitle" data-i18n="statusFilterSectionTitle">Status shown on map</div>
           <div class="theme-segment" id="statusFilterSettingsSegment"></div>
           <label class="settings-toggle-row" id="pulseToggleRow">
             <span id="pulseToggleLabel" data-i18n="pulseToggleLabel">Status pulse animation</span>
@@ -1141,7 +1141,7 @@
       <div class="uc-list" id="accountRequestsPendingList"></div>
       <div class="detail-empty" id="accountRequestsPendingEmpty" style="display:none;"></div>
 
-      <div class="admin-section-title detail-section-title" id="accountRequestsDormantTitle" style="margin-top:14px;">Dormant accounts</div>
+      <div class="admin-section-title detail-section-title section-title-gap" id="accountRequestsDormantTitle">Dormant accounts</div>
       <div class="uc-list" id="accountRequestsDormantList"></div>
       <div class="detail-empty" id="accountRequestsDormantEmpty" style="display:none;"></div>
     </div>
@@ -1199,11 +1199,11 @@
       <button type="button" class="settings-btn" style="background:var(--accent);color:#fff;width:100%;margin-top:8px;" onclick="sendNotificationFromAdmin()" id="notificationSendBtn">Send</button>
     </div>
 
-    <div class="admin-section-title detail-section-title" id="notificationWaitingListSectionTitle" style="display:none;margin-top:18px;">Waiting for review</div>
+    <div class="admin-section-title detail-section-title section-title-gap" id="notificationWaitingListSectionTitle" style="display:none;">Waiting for review</div>
     <input type="text" id="adminSearchInput" oninput="onAdminSearchInput()" placeholder="Search reports…" style="display:none;width:100%;box-sizing:border-box;margin-bottom:10px;" autocomplete="off">
     <div id="notificationWaitingList"></div>
 
-    <div class="admin-section-title detail-section-title" id="notificationInboxSectionTitle" style="display:none;margin-top:18px;align-items:center;justify-content:space-between;gap:8px;">
+    <div class="admin-section-title detail-section-title section-title-gap" id="notificationInboxSectionTitle" style="display:none;align-items:center;justify-content:space-between;gap:8px;">
       <span id="notificationInboxSectionTitleText">Your notifications</span>
       <button type="button" id="notificationClearBtn" onclick="showClearNotificationsConfirm()" style="display:none;background:none;border:none;color:var(--text-secondary);font-size:var(--fs-12-5);font-weight:var(--fw-semibold);cursor:pointer;padding:4px 0;">Clear</button>
     </div>
@@ -1259,7 +1259,10 @@
 <div id="onboardingOverlay" class="onboarding-overlay" style="display:none">
   <div id="onboardingSpotlight" class="onboarding-spotlight"></div>
   <div id="onboardingTooltip" class="onboarding-tooltip">
-    <div class="onboarding-tooltip-step" id="onboardingStepCounter"></div>
+    <div class="onboarding-tooltip-progress">
+      <div class="onboarding-tooltip-dots" id="onboardingStepDots"></div>
+      <div class="onboarding-tooltip-step" id="onboardingStepCounter"></div>
+    </div>
     <div class="onboarding-tooltip-title" id="onboardingStepTitle"></div>
     <div class="onboarding-tooltip-text" id="onboardingStepText"></div>
     <div class="onboarding-tooltip-actions">
