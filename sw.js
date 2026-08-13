@@ -1,18 +1,5 @@
-// TraceTheBreak service worker
-// -----------------------------------------------------------------------------
-// Scope: only the "app shell" — the HTML document itself and the third-party
-// libraries it loads from CDNs (Leaflet, Supabase client, flatpickr, etc). The
-// app already has its own, more specific caching for map tiles (Cache API,
-// see fetchTileCached) and icons (ICON_CACHE_NAME), and an IndexedDB-backed
-// offline report queue — this worker deliberately does NOT touch any of that,
-// so it just adds "the page itself still loads with zero connectivity" on
-// top of the offline behaviour that already existed.
-//
-// Bump CACHE_VERSION whenever you change the HTML/CSS/JS so old clients pick
-// up the new version instead of being stuck on a stale cached copy.
 const CACHE_VERSION = 'ttb-shell-v1';
 
-// Same-origin document — update this if the deployed filename changes.
 const APP_SHELL_URL = self.registration.scope; // resolves to the directory root ("/")
 
 const PRECACHE_URLS = [
@@ -63,13 +50,8 @@ self.addEventListener('fetch', event => {
   const url = req.url;
   const isShellAsset = PRECACHE_URLS.includes(url) || req.mode === 'navigate';
 
-  // Leave everything else (Supabase API calls, OSRM routing/nearest, map tiles,
-  // icons, Overpass, geocoding, etc.) completely alone — those already have
-  // their own caching or need to always hit the network fresh.
   if (!isShellAsset) return;
 
-  // Network-first, falling back to cache: online users always get the latest
-  // build; offline users get whatever was last successfully cached.
   event.respondWith(
     fetch(req)
       .then(res => {
