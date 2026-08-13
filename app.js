@@ -16322,7 +16322,7 @@ function buildDetailStatusReadonlyHtml(report, reporterName) {
       ${(!categorySkipsInProgress(report.category) && report.in_progress_at) ? buildTimelineItem(report.in_progress_at, true, STATUS_COLORS.in_progress, buildPipelineStageLabel('in_progress', report, true), STAGE_ICONS.in_progress) : ''}
       ${report.fixed_at ? buildTimelineItem(report.fixed_at, true, STATUS_COLORS.fixed, buildPipelineStageLabel('fixed', report, true), STAGE_ICONS.fixed) : ''}
       <span id="detailTimelineAnchor-${report.id}"></span>
-      ${(!categorySkipsInProgress(report.category) && !report.in_progress_at) ? buildTimelineItem(report.in_progress_at, false, STATUS_COLORS.in_progress, buildPipelineStageLabel('in_progress', report, false), STAGE_ICONS.in_progress) : ''}
+      ${(!categorySkipsInProgress(report.category) && !report.in_progress_at && !report.fixed_at) ? buildTimelineItem(report.in_progress_at, false, STATUS_COLORS.in_progress, buildPipelineStageLabel('in_progress', report, false), STAGE_ICONS.in_progress) : ''}
       ${!report.fixed_at ? buildTimelineItem(report.fixed_at, false, STATUS_COLORS.fixed, buildPipelineStageLabel('fixed', report, false), STAGE_ICONS.fixed) : ''}
     </div>
     ${noteRowHtml}
