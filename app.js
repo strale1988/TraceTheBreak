@@ -7458,6 +7458,7 @@ function toggleDrivingMode(mode) {
     bumpBaselineMag = null;
     bumpCalibrationCount = 0;
     updateDrivingGpsStatus();
+    startDrivingGpsStatusPoll();
     if (!followMode) toggleFollowMode();
     setUserMarkerStyle(true);
     if (userCoords) followMapTo(userCoords.lat, userCoords.lon);
@@ -7485,6 +7486,7 @@ function toggleDrivingMode(mode) {
     resetQuickGrids();
     setUserMarkerStyle(false);
     stopMarkerAnimLoop();
+    stopDrivingGpsStatusPoll();
     if (!walkingHeadingMode) {
       resetMapBearing();
     } else if (currentHeading !== null) {
@@ -8557,9 +8559,40 @@ function updateDrivingGpsStatus() {
   capsule.title = stale ? t('drivingNoGps') : t('drivingGpsLabel');
   capsule.classList.toggle('gps-lost', stale);
 }
-setInterval(updateDrivingGpsStatus, 2000);
+// Both of these only matter while their respective UI is visible/relevant
+// (driving mode / report wizard), so they're started and stopped alongside
+// that state rather than polling forever in the background — same pattern
+// as gpsRetryIntervalId / notificationInboxRefreshIntervalId elsewhere.
+let drivingGpsStatusIntervalId = null;
+function startDrivingGpsStatusPoll() {
+  if (drivingGpsStatusIntervalId !== null) return;
+  drivingGpsStatusIntervalId = setInterval(updateDrivingGpsStatus, 2000);
+}
+function stopDrivingGpsStatusPoll() {
+  if (drivingGpsStatusIntervalId !== null) {
+    clearInterval(drivingGpsStatusIntervalId);
+    drivingGpsStatusIntervalId = null;
+  }
+}
 
-setInterval(updateReportFabState, 2000);
+let reportFabStateIntervalId = null;
+function startReportFabStatePoll() {
+  if (reportFabStateIntervalId !== null) return;
+  reportFabStateIntervalId = setInterval(updateReportFabState, 2000);
+}
+function stopReportFabStatePoll() {
+  if (reportFabStateIntervalId !== null) {
+    clearInterval(reportFabStateIntervalId);
+    reportFabStateIntervalId = null;
+  }
+}
+// updateReportFabState only affects the report/walk FABs, which exist for
+// the whole session, so poll continuously — but pause while backgrounded.
+startReportFabStatePoll();
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') stopReportFabStatePoll();
+  else startReportFabStatePoll();
+});
 
 let speedLimitFetching     = false;
 let lastSpeedLimitFetchAt  = 0;
