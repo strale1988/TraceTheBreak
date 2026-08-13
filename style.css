@@ -2430,7 +2430,13 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   font-weight:var(--fw-medium);
   white-space:nowrap;
 }
-.timeline-item:last-child{ padding-bottom:0; }
+/* A trailing anchor span (used for inserting future timeline entries in the
+   right spot) sits after the real items in the DOM, so plain :last-child
+   never matched the true last visible item — it matched the anchor instead.
+   :has() with a general-sibling combinator finds any .timeline-item with no
+   later .timeline-item sibling, which is what we actually mean by "last",
+   and re-evaluates automatically if a new entry is inserted afterward. */
+.timeline-item:not(:has(~ .timeline-item)){ padding-bottom:0; }
 .timeline-dot{
   width:24px;
   height:24px;
@@ -2473,7 +2479,7 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
   width:2px;
   background:var(--border-color);
 }
-.timeline-item:last-child .timeline-line{ display:none; }
+.timeline-item:not(:has(~ .timeline-item)) .timeline-line{ display:none; }
 .timeline-date{
   font-size:var(--fs-11);
   color:var(--text-primary);
@@ -2763,6 +2769,7 @@ html[data-theme="dark"] .oauth-btn.oauth-github{ background:var(--bg-surface-alt
 .detail-location-link{
   display:block; color:var(--accent-link, #4ea1ff); text-decoration:underline;
   text-underline-offset:2px; font-size:var(--fs-13); font-weight:var(--fw-medium); line-height:1.4;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 .detail-location-link:hover, .detail-location-link:active{ text-decoration:none; }
 .detail-row:not(:last-child){ border-bottom:1px solid var(--border-color); }

@@ -14935,9 +14935,9 @@ async function showReportDetailModal(reportId) {
     <div class="detail-subsection">
       <div class="detail-subsection-title">${t('detailGalleryTitle')}</div>
       <div class="detail-gallery-strip" id="detailGalleryStrip"><div class="detail-loading">${t('detailLoading')}</div></div>
-      ${currentSession ? `<div style="display:flex; gap:10px; margin-top:10px;">
-        <button type="button" class="settings-btn" style="flex:1;" ${isFixed ? 'disabled' : ''} onclick="addGalleryPhotoToReport('${report.id}','camera')"><img class="icon-img icon-img-inline" src="icons/camera.png" alt="">${t('reportPhotoAddBtn')}</button>
-        <button type="button" class="settings-btn" style="flex:1;" ${isFixed ? 'disabled' : ''} onclick="addGalleryPhotoToReport('${report.id}','library')"><img class="icon-img icon-img-inline" src="icons/gallery.png" alt="">${t('reportPhotoGalleryBtn')}</button>
+      ${(currentSession && !isFixed) ? `<div style="display:flex; gap:10px; margin-top:10px;">
+        <button type="button" class="settings-btn" style="flex:1;" onclick="addGalleryPhotoToReport('${report.id}','camera')"><img class="icon-img icon-img-inline" src="icons/camera.png" alt="">${t('reportPhotoAddBtn')}</button>
+        <button type="button" class="settings-btn" style="flex:1;" onclick="addGalleryPhotoToReport('${report.id}','library')"><img class="icon-img icon-img-inline" src="icons/gallery.png" alt="">${t('reportPhotoGalleryBtn')}</button>
       </div>` : ''}
     </div>`;
 
