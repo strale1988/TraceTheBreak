@@ -75,6 +75,8 @@
   <meta name="apple-mobile-web-app-title" content="TraceTheBreak">
   <meta name="mobile-web-app-capable" content="yes">
 
+  <link rel="preload" as="font" type="font/woff2" href="fonts/manrope-latin-wght-normal.woff2" crossorigin>
+  <link rel="preload" as="font" type="font/woff2" href="fonts/manrope-cyrillic-wght-normal.woff2" crossorigin>
   <link rel="preload" as="image" href="icons/settings.png">
   <link rel="preload" as="image" href="icons/fullscreen-enter.png">
   <link rel="preload" as="image" href="icons/user.png">
@@ -1233,12 +1235,17 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" integrity="sha384-eXVCORTRlv4FUUgS/xmOyr66XBVraen8ATNLMESp92FKXLAMiKkerixTiBvXriZr" crossorigin="anonymous"></script>
-<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js" integrity="sha384-mFKkGiGvT5vo1fEyGCD3hshDdKmW3wzXW/x+fWriYJArD0R3gawT6lMvLboM22c0" crossorigin="anonymous"></script>
+<!-- leaflet.heat intentionally NOT loaded here: app.js lazy-loads it via
+     loadScriptOnce() on first heatmap toggle. Loading it eagerly here would
+     defeat that (and previously did — see git history). -->
 <script src="https://unpkg.com/@supabase/supabase-js@2.108.1/dist/umd/supabase.js" integrity="sha384-EjUdIVmzWliPzdzhxZ9ZoO0etXLKWuUPUftAGxP6qH6Lm4oLwoLaJR0Ba4pIDiDL" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js" integrity="sha384-5JqMv4L/Xa0hfvtF06qboNdhvuYXUku9ZrhZh3bSk8VXF0A/RuSLHpLsSV9Zqhl6" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/sr.js" integrity="sha384-e1SMLHNoe+JiilHNAt+QcepR/LJ5TGCRYT0yCN+dFKCYt4iZok/y8KJFpSCMuO02" crossorigin="anonymous"></script>
-<script src="https://unpkg.com/libphonenumber-js@1.10.51/bundle/libphonenumber-js.min.js" integrity="sha384-DpiLMmtK16j/3wW3U8+q2VvDkUO678U04tewx61Yb/OIcb++cL9rGCKMqRpjJODr" crossorigin="anonymous"></script>
-<script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous"></script>
+<!-- libphonenumber-js intentionally NOT loaded here: app.js lazy-loads it via
+     ensurePhoneLibLoaded() the first time an admin edits a phone number. -->
+<!-- jspdf removed: not referenced anywhere in app.js. If a PDF-export
+     feature is added later, load it lazily the same way as the two libs
+     above rather than eagerly here. -->
 <script src="app.min.js"></script>
 
 <div class="global-offline-banner" id="globalOfflineBanner" style="display:none" onclick="syncOfflineQueue(true)" title="Tap to retry now">
