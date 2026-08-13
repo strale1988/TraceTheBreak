@@ -10217,7 +10217,15 @@ async function loadReportGalleryPhotos(reportId) {
       .order('created_at', { ascending: false })
       .limit(30);
     if (error) throw error;
-    return data || [];
+    // RLS on this table allows SELECT to everyone (photos need to be
+    // publicly viewable once approved), so visibility of anything short of
+    // "approved" has to be enforced here, client-side — same rule the main
+    // before/after report photos already use: the public only sees approved
+    // photos, the uploader can still see their own pending/rejected ones,
+    // and admins see everything for moderation.
+    const isAdmin = !!(currentProfile && currentProfile.is_admin);
+    const uid = currentSession && currentSession.user && currentSession.user.id;
+    return (data || []).filter(p => p.photo_status === 'approved' || p.uploader_id === uid || isAdmin);
   } catch (err) {
     console.error('Failed to load gallery photos:', err.message || err);
     return null;
@@ -10230,14 +10238,28 @@ async function renderReportGallery(reportId) {
   const photos = await loadReportGalleryPhotos(reportId);
   if (photos === null) { strip.innerHTML = `<div class="detail-empty">${t('photoLoadFailed')}</div>`; return; }
   if (!photos.length) { strip.innerHTML = `<div class="detail-empty">${t('galleryEmpty')}</div>`; return; }
-  strip.innerHTML = photos.map(p => `
+  strip.innerHTML = photos.map(p => {
+    // Only non-approved photos carry a badge here — those are only ever
+    // present for the uploader themselves or an admin (see the filter in
+    // loadReportGalleryPhotos), so this never leaks moderation state to
+    // the public.
+    const badgeKey = p.photo_status !== 'approved' ? PHOTO_STATUS_BADGE_KEY[p.photo_status] : null;
+    const badge = badgeKey ? `<span class="photo-status-badge ${escapeHtml(p.photo_status)}">${t(badgeKey)}</span>` : '';
+    // uploader_username is null whenever that user opted out of showing
+    // their name publicly (enforced server-side) — fall back to the same
+    // short, non-reversible id used elsewhere instead of a generic label,
+    // so admins/owners can still tell photos apart without deanonymizing.
+    const displayName = p.uploader_username || shortUserId(p.uploader_id);
+    return `
     <div class="detail-gallery-item" id="gallery-item-${p.id}">
       <div class="detail-loading" style="width:88px;height:88px;display:flex;align-items:center;justify-content:center;">${t('detailLoading')}</div>
       <div class="detail-gallery-caption">
-        <div class="detail-gallery-caption-name">${escapeHtml(p.uploader_username || t('detailUnknown'))}</div>
+        ${badge}
+        <div class="detail-gallery-caption-name">${escapeHtml(displayName)}</div>
         <div class="detail-gallery-caption-date">${formatDate(p.created_at)}</div>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   photos.forEach(p => {
     getReportPhotoSignedUrl(p.photo_path, null, 'thumb').then(url => {
       const item = document.getElementById(`gallery-item-${p.id}`);
