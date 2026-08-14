@@ -780,20 +780,31 @@
 </div>
 
 <div id="reportDetailModal" class="fullscreen-modal-overlay" style="display:none">
-  <div class="fullscreen-modal-header" id="reportDetailHeader">
-    <div class="fullscreen-modal-header-titles">
-      <h2 id="reportDetailTitle"></h2>
-      <div class="detail-report-id" id="reportDetailIdRow" role="button" tabindex="0">
-        <img class="detail-report-id-icon" id="reportDetailIdCopyIcon" src="icons/copy.png" alt="">
-        <span id="reportDetailIdText"></span>
-      </div>
-    </div>
+  <div class="fullscreen-modal-header fullscreen-modal-header-stacked" id="reportDetailHeader">
     <div class="fullscreen-modal-header-actions" id="reportDetailHeaderActions">
       <button type="button" class="fullscreen-modal-share" id="reportDetailAddPhotoBtn" aria-label="" style="display:none"><img class="icon-img" src="icons/camera.png" alt=""></button>
       <button type="button" class="fullscreen-modal-share" id="reportDetailDeleteIconBtn" aria-label="" style="display:none"><img class="icon-img" src="icons/reports/waste.png" alt=""></button>
       <button type="button" class="fullscreen-modal-share" id="reportDetailCopyLinkBtn" aria-label=""><img class="icon-img" id="reportDetailCopyLinkIcon" src="icons/copy.png" alt="copy link"></button>
       <button type="button" class="fullscreen-modal-share" id="reportDetailShareBtn" aria-label="Share"><img class="icon-img" src="icons/link.png" alt="share"></button>
       <button class="fullscreen-modal-close" id="reportDetailCloseBtn" onclick="hideReportDetailModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
+    </div>
+    <div class="fullscreen-modal-header-titles">
+      <h2 id="reportDetailTitle"></h2>
+    </div>
+    <div class="detail-badge-row" id="reportDetailBadgeRow">
+      <span class="status-pill" id="reportDetailStatusPill"></span>
+      <span class="status-pill" id="reportDetailPriorityPill"></span>
+      <div class="detail-report-id" id="reportDetailIdRow" role="button" tabindex="0">
+        <img class="detail-report-id-icon" id="reportDetailIdCopyIcon" src="icons/copy.png" alt="">
+        <span id="reportDetailIdText"></span>
+      </div>
+    </div>
+    <div class="detail-location-row" id="reportDetailLocationRow">
+      <div class="detail-location-label"><img class="icon-img" src="icons/pin.png" alt=""></div>
+      <a href="javascript:void(0)" class="detail-location-link" id="reportDetailLocationLink">
+        <span id="detailStreetValue"></span>, <span id="detailAreaValue"></span>, <span id="detailMunicipalityValue"></span>
+      </a>
+      <button type="button" class="detail-location-copy-btn" onclick="copyReportLocationToClipboard()" id="detailLocationCopyBtn" aria-label="" title=""><img class="icon-img" id="detailLocationCopyIcon" src="icons/copy.png" alt="copy location"></button>
     </div>
   </div>
   <div class="fullscreen-modal-body" id="reportDetailBody"></div>
