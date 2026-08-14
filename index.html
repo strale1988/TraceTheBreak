@@ -788,7 +788,12 @@
         <span id="reportDetailIdText"></span>
       </div>
     </div>
-    <button class="fullscreen-modal-close" id="reportDetailCloseBtn" onclick="hideReportDetailModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
+    <div class="fullscreen-modal-header-actions" id="reportDetailHeaderActions">
+      <button type="button" class="fullscreen-modal-share" id="reportDetailDeleteIconBtn" aria-label="" style="display:none"><img class="icon-img" src="icons/reports/waste.png" alt=""></button>
+      <button type="button" class="fullscreen-modal-share" id="reportDetailCopyLinkBtn" aria-label=""><img class="icon-img" id="reportDetailCopyLinkIcon" src="icons/copy.png" alt="copy link"></button>
+      <button type="button" class="fullscreen-modal-share" id="reportDetailShareBtn" aria-label="Share"><img class="icon-img" src="icons/link.png" alt="share"></button>
+      <button class="fullscreen-modal-close" id="reportDetailCloseBtn" onclick="hideReportDetailModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
+    </div>
   </div>
   <div class="fullscreen-modal-body" id="reportDetailBody"></div>
 </div>
