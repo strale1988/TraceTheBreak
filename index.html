@@ -601,6 +601,13 @@
           </button>
           <div class="detail-section-title section-title-gap" id="statusFilterSectionTitle" data-i18n="statusFilterSectionTitle">Status shown on map</div>
           <div class="theme-segment" id="statusFilterSettingsSegment"></div>
+          <label class="settings-toggle-row" id="oldFixedToggleRow">
+            <span id="oldFixedToggleLabel" data-i18n="oldFixedToggleLabel">Show fixed reports older than 15 days</span>
+            <span class="toggle-switch">
+              <input type="checkbox" id="oldFixedToggleInput" onchange="setShowOldFixedReports(this.checked)">
+              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+            </span>
+          </label>
           <label class="settings-toggle-row" id="pulseToggleRow">
             <span id="pulseToggleLabel" data-i18n="pulseToggleLabel">Status pulse animation</span>
             <span class="toggle-switch">
