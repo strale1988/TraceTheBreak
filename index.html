@@ -1100,7 +1100,13 @@
     <button class="fullscreen-modal-close" onclick="hideAdminPanelModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
   </div>
   <div class="fullscreen-modal-body">
-    <div class="admin-section detail-section" id="adminPanelSection" style="border-top:none;">
+    <div class="admin-section detail-section" id="waitingListSection" style="border-top:none;">
+      <div class="admin-section-title detail-section-title" id="notificationWaitingListSectionTitle">Waiting for review</div>
+      <input type="text" id="adminSearchInput" oninput="onAdminSearchInput()" placeholder="Search reports…" style="width:100%;box-sizing:border-box;margin-bottom:10px;" autocomplete="off">
+      <div id="notificationWaitingList"></div>
+    </div>
+
+    <div class="admin-section detail-section" id="adminPanelSection">
       <div class="admin-section-title detail-section-title" id="ucSectionTitle" data-i18n="ucSectionTitle">Utility company contacts</div>
       <input type="text" id="ucSearchInput" data-i18n-placeholder="ucSearchPH" oninput="renderUcList()" placeholder="Search contacts…" style="width:100%;box-sizing:border-box;margin-bottom:10px;">
       <div class="uc-list" id="ucList"></div>
@@ -1158,6 +1164,29 @@
       <div class="uc-list" id="accountRequestsDormantList"></div>
       <div class="detail-empty" id="accountRequestsDormantEmpty" style="display:none;"></div>
     </div>
+
+    <div class="admin-section detail-section" id="notificationComposeSection">
+      <div id="notificationComposePanel">
+        <div class="admin-section-title detail-section-title" id="notificationComposeTitle">Send a notification</div>
+        <div class="notification-compose-target" id="notificationComposeTarget">
+          <label class="notification-target-option">
+            <input type="radio" name="notificationTarget" value="all" id="notificationTargetAll" checked onchange="onNotificationTargetChange()">
+            <span id="notificationTargetAllLabel">Everyone</span>
+          </label>
+          <label class="notification-target-option">
+            <input type="radio" name="notificationTarget" value="user" id="notificationTargetUser" onchange="onNotificationTargetChange()">
+            <span id="notificationTargetUserLabel">Specific user</span>
+          </label>
+        </div>
+        <div id="notificationScopeHint" class="detail-export-hint" style="margin-top:6px;"></div>
+        <div id="notificationUsernameWrap" style="display:none;margin-top:8px;">
+          <input type="text" id="notificationUsernameInput" placeholder="Username" autocomplete="off" style="width:100%;box-sizing:border-box;" oninput="handleNotificationUsernameInput()">
+          <div id="notificationUsernameResults" class="navigate-results"></div>
+        </div>
+        <textarea id="notificationMessageInput" placeholder="Message" rows="3" style="width:100%;box-sizing:border-box;margin-top:8px;resize:vertical;"></textarea>
+        <button type="button" class="settings-btn" style="background:var(--accent);color:#fff;width:100%;margin-top:8px;" onclick="sendNotificationFromAdmin()" id="notificationSendBtn">Send</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1191,32 +1220,7 @@
     <button class="fullscreen-modal-close" onclick="hideNotificationModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
   </div>
   <div class="fullscreen-modal-body" id="notificationModalBody">
-    <div id="notificationComposePanel" style="display:none">
-      <div class="admin-section-title detail-section-title" id="notificationComposeTitle">Send a notification</div>
-      <div class="notification-compose-target" id="notificationComposeTarget">
-        <label class="notification-target-option">
-          <input type="radio" name="notificationTarget" value="all" id="notificationTargetAll" checked onchange="onNotificationTargetChange()">
-          <span id="notificationTargetAllLabel">Everyone</span>
-        </label>
-        <label class="notification-target-option">
-          <input type="radio" name="notificationTarget" value="user" id="notificationTargetUser" onchange="onNotificationTargetChange()">
-          <span id="notificationTargetUserLabel">Specific user</span>
-        </label>
-      </div>
-      <div id="notificationScopeHint" class="detail-export-hint" style="margin-top:6px;"></div>
-      <div id="notificationUsernameWrap" style="display:none;margin-top:8px;">
-        <input type="text" id="notificationUsernameInput" placeholder="Username" autocomplete="off" style="width:100%;box-sizing:border-box;" oninput="handleNotificationUsernameInput()">
-        <div id="notificationUsernameResults" class="navigate-results"></div>
-      </div>
-      <textarea id="notificationMessageInput" placeholder="Message" rows="3" style="width:100%;box-sizing:border-box;margin-top:8px;resize:vertical;"></textarea>
-      <button type="button" class="settings-btn" style="background:var(--accent);color:#fff;width:100%;margin-top:8px;" onclick="sendNotificationFromAdmin()" id="notificationSendBtn">Send</button>
-    </div>
-
-    <div class="admin-section-title detail-section-title section-title-gap" id="notificationWaitingListSectionTitle" style="display:none;">Waiting for review</div>
-    <input type="text" id="adminSearchInput" oninput="onAdminSearchInput()" placeholder="Search reports…" style="display:none;width:100%;box-sizing:border-box;margin-bottom:10px;" autocomplete="off">
-    <div id="notificationWaitingList"></div>
-
-    <div class="admin-section-title detail-section-title section-title-gap" id="notificationInboxSectionTitle" style="display:none;align-items:center;justify-content:space-between;gap:8px;">
+    <div class="admin-section-title detail-section-title" id="notificationInboxSectionTitle" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
       <span id="notificationInboxSectionTitleText">Your notifications</span>
       <button type="button" id="notificationClearBtn" onclick="showClearNotificationsConfirm()" style="display:none;background:none;border:none;color:var(--text-secondary);font-size:var(--fs-12-5);font-weight:var(--fw-semibold);cursor:pointer;padding:4px 0;">Clear</button>
     </div>
