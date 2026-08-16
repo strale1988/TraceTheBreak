@@ -12,14 +12,26 @@
 
   <!--
     Content-Security-Policy: pragmatic first pass.
-    'unsafe-inline' is kept for script-src/style-src because the app currently
-    relies on onclick="..." handlers and inline style="..." attributes
-    throughout the markup. This CSP still meaningfully reduces risk by
-    locking down which origins can load script/style/image/connect traffic,
-    blocking <object>/<embed>, blocking base-tag hijacking, and blocking
+    'unsafe-inline' is kept for script-src/style-src because the app still
+    has some onclick="..." handlers and inline style="..." attributes in
+    the markup. This CSP still meaningfully reduces risk by locking down
+    which origins can load script/style/image/connect traffic, blocking
+    <object>/<embed>, blocking base-tag hijacking, and blocking
     form-action redirection to other origins.
-    Removing 'unsafe-inline' fully requires migrating onclick handlers to
-    addEventListener + a nonce-based policy — a larger follow-up.
+
+    MIGRATION IN PROGRESS: app.js has moved its report-detail-modal/
+    timeline rendering off onclick="..." onto a delegated data-action
+    system (see the "Delegated actions" block near the top of app.js) —
+    real function references looked up by name, not eval'd strings, so
+    it's a genuine step toward dropping 'unsafe-inline' rather than just
+    moving the same risk to 'unsafe-eval'. The remaining onclick
+    attributes (map popups, the report wizard, utility-company admin
+    UI, this file's own static buttons) still need the same treatment
+    before 'unsafe-inline' can actually come out of script-src — removing
+    it now would silently break every handler not yet migrated. Inline
+    style="..." attributes (dynamic colors, etc.) are a separate,
+    larger follow-up: those'd need to move to CSS custom properties/
+    classes before style-src's 'unsafe-inline' can go too.
 
     NOTE: map tiles (OSM, CartoDB, Esri World_Imagery) are loaded via
     fetchTileCached()'s fetch(), not plain <img src>, for offline caching —
