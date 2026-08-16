@@ -56,6 +56,7 @@
   "offlineSynced": "✓ {n} queued report(s) submitted.",
   "offlineStillOffline": "Still no signal, will keep trying automatically.",
   "offlineSyncRateLimited": "Sending too many queued reports at once, the rest will send automatically in a bit.",
+  "offlineQueueSaveFailed": "No signal, and this device couldn’t save the report to send later either. Please try again once you’re back online.",
   "reportRateLimitedPrefix": "You're submitting reports quickly, try again in ",
   "reportRateLimitedSuffix": "s.",
   "reportRateLimitedServerFallbackSuffix": "a moment.",

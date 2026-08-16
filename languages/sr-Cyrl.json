@@ -56,6 +56,7 @@
   "offlineSynced": "✓ {n} сачуваних пријава послато.",
   "offlineStillOffline": "И даље нема сигнала, покушаћемо поново аутоматски.",
   "offlineSyncRateLimited": "Шаље се превише сачуваних пријава одједном, остале ће бити послате аутоматски ускоро.",
+  "offlineQueueSaveFailed": "Нема сигнала, а уређај није успео да сачува пријаву за касније слање. Покушајте поново чим се повежете.",
   "reportRateLimitedPrefix": "Пребрзо шаљете пријаве, покушајте поново за ",
   "reportRateLimitedSuffix": "s.",
   "reportRateLimitedServerFallbackSuffix": "тренутак.",
