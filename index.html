@@ -454,7 +454,7 @@
 
     <div class="detail-section" id="helpSettingsSection">
       <div class="detail-section-title" id="helpSectionTitle" data-i18n="helpSectionTitle">Help</div>
-      <button type="button" class="settings-btn" style="width:100%;" onclick="showHelpModal()" id="settingsHelpBtn">
+      <button type="button" class="settings-btn u-full-width" onclick="showHelpModal()" id="settingsHelpBtn">
         <img class="icon-img icon-img-inline icon-tint-dark" src="icons/help.png" alt=""> How to use TraceTheBreak
       </button>
       <button type="button" class="settings-btn" style="width:100%; margin-top:8px;" onclick="hideSettingsModal(); startOnboardingTour(true);" id="settingsReplayTourBtn">
@@ -516,7 +516,7 @@
           <p class="detail-export-hint" id="savedAreaSectionHint" data-i18n="savedAreaSectionHint">Get a push notification when someone reports a new issue near an area you care about.</p>
           <div id="savedAreaStatusText" class="saved-area-status"></div>
           <div class="saved-area-row">
-            <button type="button" class="settings-btn" style="flex:1;" onclick="useCurrentLocationForSavedArea()" id="savedAreaUseLocationBtn">
+            <button type="button" class="settings-btn u-flex-1" onclick="useCurrentLocationForSavedArea()" id="savedAreaUseLocationBtn">
               <img class="icon-img icon-img-inline icon-tint-dark" src="icons/target.png" alt=""> <span id="savedAreaUseLocationBtnLabel" data-i18n="savedAreaUseLocationBtn">Use my current location</span>
             </button>
             <button type="button" class="settings-btn" style="flex:0 0 auto;" onclick="clearSavedArea()" id="savedAreaClearBtn" data-i18n="savedAreaClearBtn">Clear</button>
@@ -730,18 +730,18 @@
           <div class="detail-section-title" id="legalSectionTitle" data-i18n="legalSectionTitle">Legal</div>
           <p class="detail-export-hint" id="legalCopyrightText">© tracethestuff.com</p>
           <div style="display:flex; gap:var(--space-8);">
-            <button type="button" class="settings-btn" style="flex:1;" onclick="showLegalContentModal('terms_of_service')" id="legalTermsBtn" data-i18n="termsOfServiceBtn">Terms of Service</button>
-            <button type="button" class="settings-btn" style="flex:1;" onclick="showLegalContentModal('privacy_policy')" id="legalPrivacyBtn" data-i18n="privacyPolicyBtn">Privacy Policy</button>
+            <button type="button" class="settings-btn u-flex-1" onclick="showLegalContentModal('terms_of_service')" id="legalTermsBtn" data-i18n="termsOfServiceBtn">Terms of Service</button>
+            <button type="button" class="settings-btn u-flex-1" onclick="showLegalContentModal('privacy_policy')" id="legalPrivacyBtn" data-i18n="privacyPolicyBtn">Privacy Policy</button>
           </div>
         </div>
 
         <div class="detail-section" id="accountDangerSettingsSection">
           <div class="detail-section-title" id="accountDangerSectionTitle" data-i18n="accountDangerSectionTitle">Account</div>
           <p class="detail-export-hint" id="deleteAccountHint" data-i18n="deleteAccountHint">Delete your account and personal data. An admin will review your request. Your existing reports stay visible to help the community, but are no longer linked to your username.</p>
-          <button type="button" class="detail-delete-btn" style="width:100%;" onclick="requestAccountDeletion()" id="deleteAccountBtn" data-i18n="deleteAccountBtn">Delete my account</button>
+          <button type="button" class="detail-delete-btn u-full-width" onclick="requestAccountDeletion()" id="deleteAccountBtn" data-i18n="deleteAccountBtn">Delete my account</button>
           <div id="deleteAccountPendingBox" style="display:none;">
             <p class="detail-export-hint" id="deleteAccountPendingHint">Your account deletion request is pending admin review.</p>
-            <button type="button" class="settings-btn" style="width:100%;" onclick="cancelAccountDeletionRequest()" id="cancelDeletionBtn">Cancel request</button>
+            <button type="button" class="settings-btn u-full-width" onclick="cancelAccountDeletionRequest()" id="cancelDeletionBtn">Cancel request</button>
           </div>
         </div>
 
@@ -779,8 +779,8 @@
       <p class="detail-export-hint" id="contactReminderIntroText">You've reported these but haven't contacted the utility company yet.</p>
       <div id="contactReminderList"></div>
       <div class="uc-form-row" style="margin-top:14px;">
-        <button type="button" class="settings-btn" style="flex:1;" onclick="snoozeContactReminders()" id="contactReminderSnoozeBtn">Remind me later</button>
-        <button type="button" class="settings-btn" style="flex:1;" onclick="openContactReminderSettings()" id="contactReminderSettingsBtn">Change frequency</button>
+        <button type="button" class="settings-btn u-flex-1" onclick="snoozeContactReminders()" id="contactReminderSnoozeBtn">Remind me later</button>
+        <button type="button" class="settings-btn u-flex-1" onclick="openContactReminderSettings()" id="contactReminderSettingsBtn">Change frequency</button>
       </div>
     </div>
   </div>
@@ -1119,7 +1119,7 @@
         <div class="uc-form-muni-label" id="ucMuniLabel"></div>
         <div id="ucMuniPicker" style="display:none">
           <div class="uc-form-row">
-            <select id="ucMunicipalitySelect" style="flex:1;" onchange="populateUcCatChecks()"></select>
+            <select class="u-flex-1" id="ucMunicipalitySelect" onchange="populateUcCatChecks()"></select>
           </div>
           <div id="ucNoMunicipalitiesHint" class="detail-empty" style="display:none;"></div>
         </div>
@@ -1139,7 +1139,7 @@
         <input type="text" id="ucAddress" placeholder="Address">
         <textarea id="ucNotes" placeholder="Notes (optional)"></textarea>
         <div class="uc-form-row">
-          <button type="button" class="settings-btn" style="flex:1;" onclick="cancelUcForm()" id="ucCancelBtn">Cancel</button>
+          <button type="button" class="settings-btn u-flex-1" onclick="cancelUcForm()" id="ucCancelBtn">Cancel</button>
           <button type="button" style="background:var(--accent);color:white;flex:1;" onclick="saveUtilityCompany()" id="ucSaveBtn">Save</button>
         </div>
         <div class="uc-verify-status" id="ucVerifyStatus"></div>
