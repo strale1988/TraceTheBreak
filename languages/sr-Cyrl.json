@@ -168,6 +168,8 @@
   "pulseToggleLabel": "Анимација пулсирања статуса",
   "navBtnToggleLabel": "Прикажи дугме за вожњу / навигацију на мапи",
   "heatmapBtnToggleLabel": "Прикажи дугме за топлотну мапу",
+  "firesBtnToggleLabel": "Прикажи дугме за пожаре на мапи",
+  "oldFixedToggleLabel": "Прикажи старе поправљене пријаве на мапи",
   "offlineMapSectionTitle": "Мапе ван мреже",
   "offlineMapHint": "Ваша мапа се аутоматски кешира док је прегледате, тако да ради и без сигнала.",
   "offlineMapStorageUsed": "Сачувано података ван мреже: {mb} MB",

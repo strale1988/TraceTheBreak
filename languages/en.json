@@ -168,6 +168,8 @@
   "pulseToggleLabel": "Status pulse animation",
   "navBtnToggleLabel": "Show driving / navigation button on map",
   "heatmapBtnToggleLabel": "Show heatmap button on map",
+  "firesBtnToggleLabel": "Show fires button on map",
+  "oldFixedToggleLabel": "Show old fixed reports on map",
   "offlineMapSectionTitle": "Offline maps",
   "offlineMapHint": "Your map is cached automatically as you browse, so it still loads without signal.",
   "offlineMapStorageUsed": "Offline data stored: {mb} MB",
