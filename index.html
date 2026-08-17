@@ -46,8 +46,8 @@
   -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
-    script-src 'self' https://unpkg.com https://cdn.jsdelivr.net 'unsafe-inline';
-    style-src 'self' https://unpkg.com https://cdn.jsdelivr.net 'unsafe-inline';
+    script-src 'self' 'unsafe-inline';
+    style-src 'self' 'unsafe-inline';
     img-src 'self' data: blob:
       https://*.tile.openstreetmap.org
       https://*.basemaps.cartocdn.com
@@ -67,9 +67,7 @@
       https://*.tile.openstreetmap.org
       https://tile.openstreetmap.org
       https://*.basemaps.cartocdn.com
-      https://server.arcgisonline.com
-      https://unpkg.com
-      https://cdn.jsdelivr.net;
+      https://server.arcgisonline.com;
     object-src 'none';
     base-uri 'self';
     form-action 'self';
@@ -89,26 +87,18 @@
 
   <!--
     Preconnect: opens the DNS+TLS(+HTTP handshake) for these origins as soon
-    as the browser sees <head>, instead of waiting until the actual
-    <script>/<link>/fetch() call reaches them further down the page or (for
-    Supabase/the photo worker) only once app.js first calls them at runtime.
-    crossorigin is included on all of them because every real request to
-    these origins is itself cross-origin (script/style tags below use
-    crossorigin="anonymous"; Supabase/the photo worker are hit via fetch()) —
+    as the browser sees <head>, instead of waiting until app.js's first
+    runtime call reaches them. crossorigin is included because every real
+    request to these origins is itself cross-origin (hit via fetch()) —
     without it the browser would open a second, separate connection for the
     actual CORS request and this hint would be wasted. dns-prefetch is kept
     alongside as a fallback for browsers that don't support preconnect.
-    Limited to the handful of origins actually on the critical/early path
-    (CDN libs loaded in <head>, plus the two backends app.js talks to on
-    every load) — preconnecting to more than ~4-6 origins stops helping and
-    starts competing for the browser's own connection budget.
+    (unpkg.com/cdn.jsdelivr.net preconnects were removed here once leaflet,
+    markercluster, flatpickr and supabase-js moved to self-hosted files
+    under ./vendor/ — see the <link>/<script> tags below.)
   -->
-  <link rel="preconnect" href="https://unpkg.com" crossorigin>
-  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="preconnect" href="https://fnkqmwweljsupbmerbkh.supabase.co" crossorigin>
   <link rel="preconnect" href="https://tracethebreak-photos.tracethestuff.workers.dev" crossorigin>
-  <link rel="dns-prefetch" href="https://unpkg.com">
-  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
   <link rel="dns-prefetch" href="https://fnkqmwweljsupbmerbkh.supabase.co">
   <link rel="dns-prefetch" href="https://tracethebreak-photos.tracethestuff.workers.dev">
 
@@ -119,11 +109,19 @@
   <link rel="preload" as="image" href="icons/user.png">
   <link rel="preload" as="image" href="icons/notification.png">
 
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous"/>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" integrity="sha384-pmjIAcz2bAn0xukfxADbZIb3t8oRT9Sv0rvO+BR5Csr6Dhqq+nZs59P0pPKQJkEV" crossorigin="anonymous"/>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" integrity="sha384-wgw+aLYNQ7dlhK47ZPK7FRACiq7ROZwgFNg0m04avm4CaXS+Z9Y7nMu8yNjBKYC+" crossorigin="anonymous"/>
+  <!--
+    Self-hosted (see ./vendor/) instead of unpkg.com/cdn.jsdelivr.net —
+    removes two extra cross-origin connections from the critical path and
+    means these files ride the same Cache-Control/CDN-caching policy as the
+    rest of the app instead of a third party's. integrity/crossorigin are
+    dropped since there's no cross-origin trust boundary left to check
+    against for same-origin requests.
+  -->
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css"/>
+  <link rel="stylesheet" href="vendor/leaflet.markercluster/MarkerCluster.css"/>
+  <link rel="stylesheet" href="vendor/leaflet.markercluster/MarkerCluster.Default.css"/>
 
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css" integrity="sha384-RkASv+6KfBMW9eknReJIJ6b3UnjKOKC5bOUaNgIY778NFbQ8MtWq9Lr/khUgqtTt" crossorigin="anonymous">
+  <link rel="stylesheet" href="vendor/flatpickr/flatpickr.min.css">
   <script>window.__ttbSplashShownAt = Date.now();</script>
   <script>
     (function(){
@@ -1287,14 +1285,16 @@
   </div>
 </div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
-<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" integrity="sha384-eXVCORTRlv4FUUgS/xmOyr66XBVraen8ATNLMESp92FKXLAMiKkerixTiBvXriZr" crossorigin="anonymous"></script>
+<!-- Self-hosted under ./vendor/ (see the <head> stylesheet block above for
+     why) instead of unpkg.com/cdn.jsdelivr.net. -->
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="vendor/leaflet.markercluster/leaflet.markercluster.js"></script>
 <!-- leaflet.heat intentionally NOT loaded here: app.js lazy-loads it via
      loadScriptOnce() on first heatmap toggle. Loading it eagerly here would
      defeat that (and previously did — see git history). -->
-<script src="https://unpkg.com/@supabase/supabase-js@2.108.1/dist/umd/supabase.js" integrity="sha384-EjUdIVmzWliPzdzhxZ9ZoO0etXLKWuUPUftAGxP6qH6Lm4oLwoLaJR0Ba4pIDiDL" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js" integrity="sha384-5JqMv4L/Xa0hfvtF06qboNdhvuYXUku9ZrhZh3bSk8VXF0A/RuSLHpLsSV9Zqhl6" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/sr.js" integrity="sha384-e1SMLHNoe+JiilHNAt+QcepR/LJ5TGCRYT0yCN+dFKCYt4iZok/y8KJFpSCMuO02" crossorigin="anonymous"></script>
+<script src="vendor/supabase-js/supabase.js"></script>
+<script src="vendor/flatpickr/flatpickr.min.js"></script>
+<script src="vendor/flatpickr/l10n/sr.js"></script>
 <!-- libphonenumber-js intentionally NOT loaded here: app.js lazy-loads it via
      ensurePhoneLibLoaded() the first time an admin edits a phone number. -->
 <!-- jspdf removed: not referenced anywhere in app.js. If a PDF-export
