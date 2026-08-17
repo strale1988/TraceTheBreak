@@ -316,6 +316,9 @@
   <div id="heatmapBtn" data-i18n-title="heatmapBtnTitle" class="pin-map-btn heatmap-btn" style="display:none" title="Heatmap" onclick="toggleHeatmap()" role="button" tabindex="0" aria-label="Heatmap" aria-pressed="false" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleHeatmap();}">
     <img class="icon-img" src="icons/heatmap.png" alt="Heatmap">
   </div>
+  <div id="firesBtn" data-i18n-title="firesBtnTitle" class="pin-map-btn fires-btn" style="display:none" title="Show active fires (NASA satellite data)" onclick="toggleFiresLayer()" role="button" tabindex="0" aria-label="Show active fires" aria-pressed="false" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleFiresLayer();}">
+    <img class="icon-img" src="icons/flame.png" alt="Fires">
+  </div>
   <div id="mainMapCompass" data-i18n-title="mainCompassTitle" class="map-compass heading-up-disabled" style="display:none" title="Heading: tap to rotate the map with your direction of travel" onclick="toggleWalkingCompassMode()" role="button" tabindex="0" aria-label="Rotate map with direction of travel" aria-pressed="false" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleWalkingCompassMode();}">
     <div class="compass-face">
       <div class="compass-needle" id="mainCompassNeedle">
@@ -667,6 +670,13 @@
             <span id="heatmapBtnToggleLabel" data-i18n="heatmapBtnToggleLabel">Show heatmap button on map</span>
             <span class="toggle-switch">
               <input type="checkbox" id="heatmapBtnToggleInput" onchange="setHeatmapBtnVisible(this.checked)">
+              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+            </span>
+          </label>
+          <label class="settings-toggle-row" id="firesBtnToggleRow">
+            <span id="firesBtnToggleLabel" data-i18n="firesBtnToggleLabel">Show live fires button on map</span>
+            <span class="toggle-switch">
+              <input type="checkbox" id="firesBtnToggleInput" onchange="setFiresBtnVisible(this.checked)">
               <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
             </span>
           </label>
