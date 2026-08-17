@@ -1,0 +1,170 @@
+[
+  {
+    "code": "bs",
+    "nativeName": "Bosanski"
+  },
+  {
+    "code": "ca",
+    "nativeName": "Català"
+  },
+  {
+    "code": "cnr",
+    "nativeName": "Crnogorski"
+  },
+  {
+    "code": "cy",
+    "nativeName": "Cymraeg"
+  },
+  {
+    "code": "da",
+    "nativeName": "Dansk"
+  },
+  {
+    "code": "de",
+    "nativeName": "Deutsch"
+  },
+  {
+    "code": "et",
+    "nativeName": "Eesti"
+  },
+  {
+    "code": "en",
+    "nativeName": "English"
+  },
+  {
+    "code": "es",
+    "nativeName": "Español"
+  },
+  {
+    "code": "eu",
+    "nativeName": "Euskara"
+  },
+  {
+    "code": "fr",
+    "nativeName": "Français"
+  },
+  {
+    "code": "ga",
+    "nativeName": "Gaeilge"
+  },
+  {
+    "code": "gl",
+    "nativeName": "Galego"
+  },
+  {
+    "code": "hr",
+    "nativeName": "Hrvatski"
+  },
+  {
+    "code": "it",
+    "nativeName": "Italiano"
+  },
+  {
+    "code": "lv",
+    "nativeName": "Latviešu"
+  },
+  {
+    "code": "lt",
+    "nativeName": "Lietuvių"
+  },
+  {
+    "code": "lb",
+    "nativeName": "Lëtzebuergesch"
+  },
+  {
+    "code": "hu",
+    "nativeName": "Magyar"
+  },
+  {
+    "code": "mt",
+    "nativeName": "Malti"
+  },
+  {
+    "code": "nl",
+    "nativeName": "Nederlands"
+  },
+  {
+    "code": "no",
+    "nativeName": "Norsk"
+  },
+  {
+    "code": "pl",
+    "nativeName": "Polski"
+  },
+  {
+    "code": "pt",
+    "nativeName": "Português"
+  },
+  {
+    "code": "ro",
+    "nativeName": "Română"
+  },
+  {
+    "code": "sq",
+    "nativeName": "Shqip"
+  },
+  {
+    "code": "sk",
+    "nativeName": "Slovenčina"
+  },
+  {
+    "code": "sl",
+    "nativeName": "Slovenščina"
+  },
+  {
+    "code": "sr-Lat",
+    "nativeName": "Srpski (latinica)"
+  },
+  {
+    "code": "fi",
+    "nativeName": "Suomi"
+  },
+  {
+    "code": "sv",
+    "nativeName": "Svenska"
+  },
+  {
+    "code": "tr",
+    "nativeName": "Türkçe"
+  },
+  {
+    "code": "is",
+    "nativeName": "Íslenska"
+  },
+  {
+    "code": "cs",
+    "nativeName": "Čeština"
+  },
+  {
+    "code": "el",
+    "nativeName": "Ελληνικά"
+  },
+  {
+    "code": "be",
+    "nativeName": "Беларуская"
+  },
+  {
+    "code": "bg",
+    "nativeName": "Български"
+  },
+  {
+    "code": "mk",
+    "nativeName": "Македонски"
+  },
+  {
+    "code": "ru",
+    "nativeName": "Русский"
+  },
+  {
+    "code": "sr-Cyrl",
+    "nativeName": "Српски (ћирилица)"
+  },
+  {
+    "code": "uk",
+    "nativeName": "Українська"
+  },
+  {
+    "code": "ka",
+    "nativeName": "ქართული"
+  }
+]
