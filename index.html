@@ -727,6 +727,13 @@
               <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
             </span>
           </label>
+          <label class="settings-toggle-row" id="speedUnitToggleRow">
+            <span id="speedUnitToggleLabel" data-i18n="speedUnitToggleLabel">Show speed in mph instead of km/h</span>
+            <span class="toggle-switch">
+              <input type="checkbox" id="speedUnitToggleInput" onchange="setSpeedUnitPref(this.checked ? 'mph' : 'kmh')">
+              <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
+            </span>
+          </label>
           <label class="settings-toggle-row" id="bumpDetectionToggleRow">
             <span id="bumpDetectionToggleLabel" data-i18n="bumpDetectionToggleLabel">Detect potholes/bumps automatically while driving</span>
             <span class="toggle-switch">
