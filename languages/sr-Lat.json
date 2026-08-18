@@ -882,7 +882,7 @@
     "pdfEmailLabel": "Email",
     "pdfCityLabel": "Grad / selo",
     "pdfReportLinkLabel": "Link prijave",
-    "firePopupTitle": "Žarište požara",
+    "firePopupTitle": "Aktivni požar",
     "fireConfidence": "Pouzdanost",
     "fireConfLow": "Niska",
     "fireConfNominal": "Srednja",

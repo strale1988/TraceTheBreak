@@ -882,7 +882,7 @@
     "pdfEmailLabel": "Емаил",
     "pdfCityLabel": "Град / село",
     "pdfReportLinkLabel": "Линк пријаве",
-    "firePopupTitle": "Жариште пожара",
+    "firePopupTitle": "Активни пожар",
     "fireConfidence": "Поузданост",
     "fireConfLow": "Ниска",
     "fireConfNominal": "Средња",
