@@ -893,6 +893,7 @@
     "fireDistance": "Attālums",
     "fireSource": "Avots: NASA FIRMS",
     "fireNoKeyMsg": "Ugunsgrēku slānim nepieciešama bezmaksas NASA FIRMS atslēga, lai darbotos. Iegūstiet to vietnē firms.modaps.eosdis.nasa.gov/api/map_key un pievienojiet lietotnes FIRE_MAP_KEY iestatījumam.",
-    "fireLoadError": "Šobrīd neizdevās ielādēt ugunsgrēku datus. Lūdzu, mēģiniet vēlreiz drīzumā."
+    "fireLoadError": "Šobrīd neizdevās ielādēt ugunsgrēku datus. Lūdzu, mēģiniet vēlreiz drīzumā.",
+    "genericLoadError": "Kaut kas nogāja greizi. Lūdzu, mēģiniet vēlreiz."
   }
 }

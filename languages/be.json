@@ -873,6 +873,19 @@
     "fireDistance": "Адлегласць",
     "fireSource": "Крыніца: NASA FIRMS",
     "fireNoKeyMsg": "Слою пажараў патрэбны бясплатны ключ NASA FIRMS. Атрымайце яго на firms.modaps.eosdis.nasa.gov/api/map_key і дадайце ў налады FIRE_MAP_KEY у праграме.",
-    "fireLoadError": "Не ўдалося загрузіць даныя аб пажарах. Паспрабуйце зноў неўзабаве."
+    "fireLoadError": "Не ўдалося загрузіць даныя аб пажарах. Паспрабуйце зноў неўзабаве.",
+    "genericLoadError": "Нешта пайшло не так. Паспрабуйце яшчэ раз.",
+    "copyLinkBtn": "Капіраваць спасылку",
+    "copyReportIdPrompt": "Скапіруйце гэты ID заявы:",
+    "copyReportIdTooltip": "Капіраваць ID заявы",
+    "offlineQueueSaveFailed": "Няма сігналу, і прылада таксама не змагла захаваць заяву для адпраўкі пазней. Паспрабуйце зноў, калі зноў будзеце анлайн.",
+    "timelineAfterPhotoAddedLabel": "Дададзена фота «пасля»",
+    "timelineContactCallLabel": "Зафіксаваны тэлефонны кантакт",
+    "timelineContactEmailLabel": "Зафіксаваны кантакт па email",
+    "timelineDuplicateConfirmedLabel": "Пацверджаны дублікат",
+    "timelinePhotoAddedLabel": "Дададзена фота",
+    "timelineVoteLabelPrefix": "Прапанавана",
+    "ucContactLabelPH": "Пазнака (неабавязкова)",
+    "ucRemoveEntryBtn": "Выдаліць"
   }
 }

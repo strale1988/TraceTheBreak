@@ -893,6 +893,7 @@
     "fireDistance": "Distância",
     "fireSource": "Fonte: NASA FIRMS",
     "fireNoKeyMsg": "A camada de incêndios precisa de uma chave gratuita da NASA FIRMS para funcionar. Obtenha uma em firms.modaps.eosdis.nasa.gov/api/map_key e adicione-a à configuração FIRE_MAP_KEY da aplicação.",
-    "fireLoadError": "Não foi possível carregar os dados de incêndios agora. Tente novamente em breve."
+    "fireLoadError": "Não foi possível carregar os dados de incêndios agora. Tente novamente em breve.",
+    "genericLoadError": "Algo correu mal. Tente novamente."
   }
 }

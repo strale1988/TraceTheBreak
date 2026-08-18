@@ -893,6 +893,7 @@
     "fireDistance": "Distanță",
     "fireSource": "Sursă: NASA FIRMS",
     "fireNoKeyMsg": "Stratul de incendii are nevoie de o cheie gratuită NASA FIRMS pentru a funcționa. Obțineți una la firms.modaps.eosdis.nasa.gov/api/map_key și adăugați-o la setarea FIRE_MAP_KEY a aplicației.",
-    "fireLoadError": "Datele despre incendii nu au putut fi încărcate acum. Încercați din nou în curând."
+    "fireLoadError": "Datele despre incendii nu au putut fi încărcate acum. Încercați din nou în curând.",
+    "genericLoadError": "Ceva nu a mers bine. Încercați din nou."
   }
 }

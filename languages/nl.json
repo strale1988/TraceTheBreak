@@ -893,6 +893,7 @@
     "fireDistance": "Afstand",
     "fireSource": "Bron: NASA FIRMS",
     "fireNoKeyMsg": "De brandlaag heeft een gratis NASA FIRMS-sleutel nodig om te werken. Haal er een op firms.modaps.eosdis.nasa.gov/api/map_key en voeg deze toe aan de FIRE_MAP_KEY-instelling van de app.",
-    "fireLoadError": "Brandgegevens konden nu niet worden geladen. Probeer het straks opnieuw."
+    "fireLoadError": "Brandgegevens konden nu niet worden geladen. Probeer het straks opnieuw.",
+    "genericLoadError": "Er is iets misgegaan. Probeer het opnieuw."
   }
 }

@@ -893,6 +893,7 @@
     "fireDistance": "Atstumas",
     "fireSource": "Šaltinis: NASA FIRMS",
     "fireNoKeyMsg": "Gaisrų sluoksniui veikti reikalingas nemokamas NASA FIRMS raktas. Gaukite jį adresu firms.modaps.eosdis.nasa.gov/api/map_key ir įtraukite jį į programos FIRE_MAP_KEY nustatymą.",
-    "fireLoadError": "Šiuo metu nepavyko įkelti gaisrų duomenų. Bandykite dar kartą netrukus."
+    "fireLoadError": "Šiuo metu nepavyko įkelti gaisrų duomenų. Bandykite dar kartą netrukus.",
+    "genericLoadError": "Kažkas nutiko ne taip. Bandykite dar kartą."
   }
 }

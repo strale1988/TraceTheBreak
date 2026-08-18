@@ -893,6 +893,7 @@
     "fireDistance": "Entfernung",
     "fireSource": "Quelle: NASA FIRMS",
     "fireNoKeyMsg": "Die Feuer-Ebene benötigt einen kostenlosen NASA-FIRMS-Schlüssel. Holen Sie sich einen unter firms.modaps.eosdis.nasa.gov/api/map_key und tragen Sie ihn in die FIRE_MAP_KEY-Einstellung der App ein.",
-    "fireLoadError": "Feuerdaten konnten gerade nicht geladen werden. Bitte versuchen Sie es in Kürze erneut."
+    "fireLoadError": "Feuerdaten konnten gerade nicht geladen werden. Bitte versuchen Sie es in Kürze erneut.",
+    "genericLoadError": "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut."
   }
 }

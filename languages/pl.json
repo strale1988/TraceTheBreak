@@ -893,6 +893,7 @@
     "fireDistance": "Odległość",
     "fireSource": "Źródło: NASA FIRMS",
     "fireNoKeyMsg": "Warstwa pożarów wymaga bezpłatnego klucza NASA FIRMS. Zdobądź go na firms.modaps.eosdis.nasa.gov/api/map_key i dodaj do ustawienia FIRE_MAP_KEY aplikacji.",
-    "fireLoadError": "Nie udało się teraz wczytać danych o pożarach. Spróbuj ponownie za chwilę."
+    "fireLoadError": "Nie udało się teraz wczytać danych o pożarach. Spróbuj ponownie za chwilę.",
+    "genericLoadError": "Coś poszło nie tak. Spróbuj ponownie."
   }
 }

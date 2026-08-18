@@ -893,6 +893,7 @@
     "fireDistance": "Vzdialenosť",
     "fireSource": "Zdroj: NASA FIRMS",
     "fireNoKeyMsg": "Vrstva požiarov na fungovanie potrebuje bezplatný kľúč NASA FIRMS. Získajte ho na firms.modaps.eosdis.nasa.gov/api/map_key a pridajte ho do nastavenia FIRE_MAP_KEY v aplikácii.",
-    "fireLoadError": "Údaje o požiaroch sa teraz nepodarilo načítať. Skúste to čoskoro znova."
+    "fireLoadError": "Údaje o požiaroch sa teraz nepodarilo načítať. Skúste to čoskoro znova.",
+    "genericLoadError": "Niečo sa pokazilo. Skúste to znova."
   }
 }

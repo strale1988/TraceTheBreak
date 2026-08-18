@@ -893,6 +893,7 @@
     "fireDistance": "Távolság",
     "fireSource": "Forrás: NASA FIRMS",
     "fireNoKeyMsg": "A tűzréteg működéséhez ingyenes NASA FIRMS kulcs szükséges. Szerezz egyet a firms.modaps.eosdis.nasa.gov/api/map_key oldalon, és add hozzá az alkalmazás FIRE_MAP_KEY beállításához.",
-    "fireLoadError": "A tűzadatokat jelenleg nem sikerült betölteni. Kérjük, próbáld újra hamarosan."
+    "fireLoadError": "A tűzadatokat jelenleg nem sikerült betölteni. Kérjük, próbáld újra hamarosan.",
+    "genericLoadError": "Hiba történt. Kérjük, próbáld újra."
   }
 }

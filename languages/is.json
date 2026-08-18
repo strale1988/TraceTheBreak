@@ -893,6 +893,7 @@
     "fireDistance": "Fjarlægð",
     "fireSource": "Heimild: NASA FIRMS",
     "fireNoKeyMsg": "Eldalagið þarf frían NASA FIRMS lykil til að virka. Sæktu einn á firms.modaps.eosdis.nasa.gov/api/map_key og bættu honum við FIRE_MAP_KEY stillingu forritsins.",
-    "fireLoadError": "Ekki tókst að hlaða eldgögnum núna. Reyndu aftur fljótlega."
+    "fireLoadError": "Ekki tókst að hlaða eldgögnum núna. Reyndu aftur fljótlega.",
+    "genericLoadError": "Eitthvað fór úrskeiðis. Reyndu aftur."
   }
 }

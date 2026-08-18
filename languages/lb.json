@@ -893,6 +893,7 @@
     "fireDistance": "Distanz",
     "fireSource": "Quell: NASA FIRMS",
     "fireNoKeyMsg": "D'Feier-Schicht brauch e gratis NASA FIRMS Schlëssel fir ze fonctionéieren. Kritt een op firms.modaps.eosdis.nasa.gov/api/map_key an setzt en an d'FIRE_MAP_KEY Astellung vun der App.",
-    "fireLoadError": "Feierdaten konnten grad net gelueden ginn. Probéiert w.e.g. geschwënn nach eng Kéier."
+    "fireLoadError": "Feierdaten konnten grad net gelueden ginn. Probéiert w.e.g. geschwënn nach eng Kéier.",
+    "genericLoadError": "Iwwendeg ass eppes falsch gelaf. Probéiert w.e.g. nach eng Kéier."
   }
 }

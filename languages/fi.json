@@ -893,6 +893,7 @@
     "fireDistance": "Etäisyys",
     "fireSource": "Lähde: NASA FIRMS",
     "fireNoKeyMsg": "Palot-taso tarvitsee toimiakseen ilmaisen NASA FIRMS -avaimen. Hanki se osoitteesta firms.modaps.eosdis.nasa.gov/api/map_key ja lisää se sovelluksen FIRE_MAP_KEY-asetukseen.",
-    "fireLoadError": "Palotietoja ei juuri nyt voitu ladata. Yritä uudelleen hetken kuluttua."
+    "fireLoadError": "Palotietoja ei juuri nyt voitu ladata. Yritä uudelleen hetken kuluttua.",
+    "genericLoadError": "Jokin meni pieleen. Yritä uudelleen."
   }
 }

@@ -875,6 +875,19 @@
     "fireDistance": "Разстояние",
     "fireSource": "Източник: NASA FIRMS",
     "fireNoKeyMsg": "Слоят с пожари изисква безплатен ключ NASA FIRMS. Вземете такъв на firms.modaps.eosdis.nasa.gov/api/map_key и го добавете в настройката FIRE_MAP_KEY на приложението.",
-    "fireLoadError": "В момента данните за пожари не можаха да се заредят. Опитайте отново скоро."
+    "fireLoadError": "В момента данните за пожари не можаха да се заредят. Опитайте отново скоро.",
+    "genericLoadError": "Нещо се обърка. Моля, опитайте отново.",
+    "copyLinkBtn": "Копиране на връзка",
+    "copyReportIdPrompt": "Копирайте този ID на сигнала:",
+    "copyReportIdTooltip": "Копиране на ID на сигнала",
+    "offlineQueueSaveFailed": "Няма сигнал, а устройството също не успя да запази сигнала за по-късно изпращане. Опитайте отново, щом сте отново онлайн.",
+    "timelineAfterPhotoAddedLabel": "Добавена снимка „след“",
+    "timelineContactCallLabel": "Регистриран телефонен контакт",
+    "timelineContactEmailLabel": "Регистриран имейл контакт",
+    "timelineDuplicateConfirmedLabel": "Потвърден дубликат",
+    "timelinePhotoAddedLabel": "Добавена снимка",
+    "timelineVoteLabelPrefix": "Предложено",
+    "ucContactLabelPH": "Етикет (незадължително)",
+    "ucRemoveEntryBtn": "Премахни"
   }
 }

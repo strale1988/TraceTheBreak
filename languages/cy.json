@@ -893,6 +893,7 @@
     "fireDistance": "Pellter",
     "fireSource": "Ffynhonnell: NASA FIRMS",
     "fireNoKeyMsg": "Mae angen allwedd NASA FIRMS am ddim ar yr haen tanau i weithio. Cewch un yn firms.modaps.eosdis.nasa.gov/api/map_key ac ychwanegwch hi at osodiad FIRE_MAP_KEY yr ap.",
-    "fireLoadError": "Methwyd llwytho data tanau ar hyn o bryd. Rhowch gynnig arall arni cyn hir."
+    "fireLoadError": "Methwyd llwytho data tanau ar hyn o bryd. Rhowch gynnig arall arni cyn hir.",
+    "genericLoadError": "Aeth rhywbeth o'i le. Rhowch gynnig arall arni."
   }
 }

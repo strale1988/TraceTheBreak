@@ -893,6 +893,7 @@
     "fireDistance": "Distanza",
     "fireSource": "Sors: NASA FIRMS",
     "fireNoKeyMsg": "Is-saff tan-nar jeħtieġ ċavetta bla ħlas NASA FIRMS biex jaħdem. Ikseb waħda minn firms.modaps.eosdis.nasa.gov/api/map_key u żidha mal-impostazzjoni FIRE_MAP_KEY tal-app.",
-    "fireLoadError": "Bħalissa ma setax jitgħabba d-dejta tan-nar. Jekk jogħġbok erġa' pprova dalwaqt."
+    "fireLoadError": "Bħalissa ma setax jitgħabba d-dejta tan-nar. Jekk jogħġbok erġa' pprova dalwaqt.",
+    "genericLoadError": "Xi ħaġa marret ħażin. Erġa' pprova."
   }
 }

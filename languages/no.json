@@ -893,6 +893,7 @@
     "fireDistance": "Avstand",
     "fireSource": "Kilde: NASA FIRMS",
     "fireNoKeyMsg": "Brannlaget trenger en gratis NASA FIRMS-nøkkel for å fungere. Skaff en på firms.modaps.eosdis.nasa.gov/api/map_key og legg den til i appens FIRE_MAP_KEY-innstilling.",
-    "fireLoadError": "Kunne ikke laste branndata akkurat nå. Prøv igjen om litt."
+    "fireLoadError": "Kunne ikke laste branndata akkurat nå. Prøv igjen om litt.",
+    "genericLoadError": "Noe gikk galt. Prøv igjen."
   }
 }

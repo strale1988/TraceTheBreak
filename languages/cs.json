@@ -873,6 +873,19 @@
     "fireDistance": "Vzdálenost",
     "fireSource": "Zdroj: NASA FIRMS",
     "fireNoKeyMsg": "Vrstva požárů vyžaduje bezplatný klíč NASA FIRMS. Získejte ho na firms.modaps.eosdis.nasa.gov/api/map_key a přidejte ho do nastavení FIRE_MAP_KEY v aplikaci.",
-    "fireLoadError": "Data o požárech se nyní nepodařilo načíst. Zkuste to prosím znovu za chvíli."
+    "fireLoadError": "Data o požárech se nyní nepodařilo načíst. Zkuste to prosím znovu za chvíli.",
+    "genericLoadError": "Něco se pokazilo. Zkuste to prosím znovu.",
+    "copyLinkBtn": "Kopírovat odkaz",
+    "copyReportIdPrompt": "Zkopírujte toto ID hlášení:",
+    "copyReportIdTooltip": "Kopírovat ID hlášení",
+    "offlineQueueSaveFailed": "Není signál a zařízení se nepodařilo hlášení uložit ani pro pozdější odeslání. Zkuste to znovu, jakmile budete online.",
+    "timelineAfterPhotoAddedLabel": "Přidána fotka „po“",
+    "timelineContactCallLabel": "Zaznamenán telefonický kontakt",
+    "timelineContactEmailLabel": "Zaznamenán e-mailový kontakt",
+    "timelineDuplicateConfirmedLabel": "Potvrzený duplikát",
+    "timelinePhotoAddedLabel": "Přidána fotka",
+    "timelineVoteLabelPrefix": "Navrženo",
+    "ucContactLabelPH": "Popisek (volitelné)",
+    "ucRemoveEntryBtn": "Odebrat"
   }
 }

@@ -873,6 +873,19 @@
     "fireDistance": "Udaljenost",
     "fireSource": "Izvor: NASA FIRMS",
     "fireNoKeyMsg": "Sloju sa požarima je potreban besplatan NASA FIRMS ključ. Preuzmite ga na firms.modaps.eosdis.nasa.gov/api/map_key i dodajte ga u podešavanje FIRE_MAP_KEY u aplikaciji.",
-    "fireLoadError": "Trenutno nije moguće učitati podatke o požarima. Pokušajte ponovo uskoro."
+    "fireLoadError": "Trenutno nije moguće učitati podatke o požarima. Pokušajte ponovo uskoro.",
+    "genericLoadError": "Nešto je pošlo po zlu. Pokušajte ponovo.",
+    "copyLinkBtn": "Kopiraj link",
+    "copyReportIdPrompt": "Kopirajte ovaj ID prijave:",
+    "copyReportIdTooltip": "Kopiraj ID prijave",
+    "offlineQueueSaveFailed": "Nema signala, a uređaj nije mogao ni sačuvati prijavu za kasnije slanje. Pokušajte ponovo kada budete online.",
+    "timelineAfterPhotoAddedLabel": "Dodata fotografija „poslije“",
+    "timelineContactCallLabel": "Zabilježen telefonski kontakt",
+    "timelineContactEmailLabel": "Zabilježen email kontakt",
+    "timelineDuplicateConfirmedLabel": "Potvrđen duplikat",
+    "timelinePhotoAddedLabel": "Dodata fotografija",
+    "timelineVoteLabelPrefix": "Predloženo",
+    "ucContactLabelPH": "Oznaka (opcionalno)",
+    "ucRemoveEntryBtn": "Ukloni"
   }
 }

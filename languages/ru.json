@@ -893,6 +893,7 @@
     "fireDistance": "Расстояние",
     "fireSource": "Источник: NASA FIRMS",
     "fireNoKeyMsg": "Для работы слоя пожаров нужен бесплатный ключ NASA FIRMS. Получите его на firms.modaps.eosdis.nasa.gov/api/map_key и добавьте в настройку FIRE_MAP_KEY приложения.",
-    "fireLoadError": "Не удалось загрузить данные о пожарах. Попробуйте ещё раз позже."
+    "fireLoadError": "Не удалось загрузить данные о пожарах. Попробуйте ещё раз позже.",
+    "genericLoadError": "Что-то пошло не так. Попробуйте ещё раз."
   }
 }

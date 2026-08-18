@@ -893,6 +893,7 @@
     "fireDistance": "Avstånd",
     "fireSource": "Källa: NASA FIRMS",
     "fireNoKeyMsg": "Brandlagret behöver en gratis NASA FIRMS-nyckel för att fungera. Skaffa en på firms.modaps.eosdis.nasa.gov/api/map_key och lägg till den i appens FIRE_MAP_KEY-inställning.",
-    "fireLoadError": "Det gick inte att läsa in branddata just nu. Försök igen om en liten stund."
+    "fireLoadError": "Det gick inte att läsa in branddata just nu. Försök igen om en liten stund.",
+    "genericLoadError": "Något gick fel. Försök igen."
   }
 }

@@ -893,6 +893,7 @@
     "fireDistance": "Kaugus",
     "fireSource": "Allikas: NASA FIRMS",
     "fireNoKeyMsg": "Tulekahjude kiht vajab toimimiseks tasuta NASA FIRMS võtit. Hangi see aadressilt firms.modaps.eosdis.nasa.gov/api/map_key ja lisa see rakenduse FIRE_MAP_KEY seadistusse.",
-    "fireLoadError": "Tulekahjude andmeid ei õnnestunud praegu laadida. Proovi varsti uuesti."
+    "fireLoadError": "Tulekahjude andmeid ei õnnestunud praegu laadida. Proovi varsti uuesti.",
+    "genericLoadError": "Midagi läks valesti. Palun proovi uuesti."
   }
 }

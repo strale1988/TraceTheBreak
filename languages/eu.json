@@ -893,6 +893,7 @@
     "fireDistance": "Distantzia",
     "fireSource": "Iturria: NASA FIRMS",
     "fireNoKeyMsg": "Suteen geruzak funtzionatzeko doako NASA FIRMS gako bat behar du. Lortu bat firms.modaps.eosdis.nasa.gov/api/map_key helbidean eta gehitu aplikazioaren FIRE_MAP_KEY ezarpenean.",
-    "fireLoadError": "Une honetan ezin izan dira su-datuak kargatu. Saiatu berriro laster."
+    "fireLoadError": "Une honetan ezin izan dira su-datuak kargatu. Saiatu berriro laster.",
+    "genericLoadError": "Zerbait gaizki joan da. Saiatu berriro."
   }
 }

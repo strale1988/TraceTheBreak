@@ -893,6 +893,7 @@
     "fireDistance": "Distance",
     "fireSource": "Source : NASA FIRMS",
     "fireNoKeyMsg": "La couche des feux nécessite une clé NASA FIRMS gratuite pour fonctionner. Obtenez-en une sur firms.modaps.eosdis.nasa.gov/api/map_key et ajoutez-la au paramètre FIRE_MAP_KEY de l'application.",
-    "fireLoadError": "Impossible de charger les données sur les feux pour le moment. Veuillez réessayer sous peu."
+    "fireLoadError": "Impossible de charger les données sur les feux pour le moment. Veuillez réessayer sous peu.",
+    "genericLoadError": "Une erreur s'est produite. Veuillez réessayer."
   }
 }

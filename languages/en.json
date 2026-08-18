@@ -893,6 +893,7 @@
     "fireDistance": "Distance",
     "fireSource": "Source: NASA FIRMS",
     "fireNoKeyMsg": "The fires layer needs a free NASA FIRMS key to work. Get one at firms.modaps.eosdis.nasa.gov/api/map_key and add it to the app's FIRE_MAP_KEY setting.",
-    "fireLoadError": "Could not load fire data right now. Please try again shortly."
+    "fireLoadError": "Could not load fire data right now. Please try again shortly.",
+    "genericLoadError": "Something went wrong. Please try again."
   }
 }

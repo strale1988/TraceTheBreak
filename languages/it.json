@@ -893,6 +893,7 @@
     "fireDistance": "Distanza",
     "fireSource": "Fonte: NASA FIRMS",
     "fireNoKeyMsg": "Il livello degli incendi richiede una chiave NASA FIRMS gratuita per funzionare. Ottienine una su firms.modaps.eosdis.nasa.gov/api/map_key e aggiungila all'impostazione FIRE_MAP_KEY dell'app.",
-    "fireLoadError": "Al momento non è stato possibile caricare i dati sugli incendi. Riprova a breve."
+    "fireLoadError": "Al momento non è stato possibile caricare i dati sugli incendi. Riprova a breve.",
+    "genericLoadError": "Qualcosa è andato storto. Riprova."
   }
 }

@@ -873,6 +873,19 @@
     "fireDistance": "Distància",
     "fireSource": "Font: NASA FIRMS",
     "fireNoKeyMsg": "La capa d'incendis necessita una clau gratuïta de NASA FIRMS per funcionar. Obtingueu-ne una a firms.modaps.eosdis.nasa.gov/api/map_key i afegiu-la a la configuració FIRE_MAP_KEY de l'aplicació.",
-    "fireLoadError": "No s'han pogut carregar les dades d'incendis ara mateix. Torneu-ho a provar d'aquí a poc."
+    "fireLoadError": "No s'han pogut carregar les dades d'incendis ara mateix. Torneu-ho a provar d'aquí a poc.",
+    "genericLoadError": "S'ha produït un error. Torneu-ho a provar.",
+    "copyLinkBtn": "Copia l'enllaç",
+    "copyReportIdPrompt": "Copia aquest ID d'informe:",
+    "copyReportIdTooltip": "Copia l'ID de l'informe",
+    "offlineQueueSaveFailed": "No hi ha senyal, i el dispositiu tampoc ha pogut desar l'informe per enviar-lo més tard. Torneu-ho a provar quan torneu a estar en línia.",
+    "timelineAfterPhotoAddedLabel": "Foto de «després» afegida",
+    "timelineContactCallLabel": "Contacte telefònic registrat",
+    "timelineContactEmailLabel": "Contacte per correu registrat",
+    "timelineDuplicateConfirmedLabel": "Duplicat confirmat",
+    "timelinePhotoAddedLabel": "Foto afegida",
+    "timelineVoteLabelPrefix": "Suggerit",
+    "ucContactLabelPH": "Etiqueta (opcional)",
+    "ucRemoveEntryBtn": "Elimina"
   }
 }

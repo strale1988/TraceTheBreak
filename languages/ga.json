@@ -893,6 +893,7 @@
     "fireDistance": "Fad",
     "fireSource": "Foinse: NASA FIRMS",
     "fireNoKeyMsg": "Teastaíonn eochair NASA FIRMS saor in aisce ón sraith tinte le go n-oibreoidh sé. Faigh ceann ag firms.modaps.eosdis.nasa.gov/api/map_key agus cuir leis socrú FIRE_MAP_KEY na haipe é.",
-    "fireLoadError": "Níorbh fhéidir sonraí tine a luchtú faoi láthair. Bain triail eile as go luath."
+    "fireLoadError": "Níorbh fhéidir sonraí tine a luchtú faoi láthair. Bain triail eile as go luath.",
+    "genericLoadError": "Tharla earráid. Bain triail eile as."
   }
 }

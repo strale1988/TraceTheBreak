@@ -893,6 +893,7 @@
     "fireDistance": "Mesafe",
     "fireSource": "Kaynak: NASA FIRMS",
     "fireNoKeyMsg": "Yangın katmanının çalışması için ücretsiz bir NASA FIRMS anahtarı gerekir. firms.modaps.eosdis.nasa.gov/api/map_key adresinden bir tane alın ve uygulamanın FIRE_MAP_KEY ayarına ekleyin.",
-    "fireLoadError": "Yangın verileri şu anda yüklenemedi. Lütfen kısa süre sonra tekrar deneyin."
+    "fireLoadError": "Yangın verileri şu anda yüklenemedi. Lütfen kısa süre sonra tekrar deneyin.",
+    "genericLoadError": "Bir şeyler yanlış gitti. Lütfen tekrar deneyin."
   }
 }

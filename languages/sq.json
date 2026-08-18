@@ -893,6 +893,7 @@
     "fireDistance": "Distanca",
     "fireSource": "Burimi: NASA FIRMS",
     "fireNoKeyMsg": "Shtresa e zjarreve ka nevojë për një çelës falas NASA FIRMS për të funksionuar. Merrni një në firms.modaps.eosdis.nasa.gov/api/map_key dhe shtojeni te cilësimi FIRE_MAP_KEY i aplikacionit.",
-    "fireLoadError": "Të dhënat e zjarreve nuk mund të ngarkoheshin tani. Provoni përsëri së shpejti."
+    "fireLoadError": "Të dhënat e zjarreve nuk mund të ngarkoheshin tani. Provoni përsëri së shpejti.",
+    "genericLoadError": "Diçka shkoi keq. Provoni përsëri."
   }
 }

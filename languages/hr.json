@@ -893,6 +893,7 @@
     "fireDistance": "Udaljenost",
     "fireSource": "Izvor: NASA FIRMS",
     "fireNoKeyMsg": "Sloju požara potreban je besplatan NASA FIRMS ključ za rad. Nabavite ga na firms.modaps.eosdis.nasa.gov/api/map_key i dodajte ga u postavku FIRE_MAP_KEY u aplikaciji.",
-    "fireLoadError": "Trenutačno nije moguće učitati podatke o požarima. Pokušajte ponovno uskoro."
+    "fireLoadError": "Trenutačno nije moguće učitati podatke o požarima. Pokušajte ponovno uskoro.",
+    "genericLoadError": "Nešto je pošlo po zlu. Pokušajte ponovno."
   }
 }

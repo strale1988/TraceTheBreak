@@ -882,7 +882,7 @@
     "pdfEmailLabel": "Емаил",
     "pdfCityLabel": "Град / село",
     "pdfReportLinkLabel": "Линк пријаве",
-    "firePopupTitle": "Активни пожар",
+    "firePopupTitle": "Жариште пожара",
     "fireConfidence": "Поузданост",
     "fireConfLow": "Ниска",
     "fireConfNominal": "Средња",
@@ -893,6 +893,7 @@
     "fireDistance": "Удаљеност",
     "fireSource": "Извор: NASA FIRMS",
     "fireNoKeyMsg": "Слоју са пожарима је потребан бесплатан NASA FIRMS кључ. Преузмите га на firms.modaps.eosdis.nasa.gov/api/map_key и додајте га у подешавање FIRE_MAP_KEY у апликацији.",
-    "fireLoadError": "Тренутно није могуће учитати податке о пожарима. Покушајте поново ускоро."
+    "fireLoadError": "Тренутно није могуће учитати податке о пожарима. Покушајте поново ускоро.",
+    "genericLoadError": "Нешто је пошло по злу. Покушајте поново."
   }
 }
