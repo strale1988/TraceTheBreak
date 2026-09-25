@@ -345,6 +345,15 @@
   <div id="navigatePinHint" data-i18n="navigatePinHint" class="navigate-pin-hint" style="display:none">Tap the map to drop a destination pin</div>
   <div id="navigateResults" class="navigate-results"></div>
 </div>
+
+<div id="navigateDestConfirm" class="navigate-dest-confirm" style="display:none">
+  <div class="navigate-dest-confirm-row">
+    <span id="navigateDestConfirmText" class="navigate-dest-confirm-text"></span>
+    <div class="navigate-dest-confirm-close" onclick="cancelPendingDestination()" title="Cancel" role="button" tabindex="0" aria-label="Cancel">✕</div>
+  </div>
+  <div id="navigateRouteChoices" class="navigate-route-choices" style="display:none"></div>
+  <button type="button" id="navigateGetDirectionsBtn" class="navigate-get-directions-btn" onclick="confirmGetDirections()">Get Directions</button>
+</div>
 <div class="driving-left-stack">
   <div class="driving-speed-widget">
     <div class="driving-speed-capsule" id="drivingSpeedCapsule">
