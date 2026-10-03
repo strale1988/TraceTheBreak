@@ -11,27 +11,33 @@
   <meta http-equiv="Expires" content="0">
 
   <!--
-    Content-Security-Policy: pragmatic first pass.
-    'unsafe-inline' is kept for script-src/style-src because the app still
-    has some onclick="..." handlers and inline style="..." attributes in
-    the markup. This CSP still meaningfully reduces risk by locking down
-    which origins can load script/style/image/connect traffic, blocking
-    <object>/<embed>, blocking base-tag hijacking, and blocking
-    form-action redirection to other origins.
+    Content-Security-Policy.
+    script-src has NO 'unsafe-inline': every on*="..." attribute and javascript:
+    URL has been replaced by the delegated data-action system (see the
+    "Delegated actions" block near the top of app.js) -- real function
+    references looked up by name in ACTION_HANDLERS, never eval'd strings. So
+    an HTML-injection bug can no longer turn into script execution through an
+    injected onclick/onerror/<script>.
 
-    MIGRATION IN PROGRESS: app.js has moved its report-detail-modal/
-    timeline rendering off onclick="..." onto a delegated data-action
-    system (see the "Delegated actions" block near the top of app.js) —
-    real function references looked up by name, not eval'd strings, so
-    it's a genuine step toward dropping 'unsafe-inline' rather than just
-    moving the same risk to 'unsafe-eval'. The remaining onclick
-    attributes (map popups, the report wizard, utility-company admin
-    UI, this file's own static buttons) still need the same treatment
-    before 'unsafe-inline' can actually come out of script-src — removing
-    it now would silently break every handler not yet migrated. Inline
-    style="..." attributes (dynamic colors, etc.) are a separate,
-    larger follow-up: those'd need to move to CSS custom properties/
-    classes before style-src's 'unsafe-inline' can go too.
+    The two inline <script> blocks in <head> (splash timestamp, theme bootstrap)
+    are allowed by SHA-256 hash instead. If you EDIT either of them (even
+    whitespace), the browser will block it until you regenerate its hash:
+        printf '%s' "<exact text between the <script> tags>" | openssl dgst -sha256 -binary | openssl base64 -A
+    and put sha256-<result> in script-src. The same applies if a build step
+    minifies or re-wraps this HTML file -- the bytes must match exactly.
+
+    To add a clickable thing from JS, emit  ${actionAttrs('fnName', [args])}  and
+    register fnName in ACTION_HANDLERS; for inputs use actionAttrsFor('change'|
+    'input', ...) with {$:'value'|'checked'|'el'} for live values. An unregistered
+    name logs a console error instead of silently doing nothing.
+
+    style-src still has 'unsafe-inline' because of inline style="..." attributes
+    (dynamic colors, etc.) -- those would need to move to CSS custom properties/
+    classes first. That is a much lower risk than script-src (CSS can't run code),
+    but it does still allow CSS-based data exfiltration tricks.
+
+    This policy still locks down which origins can load script/style/image/connect
+    traffic, blocks <object>/<embed>, base-tag hijacking, and form-action redirects.
 
     NOTE: map tiles (OSM, CartoDB, Esri World_Imagery) are loaded via
     fetchTileCached()'s fetch(), not plain <img src>, for offline caching —
@@ -46,7 +52,7 @@
   -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
-    script-src 'self' 'unsafe-inline';
+    script-src 'self' 'sha256-6fNgzFZJAkl47LDhTfEDqlNnxu8zb2bexlQWKJVecgo=' 'sha256-+VB2fBIUCOJQdOd6rEhPrLWGSYO89lA5wPN4Go+Im0A=';
     style-src 'self' 'unsafe-inline';
     img-src 'self' data: blob:
       https://*.tile.openstreetmap.org
@@ -159,15 +165,15 @@
 <header>
   <div class="header-top">
     <div class="left-controls">
-      <button class="help-icon-btn" id="fullscreenBtn" title="Fullscreen / Preko celog ekrana" aria-label="Fullscreen" onclick="toggleFullscreen()"><img class="icon-img" id="fullscreenBtnIcon" src="icons/fullscreen-enter.png" alt="Fullscreen"></button>
-      <button class="help-icon-btn" id="settingsBtn" data-i18n-title="settingsBtnTitle" title="Settings" aria-label="Settings" onclick="showSettingsModal()"><img class="icon-img" src="icons/settings.png" alt="Settings"></button>
+      <button class="help-icon-btn" id="fullscreenBtn" title="Fullscreen / Preko celog ekrana" aria-label="Fullscreen" data-action="toggleFullscreen"><img class="icon-img" id="fullscreenBtnIcon" src="icons/fullscreen-enter.png" alt="Fullscreen"></button>
+      <button class="help-icon-btn" id="settingsBtn" data-i18n-title="settingsBtnTitle" title="Settings" aria-label="Settings" data-action="showSettingsModal"><img class="icon-img" src="icons/settings.png" alt="Settings"></button>
     </div>
     <div class="center-controls">
-      <button class="help-icon-btn" id="adminPanelBtn" data-i18n-title="adminPanelBtnTitle" title="Admin panel" aria-label="Admin panel" style="display:none" onclick="showAdminPanelModal()"><img class="icon-img" id="adminPanelBtnIcon" src="icons/badges/badge-admin-admin-3.png" alt="Admin panel"></button>
+      <button class="help-icon-btn" id="adminPanelBtn" data-i18n-title="adminPanelBtnTitle" title="Admin panel" aria-label="Admin panel" style="display:none" data-action="showAdminPanelModal"><img class="icon-img" id="adminPanelBtnIcon" src="icons/badges/badge-admin-admin-3.png" alt="Admin panel"></button>
     </div>
     <div class="right-controls">
-      <button class="help-icon-btn notification-btn" id="notificationBtn" data-i18n-title="notificationBtnTitle" title="Notifications" aria-label="Notifications" onclick="showNotificationModal()"><img class="icon-img" src="icons/notification.png" alt="Notifications"><span class="notification-badge" id="notificationBadge" style="display:none">0</span></button>
-      <button class="help-icon-btn" id="leaderboardBtn" data-i18n-title="leaderboardBtnTitle" title="Rankings" aria-label="Rankings" onclick="showLeaderboardModal()"><img class="icon-img" src="icons/user.png" alt="Rankings"></button>
+      <button class="help-icon-btn notification-btn" id="notificationBtn" data-i18n-title="notificationBtnTitle" title="Notifications" aria-label="Notifications" data-action="showNotificationModal"><img class="icon-img" src="icons/notification.png" alt="Notifications"><span class="notification-badge" id="notificationBadge" style="display:none">0</span></button>
+      <button class="help-icon-btn" id="leaderboardBtn" data-i18n-title="leaderboardBtnTitle" title="Rankings" aria-label="Rankings" data-action="showLeaderboardModal"><img class="icon-img" src="icons/user.png" alt="Rankings"></button>
     </div>
   </div>
 </header>
@@ -193,7 +199,7 @@
 <div id="bottomMuniBar" class="bottom-muni-bar" style="display:flex">
   <img class="icon-img bottom-muni-bar-pin" src="icons/pin.png" alt="">
   <span id="bottomMuniBarName" class="bottom-muni-bar-name">-</span>
-  <button class="help-icon-btn is-disabled" id="municipalityContactsBtn" data-i18n-title="municipalityContactsBtnTitle" title="Contacts" aria-label="Contacts" disabled onclick="showMunicipalityContactsModal()"><img class="icon-img" src="icons/phone.png" alt="Contacts"></button>
+  <button class="help-icon-btn is-disabled" id="municipalityContactsBtn" data-i18n-title="municipalityContactsBtnTitle" title="Contacts" aria-label="Contacts" disabled data-action="showMunicipalityContactsModal"><img class="icon-img" src="icons/phone.png" alt="Contacts"></button>
 </div>
 <div id="bottomMuniStatsRow" class="bottom-muni-stats-row" style="display:flex"></div>
 <div id="mapLegend" class="map-legend-pill">
@@ -204,7 +210,7 @@
 
 <div class="panel" id="reportFormPanel" style="display:none">
   <div class="row" id="categoryPriorityRow" style="flex-wrap:wrap;">
-    <select id="category" onchange="onCategoryChange()" style="flex:2 1 160px;">
+    <select id="category" data-change-action="onCategoryChange" style="flex:2 1 160px;">
       <option value="" disabled selected>Izaberite vrstu kvara…</option>
       <option value="Water" data-sr="Voda">Voda</option>
       <option value="Electricity" data-sr="Struja">Struja</option>
@@ -223,7 +229,7 @@
       <option value="FarmersMarket" data-sr="Pijaca">Pijaca</option>
       <option value="Other" data-sr="Ostalo">Ostalo</option>
     </select>
-    <select id="priority" onchange="checkFormReady()" style="flex:1 1 130px;">
+    <select id="priority" data-change-action="checkFormReady" style="flex:1 1 130px;">
       <option value="" disabled selected>Select priority</option>
       <option value="low">Low</option>
       <option value="normal">Normal</option>
@@ -232,7 +238,7 @@
   </div>
 
   <div class="row" id="subcategoryRow" style="display:none">
-    <select id="subcategory" onchange="checkFormReady()"></select>
+    <select id="subcategory" data-change-action="checkFormReady"></select>
   </div>
 
   <div class="proximity-indicator" id="proximityIndicator" style="display:none">
@@ -241,32 +247,32 @@
   </div>
 
   <div class="row report-comment-row" id="reportCommentRow">
-    <input id="comment" type="text" placeholder="Optional notes..." oninput="checkFormReady()">
+    <input id="comment" type="text" placeholder="Optional notes..." data-input-action="checkFormReady">
     <div class="photo-choice-dropdown" id="reportPhotoDropdown">
-      <button type="button" class="icon-only-btn" id="reportPhotoAddBtn" data-i18n-title="reportPhotoAddBtn" data-i18n-aria-label="reportPhotoAddBtn" title="Take photo" aria-label="Take photo" onclick="triggerReportPhotoCamera()">
+      <button type="button" class="icon-only-btn" id="reportPhotoAddBtn" data-i18n-title="reportPhotoAddBtn" data-i18n-aria-label="reportPhotoAddBtn" title="Take photo" aria-label="Take photo" data-action="triggerReportPhotoCamera">
         <img class="icon-img" src="icons/camera.png" alt="">
       </button>
-      <button type="button" class="icon-only-btn" id="reportPhotoGalleryBtn" data-i18n-title="reportPhotoGalleryBtn" data-i18n-aria-label="reportPhotoGalleryBtn" title="Choose from gallery" aria-label="Choose from gallery" onclick="triggerReportPhotoGallery()">
+      <button type="button" class="icon-only-btn" id="reportPhotoGalleryBtn" data-i18n-title="reportPhotoGalleryBtn" data-i18n-aria-label="reportPhotoGalleryBtn" title="Choose from gallery" aria-label="Choose from gallery" data-action="triggerReportPhotoGallery">
         <img class="icon-img" src="icons/gallery.png" alt="">
       </button>
     </div>
-    <input type="file" accept="image/*" capture="environment" id="reportPhotoInputCamera" style="display:none" onchange="onReportPhotoSelected(this)">
-    <input type="file" accept="image/*" id="reportPhotoInputLibrary" style="display:none" onchange="onReportPhotoSelected(this)">
+    <input type="file" accept="image/*" capture="environment" id="reportPhotoInputCamera" style="display:none" data-change-action="onReportPhotoSelected" data-change-args='[{"$":"el"}]'>
+    <input type="file" accept="image/*" id="reportPhotoInputLibrary" style="display:none" data-change-action="onReportPhotoSelected" data-change-args='[{"$":"el"}]'>
   </div>
 
   <div class="report-photo-preview" id="reportPhotoPreview" style="display:none">
     <img id="reportPhotoPreviewImg" alt="">
-    <button type="button" class="report-photo-remove" onclick="removePendingReportPhoto()" aria-label="Remove photo">✕</button>
+    <button type="button" class="report-photo-remove" data-action="removePendingReportPhoto" aria-label="Remove photo">✕</button>
   </div>
 
-  <div class="offline-queue-badge" id="offlineQueueBadge" style="display:none" onclick="syncOfflineQueue(true)" title="Tap to retry now">
+  <div class="offline-queue-badge" id="offlineQueueBadge" style="display:none" data-action="syncOfflineQueue" data-args='[true]' title="Tap to retry now">
     <span class="offline-queue-dot"></span>
     <span id="offlineQueueBadgeText"></span>
     <span class="offline-queue-retry" id="offlineQueueRetryLabel" data-i18n="offlineQueueRetry">Retry</span>
   </div>
 
   <div class="row" id="reportSubmitRow" style="align-items:stretch;">
-    <button class="report-btn" id="reportBtn" onclick="reportBreak()"
+    <button class="report-btn" id="reportBtn" data-action="reportBreak"
             style="width:100%;font-size:var(--fs-14);" disabled>
          <span id="reportBtnLabel" data-i18n="reportBtn">REPORT BREAK</span>
     </button>
@@ -275,9 +281,9 @@
 
 <div class="wiz-overlay" id="reportWizard" style="display:none">
   <div class="wiz-header">
-    <button type="button" class="wiz-back-btn" id="wizBackBtn" onclick="wizGoBack()" aria-label="Back">‹</button>
+    <button type="button" class="wiz-back-btn" id="wizBackBtn" data-action="wizGoBack" aria-label="Back">‹</button>
     <div class="wiz-progress" id="wizProgress"></div>
-    <button type="button" class="wiz-close-btn" onclick="closeReportWizard()" aria-label="Cancel">✕</button>
+    <button type="button" class="wiz-close-btn" data-action="closeReportWizard" aria-label="Cancel">✕</button>
   </div>
   <div class="wiz-body" id="wizBody"></div>
 </div>
@@ -289,13 +295,13 @@
 <div class="panel locked-panel" id="lockedFormPanel" style="display:flex">
   <p id="lockedMsgText" data-i18n="lockedMsgText">Sign in to secure your profile and reports.</p>
 
-  <button type="button" class="oauth-btn oauth-google" onclick="signInWithProvider('google')">
+  <button type="button" class="oauth-btn oauth-google" data-action="signInWithProvider" data-args='["google"]'>
     <img class="icon-img" src="icons/google.png" alt=""><span>Continue with Google</span>
   </button>
-  <button type="button" class="oauth-btn oauth-github" onclick="signInWithProvider('github')">
+  <button type="button" class="oauth-btn oauth-github" data-action="signInWithProvider" data-args='["github"]'>
     <img class="icon-img" src="icons/github.png" alt=""><span>Continue with GitHub</span>
   </button>
-  <button type="button" class="oauth-btn oauth-osm" onclick="signInWithOsm()">
+  <button type="button" class="oauth-btn oauth-osm" data-action="signInWithOsm">
     <img class="icon-img" src="icons/osm.png" alt=""><span>Continue with OpenStreetMap</span>
   </button>
 </div>
@@ -303,7 +309,7 @@
 <div class="panel" id="chooseUsernamePanel">
   <p id="chooseUsernameMsgText" data-i18n="chooseUsernameMsgText">Choose a public username to finish setting up your account.</p>
   <input type="text" id="chosenUsernameInput" data-i18n-placeholder="chosenUsernamePlaceholder" placeholder="Username" autocomplete="off" style="width:100%; height:40px;">
-  <button class="export-btn" id="submitUsernameBtn" style="width:100%; font-size:var(--fs-13); font-weight:bold; height:40px;" onclick="submitUsername()">
+  <button class="export-btn" id="submitUsernameBtn" style="width:100%; font-size:var(--fs-13); font-weight:bold; height:40px;" data-action="submitUsername">
     <span id="submitUsernameBtnLabel" data-i18n="submitUsernameBtnLabel">Save username</span>
   </button>
 </div>
@@ -311,16 +317,16 @@
 </div>
 
 <div id="bottomRightStack" class="bottomright-stack">
-  <div id="followLocationBtn" class="pin-map-btn" style="display:none" title="Follow my location" onclick="toggleFollowMode()" role="button" tabindex="0" aria-label="Follow my location" aria-pressed="false" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleFollowMode();}"><img class="icon-img" src="icons/target.png" alt=""></div>
-  <div id="pinMapBtn" class="pin-map-btn" style="display:none" title="Set location manually" onclick="togglePinMode()" role="button" tabindex="0" aria-label="Set location manually" aria-pressed="false" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();togglePinMode();}"><img class="icon-img" src="icons/pin.png" alt="Pin"></div>
-  <div id="navigateModeBtn" data-i18n-title="navigateBtnTitle" class="pin-map-btn" style="display:none" title="Navigate" onclick="enterNavigationMode()" role="button" tabindex="0" aria-label="Navigate" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();enterNavigationMode();}"><svg class="icon-img nav-arrow-btn-icon" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 2.2 L19.3 20 L12 15.6 L4.7 20 Z" fill="currentColor"/></svg></div>
-  <div id="heatmapBtn" data-i18n-title="heatmapBtnTitle" class="pin-map-btn heatmap-btn" style="display:none" title="Heatmap" onclick="toggleHeatmap()" role="button" tabindex="0" aria-label="Heatmap" aria-pressed="false" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleHeatmap();}">
+  <div id="followLocationBtn" class="pin-map-btn" style="display:none" title="Follow my location" data-action="toggleFollowMode" role="button" tabindex="0" aria-label="Follow my location" aria-pressed="false"><img class="icon-img" src="icons/target.png" alt=""></div>
+  <div id="pinMapBtn" class="pin-map-btn" style="display:none" title="Set location manually" data-action="togglePinMode" role="button" tabindex="0" aria-label="Set location manually" aria-pressed="false"><img class="icon-img" src="icons/pin.png" alt="Pin"></div>
+  <div id="navigateModeBtn" data-i18n-title="navigateBtnTitle" class="pin-map-btn" style="display:none" title="Navigate" data-action="enterNavigationMode" role="button" tabindex="0" aria-label="Navigate"><svg class="icon-img nav-arrow-btn-icon" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 2.2 L19.3 20 L12 15.6 L4.7 20 Z" fill="currentColor"/></svg></div>
+  <div id="heatmapBtn" data-i18n-title="heatmapBtnTitle" class="pin-map-btn heatmap-btn" style="display:none" title="Heatmap" data-action="toggleHeatmap" role="button" tabindex="0" aria-label="Heatmap" aria-pressed="false">
     <img class="icon-img" src="icons/heatmap.png" alt="Heatmap">
   </div>
-  <div id="firesBtn" data-i18n-title="firesBtnTitle" class="pin-map-btn fires-btn" style="display:none" title="Show active fires (NASA satellite data)" onclick="toggleFiresLayer()" role="button" tabindex="0" aria-label="Show active fires" aria-pressed="false" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleFiresLayer();}">
+  <div id="firesBtn" data-i18n-title="firesBtnTitle" class="pin-map-btn fires-btn" style="display:none" title="Show active fires (NASA satellite data)" data-action="toggleFiresLayer" role="button" tabindex="0" aria-label="Show active fires" aria-pressed="false">
     <img class="icon-img" src="icons/flame.png" alt="Fires">
   </div>
-  <div id="mainMapCompass" data-i18n-title="mainCompassTitle" class="map-compass heading-up-disabled" style="display:none" title="Heading: tap to rotate the map with your direction of travel" onclick="toggleWalkingCompassMode()" role="button" tabindex="0" aria-label="Rotate map with direction of travel" aria-pressed="false" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleWalkingCompassMode();}">
+  <div id="mainMapCompass" data-i18n-title="mainCompassTitle" class="map-compass heading-up-disabled" style="display:none" title="Heading: tap to rotate the map with your direction of travel" data-action="toggleWalkingCompassMode" role="button" tabindex="0" aria-label="Rotate map with direction of travel" aria-pressed="false">
     <div class="compass-face">
       <div class="compass-needle" id="mainCompassNeedle">
         <svg viewBox="0 0 24 24"><path d="M12 2 L16 13 L12 11 L8 13 Z" fill="#ff4b4b"/><path d="M12 22 L16 13 L12 15 L8 13 Z" fill="#ccc"/></svg>
@@ -328,8 +334,8 @@
     </div>
   </div>
 </div>
-<button type="button" id="navigateClearBtn" data-i18n-title="navigateCloseTitle" class="driving-nav-close-btn" onclick="clearNavigation()" title="Close" style="display:none">✕</button>
-<button type="button" class="report-fab-btn" id="reportFabBtn" style="display:none" disabled title="Report a break" aria-label="Report a break" onclick="reportFabTap()">
+<button type="button" id="navigateClearBtn" data-i18n-title="navigateCloseTitle" class="driving-nav-close-btn" data-action="clearNavigation" title="Close" style="display:none">✕</button>
+<button type="button" class="report-fab-btn" id="reportFabBtn" style="display:none" disabled title="Report a break" aria-label="Report a break" data-action="reportFabTap">
   <img src="icons/reports/report_new.png" alt="">
 </button>
 <div id="drivingTopFade"></div>
@@ -337,10 +343,10 @@
 <div id="navigatePanel" class="navigate-panel">
   <div class="navigate-row">
     <input type="text" id="navigateSearchInput" data-i18n-placeholder="navigateSearchPH" placeholder="Search destination..."
-           oninput="handleNavigateSearchInput()"
-           onkeydown="if(event.key==='Enter'){event.preventDefault();searchDestination();}">
-    <div class="navigate-search-btn" id="navigatePinBtn" data-i18n-title="navigatePinBtnTitle" onclick="toggleNavPinMode()" title="Place destination pin manually"><img class="icon-img" src="icons/pin.png" alt="Pin"></div>
-    <div class="navigate-close-btn" onclick="closeNavigatePanel()">✕</div>
+           data-input-action="handleNavigateSearchInput"
+           data-enter-action="searchDestination">
+    <div class="navigate-search-btn" id="navigatePinBtn" data-i18n-title="navigatePinBtnTitle" data-action="toggleNavPinMode" title="Place destination pin manually"><img class="icon-img" src="icons/pin.png" alt="Pin"></div>
+    <div class="navigate-close-btn" data-action="closeNavigatePanel">✕</div>
   </div>
   <div id="navigatePinHint" data-i18n="navigatePinHint" class="navigate-pin-hint" style="display:none">Tap the map to drop a destination pin</div>
   <div id="navigateResults" class="navigate-results"></div>
@@ -349,10 +355,10 @@
 <div id="navigateDestConfirm" class="navigate-dest-confirm" style="display:none">
   <div class="navigate-dest-confirm-row">
     <span id="navigateDestConfirmText" class="navigate-dest-confirm-text"></span>
-    <div class="navigate-dest-confirm-close" onclick="cancelPendingDestination()" title="Cancel" role="button" tabindex="0" aria-label="Cancel">✕</div>
+    <div class="navigate-dest-confirm-close" data-action="cancelPendingDestination" title="Cancel" role="button" tabindex="0" aria-label="Cancel">✕</div>
   </div>
   <div id="navigateRouteChoices" class="navigate-route-choices" style="display:none"></div>
-  <button type="button" id="navigateGetDirectionsBtn" class="navigate-get-directions-btn" onclick="confirmGetDirections()">Get Directions</button>
+  <button type="button" id="navigateGetDirectionsBtn" class="navigate-get-directions-btn" data-action="confirmGetDirections">Get Directions</button>
 </div>
 <div class="driving-left-stack">
   <div class="driving-speed-widget">
@@ -377,23 +383,23 @@
 </div>
 
 <div id="drivingBackBtnWrap" class="driving-back-btn-wrap">
-  <button class="driving-back-btn" onclick="closeNavigationAndExit()" title="Back">
+  <button class="driving-back-btn" data-action="closeNavigationAndExit" title="Back">
     <img class="icon-img" src="icons/arrow.png" alt="Back">
   </button>
 </div>
 
 <div id="drivingFloatActionRow" class="driving-float-action-row">
   <div class="driving-action-row-right">
-    <button class="driving-search-btn" id="drivingSearchBtn" onclick="toggleNavigatePanel()" title="Search destination"><img class="icon-img" src="icons/search.png" alt="Search"></button>
-    <button class="travel-mode-switch-btn" id="travelModeSwitchBtn" onclick="cycleTravelMode()" title="Switch travel mode" aria-label="Switch travel mode"></button>
-    <div id="mapCompass" class="map-compass" title="Heading: tap to toggle map rotation" onclick="toggleHeadingUpMode()" role="button" tabindex="0" aria-label="Heading-up navigation" aria-pressed="true" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleHeadingUpMode();}">
+    <button class="driving-search-btn" id="drivingSearchBtn" data-action="toggleNavigatePanel" title="Search destination"><img class="icon-img" src="icons/search.png" alt="Search"></button>
+    <button class="travel-mode-switch-btn" id="travelModeSwitchBtn" data-action="cycleTravelMode" title="Switch travel mode" aria-label="Switch travel mode"></button>
+    <div id="mapCompass" class="map-compass" title="Heading: tap to toggle map rotation" data-action="toggleHeadingUpMode" role="button" tabindex="0" aria-label="Heading-up navigation" aria-pressed="true">
       <div class="compass-face">
         <div class="compass-needle" id="compassNeedle">
           <svg viewBox="0 0 24 24"><path d="M12 2 L16 13 L12 11 L8 13 Z" fill="#ff4b4b"/><path d="M12 22 L16 13 L12 15 L8 13 Z" fill="#ccc"/></svg>
         </div>
       </div>
     </div>
-    <button class="driving-search-btn" id="drivingCenterBtn" data-i18n-title="followTitle" onclick="toggleFollowMode()" title="Center on me" aria-label="Recenter and follow my location" aria-pressed="false"><img class="icon-img" src="icons/target.png" alt=""></button>
+    <button class="driving-search-btn" id="drivingCenterBtn" data-i18n-title="followTitle" data-action="toggleFollowMode" title="Center on me" aria-label="Recenter and follow my location" aria-pressed="false"><img class="icon-img" src="icons/target.png" alt=""></button>
   </div>
 </div>
 
@@ -419,12 +425,12 @@
   </div>
   <div id="sectionAwaitingBar" class="section-awaiting-bar" style="display:none">
     <span id="sectionAwaitingText">Tap a type below to save this section</span>
-    <button class="section-awaiting-cancel" onclick="cancelPendingSection()" title="Discard">✕</button>
+    <button class="section-awaiting-cancel" data-action="cancelPendingSection" title="Discard">✕</button>
   </div>
   <div class="car-quick-grid" id="carQuickGrid"></div>
   <div class="bike-quick-grid" id="bikeQuickGrid"></div>
   <div class="walk-quick-grid" id="walkQuickGrid">
-    <button type="button" class="walk-quick-fab" id="walkQuickFabBtn" title="Report a break" aria-label="Report a break" onclick="reportFabTap()">
+    <button type="button" class="walk-quick-fab" id="walkQuickFabBtn" title="Report a break" aria-label="Report a break" data-action="reportFabTap">
       <img src="icons/reports/report_new.png" alt="">
     </button>
   </div>
@@ -440,7 +446,7 @@
     <h2 id="gpsModalTitle">GPS Not Enabled</h2>
     <p id="gpsModalBody">Location access is turned off. To report a break at your location, enable it in your settings.</p>
     <p id="gpsModalAlt" style="font-size:var(--fs-12);color:#999;margin-bottom:16px;">Or use the <img class="icon-img icon-img-inline" src="icons/pin.png" alt="pin"> button on the map to drop a pin manually.</p>
-    <button class="generic-modal-close" onclick="hideGpsModal()" id="gpsModalBtn">Got it</button>
+    <button class="generic-modal-close" data-action="hideGpsModal" id="gpsModalBtn">Got it</button>
   </div>
 </div>
 
@@ -448,7 +454,7 @@
   <div class="generic-modal" style="max-width: 380px;">
     <h2 id="helpModalTitle" style="margin-top: 6px;">How to Use</h2>
     <div id="helpModalContent" style="max-height: 55vh; overflow-y: auto; padding-right: 4px;"></div>
-    <button class="generic-modal-close" onclick="hideHelpModal()" id="helpModalBtn" style="margin-top:14px;">Close</button>
+    <button class="generic-modal-close" data-action="hideHelpModal" id="helpModalBtn" style="margin-top:14px;">Close</button>
   </div>
 </div>
 
@@ -463,7 +469,7 @@
     <span class="badge-info-status" id="badgeInfoStatus"></span>
     <h2 id="badgeInfoName"></h2>
     <p id="badgeInfoDesc"></p>
-    <button class="generic-modal-close" onclick="hideBadgeInfo()">Close</button>
+    <button class="generic-modal-close" data-action="hideBadgeInfo">Close</button>
   </div>
 </div>
 
@@ -503,16 +509,16 @@
 <div id="settingsModal" class="fullscreen-modal-overlay" style="display:none">
   <div class="fullscreen-modal-header">
     <h2 id="settingsModalTitle" data-i18n="settingsModalTitle">Settings</h2>
-    <button class="fullscreen-modal-close" onclick="hideSettingsModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
+    <button class="fullscreen-modal-close" data-action="hideSettingsModal" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
   </div>
   <div class="fullscreen-modal-body">
 
     <div class="detail-section" id="helpSettingsSection">
       <div class="detail-section-title" id="helpSectionTitle" data-i18n="helpSectionTitle">Help</div>
-      <button type="button" class="settings-btn u-full-width" onclick="showHelpModal()" id="settingsHelpBtn">
+      <button type="button" class="settings-btn u-full-width" data-action="showHelpModal" id="settingsHelpBtn">
         <img class="icon-img icon-img-inline icon-tint-dark" src="icons/help.png" alt=""> How to use TraceTheBreak
       </button>
-      <button type="button" class="settings-btn" style="width:100%; margin-top:8px;" onclick="hideSettingsModal(); startOnboardingTour(true);" id="settingsReplayTourBtn">
+      <button type="button" class="settings-btn" style="width:100%; margin-top:8px;" data-action="restartOnboardingTourFromSettings" id="settingsReplayTourBtn">
         <img class="icon-img icon-img-inline icon-tint-dark" src="icons/pin.png" alt=""> <span id="settingsReplayTourBtnLabel" data-i18n="settingsReplayTourBtn">Show quick tour again</span>
       </button>
     </div>
@@ -520,21 +526,21 @@
     <div class="detail-section" id="languageSettingsSection">
       <div class="detail-section-title" id="languageSectionTitle" data-i18n="languageSectionTitle">Language</div>
       <div class="lang-select-row" id="langSelectRow">
-        <select class="lang-select" id="langSelect" onchange="setLang(this.value)"></select>
-        <button type="button" class="theme-segment-btn lang-auto-btn" onclick="setLang('auto')" id="langAutoBtn"><img class="icon-img icon-img-inline" src="icons/pin.png" alt=""> <span id="langBtnAutoLabel" data-i18n="langBtnAutoLabel">Auto</span></button>
+        <select class="lang-select" id="langSelect" data-change-action="setLang" data-change-args='[{"$":"value"}]'></select>
+        <button type="button" class="theme-segment-btn lang-auto-btn" data-action="setLang" data-args='["auto"]' id="langAutoBtn"><img class="icon-img icon-img-inline" src="icons/pin.png" alt=""> <span id="langBtnAutoLabel" data-i18n="langBtnAutoLabel">Auto</span></button>
       </div>
       <p class="detail-export-hint" id="langAutoHint" data-i18n="langAutoHint">We'll set the language based on your location.</p>
     </div>
 
     <div class="detail-section locked-panel" id="settingsSignInGate" style="display:none">
       <p id="settingsSignInGateMsgText" data-i18n="settingsSignInGateMsgText">Sign in to customize theme, map, and driving settings.</p>
-      <button type="button" class="oauth-btn oauth-google" onclick="signInWithProvider('google')">
+      <button type="button" class="oauth-btn oauth-google" data-action="signInWithProvider" data-args='["google"]'>
         <img class="icon-img" src="icons/google.png" alt=""><span>Continue with Google</span>
       </button>
-      <button type="button" class="oauth-btn oauth-github" onclick="signInWithProvider('github')">
+      <button type="button" class="oauth-btn oauth-github" data-action="signInWithProvider" data-args='["github"]'>
         <img class="icon-img" src="icons/github.png" alt=""><span>Continue with GitHub</span>
       </button>
-      <button type="button" class="oauth-btn oauth-osm" onclick="signInWithOsm()">
+      <button type="button" class="oauth-btn oauth-osm" data-action="signInWithOsm">
         <img class="icon-img" src="icons/osm.png" alt=""><span>Continue with OpenStreetMap</span>
       </button>
     </div>
@@ -553,7 +559,7 @@
           <label class="settings-toggle-row" id="pushNotifToggleRow">
             <span id="pushNotifToggleLabel" data-i18n="pushNotifToggleLabel">Push notifications on this device</span>
             <span class="toggle-switch">
-              <input type="checkbox" id="pushNotifToggleInput" onchange="setPushNotificationsEnabled(this.checked)">
+              <input type="checkbox" id="pushNotifToggleInput" data-change-action="setPushNotificationsEnabled" data-change-args='[{"$":"checked"}]'>
               <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
             </span>
           </label>
@@ -571,14 +577,14 @@
           <p class="detail-export-hint" id="savedAreaSectionHint" data-i18n="savedAreaSectionHint">Get a push notification when someone reports a new issue near an area you care about.</p>
           <div id="savedAreaStatusText" class="saved-area-status"></div>
           <div class="saved-area-row">
-            <button type="button" class="settings-btn u-flex-1" onclick="useCurrentLocationForSavedArea()" id="savedAreaUseLocationBtn">
+            <button type="button" class="settings-btn u-flex-1" data-action="useCurrentLocationForSavedArea" id="savedAreaUseLocationBtn">
               <img class="icon-img icon-img-inline icon-tint-dark" src="icons/target.png" alt=""> <span id="savedAreaUseLocationBtnLabel" data-i18n="savedAreaUseLocationBtn">Use my current location</span>
             </button>
-            <button type="button" class="settings-btn" style="flex:0 0 auto;" onclick="clearSavedArea()" id="savedAreaClearBtn" data-i18n="savedAreaClearBtn">Clear</button>
+            <button type="button" class="settings-btn" style="flex:0 0 auto;" data-action="clearSavedArea" id="savedAreaClearBtn" data-i18n="savedAreaClearBtn">Clear</button>
           </div>
           <label class="settings-select-row" id="savedAreaRadiusRow" style="margin-top:10px;">
             <span id="savedAreaRadiusLabel" data-i18n="savedAreaRadiusLabel">Alert radius</span>
-            <select id="savedAreaRadiusSelect" onchange="setSavedAreaRadius(this.value)">
+            <select id="savedAreaRadiusSelect" data-change-action="setSavedAreaRadius" data-change-args='[{"$":"value"}]'>
               <option value="1">1 km</option>
               <option value="2">2 km</option>
               <option value="3">3 km</option>
@@ -592,10 +598,10 @@
           <div class="detail-section-title" id="nearbyCheckinSectionTitle" data-i18n="nearbyCheckinSectionTitle">Nearby issue check-ins</div>
           <p class="detail-export-hint" id="nearbyCheckinSectionHint" data-i18n="nearbyCheckinSectionHint">When you pass close to an open report, we can ask if it's still there.</p>
           <div class="theme-segment" id="nearbyCheckinFreqSegment">
-            <button type="button" class="theme-segment-btn" onclick="setNearbyCheckinFreq('off')" id="nearbyCheckinBtnOff" data-i18n="nearbyCheckinFreqOff">Off</button>
-            <button type="button" class="theme-segment-btn" onclick="setNearbyCheckinFreq('low')" id="nearbyCheckinBtnLow" data-i18n="nearbyCheckinFreqLow">Rarely</button>
-            <button type="button" class="theme-segment-btn" onclick="setNearbyCheckinFreq('normal')" id="nearbyCheckinBtnNormal" data-i18n="nearbyCheckinFreqNormal">Normal</button>
-            <button type="button" class="theme-segment-btn" onclick="setNearbyCheckinFreq('high')" id="nearbyCheckinBtnHigh" data-i18n="nearbyCheckinFreqHigh">Often</button>
+            <button type="button" class="theme-segment-btn" data-action="setNearbyCheckinFreq" data-args='["off"]' id="nearbyCheckinBtnOff" data-i18n="nearbyCheckinFreqOff">Off</button>
+            <button type="button" class="theme-segment-btn" data-action="setNearbyCheckinFreq" data-args='["low"]' id="nearbyCheckinBtnLow" data-i18n="nearbyCheckinFreqLow">Rarely</button>
+            <button type="button" class="theme-segment-btn" data-action="setNearbyCheckinFreq" data-args='["normal"]' id="nearbyCheckinBtnNormal" data-i18n="nearbyCheckinFreqNormal">Normal</button>
+            <button type="button" class="theme-segment-btn" data-action="setNearbyCheckinFreq" data-args='["high"]' id="nearbyCheckinBtnHigh" data-i18n="nearbyCheckinFreqHigh">Often</button>
           </div>
         </div>
 
@@ -603,10 +609,10 @@
           <div class="detail-section-title" id="contactReminderSectionTitle">Contact reminders</div>
           <p class="detail-export-hint" id="contactReminderSectionHint">If you haven't contacted the utility company about one of your open reports, we can nudge you.</p>
           <div class="theme-segment" id="contactReminderFreqSegment">
-            <button type="button" class="theme-segment-btn" onclick="setContactReminderFreq('off')" id="contactReminderBtnOff">Off</button>
-            <button type="button" class="theme-segment-btn" onclick="setContactReminderFreq('weekly')" id="contactReminderBtnWeekly">Weekly</button>
-            <button type="button" class="theme-segment-btn" onclick="setContactReminderFreq('biweekly')" id="contactReminderBtnBiweekly">2 weeks</button>
-            <button type="button" class="theme-segment-btn" onclick="setContactReminderFreq('monthly')" id="contactReminderBtnMonthly">Monthly</button>
+            <button type="button" class="theme-segment-btn" data-action="setContactReminderFreq" data-args='["off"]' id="contactReminderBtnOff">Off</button>
+            <button type="button" class="theme-segment-btn" data-action="setContactReminderFreq" data-args='["weekly"]' id="contactReminderBtnWeekly">Weekly</button>
+            <button type="button" class="theme-segment-btn" data-action="setContactReminderFreq" data-args='["biweekly"]' id="contactReminderBtnBiweekly">2 weeks</button>
+            <button type="button" class="theme-segment-btn" data-action="setContactReminderFreq" data-args='["monthly"]' id="contactReminderBtnMonthly">Monthly</button>
           </div>
         </div>
 
@@ -625,20 +631,20 @@
           <div class="detail-section-title" id="mapStyleSectionTitle" data-i18n="mapStyleSectionTitle">Map style</div>
           <label class="settings-select-row" id="mapStyleDefaultRow">
             <span id="mapStyleDefaultLabel" data-i18n="mapStyleDefaultLabel">Default map style</span>
-            <select id="mapStyleDefaultSelect" onchange="setMapStyleDefault(this.value)"></select>
+            <select id="mapStyleDefaultSelect" data-change-action="setMapStyleDefault" data-change-args='[{"$":"value"}]'></select>
           </label>
           <p class="detail-export-hint" id="mapStyleHint" data-i18n="mapStyleHint">Used when you're not navigating. Light/dark theme is applied on top of whichever style you pick.</p>
           <label class="settings-select-row" id="mapStyleCarRow">
             <span id="mapStyleCarLabel" data-i18n="mapStyleCarLabel">Driving map style</span>
-            <select id="mapStyleCarSelect" onchange="setNavMapStylePref('car', this.value)"></select>
+            <select id="mapStyleCarSelect" data-change-action="setNavMapStylePref" data-change-args='["car",{"$":"value"}]'></select>
           </label>
           <label class="settings-select-row" id="mapStyleBikeRow">
             <span id="mapStyleBikeLabel" data-i18n="mapStyleBikeLabel">Cycling map style</span>
-            <select id="mapStyleBikeSelect" onchange="setNavMapStylePref('bike', this.value)"></select>
+            <select id="mapStyleBikeSelect" data-change-action="setNavMapStylePref" data-change-args='["bike",{"$":"value"}]'></select>
           </label>
           <label class="settings-select-row" id="mapStyleFootRow">
             <span id="mapStyleFootLabel" data-i18n="mapStyleFootLabel">Walking map style</span>
-            <select id="mapStyleFootSelect" onchange="setNavMapStylePref('foot', this.value)"></select>
+            <select id="mapStyleFootSelect" data-change-action="setNavMapStylePref" data-change-args='["foot",{"$":"value"}]'></select>
           </label>
         </div>
 
@@ -650,7 +656,7 @@
 
         <div class="detail-section" id="mapFilterSettingsSection">
           <div class="detail-section-title" id="mapFilterSectionTitle" data-i18n="mapFilterSectionTitle">Map</div>
-          <button type="button" class="settings-btn" onclick="toggleCategoryFilterModal()" id="mapFilterSettingsBtn">
+          <button type="button" class="settings-btn" data-action="toggleCategoryFilterModal" id="mapFilterSettingsBtn">
             <img class="icon-img icon-img-inline icon-tint-dark" src="icons/category-filter.png" alt=""> <span id="mapFilterSettingsBtnLabel" data-i18n="categoryFilterBtnTitle">Filter categories</span>
             <span class="settings-btn-active-dot" id="mapFilterActiveDot" style="display:none"></span>
           </button>
@@ -659,35 +665,35 @@
           <label class="settings-toggle-row" id="oldFixedToggleRow">
             <span id="oldFixedToggleLabel" data-i18n="oldFixedToggleLabel">Show fixed reports older than 15 days</span>
             <span class="toggle-switch">
-              <input type="checkbox" id="oldFixedToggleInput" onchange="setShowOldFixedReports(this.checked)">
+              <input type="checkbox" id="oldFixedToggleInput" data-change-action="setShowOldFixedReports" data-change-args='[{"$":"checked"}]'>
               <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
             </span>
           </label>
           <label class="settings-toggle-row" id="pulseToggleRow">
             <span id="pulseToggleLabel" data-i18n="pulseToggleLabel">Status pulse animation</span>
             <span class="toggle-switch">
-              <input type="checkbox" id="pulseToggleInput" checked onchange="setPulseEnabled(this.checked)">
+              <input type="checkbox" id="pulseToggleInput" checked data-change-action="setPulseEnabled" data-change-args='[{"$":"checked"}]'>
               <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
             </span>
           </label>
           <label class="settings-toggle-row" id="navBtnToggleRow">
             <span id="navBtnToggleLabel" data-i18n="navBtnToggleLabel">Show driving / navigation button on map</span>
             <span class="toggle-switch">
-              <input type="checkbox" id="navBtnToggleInput" onchange="setNavBtnVisible(this.checked)">
+              <input type="checkbox" id="navBtnToggleInput" data-change-action="setNavBtnVisible" data-change-args='[{"$":"checked"}]'>
               <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
             </span>
           </label>
           <label class="settings-toggle-row" id="heatmapBtnToggleRow">
             <span id="heatmapBtnToggleLabel" data-i18n="heatmapBtnToggleLabel">Show heatmap button on map</span>
             <span class="toggle-switch">
-              <input type="checkbox" id="heatmapBtnToggleInput" onchange="setHeatmapBtnVisible(this.checked)">
+              <input type="checkbox" id="heatmapBtnToggleInput" data-change-action="setHeatmapBtnVisible" data-change-args='[{"$":"checked"}]'>
               <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
             </span>
           </label>
           <label class="settings-toggle-row" id="firesBtnToggleRow">
             <span id="firesBtnToggleLabel" data-i18n="firesBtnToggleLabel">Show live fires button on map</span>
             <span class="toggle-switch">
-              <input type="checkbox" id="firesBtnToggleInput" onchange="setFiresBtnVisible(this.checked)">
+              <input type="checkbox" id="firesBtnToggleInput" data-change-action="setFiresBtnVisible" data-change-args='[{"$":"checked"}]'>
               <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
             </span>
           </label>
@@ -699,7 +705,7 @@
           <label class="settings-toggle-row" id="offlineAutoCacheToggleRow">
             <span id="offlineAutoCacheToggleLabel" data-i18n="offlineAutoCacheToggleLabel">Auto-cache map around areas you view</span>
             <span class="toggle-switch">
-              <input type="checkbox" id="offlineAutoCacheToggleInput" checked onchange="setOfflineAutoCacheEnabled(this.checked)">
+              <input type="checkbox" id="offlineAutoCacheToggleInput" checked data-change-action="setOfflineAutoCacheEnabled" data-change-args='[{"$":"checked"}]'>
               <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
             </span>
           </label>
@@ -712,52 +718,52 @@
           <label class="settings-toggle-row" id="soundToggleRow">
             <span id="soundToggleLabel" data-i18n="soundToggleLabel">Navigation & alert sounds</span>
             <span class="toggle-switch">
-              <input type="checkbox" id="soundToggleInput" checked onchange="setSoundEnabled(this.checked)">
+              <input type="checkbox" id="soundToggleInput" checked data-change-action="setSoundEnabled" data-change-args='[{"$":"checked"}]'>
               <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
             </span>
           </label>
           <label class="settings-toggle-row" id="voiceNavToggleRow">
             <span id="voiceNavToggleLabel" data-i18n="voiceNavToggleLabel">Voice-guided turn directions</span>
             <span class="toggle-switch">
-              <input type="checkbox" id="voiceNavToggleInput" onchange="setVoiceNavEnabled(this.checked)">
+              <input type="checkbox" id="voiceNavToggleInput" data-change-action="setVoiceNavEnabled" data-change-args='[{"$":"checked"}]'>
               <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
             </span>
           </label>
           <label class="settings-toggle-row" id="drivingSafetyToggleRow">
             <span id="drivingSafetyToggleLabel" data-i18n="drivingSafetyToggleLabel">Show safe-driving reminder when starting driving mode</span>
             <span class="toggle-switch">
-              <input type="checkbox" id="drivingSafetyToggleInput" checked onchange="setDrivingSafetyReminderEnabled(this.checked)">
+              <input type="checkbox" id="drivingSafetyToggleInput" checked data-change-action="setDrivingSafetyReminderEnabled" data-change-args='[{"$":"checked"}]'>
               <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
             </span>
           </label>
           <label class="settings-toggle-row" id="overspeedAlertToggleRow">
             <span id="overspeedAlertToggleLabel" data-i18n="overspeedAlertToggleLabel">Warn me when I'm 5+ km/h over the speed limit</span>
             <span class="toggle-switch">
-              <input type="checkbox" id="overspeedAlertToggleInput" checked onchange="setOverspeedAlertEnabled(this.checked)">
+              <input type="checkbox" id="overspeedAlertToggleInput" checked data-change-action="setOverspeedAlertEnabled" data-change-args='[{"$":"checked"}]'>
               <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
             </span>
           </label>
           <label class="settings-toggle-row" id="speedUnitToggleRow">
             <span id="speedUnitToggleLabel" data-i18n="speedUnitToggleLabel">Show speed in mph instead of km/h</span>
             <span class="toggle-switch">
-              <input type="checkbox" id="speedUnitToggleInput" onchange="setSpeedUnitPref(this.checked ? 'mph' : 'kmh')">
+              <input type="checkbox" id="speedUnitToggleInput" data-change-action="setSpeedUnitPrefFromToggle" data-change-args='[{"$":"checked"}]'>
               <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
             </span>
           </label>
           <label class="settings-toggle-row" id="bumpDetectionToggleRow">
             <span id="bumpDetectionToggleLabel" data-i18n="bumpDetectionToggleLabel">Detect potholes/bumps automatically while driving</span>
             <span class="toggle-switch">
-              <input type="checkbox" id="bumpDetectionToggleInput" checked onchange="setBumpDetectionEnabled(this.checked)">
+              <input type="checkbox" id="bumpDetectionToggleInput" checked data-change-action="setBumpDetectionEnabled" data-change-args='[{"$":"checked"}]'>
               <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
             </span>
           </label>
           <label class="settings-select-row" id="quickDefaultCarRow">
             <span id="quickDefaultCarLabel" data-i18n="quickDefaultCarLabel">Default quick-report category (driving)</span>
-            <select id="quickDefaultCarSelect" onchange="setQuickDefaultCategoryPref('car', this.value)"></select>
+            <select id="quickDefaultCarSelect" data-change-action="setQuickDefaultCategoryPref" data-change-args='["car",{"$":"value"}]'></select>
           </label>
           <label class="settings-select-row" id="quickDefaultBikeRow">
             <span id="quickDefaultBikeLabel" data-i18n="quickDefaultBikeLabel">Default quick-report category (biking)</span>
-            <select id="quickDefaultBikeSelect" onchange="setQuickDefaultCategoryPref('bike', this.value)"></select>
+            <select id="quickDefaultBikeSelect" data-change-action="setQuickDefaultCategoryPref" data-change-args='["bike",{"$":"value"}]'></select>
           </label>
         </div>
 
@@ -777,7 +783,7 @@
           <label class="settings-toggle-row" id="showUsernameToggleRow">
             <span id="showUsernameToggleLabel" data-i18n="showUsernameToggleLabel">Show my username on reports</span>
             <span class="toggle-switch">
-              <input type="checkbox" id="showUsernameToggleInput" checked onchange="setShowUsernameOnReports(this.checked)">
+              <input type="checkbox" id="showUsernameToggleInput" checked data-change-action="setShowUsernameOnReports" data-change-args='[{"$":"checked"}]'>
               <span class="toggle-switch-track"><span class="toggle-switch-thumb"></span></span>
             </span>
           </label>
@@ -787,10 +793,10 @@
         <div class="detail-section" id="themeSettingsSection">
           <div class="detail-section-title" id="themeSectionTitle" data-i18n="themeSectionTitle">Theme</div>
           <div class="theme-segment" id="themeSegment">
-            <button type="button" class="theme-segment-btn" onclick="setThemeMode('light')" id="themeBtnLight" data-i18n="themeLight">Light</button>
-            <button type="button" class="theme-segment-btn" onclick="setThemeMode('dark')" id="themeBtnDark" data-i18n="themeDark">Dark</button>
-            <button type="button" class="theme-segment-btn" onclick="setThemeMode('auto')" id="themeBtnAuto" data-i18n="themeAuto">Auto</button>
-            <button type="button" class="theme-segment-btn" onclick="setThemeMode('smart')" id="themeBtnSmart" data-i18n="themeSmart">Smart</button>
+            <button type="button" class="theme-segment-btn" data-action="setThemeMode" data-args='["light"]' id="themeBtnLight" data-i18n="themeLight">Light</button>
+            <button type="button" class="theme-segment-btn" data-action="setThemeMode" data-args='["dark"]' id="themeBtnDark" data-i18n="themeDark">Dark</button>
+            <button type="button" class="theme-segment-btn" data-action="setThemeMode" data-args='["auto"]' id="themeBtnAuto" data-i18n="themeAuto">Auto</button>
+            <button type="button" class="theme-segment-btn" data-action="setThemeMode" data-args='["smart"]' id="themeBtnSmart" data-i18n="themeSmart">Smart</button>
           </div>
           <p class="detail-export-hint" id="themeSmartHint" data-i18n="themeSmartHint">Auto follows your device's light/dark setting. Smart adapts to ambient light where available, otherwise local time.</p>
         </div>
@@ -799,18 +805,18 @@
           <div class="detail-section-title" id="legalSectionTitle" data-i18n="legalSectionTitle">Legal</div>
           <p class="detail-export-hint" id="legalCopyrightText">© tracethestuff.com</p>
           <div style="display:flex; gap:var(--space-8);">
-            <button type="button" class="settings-btn u-flex-1" onclick="showLegalContentModal('terms_of_service')" id="legalTermsBtn" data-i18n="termsOfServiceBtn">Terms of Service</button>
-            <button type="button" class="settings-btn u-flex-1" onclick="showLegalContentModal('privacy_policy')" id="legalPrivacyBtn" data-i18n="privacyPolicyBtn">Privacy Policy</button>
+            <button type="button" class="settings-btn u-flex-1" data-action="showLegalContentModal" data-args='["terms_of_service"]' id="legalTermsBtn" data-i18n="termsOfServiceBtn">Terms of Service</button>
+            <button type="button" class="settings-btn u-flex-1" data-action="showLegalContentModal" data-args='["privacy_policy"]' id="legalPrivacyBtn" data-i18n="privacyPolicyBtn">Privacy Policy</button>
           </div>
         </div>
 
         <div class="detail-section" id="accountDangerSettingsSection">
           <div class="detail-section-title" id="accountDangerSectionTitle" data-i18n="accountDangerSectionTitle">Account</div>
           <p class="detail-export-hint" id="deleteAccountHint" data-i18n="deleteAccountHint">Delete your account and personal data. An admin will review your request. Your existing reports stay visible to help the community, but are no longer linked to your username.</p>
-          <button type="button" class="detail-delete-btn u-full-width" onclick="requestAccountDeletion()" id="deleteAccountBtn" data-i18n="deleteAccountBtn">Delete my account</button>
+          <button type="button" class="detail-delete-btn u-full-width" data-action="requestAccountDeletion" id="deleteAccountBtn" data-i18n="deleteAccountBtn">Delete my account</button>
           <div id="deleteAccountPendingBox" style="display:none;">
             <p class="detail-export-hint" id="deleteAccountPendingHint">Your account deletion request is pending admin review.</p>
-            <button type="button" class="settings-btn u-full-width" onclick="cancelAccountDeletionRequest()" id="cancelDeletionBtn">Cancel request</button>
+            <button type="button" class="settings-btn u-full-width" data-action="cancelAccountDeletionRequest" id="cancelDeletionBtn">Cancel request</button>
           </div>
         </div>
 
@@ -826,7 +832,7 @@
         <div class="select-wrap">
           <input type="text" id="dateRangePicker" data-i18n-placeholder="calendarPH" placeholder="Select date range..." readonly>
         </div>
-        <button class="export-btn" onclick="downloadCSV()"
+        <button class="export-btn" data-action="downloadCSV"
                 style="flex:0 0 auto;width:auto;min-width:0;font-size:var(--fs-12);padding:0 12px;align-self:stretch;white-space:nowrap;">
           <span id="csvLabel" data-i18n="csvLabel">CSV</span>
         </button>
@@ -841,15 +847,15 @@
 <div id="contactReminderModal" class="fullscreen-modal-overlay" style="display:none">
   <div class="fullscreen-modal-header">
     <h2 id="contactReminderModalTitle">Contact reminder</h2>
-    <button class="fullscreen-modal-close" onclick="closeContactReminderModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
+    <button class="fullscreen-modal-close" data-action="closeContactReminderModal" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
   </div>
   <div class="fullscreen-modal-body">
     <div class="detail-section" style="border-top:none;">
       <p class="detail-export-hint" id="contactReminderIntroText">You've reported these but haven't contacted the utility company yet.</p>
       <div id="contactReminderList"></div>
       <div class="uc-form-row" style="margin-top:14px;">
-        <button type="button" class="settings-btn u-flex-1" onclick="snoozeContactReminders()" id="contactReminderSnoozeBtn">Remind me later</button>
-        <button type="button" class="settings-btn u-flex-1" onclick="openContactReminderSettings()" id="contactReminderSettingsBtn">Change frequency</button>
+        <button type="button" class="settings-btn u-flex-1" data-action="snoozeContactReminders" id="contactReminderSnoozeBtn">Remind me later</button>
+        <button type="button" class="settings-btn u-flex-1" data-action="openContactReminderSettings" id="contactReminderSettingsBtn">Change frequency</button>
       </div>
     </div>
   </div>
@@ -869,7 +875,7 @@
       <button type="button" class="fullscreen-modal-share" id="reportDetailDeleteIconBtn" aria-label="" style="display:none"><img class="icon-img" src="icons/reports/waste.png" alt=""></button>
       <button type="button" class="fullscreen-modal-share" id="reportDetailCopyLinkBtn" aria-label=""><img class="icon-img" id="reportDetailCopyLinkIcon" src="icons/copy.png" alt="copy link"></button>
       <button type="button" class="fullscreen-modal-share" id="reportDetailShareBtn" aria-label="Share"><img class="icon-img" src="icons/link.png" alt="share"></button>
-      <button class="fullscreen-modal-close" id="reportDetailCloseBtn" onclick="hideReportDetailModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
+      <button class="fullscreen-modal-close" id="reportDetailCloseBtn" data-action="hideReportDetailModal" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
     </div>
   </div>
   <div class="fullscreen-modal-body" id="reportDetailBody"></div>
@@ -878,7 +884,7 @@
 <div id="companyDetailModal" class="fullscreen-modal-overlay" style="display:none">
   <div class="fullscreen-modal-header" id="companyDetailHeader">
     <h2 id="companyDetailTitle"></h2>
-    <button class="fullscreen-modal-close" id="companyDetailCloseBtn" onclick="hideCompanyDetailModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
+    <button class="fullscreen-modal-close" id="companyDetailCloseBtn" data-action="hideCompanyDetailModal" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
   </div>
   <div class="fullscreen-modal-body" id="companyDetailBody"></div>
 </div>
@@ -886,7 +892,7 @@
 <div id="userActivityModal" class="fullscreen-modal-overlay" style="display:none">
   <div class="fullscreen-modal-header">
     <h2 id="userActivityTitle"></h2>
-    <button class="fullscreen-modal-close" onclick="hideUserActivityModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
+    <button class="fullscreen-modal-close" data-action="hideUserActivityModal" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
   </div>
   <div class="fullscreen-modal-body" id="userActivityBody"></div>
 </div>
@@ -894,7 +900,7 @@
 <div id="legalContentModal" class="fullscreen-modal-overlay" style="display:none">
   <div class="fullscreen-modal-header">
     <h2 id="legalContentTitle"></h2>
-    <button class="fullscreen-modal-close" id="legalContentCloseBtn" onclick="hideLegalContentModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
+    <button class="fullscreen-modal-close" id="legalContentCloseBtn" data-action="hideLegalContentModal" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
   </div>
   <div class="fullscreen-modal-body" id="legalContentBody"></div>
 </div>
@@ -902,7 +908,7 @@
 <div id="municipalityContactsModal" class="fullscreen-modal-overlay" style="display:none">
   <div class="fullscreen-modal-header" id="municipalityContactsHeader">
     <h2 id="municipalityContactsTitle"></h2>
-    <button class="fullscreen-modal-close" onclick="hideMunicipalityContactsModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
+    <button class="fullscreen-modal-close" data-action="hideMunicipalityContactsModal" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
   </div>
   <div class="fullscreen-modal-body" id="municipalityContactsBody"></div>
 </div>
@@ -925,8 +931,8 @@
       <span class="admin-pill" id="dashboardIdentityAdminPill" style="display:none">★ ADMIN</span>
     </div>
     <h2 id="leaderboardModalTitle"><img class="icon-img icon-img-inline" src="icons/trophy.png" alt=""> Rankings</h2>
-    <button type="button" class="settings-btn dashboard-signout-btn" id="dashboardSignOutBtn" data-i18n="signOutBtn" onclick="signOutUser()" style="display:none">Sign out</button>
-    <button class="fullscreen-modal-close" onclick="hideLeaderboardModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
+    <button type="button" class="settings-btn dashboard-signout-btn" id="dashboardSignOutBtn" data-i18n="signOutBtn" data-action="signOutUser" style="display:none">Sign out</button>
+    <button class="fullscreen-modal-close" data-action="hideLeaderboardModal" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
   </div>
   <div class="fullscreen-modal-body" style="gap:var(--space-12);">
     <div id="leaderboardDashboardTab" style="display:flex; flex-direction:column; gap:var(--space-12);">
@@ -1055,7 +1061,7 @@
       <div class="detail-section dashboard-section" id="adminDashboardSection" style="display:none">
         <div class="detail-section-title" id="adminDashboardSectionTitle" data-i18n="adminDashboardSectionTitle" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
           <span>My Admin Role</span>
-          <button type="button" class="settings-btn" id="openAnalyticsBtn" onclick="openAnalyticsModal()" style="margin:0;padding:6px 12px;font-size:var(--fs-12-5);width:auto;flex:none;"><img class="icon-img icon-img-inline" src="icons/analytics.png" alt=""> <span id="openAnalyticsBtnLabel" data-i18n="openAnalyticsBtnLabel">Analytics</span></button>
+          <button type="button" class="settings-btn" id="openAnalyticsBtn" data-action="openAnalyticsModal" style="margin:0;padding:6px 12px;font-size:var(--fs-12-5);width:auto;flex:none;"><img class="icon-img icon-img-inline" src="icons/analytics.png" alt=""> <span id="openAnalyticsBtnLabel" data-i18n="openAnalyticsBtnLabel">Analytics</span></button>
         </div>
         <div class="dashboard-stats-grid">
           <div class="dashboard-stat-box">
@@ -1147,10 +1153,10 @@
           <span class="dashboard-badges-count" id="myReportsCount"></span>
         </div>
         <div class="theme-segment my-reports-filter-row" id="myReportsFilterRow">
-          <button type="button" class="theme-segment-btn active" data-filter="all" onclick="setMyReportsFilter('all')" id="myReportsFilterAllBtn" data-i18n="myReportsFilterAll">All</button>
-          <button type="button" class="theme-segment-btn" data-filter="reported" onclick="setMyReportsFilter('reported')" id="myReportsFilterReportedBtn" data-i18n="myReportsFilterReported">Reported</button>
-          <button type="button" class="theme-segment-btn" data-filter="in_progress" onclick="setMyReportsFilter('in_progress')" id="myReportsFilterProgressBtn" data-i18n="myReportsFilterProgress">In progress</button>
-          <button type="button" class="theme-segment-btn" data-filter="fixed" onclick="setMyReportsFilter('fixed')" id="myReportsFilterFixedBtn" data-i18n="myReportsFilterFixed">Fixed</button>
+          <button type="button" class="theme-segment-btn active" data-filter="all" data-action="setMyReportsFilter" data-args='["all"]' id="myReportsFilterAllBtn" data-i18n="myReportsFilterAll">All</button>
+          <button type="button" class="theme-segment-btn" data-filter="reported" data-action="setMyReportsFilter" data-args='["reported"]' id="myReportsFilterReportedBtn" data-i18n="myReportsFilterReported">Reported</button>
+          <button type="button" class="theme-segment-btn" data-filter="in_progress" data-action="setMyReportsFilter" data-args='["in_progress"]' id="myReportsFilterProgressBtn" data-i18n="myReportsFilterProgress">In progress</button>
+          <button type="button" class="theme-segment-btn" data-filter="fixed" data-action="setMyReportsFilter" data-args='["fixed"]' id="myReportsFilterFixedBtn" data-i18n="myReportsFilterFixed">Fixed</button>
         </div>
         <div class="my-reports-list" id="myReportsList"></div>
         <div class="my-reports-empty" id="myReportsEmpty" style="display:none"></div>
@@ -1166,21 +1172,21 @@
 <div id="adminPanelModal" class="fullscreen-modal-overlay" style="display:none">
   <div class="fullscreen-modal-header">
     <h2 id="adminPanelModalTitle" data-i18n="adminPanelModalTitle">Admin panel</h2>
-    <button class="fullscreen-modal-close" onclick="hideAdminPanelModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
+    <button class="fullscreen-modal-close" data-action="hideAdminPanelModal" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
   </div>
   <div class="fullscreen-modal-body">
     <div class="admin-section detail-section" id="waitingListSection" style="border-top:none;">
       <div class="admin-section-title detail-section-title" id="notificationWaitingListSectionTitle">Waiting for review</div>
-      <input type="text" id="adminSearchInput" oninput="onAdminSearchInput()" placeholder="Search reports…" style="width:100%;box-sizing:border-box;margin-bottom:10px;" autocomplete="off">
+      <input type="text" id="adminSearchInput" data-input-action="onAdminSearchInput" placeholder="Search reports…" style="width:100%;box-sizing:border-box;margin-bottom:10px;" autocomplete="off">
       <div id="notificationWaitingList"></div>
     </div>
 
     <div class="admin-section detail-section" id="adminPanelSection">
       <div class="admin-section-title detail-section-title" id="ucSectionTitle" data-i18n="ucSectionTitle">Utility company contacts</div>
-      <input type="text" id="ucSearchInput" data-i18n-placeholder="ucSearchPH" oninput="renderUcList()" placeholder="Search contacts…" style="width:100%;box-sizing:border-box;margin-bottom:10px;">
+      <input type="text" id="ucSearchInput" data-i18n-placeholder="ucSearchPH" data-input-action="renderUcList" placeholder="Search contacts…" style="width:100%;box-sizing:border-box;margin-bottom:10px;">
       <div class="uc-list" id="ucList"></div>
-      <button type="button" class="settings-btn" onclick="backfillUcCoordinates()" id="ucGeocodeBackfillBtn">Geocode missing addresses</button>
-      <button type="button" class="settings-btn" onclick="fixAllMunicipalityBoundaries()" id="ucFixBoundariesBtn"><img class="icon-img icon-img-inline icon-tint-dark" src="icons/pin.png" alt="Pin"> Fix all municipality boundaries</button>
+      <button type="button" class="settings-btn" data-action="backfillUcCoordinates" id="ucGeocodeBackfillBtn">Geocode missing addresses</button>
+      <button type="button" class="settings-btn" data-action="fixAllMunicipalityBoundaries" id="ucFixBoundariesBtn"><img class="icon-img icon-img-inline icon-tint-dark" src="icons/pin.png" alt="Pin"> Fix all municipality boundaries</button>
       <div id="ucFormAnchor"></div>
 
       <div class="uc-form" id="ucForm" style="display:none">
@@ -1188,7 +1194,7 @@
         <div class="uc-form-muni-label" id="ucMuniLabel"></div>
         <div id="ucMuniPicker" style="display:none">
           <div class="uc-form-row">
-            <select class="u-flex-1" id="ucMunicipalitySelect" onchange="populateUcCatChecks()"></select>
+            <select class="u-flex-1" id="ucMunicipalitySelect" data-change-action="populateUcCatChecks"></select>
           </div>
           <div id="ucNoMunicipalitiesHint" class="detail-empty" style="display:none;"></div>
         </div>
@@ -1197,22 +1203,22 @@
         <div class="uc-multi-field">
           <div class="uc-multi-field-label" data-i18n="ucPhonesLabel">Phone numbers</div>
           <div class="uc-multi-list" id="ucPhoneList"></div>
-          <button type="button" class="uc-multi-add-btn icon-only-btn" onclick="addUcContactEntry('phone')" data-i18n-title="ucAddPhoneBtn" data-i18n-aria-label="ucAddPhoneBtn"><img class="icon-img" src="icons/phone-add.png" alt=""></button>
+          <button type="button" class="uc-multi-add-btn icon-only-btn" data-action="addUcContactEntry" data-args='["phone"]' data-i18n-title="ucAddPhoneBtn" data-i18n-aria-label="ucAddPhoneBtn"><img class="icon-img" src="icons/phone-add.png" alt=""></button>
         </div>
         <div class="uc-multi-field">
           <div class="uc-multi-field-label" data-i18n="ucEmailsLabel">Emails</div>
           <div class="uc-multi-list" id="ucEmailList"></div>
-          <button type="button" class="uc-multi-add-btn icon-only-btn" onclick="addUcContactEntry('email')" data-i18n-title="ucAddEmailBtn" data-i18n-aria-label="ucAddEmailBtn"><img class="icon-img" src="icons/email-add.png" alt=""></button>
+          <button type="button" class="uc-multi-add-btn icon-only-btn" data-action="addUcContactEntry" data-args='["email"]' data-i18n-title="ucAddEmailBtn" data-i18n-aria-label="ucAddEmailBtn"><img class="icon-img" src="icons/email-add.png" alt=""></button>
         </div>
         <input type="text" id="ucWebsite" placeholder="Website">
         <input type="text" id="ucAddress" placeholder="Address">
         <textarea id="ucNotes" placeholder="Notes (optional)"></textarea>
         <div class="uc-form-row">
-          <button type="button" class="settings-btn u-flex-1" onclick="cancelUcForm()" id="ucCancelBtn">Cancel</button>
-          <button type="button" style="background:var(--accent);color:white;flex:1;" onclick="saveUtilityCompany()" id="ucSaveBtn">Save</button>
+          <button type="button" class="settings-btn u-flex-1" data-action="cancelUcForm" id="ucCancelBtn">Cancel</button>
+          <button type="button" style="background:var(--accent);color:white;flex:1;" data-action="saveUtilityCompany" id="ucSaveBtn">Save</button>
         </div>
         <div class="uc-verify-status" id="ucVerifyStatus"></div>
-        <button type="button" class="uc-verify-btn" onclick="verifyUtilityCompany()" id="ucVerifyBtn">Admin has checked the data</button>
+        <button type="button" class="uc-verify-btn" data-action="verifyUtilityCompany" id="ucVerifyBtn">Admin has checked the data</button>
       </div>
 
     </div>
@@ -1221,7 +1227,7 @@
       <div class="admin-section-title detail-section-title" id="activityFeedSectionTitle">Recent activity</div>
       <div class="activity-feed-list" id="activityFeedList"></div>
       <div class="detail-empty" id="activityFeedEmpty" style="display:none;"></div>
-      <button type="button" class="settings-btn" id="activityFeedLoadMoreBtn" onclick="loadAdminActivityFeed(false)" style="display:none;">Load more</button>
+      <button type="button" class="settings-btn" id="activityFeedLoadMoreBtn" data-action="loadAdminActivityFeed" data-args='[false]' style="display:none;">Load more</button>
     </div>
 
     <div class="admin-section detail-section" id="accountRequestsSection" style="display:none;">
@@ -1239,21 +1245,21 @@
         <div class="admin-section-title detail-section-title" id="notificationComposeTitle">Send a notification</div>
         <div class="notification-compose-target" id="notificationComposeTarget">
           <label class="notification-target-option">
-            <input type="radio" name="notificationTarget" value="all" id="notificationTargetAll" checked onchange="onNotificationTargetChange()">
+            <input type="radio" name="notificationTarget" value="all" id="notificationTargetAll" checked data-change-action="onNotificationTargetChange">
             <span id="notificationTargetAllLabel">Everyone</span>
           </label>
           <label class="notification-target-option">
-            <input type="radio" name="notificationTarget" value="user" id="notificationTargetUser" onchange="onNotificationTargetChange()">
+            <input type="radio" name="notificationTarget" value="user" id="notificationTargetUser" data-change-action="onNotificationTargetChange">
             <span id="notificationTargetUserLabel">Specific user</span>
           </label>
         </div>
         <div id="notificationScopeHint" class="detail-export-hint" style="margin-top:6px;"></div>
         <div id="notificationUsernameWrap" style="display:none;margin-top:8px;">
-          <input type="text" id="notificationUsernameInput" placeholder="Username" autocomplete="off" style="width:100%;box-sizing:border-box;" oninput="handleNotificationUsernameInput()">
+          <input type="text" id="notificationUsernameInput" placeholder="Username" autocomplete="off" style="width:100%;box-sizing:border-box;" data-input-action="handleNotificationUsernameInput">
           <div id="notificationUsernameResults" class="navigate-results"></div>
         </div>
         <textarea id="notificationMessageInput" placeholder="Message" rows="3" style="width:100%;box-sizing:border-box;margin-top:8px;resize:vertical;"></textarea>
-        <button type="button" class="settings-btn" style="background:var(--accent);color:#fff;width:100%;margin-top:8px;" onclick="sendNotificationFromAdmin()" id="notificationSendBtn">Send</button>
+        <button type="button" class="settings-btn" style="background:var(--accent);color:#fff;width:100%;margin-top:8px;" data-action="sendNotificationFromAdmin" id="notificationSendBtn">Send</button>
       </div>
     </div>
   </div>
@@ -1262,7 +1268,7 @@
 <div id="analyticsModal" class="fullscreen-modal-overlay" style="display:none">
   <div class="fullscreen-modal-header">
     <h2 id="analyticsModalTitle" data-i18n="analyticsModalTitle">Analytics</h2>
-    <button class="fullscreen-modal-close" onclick="closeAnalyticsModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
+    <button class="fullscreen-modal-close" data-action="closeAnalyticsModal" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
   </div>
   <div class="fullscreen-modal-body">
     <div class="detail-section" style="border-top:none;">
@@ -1286,12 +1292,12 @@
 <div id="notificationModal" class="fullscreen-modal-overlay" style="display:none">
   <div class="fullscreen-modal-header">
     <h2 id="notificationModalTitle"><img class="icon-img icon-img-inline" src="icons/notification.png" alt=""> Notifications</h2>
-    <button class="fullscreen-modal-close" onclick="hideNotificationModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
+    <button class="fullscreen-modal-close" data-action="hideNotificationModal" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
   </div>
   <div class="fullscreen-modal-body" id="notificationModalBody">
     <div class="admin-section-title detail-section-title" id="notificationInboxSectionTitle" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
       <span id="notificationInboxSectionTitleText">Your notifications</span>
-      <button type="button" id="notificationClearBtn" onclick="showClearNotificationsConfirm()" style="display:none;background:none;border:none;color:var(--text-secondary);font-size:var(--fs-12-5);font-weight:var(--fw-semibold);cursor:pointer;padding:4px 0;">Clear</button>
+      <button type="button" id="notificationClearBtn" data-action="showClearNotificationsConfirm" style="display:none;background:none;border:none;color:var(--text-secondary);font-size:var(--fs-12-5);font-weight:var(--fw-semibold);cursor:pointer;padding:4px 0;">Clear</button>
     </div>
     <div id="notificationUserList"></div>
   </div>
@@ -1305,12 +1311,12 @@
 <div id="categoryFilterModal" class="fullscreen-modal-overlay" style="display:none">
   <div class="fullscreen-modal-header">
     <h2 id="categoryFilterPanelTitle" data-i18n="categoryFilterPanelTitle">Show on map</h2>
-    <button class="fullscreen-modal-close" onclick="hideCategoryFilterModal()" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
+    <button class="fullscreen-modal-close" data-action="hideCategoryFilterModal" aria-label="Close"><img class="icon-img" src="icons/close.png" alt="close"></button>
   </div>
   <div class="fullscreen-modal-body">
     <div class="detail-section" style="overflow:hidden;">
       <label class="cat-filter-row">
-        <input type="checkbox" id="categoryFilterAll" checked onchange="onCategoryFilterAllToggle(this.checked)">
+        <input type="checkbox" id="categoryFilterAll" checked data-change-action="onCategoryFilterAllToggle" data-change-args='[{"$":"checked"}]'>
         <span class="cat-filter-dot" style="background:var(--text-muted)"></span>
         <span id="categoryFilterAllLabel" data-i18n="categoryFilterAllLabel">All categories</span>
       </label>
@@ -1336,7 +1342,7 @@
      above rather than eagerly here. -->
 <script src="app.min.js"></script>
 
-<div class="global-offline-banner" id="globalOfflineBanner" style="display:none" onclick="syncOfflineQueue(true)" title="Tap to retry now">
+<div class="global-offline-banner" id="globalOfflineBanner" style="display:none" data-action="syncOfflineQueue" data-args='[true]' title="Tap to retry now">
   <span class="offline-queue-dot"></span>
   <span id="globalOfflineBannerText"></span>
   <span class="global-offline-banner-retry" id="globalOfflineBannerRetryLabel" data-i18n="offlineQueueRetry">Retry</span>
@@ -1354,8 +1360,8 @@
     <div class="onboarding-tooltip-title" id="onboardingStepTitle"></div>
     <div class="onboarding-tooltip-text" id="onboardingStepText"></div>
     <div class="onboarding-tooltip-actions">
-      <button type="button" class="onboarding-skip-btn" id="onboardingSkipBtn" onclick="skipOnboardingTour()"></button>
-      <button type="button" class="onboarding-next-btn" id="onboardingNextBtn" onclick="advanceOnboardingTour()"></button>
+      <button type="button" class="onboarding-skip-btn" id="onboardingSkipBtn" data-action="skipOnboardingTour"></button>
+      <button type="button" class="onboarding-next-btn" id="onboardingNextBtn" data-action="advanceOnboardingTour"></button>
     </div>
   </div>
 </div>
